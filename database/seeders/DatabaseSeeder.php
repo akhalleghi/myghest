@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -15,11 +14,15 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        /*
+        نمونه کاربر عمومی پیش‌فرض Laravel؛ برای سپرده‌ها در گام بعدی در صورت نیاز فعال کنید.
 
         User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
+        */
+
+        $this->call(AdminSeeder::class);
     }
 }
