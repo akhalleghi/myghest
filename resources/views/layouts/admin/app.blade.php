@@ -554,6 +554,7 @@
             }
         }
     </style>
+    @include('layouts.partials.sweetalert2-css')
     @stack('head')
 </head>
 <body class="admin-app">
@@ -583,7 +584,7 @@
                 <div class="nav-section-label">منو</div>
                 @php($nav = [
                     ['label' => 'داشبورد', 'href' => route('admin.dashboard'), 'icon' => 'fa-gauge-high', 'route' => 'admin.dashboard'],
-                    ['label' => 'تعریف انواع وام', 'icon' => 'fa-money-bill-transfer', 'disabled' => true],
+                    ['label' => 'تعریف انواع وام', 'href' => route('admin.loan-types.index'), 'icon' => 'fa-money-bill-transfer', 'route' => 'admin.loan-types.index'],
                     ['label' => 'لیست مشتریان', 'icon' => 'fa-users', 'disabled' => true],
                     ['label' => 'اعلام واریزها', 'icon' => 'fa-building-columns', 'disabled' => true],
                     ['label' => 'مدیریت پیامک و ایمیل', 'icon' => 'fa-envelope', 'disabled' => true],
@@ -806,6 +807,7 @@
             });
         })();
     </script>
+    @include('layouts.partials.sweetalert2-init')
     @stack('scripts')
 </body>
 </html>

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
 use App\Http\Controllers\Admin\Auth\AdminDashboardController;
 use App\Http\Controllers\Admin\Auth\AdminLoginController;
+use App\Http\Controllers\Admin\LoanTypeController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -59,4 +60,21 @@ Route::middleware(['auth:admin'])->group(function (): void {
     | داشبورد موقت؛ ساخت صفحه‌های واقعی سیستم اقساط در گام بعدی خواهد بود.
     */
     Route::get('/', AdminDashboardController::class)->name('dashboard');
+
+    /*
+    | تعریف انواع وام — فهرست و جدول (افزودن/ویرایش در گام بعدی).
+    */
+    Route::get('/loan-types', [LoanTypeController::class, 'index'])->name('loan-types.index');
+
+    Route::post('/loan-types', [LoanTypeController::class, 'store'])
+        ->middleware('throttle:30,1')
+        ->name('loan-types.store');
+
+    Route::put('/loan-types/{loanType}', [LoanTypeController::class, 'update'])
+        ->middleware('throttle:30,1')
+        ->name('loan-types.update');
+
+    Route::delete('/loan-types/{loanType}', [LoanTypeController::class, 'destroy'])
+        ->middleware('throttle:30,1')
+        ->name('loan-types.destroy');
 });
