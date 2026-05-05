@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
 use App\Http\Controllers\Admin\Auth\AdminDashboardController;
 use App\Http\Controllers\Admin\Auth\AdminLoginController;
 use App\Http\Controllers\Admin\LoanTypeController;
+use App\Http\Controllers\Admin\SmsManagementController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -84,4 +85,8 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::delete('/loan-types/{loanType}', [LoanTypeController::class, 'destroy'])
         ->middleware('throttle:30,1')
         ->name('loan-types.destroy');
+
+    Route::get('/sms-management', [SmsManagementController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('sms.index');
 });

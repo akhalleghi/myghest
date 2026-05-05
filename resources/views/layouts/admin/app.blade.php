@@ -554,6 +554,7 @@
             }
         }
     </style>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
     @include('layouts.partials.sweetalert2-css')
     @stack('head')
 </head>
@@ -587,7 +588,7 @@
                     ['label' => 'تعریف انواع وام', 'href' => route('admin.loan-types.index'), 'icon' => 'fa-money-bill-transfer', 'route' => 'admin.loan-types.index'],
                     ['label' => 'لیست مشتریان', 'icon' => 'fa-users', 'disabled' => true],
                     ['label' => 'اعلام واریزها', 'icon' => 'fa-building-columns', 'disabled' => true],
-                    ['label' => 'مدیریت پیامک و ایمیل', 'icon' => 'fa-envelope', 'disabled' => true],
+                    ['label' => 'مدیریت پیامک', 'href' => route('admin.sms.index'), 'icon' => 'fa-envelope', 'route' => 'admin.sms.index'],
                     ['label' => 'درخواست وام‌ها', 'icon' => 'fa-file-invoice', 'disabled' => true],
                     ['label' => 'نماینده‌ها', 'icon' => 'fa-user-tie', 'disabled' => true],
                     ['label' => 'بازاریاب‌ها', 'icon' => 'fa-bullhorn', 'disabled' => true],
