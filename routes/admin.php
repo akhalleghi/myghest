@@ -65,6 +65,9 @@ Route::middleware(['auth:admin'])->group(function (): void {
     | تعریف انواع وام — فهرست و جدول (افزودن/ویرایش در گام بعدی).
     */
     Route::get('/loan-types', [LoanTypeController::class, 'index'])->name('loan-types.index');
+    Route::get('/loan-types/export-excel', [LoanTypeController::class, 'exportExcel'])
+        ->middleware('throttle:20,1')
+        ->name('loan-types.export-excel');
 
     Route::post('/loan-types', [LoanTypeController::class, 'store'])
         ->middleware('throttle:30,1')
@@ -73,6 +76,10 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::put('/loan-types/{loanType}', [LoanTypeController::class, 'update'])
         ->middleware('throttle:30,1')
         ->name('loan-types.update');
+
+    Route::get('/loan-types/{loanType}/plan-image', [LoanTypeController::class, 'planImage'])
+        ->middleware('throttle:120,1')
+        ->name('loan-types.plan-image');
 
     Route::delete('/loan-types/{loanType}', [LoanTypeController::class, 'destroy'])
         ->middleware('throttle:30,1')

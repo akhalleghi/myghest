@@ -18,10 +18,14 @@
         .lt-errs__title { margin: 0 0 0.45rem; font-size: 0.82rem; font-weight: 800; color: inherit; }
         .lt-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.65rem; margin-bottom: 0.85rem; }
         .lt-search { flex: 1 1 12rem; min-width: 0; max-width: 22rem; }
+        .lt-toolbar-actions { display: inline-flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
         .lt-search input { width: 100%; padding: 0.55rem 0.75rem; border-radius: 0.7rem; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); font-size: 0.86rem; font-family: inherit; }
         .lt-search input:focus { outline: none; border-color: rgba(37, 99, 235, 0.45); box-shadow: 0 0 0 3px var(--primary-soft, rgba(37, 99, 235, 0.12)); }
         .lt-btn-add { font-family: inherit; font-size: 0.84rem; font-weight: 700; padding: 0.55rem 1rem; border-radius: 0.7rem; border: none; cursor: pointer; background: linear-gradient(180deg, var(--primary), var(--primary-dark)); color: #fff; display: inline-flex; align-items: center; gap: 0.4rem; box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28); white-space: nowrap; }
         .lt-btn-add:hover { filter: brightness(1.04); }
+        .lt-btn-export { font-family: inherit; font-size: 0.84rem; font-weight: 700; padding: 0.55rem 1rem; border-radius: 0.7rem; border: 1px solid rgba(16, 185, 129, 0.45); cursor: pointer; background: rgba(16, 185, 129, 0.12); color: #047857; display: inline-flex; align-items: center; gap: 0.4rem; text-decoration: none; white-space: nowrap; }
+        .lt-btn-export:hover { filter: brightness(1.04); }
+        html[data-theme="dark"] .lt-btn-export { color: #6ee7b7; background: rgba(5, 150, 105, 0.2); border-color: rgba(16, 185, 129, 0.35); }
         .lt-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 0.95rem; overflow: hidden; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05); }
         html[data-theme="dark"] .lt-card { box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25); }
         .lt-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -117,6 +121,58 @@
         .lt-file-input { position: absolute; width: 0.01rem; height: 0.01rem; opacity: 0; overflow: hidden; z-index: -1; }
         .lt-btn--sm { font-size: 0.78rem; padding: 0.42rem 0.72rem; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
         .lt-body-field textarea.lt-textarea { min-height: 10rem; max-height: 22rem; }
+
+        /* مدارک لازم + مودال انتخاب */
+        .lt-modal--picker { z-index: 1400; }
+        .lt-btn-add-doc { font-family: inherit; font-size: 0.84rem; font-weight: 700; padding: 0.55rem 1.1rem; border-radius: 0.7rem; border: none; cursor: pointer; background: linear-gradient(180deg, var(--primary), var(--primary-dark)); color: #fff; display: flex; align-items: center; justify-content: center; gap: 0.45rem; margin: 0 auto 1rem; box-shadow: 0 6px 16px rgba(37, 99, 235, 0.22); }
+        .lt-btn-add-doc:hover { filter: brightness(1.04); }
+        .lt-docs-empty { text-align: center; color: var(--muted); font-size: 0.84rem; padding: 0.5rem 0 1rem; }
+        .lt-doc-card { border: 1px solid var(--border); border-radius: 0.75rem; padding: 0.75rem 0.85rem; margin-bottom: 0.65rem; background: var(--bg-card); }
+        .lt-doc-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.45rem; }
+        .lt-doc-card__title { font-weight: 800; font-size: 0.86rem; color: var(--text); line-height: 1.45; flex: 1; min-width: 0; }
+        .lt-doc-card__badge { flex-shrink: 0; font-size: 0.68rem; font-weight: 700; padding: 0.2rem 0.45rem; border-radius: 0.4rem; background: var(--primary-soft); color: var(--primary-dark); white-space: nowrap; }
+        .lt-doc-card__badge--sys { background: rgba(139, 92, 246, 0.15); color: #6d28d9; }
+        html[data-theme="dark"] .lt-doc-card__badge--sys { color: #c4b5fd; }
+        .lt-doc-card__del { flex-shrink: 0; width: 2rem; height: 2rem; border-radius: 0.5rem; border: 1px solid rgba(248, 113, 113, 0.45); background: rgba(254, 242, 242, 0.65); color: #b91c1c; cursor: pointer; display: grid; place-items: center; font-size: 0.88rem; }
+        html[data-theme="dark"] .lt-doc-card__del { background: rgba(127, 29, 29, 0.35); color: #fca5a5; }
+        .lt-doc-card__desc { font-size: 0.76rem; color: var(--muted); line-height: 1.5; margin-bottom: 0.55rem; }
+        .lt-doc-card__desc:empty { display: none; }
+        .lt-doc-timing { font-size: 0.78rem; }
+        .lt-doc-timing label { display: flex; align-items: flex-start; gap: 0.4rem; margin-bottom: 0.35rem; cursor: pointer; font-weight: 600; color: var(--text); }
+        .lt-doc-timing input { accent-color: var(--primary); margin-top: 0.12rem; flex-shrink: 0; }
+        .lt-doc-timing small { display: block; font-weight: 500; color: var(--muted); font-size: 0.7rem; margin-top: 0.12rem; line-height: 1.45; }
+        .lt-picker-doc { border: 1px solid var(--border); border-radius: 0.7rem; padding: 0.65rem 0.75rem; margin-bottom: 0.55rem; background: var(--bg-card); opacity: 0.72; transition: opacity 0.15s; }
+        .lt-picker-doc.is-on { opacity: 1; border-color: rgba(37, 99, 235, 0.35); }
+        .lt-picker-doc__row1 { display: flex; align-items: center; justify-content: space-between; gap: 0.45rem; margin-bottom: 0.4rem; flex-wrap: wrap; }
+        .lt-picker-doc__check { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; font-weight: 700; color: var(--text); cursor: pointer; user-select: none; flex: 1 1 8rem; }
+        .lt-picker-doc__check input { accent-color: var(--primary); width: 1.05rem; height: 1.05rem; }
+        .lt-picker-doc__name { flex: 1 1 100%; font-size: 0.82rem; font-weight: 800; color: var(--text); line-height: 1.45; padding-inline-start: 1.45rem; }
+        .lt-picker-doc__meta { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+        .lt-picker-doc__badge { font-size: 0.68rem; font-weight: 700; padding: 0.18rem 0.4rem; border-radius: 0.35rem; background: var(--primary-soft); color: var(--primary-dark); }
+        .lt-picker-doc__badge--sys { background: rgba(139, 92, 246, 0.15); color: #6d28d9; }
+        .lt-picker-doc .lt-field { margin-bottom: 0.45rem; }
+        .lt-picker-doc .lt-field:last-child { margin-bottom: 0; }
+        .lt-modal__box--wide { width: min(100%, 46rem); }
+        .lt-picker-doc__remove {
+            flex-shrink: 0;
+            width: 2rem;
+            height: 2rem;
+            border-radius: 0.55rem;
+            border: 1px solid rgba(248, 113, 113, 0.45);
+            background: rgba(254, 242, 242, 0.65);
+            color: #b91c1c;
+            cursor: pointer;
+            display: grid;
+            place-items: center;
+        }
+        html[data-theme="dark"] .lt-picker-doc__remove {
+            background: rgba(127, 29, 29, 0.35);
+            color: #fca5a5;
+            border-color: rgba(248, 113, 113, 0.3);
+        }
+        .lt-doc-add-wrap { text-align: center; margin-top: 0.35rem; }
+        .lt-doc-main-list { min-height: 0.5rem; }
+        .lt-doc-picker-list { max-height: min(58vh, 440px); overflow-y: auto; -webkit-overflow-scrolling: touch; padding-inline-end: 0.15rem; }
     </style>
 @endpush
 
@@ -135,6 +191,16 @@
         $ltEditingId = old('loan_type_id');
         $ltRoutePlaceholder = 999999001;
         $ltUpdateUrlTemplate = str_replace((string) $ltRoutePlaceholder, '__ID__', route('admin.loan-types.update', ['loanType' => $ltRoutePlaceholder]));
+        $ltDocsSeed = '[]';
+        $ltDocsOldJson = old('required_documents_json');
+        if (is_string($ltDocsOldJson) && $ltDocsOldJson !== '') {
+            $ltDocsSeed = $ltDocsOldJson;
+        } elseif ($ltEditingId !== null && $ltEditingId !== '') {
+            $ltEditIdInt = (int) $ltEditingId;
+            if ($ltEditIdInt > 0 && isset($loanEditMap[$ltEditIdInt])) {
+                $ltDocsSeed = json_encode($loanEditMap[$ltEditIdInt]['required_documents'] ?? [], JSON_UNESCAPED_UNICODE);
+            }
+        }
     @endphp
     <div class="lt-page">
         <h1 class="lt-title">وام‌های من</h1>
@@ -151,10 +217,16 @@
                     aria-controls="loan-types-tbody"
                 >
             </div>
-            <button type="button" class="lt-btn-add" id="loan-type-add-btn">
-                <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                افزودن وام
-            </button>
+            <div class="lt-toolbar-actions">
+                <a class="lt-btn-export" href="{{ route('admin.loan-types.export-excel') }}">
+                    <i class="fa-solid fa-file-excel" aria-hidden="true"></i>
+                    خروجی اکسل
+                </a>
+                <button type="button" class="lt-btn-add" id="loan-type-add-btn">
+                    <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                    افزودن وام
+                </button>
+            </div>
         </div>
 
         <div class="lt-card">
@@ -276,6 +348,7 @@
                     @method('PUT')
                 @endif
                 <input type="hidden" name="loan_type_id" id="lt-hidden-loan-type-id" value="{{ $ltEditingId ?? '' }}" @if (! $ltEditingId) disabled @endif>
+                <input type="hidden" name="required_documents_json" id="lt-required-docs-json" value="{{ e($ltDocsSeed) }}">
 
                 <div class="lt-modal__body">
                     @if ($errors->any())
@@ -480,7 +553,15 @@
                     </div>
 
                     <div class="lt-tab-panel" role="tabpanel" id="lt-panel-docs" data-lt-panel="docs">
-                        <p class="lt-tab-panel--muted">مدارک لازم در مرحله بعد تکمیل می‌شود.</p>
+                        <p class="lt-hint" style="margin-top:0">مدارک مورد نیاز این نوع وام را مشخص کنید؛ مشتری بر اساس زمان ارائه (ثبت درخواست یا پس از ارزیابی) مطلع می‌شود.</p>
+                        @error('required_documents')<div class="lt-field-error">{{ $message }}</div>@enderror
+                        <div id="lt-docs-main-list" class="lt-doc-main-list" aria-live="polite"></div>
+                        <div class="lt-doc-add-wrap">
+                            <button type="button" class="lt-btn-add-doc" id="lt-open-doc-picker">
+                                <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                                افزودن مدرک
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -491,6 +572,33 @@
                     </div>
                 </div>
             </form>
+        </div>
+    </div>
+
+    {{-- مودال انتخاب مدارک از فهرست پیش‌فرض --}}
+    <div id="lt-doc-picker-modal" class="lt-modal lt-modal--picker" hidden aria-hidden="true">
+        <div class="lt-modal__box lt-modal__box--wide" role="document">
+            <div class="lt-modal__head">
+                <h2 class="lt-modal__title" id="lt-doc-picker-title">مدیریت مدارک</h2>
+                <button type="button" class="lt-modal__close" id="lt-doc-picker-close" aria-label="بستن">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="lt-modal__body">
+                <p class="lt-hint" style="margin-top:0">موارد مورد نیاز را تیک بزنید، در صورت تمایل عنوان و توضیح کوتاه را ویرایش کنید و تأیید کنید.</p>
+                <div class="lt-doc-add-wrap">
+                    <button type="button" class="lt-btn-add-doc" id="lt-add-new-doc">
+                        <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                        افزودن مدرک مدرک جدید
+                    </button>
+                </div>
+                <div id="lt-doc-picker-list" class="lt-doc-picker-list"></div>
+            </div>
+            <div class="lt-modal__foot">
+                <div class="lt-modal__actions" style="justify-content:center;width:100%">
+                    <button type="button" class="lt-btn lt-btn--primary" id="lt-doc-picker-confirm">تایید آیتم های انتخاب شده</button>
+                </div>
+            </div>
         </div>
     </div>
 @endsection
@@ -532,6 +640,506 @@
             var cancelBtn = document.getElementById('loan-type-modal-cancel');
             var form = document.getElementById('loan-type-store-form');
 
+            var LT_DOC_PRESETS = @json(\App\Models\LoanType::requiredDocumentsPresetListForFrontEnd());
+            var LT_DOC_TIMING_INITIAL = @json(\App\Models\LoanType::DOC_TIMING_INITIAL);
+            var LT_DOC_TIMING_AFTER = @json(\App\Models\LoanType::DOC_TIMING_AFTER_EVALUATION);
+            var ltDocsState = [];
+            var docsJsonInput = document.getElementById('lt-required-docs-json');
+            var docsMainList = document.getElementById('lt-docs-main-list');
+            var docPickerModal = document.getElementById('lt-doc-picker-modal');
+            var docPickerList = document.getElementById('lt-doc-picker-list');
+            var docPickerOpenBtn = document.getElementById('lt-open-doc-picker');
+            var docPickerCloseBtn = document.getElementById('lt-doc-picker-close');
+            var docPickerConfirmBtn = document.getElementById('lt-doc-picker-confirm');
+            var docPickerAddNewBtn = document.getElementById('lt-add-new-doc');
+
+            function parseDocsFromHidden() {
+                ltDocsState = [];
+                if (!docsJsonInput || !docsJsonInput.value) return;
+                try {
+                    var a = JSON.parse(docsJsonInput.value);
+                    if (Array.isArray(a)) {
+                        a.forEach(function (row) {
+                            if (!row || !row.preset_key) return;
+                            var t = row.timing === LT_DOC_TIMING_INITIAL ? LT_DOC_TIMING_INITIAL : LT_DOC_TIMING_AFTER;
+                            ltDocsState.push({
+                                preset_key: String(row.preset_key),
+                                title: row.title != null ? String(row.title) : '',
+                                description: row.description != null && String(row.description).trim() !== '' ? String(row.description) : null,
+                                timing: t
+                            });
+                        });
+                    }
+                } catch (err) {}
+            }
+
+            function syncDocsToHidden() {
+                if (docsJsonInput) {
+                    docsJsonInput.value = JSON.stringify(ltDocsState);
+                }
+            }
+
+            function getPresetMeta(key) {
+                for (var i = 0; i < LT_DOC_PRESETS.length; i++) {
+                    if (LT_DOC_PRESETS[i].key === key) return LT_DOC_PRESETS[i];
+                }
+                return null;
+            }
+
+            function renderMainDocsList() {
+                if (!docsMainList) return;
+                docsMainList.innerHTML = '';
+                if (ltDocsState.length === 0) {
+                    var empty = document.createElement('p');
+                    empty.className = 'lt-docs-empty';
+                    empty.textContent = 'هنوز مدرکی اضافه نشده. روی «افزودن مدرک» بزنید.';
+                    docsMainList.appendChild(empty);
+                    return;
+                }
+                ltDocsState.forEach(function (doc) {
+                    var meta = getPresetMeta(doc.preset_key);
+                    var badgeSys = meta && meta.systemEquivalent;
+                    var card = document.createElement('div');
+                    card.className = 'lt-doc-card';
+                    card.setAttribute('data-lt-doc-card-key', doc.preset_key);
+
+                    var top = document.createElement('div');
+                    top.className = 'lt-doc-card__top';
+
+                    var mid = document.createElement('div');
+                    mid.style.flex = '1';
+                    mid.style.minWidth = '0';
+
+                    var titleEl = document.createElement('div');
+                    titleEl.className = 'lt-doc-card__title';
+                    titleEl.textContent = doc.title || 'بدون عنوان';
+
+                    mid.appendChild(titleEl);
+
+                    var badge = document.createElement('span');
+                    badge.className = 'lt-doc-card__badge' + (badgeSys ? ' lt-doc-card__badge--sys' : '');
+                    badge.textContent = badgeSys ? 'معادل سیستمی' : 'غیر سیستمی';
+                    mid.appendChild(badge);
+
+                    var descEl = document.createElement('div');
+                    descEl.className = 'lt-doc-card__desc';
+                    if (doc.description) descEl.textContent = doc.description;
+
+                    var delBtn = document.createElement('button');
+                    delBtn.type = 'button';
+                    delBtn.className = 'lt-doc-card__del';
+                    delBtn.setAttribute('data-lt-doc-remove', doc.preset_key);
+                    delBtn.setAttribute('aria-label', 'حذف مدرک');
+                    delBtn.innerHTML = '<i class="fa-solid fa-trash-can" aria-hidden="true"></i>';
+
+                    top.appendChild(mid);
+                    top.appendChild(delBtn);
+
+                    var timingWrap = document.createElement('div');
+                    timingWrap.className = 'lt-doc-timing';
+
+                    var r1Lbl = document.createElement('label');
+                    var r1 = document.createElement('input');
+                    r1.type = 'radio';
+                    r1.name = 'lt_doc_timing_' + doc.preset_key;
+                    r1.value = LT_DOC_TIMING_INITIAL;
+                    r1.setAttribute('data-lt-doc-timing', '1');
+                    r1.setAttribute('data-lt-doc-key', doc.preset_key);
+                    r1.checked = doc.timing === LT_DOC_TIMING_INITIAL;
+                    r1Lbl.appendChild(r1);
+                    var sp1 = document.createElement('span');
+                    sp1.innerHTML = 'مدارک اولیه<small>مدارک اولیه در زمان ثبت درخواست باید توسط مشتری ارائه شوند.</small>';
+                    r1Lbl.appendChild(sp1);
+
+                    var r2Lbl = document.createElement('label');
+                    var r2 = document.createElement('input');
+                    r2.type = 'radio';
+                    r2.name = 'lt_doc_timing_' + doc.preset_key;
+                    r2.value = LT_DOC_TIMING_AFTER;
+                    r2.setAttribute('data-lt-doc-timing', '1');
+                    r2.setAttribute('data-lt-doc-key', doc.preset_key);
+                    r2.checked = doc.timing === LT_DOC_TIMING_AFTER;
+                    r2Lbl.appendChild(r2);
+                    var sp2 = document.createElement('span');
+                    sp2.innerHTML = 'پس از ارزیابی<small>پس از ارزیابی توسط کارشناس به مدارک اضافه شوند.</small>';
+                    r2Lbl.appendChild(sp2);
+
+                    timingWrap.appendChild(r1Lbl);
+                    timingWrap.appendChild(r2Lbl);
+
+                    card.appendChild(top);
+                    card.appendChild(descEl);
+                    card.appendChild(timingWrap);
+                    docsMainList.appendChild(card);
+                });
+            }
+
+            function closeDocPicker() {
+                if (!docPickerModal) return;
+                docPickerModal.setAttribute('hidden', '');
+                docPickerModal.setAttribute('aria-hidden', 'true');
+            }
+
+            function openDocPicker() {
+                if (!docPickerModal || !docPickerList) return;
+                docPickerList.innerHTML = '';
+                LT_DOC_PRESETS.forEach(function (meta) {
+                    var existing = null;
+                    ltDocsState.forEach(function (d) {
+                        if (d.preset_key === meta.key) existing = d;
+                    });
+                    var checked = !!existing;
+                    var titleVal = existing && existing.title ? existing.title : meta.defaultTitle;
+                    var descVal = existing && existing.description ? existing.description : '';
+
+                    var row = document.createElement('div');
+                    row.className = 'lt-picker-doc' + (checked ? ' is-on' : '');
+                    row.setAttribute('data-lt-picker-key', meta.key);
+
+                    var row1 = document.createElement('div');
+                    row1.className = 'lt-picker-doc__row1';
+
+                    var lbl = document.createElement('label');
+                    lbl.className = 'lt-picker-doc__check';
+                    var cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.className = 'lt-picker-doc-cb';
+                    cb.checked = checked;
+                    lbl.appendChild(cb);
+                    var lt = document.createTextNode('انتخاب / فعال‌سازی');
+                    lbl.appendChild(lt);
+
+                    var badge = document.createElement('span');
+                    badge.className = 'lt-picker-doc__badge' + (meta.systemEquivalent ? ' lt-picker-doc__badge--sys' : '');
+                    badge.textContent = meta.systemEquivalent ? 'معادل سیستمی' : 'غیر سیستمی';
+
+                    row1.appendChild(lbl);
+                    var metaWrap = document.createElement('div');
+                    metaWrap.className = 'lt-picker-doc__meta';
+                    metaWrap.appendChild(badge);
+                    row1.appendChild(metaWrap);
+                    row.appendChild(row1);
+
+                    var nameEl = document.createElement('div');
+                    nameEl.className = 'lt-picker-doc__name';
+                    nameEl.textContent = titleVal;
+                    row.appendChild(nameEl);
+
+                    var fTitle = document.createElement('div');
+                    fTitle.className = 'lt-field';
+                    var l1 = document.createElement('label');
+                    l1.className = 'lt-hint';
+                    l1.textContent = 'عنوان مدرک';
+                    var inp = document.createElement('input');
+                    inp.type = 'text';
+                    inp.className = 'lt-input lt-picker-title';
+                    inp.maxLength = 500;
+                    inp.value = titleVal;
+                    inp.disabled = !checked;
+                    fTitle.style.display = checked ? '' : 'none';
+                    fTitle.appendChild(l1);
+                    fTitle.appendChild(inp);
+
+                    var fDesc = document.createElement('div');
+                    fDesc.className = 'lt-field';
+                    var l2 = document.createElement('label');
+                    l2.className = 'lt-hint';
+                    l2.textContent = 'توضیحات';
+                    var ta = document.createElement('textarea');
+                    ta.className = 'lt-textarea lt-picker-desc';
+                    ta.rows = 2;
+                    ta.maxLength = 2000;
+                    ta.value = descVal;
+                    ta.disabled = !checked;
+                    fDesc.style.display = checked ? '' : 'none';
+                    fDesc.appendChild(l2);
+                    fDesc.appendChild(ta);
+
+                    row.appendChild(fTitle);
+                    row.appendChild(fDesc);
+
+                    cb.addEventListener('change', function () {
+                        row.classList.toggle('is-on', cb.checked);
+                        inp.disabled = !cb.checked;
+                        ta.disabled = !cb.checked;
+                        fTitle.style.display = cb.checked ? '' : 'none';
+                        fDesc.style.display = cb.checked ? '' : 'none';
+                        nameEl.textContent = inp.value.trim() || titleVal;
+                    });
+
+                    inp.addEventListener('input', function () {
+                        nameEl.textContent = inp.value.trim() || titleVal;
+                    });
+
+                    docPickerList.appendChild(row);
+                });
+
+                var firstPresetEl = docPickerList.firstElementChild;
+
+                // رندر مدارک سفارشی (کلیدهایی با پیشوند custom_)
+                ltDocsState.forEach(function (doc) {
+                    if (!doc || !doc.preset_key) return;
+                    if (!String(doc.preset_key).startsWith('custom_')) return;
+
+                    var key = String(doc.preset_key);
+                    var titleVal = doc.title ? String(doc.title) : 'مدرک جدید';
+                    var descVal = doc.description ? String(doc.description) : '';
+                    var checked = true;
+
+                    var row = document.createElement('div');
+                    row.className = 'lt-picker-doc is-on';
+                    row.setAttribute('data-lt-picker-key', key);
+
+                    var row1 = document.createElement('div');
+                    row1.className = 'lt-picker-doc__row1';
+
+                    var lbl = document.createElement('label');
+                    lbl.className = 'lt-picker-doc__check';
+                    var cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.className = 'lt-picker-doc-cb';
+                    cb.checked = true;
+                    lbl.appendChild(cb);
+                    var lt = document.createTextNode('انتخاب / فعال‌سازی');
+                    lbl.appendChild(lt);
+
+                    var badge = document.createElement('span');
+                    badge.className = 'lt-picker-doc__badge';
+                    badge.textContent = 'مدرک جدید';
+
+                    row1.appendChild(lbl);
+                    row1.appendChild(badge);
+
+                    var delBtn = document.createElement('button');
+                    delBtn.type = 'button';
+                    delBtn.className = 'lt-picker-doc__remove';
+                    delBtn.setAttribute('aria-label', 'حذف مدرک جدید');
+                    delBtn.innerHTML = '<i class="fa-solid fa-trash-can" aria-hidden="true"></i>';
+                    delBtn.addEventListener('click', function () {
+                        row.remove();
+                    });
+                    row1.appendChild(delBtn);
+                    row.appendChild(row1);
+
+                    var fTitle = document.createElement('div');
+                    fTitle.className = 'lt-field';
+                    var l1 = document.createElement('label');
+                    l1.className = 'lt-hint';
+                    l1.textContent = 'عنوان مدرک';
+                    var inp = document.createElement('input');
+                    inp.type = 'text';
+                    inp.className = 'lt-input lt-picker-title';
+                    inp.maxLength = 500;
+                    inp.value = titleVal;
+                    inp.disabled = false;
+                    fTitle.appendChild(l1);
+                    fTitle.appendChild(inp);
+
+                    var fDesc = document.createElement('div');
+                    fDesc.className = 'lt-field';
+                    var l2 = document.createElement('label');
+                    l2.className = 'lt-hint';
+                    l2.textContent = 'توضیحات';
+                    var ta = document.createElement('textarea');
+                    ta.className = 'lt-textarea lt-picker-desc';
+                    ta.rows = 2;
+                    ta.maxLength = 2000;
+                    ta.value = descVal;
+                    ta.disabled = false;
+                    fDesc.appendChild(l2);
+                    fDesc.appendChild(ta);
+
+                    row.appendChild(fTitle);
+                    row.appendChild(fDesc);
+
+                    cb.addEventListener('change', function () {
+                        row.classList.toggle('is-on', cb.checked);
+                        inp.disabled = !cb.checked;
+                        ta.disabled = !cb.checked;
+                        fTitle.style.display = cb.checked ? '' : 'none';
+                        fDesc.style.display = cb.checked ? '' : 'none';
+                    });
+
+                    if (firstPresetEl) {
+                        docPickerList.insertBefore(row, firstPresetEl);
+                    } else {
+                        docPickerList.appendChild(row);
+                    }
+                });
+
+                docPickerModal.removeAttribute('hidden');
+                docPickerModal.setAttribute('aria-hidden', 'false');
+            }
+
+            function confirmDocPicker() {
+                if (!docPickerList) return;
+                var timingByKey = {};
+                ltDocsState.forEach(function (d) {
+                    timingByKey[d.preset_key] = d.timing;
+                });
+                var next = [];
+                docPickerList.querySelectorAll('[data-lt-picker-key]').forEach(function (row) {
+                    var key = row.getAttribute('data-lt-picker-key');
+                    var cb = row.querySelector('.lt-picker-doc-cb');
+                    if (!cb || !cb.checked) return;
+                    var meta = getPresetMeta(key);
+                    var ti = row.querySelector('.lt-picker-title');
+                    var td = row.querySelector('.lt-picker-desc');
+                    var title = ti && ti.value.trim() ? ti.value.trim() : (meta ? meta.defaultTitle : 'مدرک جدید');
+                    var desc = td && td.value.trim() ? td.value.trim() : null;
+                    next.push({
+                        preset_key: key,
+                        title: title,
+                        description: desc,
+                        timing: timingByKey[key] || LT_DOC_TIMING_AFTER
+                    });
+                });
+                ltDocsState = next;
+                syncDocsToHidden();
+                renderMainDocsList();
+                closeDocPicker();
+            }
+
+            if (docsMainList) {
+                docsMainList.addEventListener('change', function (e) {
+                    var el = e.target;
+                    if (!el || el.getAttribute('data-lt-doc-timing') !== '1') return;
+                    var key = el.getAttribute('data-lt-doc-key');
+                    var val = el.value;
+                    ltDocsState.forEach(function (d) {
+                        if (d.preset_key === key) d.timing = val;
+                    });
+                    syncDocsToHidden();
+                });
+                docsMainList.addEventListener('click', function (e) {
+                    var btn = e.target.closest('[data-lt-doc-remove]');
+                    if (!btn || !docsMainList.contains(btn)) return;
+                    e.preventDefault();
+                    var rk = btn.getAttribute('data-lt-doc-remove');
+                    ltDocsState = ltDocsState.filter(function (d) {
+                        return d.preset_key !== rk;
+                    });
+                    syncDocsToHidden();
+                    renderMainDocsList();
+                });
+            }
+
+            if (docPickerOpenBtn) {
+                docPickerOpenBtn.addEventListener('click', function () {
+                    openDocPicker();
+                });
+            }
+            if (docPickerCloseBtn) docPickerCloseBtn.addEventListener('click', closeDocPicker);
+            if (docPickerConfirmBtn) docPickerConfirmBtn.addEventListener('click', confirmDocPicker);
+            if (docPickerAddNewBtn) {
+                docPickerAddNewBtn.addEventListener('click', function () {
+                    if (!docPickerList) return;
+
+                    var key = 'custom_' + Date.now() + '_' + Math.random().toString(16).slice(2, 8);
+
+                    var row = document.createElement('div');
+                    row.className = 'lt-picker-doc';
+                    row.setAttribute('data-lt-picker-key', key);
+
+                    var row1 = document.createElement('div');
+                    row1.className = 'lt-picker-doc__row1';
+
+                    var lbl = document.createElement('label');
+                    lbl.className = 'lt-picker-doc__check';
+                    var cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.className = 'lt-picker-doc-cb';
+                    cb.checked = false;
+                    lbl.appendChild(cb);
+                    var lt = document.createTextNode('انتخاب / فعال‌سازی');
+                    lbl.appendChild(lt);
+
+                    var badge = document.createElement('span');
+                    badge.className = 'lt-picker-doc__badge';
+                    badge.textContent = 'مدرک جدید';
+
+                    row1.appendChild(lbl);
+                    var metaWrap = document.createElement('div');
+                    metaWrap.className = 'lt-picker-doc__meta';
+                    metaWrap.appendChild(badge);
+                    row1.appendChild(metaWrap);
+                    
+                    var delBtn = document.createElement('button');
+                    delBtn.type = 'button';
+                    delBtn.className = 'lt-picker-doc__remove';
+                    delBtn.setAttribute('aria-label', 'حذف مدرک جدید');
+                    delBtn.innerHTML = '<i class="fa-solid fa-trash-can" aria-hidden="true"></i>';
+                    delBtn.addEventListener('click', function () {
+                        row.remove();
+                    });
+                    metaWrap.appendChild(delBtn);
+                    row.appendChild(row1);
+
+                    var nameEl = document.createElement('div');
+                    nameEl.className = 'lt-picker-doc__name';
+                    nameEl.textContent = 'مدرک جدید';
+                    row.appendChild(nameEl);
+
+                    var fTitle = document.createElement('div');
+                    fTitle.className = 'lt-field';
+                    var l1 = document.createElement('label');
+                    l1.className = 'lt-hint';
+                    l1.textContent = 'عنوان مدرک';
+                    var inp = document.createElement('input');
+                    inp.type = 'text';
+                    inp.className = 'lt-input lt-picker-title';
+                    inp.maxLength = 500;
+                    inp.value = '';
+                    inp.disabled = true;
+                    fTitle.appendChild(l1);
+                    fTitle.appendChild(inp);
+                    fTitle.style.display = 'none';
+
+                    var fDesc = document.createElement('div');
+                    fDesc.className = 'lt-field';
+                    var l2 = document.createElement('label');
+                    l2.className = 'lt-hint';
+                    l2.textContent = 'توضیحات';
+                    var ta = document.createElement('textarea');
+                    ta.className = 'lt-textarea lt-picker-desc';
+                    ta.rows = 2;
+                    ta.maxLength = 2000;
+                    ta.value = '';
+                    ta.disabled = true;
+                    fDesc.appendChild(l2);
+                    fDesc.appendChild(ta);
+                    fDesc.style.display = 'none';
+
+                    row.appendChild(fTitle);
+                    row.appendChild(fDesc);
+
+                    cb.addEventListener('change', function () {
+                        row.classList.toggle('is-on', cb.checked);
+                        inp.disabled = !cb.checked;
+                        ta.disabled = !cb.checked;
+                        fTitle.style.display = cb.checked ? '' : 'none';
+                        fDesc.style.display = cb.checked ? '' : 'none';
+                        nameEl.textContent = inp.value.trim() || 'مدرک جدید';
+                    });
+
+                    inp.addEventListener('input', function () {
+                        nameEl.textContent = inp.value.trim() || 'مدرک جدید';
+                    });
+
+                    var firstEl = docPickerList.firstElementChild;
+                    if (firstEl) {
+                        docPickerList.insertBefore(row, firstEl);
+                    } else {
+                        docPickerList.appendChild(row);
+                    }
+                });
+            }
+            if (docPickerModal) {
+                docPickerModal.addEventListener('click', function (e) {
+                    if (e.target === docPickerModal) closeDocPicker();
+                });
+            }
+
             function openModal() {
                 if (!modal) return;
                 modal.removeAttribute('hidden');
@@ -559,7 +1167,12 @@
             @endif
 
             document.addEventListener('keydown', function (e) {
-                if (e.key === 'Escape' && modal && !modal.hidden) closeModal();
+                if (e.key !== 'Escape') return;
+                if (docPickerModal && !docPickerModal.hidden) {
+                    closeDocPicker();
+                    return;
+                }
+                if (modal && !modal.hidden) closeModal();
             });
 
             /* تب‌ها */
@@ -597,8 +1210,16 @@
             if (form && maxLoanInput) {
                 form.addEventListener('submit', function () {
                     maxLoanInput.value = maxLoanDigits(maxLoanInput.value);
+                    syncDocsToHidden();
+                });
+            } else if (form) {
+                form.addEventListener('submit', function () {
+                    syncDocsToHidden();
                 });
             }
+
+            parseDocsFromHidden();
+            renderMainDocsList();
 
             /* دوره بازپرداخت */
             var repayGroup = document.getElementById('lt-repay-rule-group');
@@ -790,6 +1411,9 @@
                 if (plb) plb.value = '';
                 if (planListEn) planListEn.checked = false;
                 syncPlanTabPanels();
+                ltDocsState = [];
+                syncDocsToHidden();
+                renderMainDocsList();
                 setCreateMode();
             }
 
@@ -968,6 +1592,20 @@
                 syncPlanTabPanels();
                 syncRepayPanels();
                 syncSusp();
+                ltDocsState = [];
+                if (Array.isArray(d.required_documents)) {
+                    d.required_documents.forEach(function (row) {
+                        if (!row || !row.preset_key) return;
+                        ltDocsState.push({
+                            preset_key: String(row.preset_key),
+                            title: row.title != null ? String(row.title) : '',
+                            description: row.description != null && String(row.description).trim() !== '' ? String(row.description) : null,
+                            timing: row.timing === LT_DOC_TIMING_INITIAL ? LT_DOC_TIMING_INITIAL : LT_DOC_TIMING_AFTER
+                        });
+                    });
+                }
+                syncDocsToHidden();
+                renderMainDocsList();
             }
 
             if (tbody) {

@@ -11,6 +11,8 @@ use App\Models\LoanType;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class LoanTypeController extends Controller
 {
@@ -51,7 +53,10 @@ final class LoanTypeController extends Controller
             'plan_title' => $lt->plan_title,
             'plan_summary' => $lt->plan_summary,
             'plan_body' => $lt->plan_body,
-            'plan_image_url' => $lt->planImagePublicUrl(),
+            'plan_image_url' => $lt->plan_image_path
+                ? route('admin.loan-types.plan-image', ['loanType' => $lt->id])
+                : null,
+            'required_documents' => $lt->required_documents ?? [],
         ];
     }
 
@@ -77,6 +82,7 @@ final class LoanTypeController extends Controller
             'registration_suspended' => $validated['registration_suspended'] ?? false,
             'registration_suspended_message' => $validated['registration_suspended_message'] ?? null,
             ...$this->planFieldsFromValidated($validated),
+            'required_documents' => LoanType::normalizeRequiredDocumentsPayload($validated['required_documents'] ?? []),
         ]);
 
         $this->storePlanImageIfPresent($loanType, $request);
@@ -117,6 +123,7 @@ final class LoanTypeController extends Controller
             'registration_suspended' => $validated['registration_suspended'] ?? false,
             'registration_suspended_message' => $validated['registration_suspended_message'] ?? null,
             ...$planPayload,
+            'required_documents' => LoanType::normalizeRequiredDocumentsPayload($validated['required_documents'] ?? []),
         ]);
 
         $loanType->refresh();
@@ -135,6 +142,112 @@ final class LoanTypeController extends Controller
         return redirect()
             ->route('admin.loan-types.index')
             ->with('flash_success', 'نوع وام حذف شد.');
+    }
+
+    public function planImage(LoanType $loanType): Response
+    {
+        if (! $loanType->plan_image_path || ! Storage::disk('public')->exists($loanType->plan_image_path)) {
+            abort(404);
+        }
+
+        return Storage::disk('public')->response($loanType->plan_image_path);
+    }
+
+    public function exportExcel(): StreamedResponse
+    {
+        $loanTypes = LoanType::query()->latest('id')->get();
+        $filename = 'loan-types-'.now()->format('Ymd-His').'.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ];
+
+        return response()->streamDownload(function () use ($loanTypes): void {
+            $out = fopen('php://output', 'wb');
+            if (! is_resource($out)) {
+                return;
+            }
+
+            // UTF-8 BOM for proper Persian display in Excel
+            fwrite($out, "\xEF\xBB\xBF");
+
+            fputcsv($out, [
+                'ID',
+                'عنوان وام',
+                'نحوه محاسبه سود',
+                'درصد بهره',
+                'ضریب دیرکرد روزانه',
+                'ضریب زودکرد روزانه',
+                'سقف مبلغ وام',
+                'حداکثر فاصله اقساط',
+                'نوع فاصله اقساط',
+                'نوع بازپرداخت',
+                'جزئیات بازپرداخت',
+                'پیامک یادآوری',
+                'وضعیت ثبت درخواست',
+                'متن غیرفعال بودن',
+                'نمایش در لیست طرح‌ها',
+                'عنوان طرح',
+                'توضیحات کوتاه طرح',
+                'تعداد مدارک لازم',
+                'خلاصه مدارک لازم',
+                'تاریخ ایجاد',
+            ]);
+
+            foreach ($loanTypes as $lt) {
+                $rep = $lt->repayment_periods ?? [];
+                $repType = (string) ($rep['type'] ?? LoanType::REPAY_UNLIMITED);
+                $repDetails = match ($repType) {
+                    LoanType::REPAY_MAX_UNTIL => 'حداکثر تا '.((string) ($rep['max_months'] ?? '')).' ماه',
+                    LoanType::REPAY_ALLOWED_MONTHS => 'ردیف‌ها: '.count($rep['allowed_rows'] ?? []),
+                    default => 'بدون محدودیت',
+                };
+
+                $docs = is_array($lt->required_documents) ? $lt->required_documents : [];
+                $docSummaryParts = [];
+                foreach ($docs as $d) {
+                    if (! is_array($d)) {
+                        continue;
+                    }
+                    $title = isset($d['title']) ? trim((string) $d['title']) : '';
+                    if ($title === '') {
+                        continue;
+                    }
+                    $timing = isset($d['timing']) && $d['timing'] === LoanType::DOC_TIMING_INITIAL
+                        ? 'مدارک اولیه'
+                        : 'پس از ارزیابی';
+                    $docSummaryParts[] = $title.' ('.$timing.')';
+                }
+
+                fputcsv($out, [
+                    (string) $lt->id,
+                    $lt->title,
+                    $lt->profitCalculationLabel(),
+                    (string) $lt->interest_rate,
+                    (string) $lt->daily_late_coefficient,
+                    (string) $lt->daily_early_coefficient,
+                    $lt->max_loan_amount !== null ? (string) $lt->max_loan_amount : '',
+                    $lt->max_installment_gap !== null ? (string) $lt->max_installment_gap : '',
+                    $lt->installmentGapLabel(),
+                    $repType,
+                    $repDetails,
+                    $lt->sms_reminder_enabled ? 'فعال' : 'غیرفعال',
+                    $lt->registration_suspended ? 'غیرفعال' : 'فعال',
+                    $lt->registration_suspended_message ?? '',
+                    $lt->plan_list_enabled ? 'بله' : 'خیر',
+                    $lt->plan_title ?? '',
+                    $lt->plan_summary ?? '',
+                    (string) count($docs),
+                    implode(' | ', $docSummaryParts),
+                    (string) $lt->created_at,
+                ]);
+            }
+
+            fclose($out);
+        }, $filename, $headers);
     }
 
     /**

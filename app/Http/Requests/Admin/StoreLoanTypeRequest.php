@@ -26,6 +26,40 @@ class StoreLoanTypeRequest extends FormRequest
                     $v->errors()->add('allowed_rows', 'برای «تعیین ماه‌های مجاز» حداقل یک ردیف (ماه و سقف) وارد کنید.');
                 }
             }
+
+            $docs = $this->input('required_documents', []);
+
+            if (! is_array($docs)) {
+                return;
+            }
+
+            $seen = [];
+
+            foreach ($docs as $i => $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+
+                $pk = isset($row['preset_key']) ? (string) $row['preset_key'] : '';
+
+                if ($pk === '') {
+                    continue;
+                }
+
+                if (isset($seen[$pk])) {
+                    $titleForMsg = str_starts_with($pk, LoanType::REQUIRED_DOCUMENT_CUSTOM_PREFIX)
+                        ? 'مدرک جدید'
+                        : LoanType::requiredDocumentDefaultTitle($pk);
+                    $v->errors()->add(
+                        'required_documents',
+                        'مدرک «'.$titleForMsg.'» بیش از یک بار انتخاب شده است.',
+                    );
+
+                    break;
+                }
+
+                $seen[$pk] = true;
+            }
         });
     }
 
@@ -79,6 +113,27 @@ class StoreLoanTypeRequest extends FormRequest
             'plan_body' => ['nullable', 'string', 'max:50000'],
             'plan_image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
             'plan_remove_image' => ['sometimes', 'boolean'],
+            'required_documents' => ['present', 'array'],
+            'required_documents.*.preset_key' => [
+                'required',
+                'string',
+                'max:255',
+                function ($attribute, $value, $fail): void {
+                    $key = (string) $value;
+                    $isPreset = in_array($key, LoanType::requiredDocumentPresetKeys(), true);
+                    $isCustom = str_starts_with($key, LoanType::REQUIRED_DOCUMENT_CUSTOM_PREFIX);
+
+                    if (! $isPreset && ! $isCustom) {
+                        $fail('نوع مدرک نامعتبر است.');
+                    }
+                },
+            ],
+            'required_documents.*.title' => ['required', 'string', 'max:500'],
+            'required_documents.*.description' => ['nullable', 'string', 'max:2000'],
+            'required_documents.*.timing' => [
+                'required',
+                Rule::in([LoanType::DOC_TIMING_INITIAL, LoanType::DOC_TIMING_AFTER_EVALUATION]),
+            ],
         ];
     }
 
@@ -106,6 +161,11 @@ class StoreLoanTypeRequest extends FormRequest
             'plan_summary' => 'توضیحات کوتاه طرح',
             'plan_body' => 'توضیحات کامل طرح',
             'plan_image' => 'تصویر طرح',
+            'required_documents' => 'مدارک لازم',
+            'required_documents.*.preset_key' => 'نوع مدرک',
+            'required_documents.*.title' => 'عنوان مدرک',
+            'required_documents.*.description' => 'توضیحات مدرک',
+            'required_documents.*.timing' => 'زمان ارائه مدرک',
         ];
     }
 
@@ -175,5 +235,16 @@ class StoreLoanTypeRequest extends FormRequest
             'sms_reminder_enabled' => $this->boolean('sms_reminder_enabled'),
             'registration_suspended' => $this->boolean('registration_suspended'),
         ]);
+
+        $rawJson = $this->input('required_documents_json');
+
+        if ($rawJson === null || $rawJson === '') {
+            $this->merge(['required_documents' => []]);
+        } elseif (is_string($rawJson)) {
+            $decoded = json_decode($rawJson, true);
+            $this->merge(['required_documents' => is_array($decoded) ? array_values($decoded) : []]);
+        } else {
+            $this->merge(['required_documents' => []]);
+        }
     }
 }
