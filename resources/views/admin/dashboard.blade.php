@@ -638,7 +638,7 @@
         [
             'widget_id' => 'summary-loan-requests',
             'title' => 'درخواست وام ها',
-            'icon' => 'fa-file-signature',
+            'icon' => 'fa-file-circle-check',
             'c' => '#06b6d4',
             'clickable' => true,
             'lines' => [

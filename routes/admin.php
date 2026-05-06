@@ -89,4 +89,8 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::get('/sms-management', [SmsManagementController::class, 'index'])
         ->middleware('throttle:60,1')
         ->name('sms.index');
+
+    Route::get('/sms-management/export-excel', [SmsManagementController::class, 'exportExcel'])
+        ->middleware('throttle:30,1')
+        ->name('sms.export-excel');
 });

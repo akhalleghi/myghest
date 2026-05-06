@@ -21,6 +21,9 @@
         .sms-search form { display: flex; gap: 0.45rem; }
         .sms-search input { width: 100%; border: 1px solid var(--border); border-radius: 0.65rem; padding: 0.5rem 0.7rem; font-size: 0.84rem; background: var(--bg-card); color: var(--text); font-family: inherit; }
         .sms-search button { border: 1px solid var(--border); border-radius: 0.65rem; padding: 0.48rem 0.7rem; background: var(--bg-card); color: var(--text); cursor: pointer; }
+        .sms-export-btn { border: 1px solid rgba(22, 163, 74, 0.38); border-radius: 0.65rem; padding: 0.48rem 0.72rem; background: rgba(34, 197, 94, 0.14); color: #166534; cursor: pointer; font-size: 0.78rem; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+        .sms-export-btn:hover { background: rgba(34, 197, 94, 0.22); }
+        html[data-theme="dark"] .sms-export-btn { color: #86efac; border-color: rgba(74, 222, 128, 0.4); background: rgba(22, 101, 52, 0.34); }
 
         .sms-date-toolbar { border: 1px solid var(--border); border-radius: 0.85rem; padding: 0.7rem 0.75rem; margin-bottom: 0.75rem; background: var(--bg-card); display: flex; flex-direction: column; gap: 0.65rem; }
         .sms-day-nav { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; justify-content: center; }
@@ -109,6 +112,13 @@
                     @if ($status !== '')<input type="hidden" name="status" value="{{ $status }}">@endif
                     <input type="search" name="q" value="{{ $search }}" placeholder="جستجو در متن، دریافت‌کننده، نوع یا پنل...">
                     <button type="submit"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></button>
+                    <a
+                        class="sms-export-btn"
+                        href="{{ route('admin.sms.export-excel', request()->query()) }}"
+                    >
+                        <i class="fa-solid fa-file-excel" aria-hidden="true"></i>
+                        خروجی اکسل
+                    </a>
                 </form>
             </div>
         </div>
