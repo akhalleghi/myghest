@@ -67,6 +67,10 @@
             overflow: hidden;
         }
 
+        body.admin-app.app-settings-open {
+            overflow: hidden;
+        }
+
         /* فقط دسکتاپ / فقط موبایل */
         .only-mobile { display: none !important; }
 
@@ -553,6 +557,245 @@
                 display: none !important;
             }
         }
+
+        .app-settings-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1400;
+            background: rgba(15, 23, 42, 0.52);
+            backdrop-filter: blur(2px);
+            display: grid;
+            place-items: center;
+            padding: 1rem;
+        }
+
+        .app-settings-overlay[hidden] {
+            display: none !important;
+        }
+
+        .app-settings-modal {
+            width: min(980px, 100%);
+            max-height: min(90vh, 760px);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 1.05rem;
+            box-shadow: 0 30px 72px rgba(15, 23, 42, 0.24);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .app-settings-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.65rem;
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(180deg, rgba(37, 99, 235, 0.06), transparent 85%);
+        }
+
+        .app-settings-title {
+            margin: 0;
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .app-settings-subtitle {
+            margin: 0.1rem 0 0;
+            font-size: 0.74rem;
+            color: var(--muted);
+        }
+
+        .app-settings-close {
+            width: 2rem;
+            height: 2rem;
+            border: none;
+            border-radius: 0.55rem;
+            background: var(--primary-soft);
+            color: var(--primary-dark);
+            cursor: pointer;
+        }
+
+        .app-settings-body {
+            display: grid;
+            grid-template-columns: 240px minmax(0, 1fr);
+            min-height: 0;
+            flex: 1;
+        }
+
+        .app-settings-menu {
+            border-inline-start: 1px solid var(--border);
+            background: color-mix(in oklab, var(--bg-card) 86%, var(--primary-soft));
+            padding: 0.7rem 0.55rem;
+            overflow-y: auto;
+        }
+
+        .app-settings-menu-btn {
+            width: 100%;
+            border: 1px solid transparent;
+            border-radius: 0.65rem;
+            background: transparent;
+            color: var(--muted);
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-align: start;
+            padding: 0.52rem 0.62rem;
+            margin-bottom: 0.2rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.38rem;
+        }
+
+        .app-settings-menu-btn.is-active {
+            color: var(--primary-dark);
+            background: var(--primary-soft);
+            border-color: rgba(37, 99, 235, 0.26);
+        }
+
+        .app-settings-content {
+            padding: 0.9rem 1rem;
+            overflow-y: auto;
+        }
+
+        .app-settings-panel-title {
+            margin: 0 0 0.18rem;
+            font-size: 0.9rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .app-settings-panel-subtitle {
+            margin: 0 0 0.75rem;
+            font-size: 0.74rem;
+            color: var(--muted);
+        }
+
+        .app-settings-panel[hidden] {
+            display: none !important;
+        }
+
+        .app-settings-card {
+            border: 1px solid var(--border);
+            border-radius: 0.85rem;
+            background: var(--bg-card);
+            padding: 0.75rem 0.85rem;
+            margin-bottom: 0.7rem;
+        }
+
+        .app-settings-card h4 {
+            margin: 0 0 0.45rem;
+            font-size: 0.82rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .app-settings-card-desc {
+            margin: -0.2rem 0 0.55rem;
+            font-size: 0.73rem;
+            color: var(--muted);
+        }
+
+        .app-settings-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.6rem;
+        }
+
+        .app-settings-field label {
+            display: block;
+            font-size: 0.73rem;
+            font-weight: 700;
+            color: var(--muted);
+            margin-bottom: 0.2rem;
+        }
+
+        .app-settings-field input,
+        .app-settings-field select {
+            width: 100%;
+            border: 1px solid var(--border);
+            border-radius: 0.6rem;
+            background: var(--bg-card);
+            color: var(--text);
+            padding: 0.48rem 0.58rem;
+            font-family: inherit;
+            font-size: 0.78rem;
+        }
+
+        .app-settings-note {
+            margin: 0;
+            font-size: 0.74rem;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+
+        .app-settings-actions {
+            margin-top: 0.8rem;
+            padding-top: 0.65rem;
+            border-top: 1px dashed var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.45rem;
+        }
+
+        .app-settings-btn {
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            border-radius: 0.58rem;
+            padding: 0.44rem 0.72rem;
+            font-size: 0.76rem;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+        }
+
+        .app-settings-btn--primary {
+            border: none;
+            background: linear-gradient(180deg, var(--primary), var(--primary-dark));
+            color: #fff;
+        }
+
+        @media (max-width: 860px) {
+            .app-settings-modal {
+                width: min(100%, 760px);
+            }
+
+            .app-settings-body {
+                grid-template-columns: 1fr;
+            }
+
+            .app-settings-menu {
+                border-inline-start: 0;
+                border-bottom: 1px solid var(--border);
+                overflow-x: auto;
+                overflow-y: hidden;
+                white-space: nowrap;
+                display: flex;
+                gap: 0.3rem;
+                padding: 0.55rem;
+            }
+
+            .app-settings-menu-btn {
+                width: auto;
+                margin-bottom: 0;
+                flex: 0 0 auto;
+            }
+
+            .app-settings-row {
+                grid-template-columns: 1fr;
+            }
+
+            .app-settings-actions {
+                justify-content: stretch;
+            }
+
+            .app-settings-btn {
+                flex: 1 1 auto;
+            }
+        }
     </style>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @include('layouts.partials.sweetalert2-css')
@@ -652,7 +895,7 @@
             </div>
 
             <div class="sidebar-foot">
-                <button type="button" disabled title="به‌زودی">
+                <button type="button" id="app-settings-open" aria-haspopup="dialog" aria-controls="app-settings-modal">
                     <i class="fa-solid fa-sliders" aria-hidden="true"></i>
                     تنظیمات برنامه
                 </button>
@@ -717,6 +960,152 @@
 
             <div class="content-wrap">
                 @yield('content')
+            </div>
+        </div>
+    </div>
+
+    <div id="app-settings-overlay" class="app-settings-overlay" hidden aria-hidden="true">
+        <div id="app-settings-modal" class="app-settings-modal" role="dialog" aria-modal="true" aria-labelledby="app-settings-title">
+            <div class="app-settings-head">
+                <div>
+                    <h3 id="app-settings-title" class="app-settings-title">تنظیمات برنامه</h3>
+                    <p class="app-settings-subtitle">شخصی‌سازی رفتار سامانه، ظاهر و اعلان‌ها</p>
+                </div>
+                <button type="button" id="app-settings-close" class="app-settings-close" aria-label="بستن">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="app-settings-body">
+                <aside class="app-settings-menu" aria-label="دسته‌بندی تنظیمات">
+                    <button type="button" class="app-settings-menu-btn is-active" data-settings-tab="base">
+                        <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+                        تنظیمات بنیان
+                    </button>
+                    <button type="button" class="app-settings-menu-btn" data-settings-tab="ui">
+                        <i class="fa-solid fa-palette" aria-hidden="true"></i>
+                        ظاهر و تجربه کاربری
+                    </button>
+                    <button type="button" class="app-settings-menu-btn" data-settings-tab="notifications">
+                        <i class="fa-regular fa-bell" aria-hidden="true"></i>
+                        اعلان‌ها
+                    </button>
+                    <button type="button" class="app-settings-menu-btn" data-settings-tab="security">
+                        <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+                        امنیت
+                    </button>
+                </aside>
+                <div class="app-settings-content">
+                    <section class="app-settings-panel" data-settings-panel="base">
+                        <h4 class="app-settings-panel-title">تنظیمات بنیان</h4>
+                        <p class="app-settings-panel-subtitle">پارامترهای اصلی سامانه که رفتار کلی را تعیین می‌کنند.</p>
+                        <div class="app-settings-card">
+                            <h4>اطلاعات پایه سامانه</h4>
+                            <p class="app-settings-card-desc">این بخش برای تعریف اطلاعات پایه‌ای و ثابت محیط کاری استفاده می‌شود.</p>
+                            <div class="app-settings-row">
+                                <div class="app-settings-field">
+                                    <label>نام نمایشی سامانه</label>
+                                    <input type="text" value="{{ config('app.name') }}" readonly>
+                                </div>
+                                <div class="app-settings-field">
+                                    <label>منطقه زمانی</label>
+                                    <select>
+                                        <option>Asia/Tehran</option>
+                                        <option>UTC</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="app-settings-note">این آیتم‌ها نمایشی هستند و در مرحله بعدی به ذخیره‌سازی واقعی متصل می‌شوند.</p>
+                        <div class="app-settings-actions">
+                            <button type="button" class="app-settings-btn">بازنشانی</button>
+                            <button type="button" class="app-settings-btn app-settings-btn--primary">ذخیره تغییرات</button>
+                        </div>
+                    </section>
+                    <section class="app-settings-panel" data-settings-panel="ui" hidden>
+                        <h4 class="app-settings-panel-title">ظاهر و تجربه کاربری</h4>
+                        <p class="app-settings-panel-subtitle">نمایش و خوانایی پنل را مطابق ترجیح تیم تنظیم کنید.</p>
+                        <div class="app-settings-card">
+                            <h4>تنظیمات نمای رابط</h4>
+                            <p class="app-settings-card-desc">تنظیمات این بخش روی نحوه نمایش صفحات و اجزای پنل اثر می‌گذارد.</p>
+                            <div class="app-settings-row">
+                                <div class="app-settings-field">
+                                    <label>چیدمان پیش‌فرض داشبورد</label>
+                                    <select>
+                                        <option>فشرده</option>
+                                        <option>استاندارد</option>
+                                    </select>
+                                </div>
+                                <div class="app-settings-field">
+                                    <label>اندازه فونت</label>
+                                    <select>
+                                        <option>معمولی</option>
+                                        <option>بزرگ</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="app-settings-actions">
+                            <button type="button" class="app-settings-btn">بازنشانی</button>
+                            <button type="button" class="app-settings-btn app-settings-btn--primary">ذخیره تغییرات</button>
+                        </div>
+                    </section>
+                    <section class="app-settings-panel" data-settings-panel="notifications" hidden>
+                        <h4 class="app-settings-panel-title">اعلان‌ها</h4>
+                        <p class="app-settings-panel-subtitle">قوانین ارسال اطلاع‌رسانی برای کاربران و مدیران را مدیریت کنید.</p>
+                        <div class="app-settings-card">
+                            <h4>تنظیمات اعلان</h4>
+                            <p class="app-settings-card-desc">تنظیم کنید چه زمانی اعلان پیامکی یا خلاصه گزارش ارسال شود.</p>
+                            <div class="app-settings-row">
+                                <div class="app-settings-field">
+                                    <label>دریافت اعلان پیامکی</label>
+                                    <select>
+                                        <option>فعال</option>
+                                        <option>غیرفعال</option>
+                                    </select>
+                                </div>
+                                <div class="app-settings-field">
+                                    <label>ارسال گزارش روزانه</label>
+                                    <select>
+                                        <option>فعال</option>
+                                        <option>غیرفعال</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="app-settings-actions">
+                            <button type="button" class="app-settings-btn">بازنشانی</button>
+                            <button type="button" class="app-settings-btn app-settings-btn--primary">ذخیره تغییرات</button>
+                        </div>
+                    </section>
+                    <section class="app-settings-panel" data-settings-panel="security" hidden>
+                        <h4 class="app-settings-panel-title">امنیت</h4>
+                        <p class="app-settings-panel-subtitle">برای افزایش امنیت دسترسی‌ها، سیاست‌های ورود را تنظیم کنید.</p>
+                        <div class="app-settings-card">
+                            <h4>تنظیمات امنیتی</h4>
+                            <p class="app-settings-card-desc">این بخش برای کنترل ریسک نشست‌های کاربری و دسترسی‌ها طراحی شده است.</p>
+                            <div class="app-settings-row">
+                                <div class="app-settings-field">
+                                    <label>مدت انقضای نشست</label>
+                                    <select>
+                                        <option>30 دقیقه</option>
+                                        <option>60 دقیقه</option>
+                                    </select>
+                                </div>
+                                <div class="app-settings-field">
+                                    <label>ورود دو مرحله‌ای</label>
+                                    <select>
+                                        <option>غیرفعال</option>
+                                        <option>فعال</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="app-settings-actions">
+                            <button type="button" class="app-settings-btn">بازنشانی</button>
+                            <button type="button" class="app-settings-btn app-settings-btn--primary">ذخیره تغییرات</button>
+                        </div>
+                    </section>
+                </div>
             </div>
         </div>
     </div>
@@ -793,7 +1182,12 @@
                 });
 
                 document.addEventListener('keydown', function (e) {
-                    if (e.key === 'Escape' && mq.matches) closeDrawer();
+                    if (e.key !== 'Escape') return;
+                    if (appSettingsOverlay && !appSettingsOverlay.hidden) {
+                        closeSettings();
+                        return;
+                    }
+                    if (mq.matches) closeDrawer();
                 });
 
                 function onMqChange(ev) {
@@ -805,6 +1199,61 @@
                 } else if (typeof mq.addListener === 'function') {
                     mq.addListener(onMqChange);
                 }
+
+                var appSettingsOpen = document.getElementById('app-settings-open');
+                var appSettingsOverlay = document.getElementById('app-settings-overlay');
+                var appSettingsClose = document.getElementById('app-settings-close');
+                var settingsTabs = Array.from(document.querySelectorAll('[data-settings-tab]'));
+                var settingsPanels = Array.from(document.querySelectorAll('[data-settings-panel]'));
+
+                function activateSettingsTab(tabId) {
+                    settingsTabs.forEach(function (tabBtn) {
+                        var active = tabBtn.getAttribute('data-settings-tab') === tabId;
+                        tabBtn.classList.toggle('is-active', active);
+                    });
+                    settingsPanels.forEach(function (panelEl) {
+                        panelEl.hidden = panelEl.getAttribute('data-settings-panel') !== tabId;
+                    });
+                }
+
+                function openSettings() {
+                    if (!appSettingsOverlay) return;
+                    appSettingsOverlay.hidden = false;
+                    appSettingsOverlay.setAttribute('aria-hidden', 'false');
+                    document.body.classList.add('app-settings-open');
+                }
+
+                function closeSettings() {
+                    if (!appSettingsOverlay) return;
+                    appSettingsOverlay.hidden = true;
+                    appSettingsOverlay.setAttribute('aria-hidden', 'true');
+                    document.body.classList.remove('app-settings-open');
+                }
+
+                if (appSettingsOpen) {
+                    appSettingsOpen.addEventListener('click', function () {
+                        activateSettingsTab('base');
+                        openSettings();
+                    });
+                }
+
+                if (appSettingsClose) {
+                    appSettingsClose.addEventListener('click', closeSettings);
+                }
+
+                if (appSettingsOverlay) {
+                    appSettingsOverlay.addEventListener('click', function (event) {
+                        if (event.target === appSettingsOverlay) closeSettings();
+                    });
+                }
+
+                settingsTabs.forEach(function (tabBtn) {
+                    tabBtn.addEventListener('click', function () {
+                        activateSettingsTab(tabBtn.getAttribute('data-settings-tab'));
+                    });
+                });
+
+                activateSettingsTab('base');
             });
         })();
     </script>
