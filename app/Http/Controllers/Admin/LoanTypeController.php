@@ -156,10 +156,10 @@ final class LoanTypeController extends Controller
     public function exportExcel(): StreamedResponse
     {
         $loanTypes = LoanType::query()->latest('id')->get();
-        $filename = 'loan-types-'.now()->format('Ymd-His').'.csv';
+        $filename = 'loan-types-'.now()->format('Ymd-His').'.xls';
 
         $headers = [
-            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-16LE',
             'Content-Disposition' => 'attachment; filename="'.$filename.'"',
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
             'Pragma' => 'no-cache',
@@ -171,10 +171,10 @@ final class LoanTypeController extends Controller
                 return;
             }
 
-            // UTF-8 BOM for proper Persian display in Excel
-            fwrite($out, "\xEF\xBB\xBF");
+            // UTF-16LE BOM for proper Persian display in Excel on Windows.
+            fwrite($out, "\xFF\xFE");
 
-            fputcsv($out, [
+            $this->writeExcelUnicodeRow($out, [
                 'ID',
                 'عنوان وام',
                 'نحوه محاسبه سود',
@@ -222,7 +222,7 @@ final class LoanTypeController extends Controller
                     $docSummaryParts[] = $title.' ('.$timing.')';
                 }
 
-                fputcsv($out, [
+                $this->writeExcelUnicodeRow($out, [
                     (string) $lt->id,
                     $lt->title,
                     $lt->profitCalculationLabel(),
@@ -248,6 +248,20 @@ final class LoanTypeController extends Controller
 
             fclose($out);
         }, $filename, $headers);
+    }
+
+    /**
+     * @param resource $out
+     * @param array<int, string> $cells
+     */
+    private function writeExcelUnicodeRow($out, array $cells): void
+    {
+        $cleanCells = array_map(static function (string $value): string {
+            return str_replace(["\t", "\r", "\n"], [' ', ' ', ' '], $value);
+        }, $cells);
+
+        $line = implode("\t", $cleanCells)."\r\n";
+        fwrite($out, mb_convert_encoding($line, 'UTF-16LE', 'UTF-8'));
     }
 
     /**
