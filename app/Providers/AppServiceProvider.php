@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Services\Sms\Gateways\SepahanGostarGateway;
+use App\Services\Sms\SmsPanelManager;
 use Carbon\Carbon;
 use Illuminate\Support\ServiceProvider;
 
@@ -12,7 +14,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(SmsPanelManager::class, function () {
+            return new SmsPanelManager([
+                new SepahanGostarGateway(),
+            ]);
+        });
     }
 
     /**

@@ -93,4 +93,28 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::get('/sms-management/export-excel', [SmsManagementController::class, 'exportExcel'])
         ->middleware('throttle:30,1')
         ->name('sms.export-excel');
+
+    Route::post('/sms-management/panel-settings', [SmsManagementController::class, 'updatePanelSettings'])
+        ->middleware('throttle:20,1')
+        ->name('sms.panel-settings.update');
+
+    Route::post('/sms-management/panel-test', [SmsManagementController::class, 'sendPanelTest'])
+        ->middleware('throttle:20,1')
+        ->name('sms.panel-test.send');
+
+    Route::post('/sms-management/templates', [SmsManagementController::class, 'storeTemplate'])
+        ->middleware('throttle:30,1')
+        ->name('sms.templates.store');
+
+    Route::put('/sms-management/templates/{smsTemplate}', [SmsManagementController::class, 'updateTemplate'])
+        ->middleware('throttle:30,1')
+        ->name('sms.templates.update');
+
+    Route::delete('/sms-management/templates/{smsTemplate}', [SmsManagementController::class, 'destroyTemplate'])
+        ->middleware('throttle:30,1')
+        ->name('sms.templates.destroy');
+
+    Route::delete('/sms-management/{smsLog}', [SmsManagementController::class, 'destroyLog'])
+        ->middleware('throttle:30,1')
+        ->name('sms.destroy');
 });
