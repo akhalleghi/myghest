@@ -6,7 +6,11 @@
     <div class="brand">
         <div class="brand-row">
             <div class="brand-ico" aria-hidden="true">
-                <i class="fa-solid fa-shield-halved"></i>
+                @if(!empty($appIconUrl))
+                    <img src="{{ $appIconUrl }}" alt="app icon" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block">
+                @else
+                    <i class="{{ $appIconFaClass }}"></i>
+                @endif
             </div>
             <div>
                 <h1>ورود به پنل مدیریت</h1>

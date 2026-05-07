@@ -6,6 +6,13 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
+    @if(!empty($faviconUrl))
+        <link rel="icon" href="{{ $faviconUrl }}">
+        <link rel="shortcut icon" href="{{ $faviconUrl }}">
+    @else
+        <link rel="icon" href="data:,">
+        <link rel="shortcut icon" href="data:,">
+    @endif
     <title>@yield('title', 'ورود مدیر') — {{ $appDisplayName }}</title>
     @include('layouts.partials.admin-ui-font-assets')
     @include('layouts.partials.admin-ui-font-style')
@@ -386,6 +393,59 @@
             @yield('content')
         </main>
     </div>
+    <script>
+        (function () {
+            var hasUploadedFavicon = @json(!empty($faviconUrl));
+            var faviconFaClass = @json($faviconFaClass ?? 'fa-solid fa-globe');
+            if (hasUploadedFavicon || !faviconFaClass) return;
+
+            function applyFontAwesomeFavicon() {
+                var iconProbe = document.createElement('i');
+                iconProbe.className = faviconFaClass;
+                iconProbe.style.position = 'absolute';
+                iconProbe.style.left = '-9999px';
+                iconProbe.style.top = '-9999px';
+                document.body.appendChild(iconProbe);
+
+                var before = window.getComputedStyle(iconProbe, '::before');
+                var glyph = (before.content || '').replace(/^["']|["']$/g, '');
+                var fontFamily = before.fontFamily || 'Font Awesome 6 Free';
+                var fontWeight = before.fontWeight || '900';
+                document.body.removeChild(iconProbe);
+                if (!glyph || glyph === 'none') return;
+
+                var canvas = document.createElement('canvas');
+                canvas.width = 64;
+                canvas.height = 64;
+                var ctx = canvas.getContext('2d');
+                if (!ctx) return;
+                ctx.fillStyle = '#2563eb';
+                if (typeof ctx.roundRect === 'function') {
+                    ctx.beginPath();
+                    ctx.roundRect(0, 0, 64, 64, 14);
+                    ctx.fill();
+                } else {
+                    ctx.fillRect(0, 0, 64, 64);
+                }
+                ctx.fillStyle = '#ffffff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = fontWeight + ' 34px ' + fontFamily;
+                ctx.fillText(glyph, 32, 34);
+                var dataUrl = canvas.toDataURL('image/png');
+
+                document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach(function (el) {
+                    el.setAttribute('href', dataUrl);
+                });
+            }
+
+            if (document.fonts && typeof document.fonts.ready === 'object') {
+                document.fonts.ready.then(applyFontAwesomeFavicon).catch(function () {});
+            } else {
+                setTimeout(applyFontAwesomeFavicon, 180);
+            }
+        })();
+    </script>
     @include('layouts.partials.theme-toggle-script')
     @stack('scripts')
 </body>

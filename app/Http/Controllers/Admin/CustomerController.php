@@ -12,6 +12,7 @@ use App\Models\CustomerReferrer;
 use App\Models\CustomerWallet;
 use App\Models\SmsLog;
 use App\Models\SmsPanelSetting;
+use App\Models\SmsTemplate;
 use App\Rules\IranNationalId;
 use App\Services\Sms\SmsPanelManager;
 use Carbon\Carbon;
@@ -53,7 +54,53 @@ final class CustomerController extends Controller
         return view('admin.customers.index', [
             'customers' => $customers,
             'search' => $q,
+            'smsTemplates' => SmsTemplate::query()
+                ->latest('id')
+                ->get(['id', 'title', 'category', 'body'])
+                ->map(static fn (SmsTemplate $tpl): array => [
+                    'id' => $tpl->id,
+                    'title' => $tpl->title,
+                    'category' => $tpl->category,
+                    'body' => $tpl->body,
+                ])
+                ->values(),
         ]);
+    }
+
+    public function sendQuickSms(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'sms_type' => ['required', 'in:wallet_link,welcome'],
+            'sms_text' => ['nullable', 'string', 'max:1000'],
+            'sms_template_id' => ['nullable', 'integer', 'exists:sms_templates,id'],
+        ]);
+
+        $smsType = (string) $validated['sms_type'];
+        $messageText = trim((string) ($validated['sms_text'] ?? ''));
+        $templateId = $validated['sms_template_id'] ?? null;
+        if ($messageText === '' && $templateId !== null) {
+            $tpl = SmsTemplate::query()->find((int) $templateId);
+            if ($tpl !== null) {
+                $messageText = $this->renderTemplate($tpl->body, [
+                    'store_name' => $this->appDisplayName(),
+                    'customer_name' => $customer->fullName(),
+                    'payment_link' => '—',
+                    'payment_link_variable' => '—',
+                ]);
+            }
+        }
+        if ($messageText === '') {
+            $messageText = $smsType === 'wallet_link'
+                ? 'سلام '.$customer->fullName().'، لینک شارژ کیف پول شما: —'
+                : 'سلام '.$customer->fullName().'، به سامانه '.$this->appDisplayName().' خوش آمدید.';
+        }
+
+        $result = $this->sendRawSms($customer->mobile, $messageText, $smsType === 'wallet_link' ? 'wallet-charge-link' : 'welcome-message');
+
+        return response()->json([
+            'ok' => $result['ok'],
+            'message' => $result['message'],
+        ], $result['ok'] ? 200 : 422);
     }
 
     public function store(Request $request): RedirectResponse
@@ -494,7 +541,7 @@ final class CustomerController extends Controller
     /**
      * @return array{ok: bool, message: string}
      */
-    private function sendRawSms(string $recipient, string $messageText): array
+    private function sendRawSms(string $recipient, string $messageText, string $type = 'customer-credentials'): array
     {
         $active = SmsPanelSetting::query()->where('is_active', true)->first();
         if ($active === null) {
@@ -530,7 +577,7 @@ final class CustomerController extends Controller
             'sent_at' => now(),
             'message_text' => $messageText,
             'recipient' => $recipient,
-            'type' => 'customer-credentials',
+            'type' => $type,
             'cost' => 0,
             'meta' => [
                 'provider' => $providerKey,
@@ -548,6 +595,16 @@ final class CustomerController extends Controller
                 ? 'پیام برای مشتری ارسال شد.'
                 : 'عملیات انجام شد اما ارسال پیامک ناموفق بود: '.$result->message,
         ];
+    }
+
+    private function renderTemplate(string $body, array $vars): string
+    {
+        $out = $body;
+        foreach ($vars as $k => $v) {
+            $out = preg_replace('/\{\{\s*'.preg_quote((string) $k, '/').'\s*\}\}/i', (string) $v, $out) ?? $out;
+        }
+
+        return trim($out);
     }
 
     private function appDisplayName(): string

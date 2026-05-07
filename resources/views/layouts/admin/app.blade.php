@@ -6,6 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="robots" content="noindex, nofollow">
+    @if(!empty($faviconUrl))
+        <link rel="icon" href="{{ $faviconUrl }}">
+        <link rel="shortcut icon" href="{{ $faviconUrl }}">
+    @else
+        <link rel="icon" href="data:,">
+        <link rel="shortcut icon" href="data:,">
+    @endif
     <title>@yield('title', 'داشبورد') — {{ $appDisplayName }}</title>
     @include('layouts.partials.admin-ui-font-assets')
     @include('layouts.partials.admin-ui-font-style')
@@ -120,6 +127,13 @@
             box-shadow: 0 8px 18px rgba(37, 99, 235, 0.28);
             color: #fff;
             font-size: 1.05rem;
+        }
+        .sidebar-logo img {
+            width: 100%;
+            height: 100%;
+            border-radius: inherit;
+            object-fit: cover;
+            display: block;
         }
 
         .sidebar-title {
@@ -723,6 +737,95 @@
             font-family: inherit;
             font-size: 0.78rem;
         }
+        .app-icon-preview {
+            margin-top: 0.45rem;
+            width: 44px;
+            height: 44px;
+            border-radius: 0.72rem;
+            border: 1px solid var(--border);
+            background: var(--primary-soft);
+            display: grid;
+            place-items: center;
+            color: var(--primary-dark);
+            overflow: hidden;
+            font-size: 1.1rem;
+        }
+        .app-icon-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .app-field-help {
+            margin-top: 0.28rem;
+            font-size: 0.7rem;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+        .app-checkbox-inline {
+            font-size: 0.72rem;
+            color: var(--muted);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.36rem;
+            margin-top: 0.45rem;
+            cursor: pointer;
+            user-select: none;
+        }
+        .app-branding-grid {
+            display: grid;
+            grid-template-columns: 230px minmax(0, 1fr);
+            gap: 0.8rem;
+            align-items: start;
+        }
+        .app-branding-previews {
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            background: color-mix(in oklab, var(--bg-card) 90%, var(--primary-soft));
+            padding: 0.58rem;
+            display: grid;
+            gap: 0.55rem;
+        }
+        .app-branding-preview-item {
+            border: 1px solid var(--border);
+            border-radius: 0.65rem;
+            background: var(--bg-card);
+            padding: 0.45rem;
+            display: flex;
+            align-items: center;
+            gap: 0.48rem;
+        }
+        .app-branding-preview-meta {
+            min-width: 0;
+        }
+        .app-branding-preview-label {
+            display: block;
+            font-size: 0.68rem;
+            color: var(--muted);
+            margin-bottom: 0.1rem;
+        }
+        .app-branding-preview-value {
+            display: block;
+            font-size: 0.74rem;
+            color: var(--text);
+            font-weight: 700;
+        }
+        .app-branding-controls {
+            display: grid;
+            gap: 0.68rem;
+        }
+        .app-branding-control-card {
+            border: 1px solid var(--border);
+            border-radius: 0.72rem;
+            padding: 0.58rem;
+            background: var(--bg-card);
+        }
+        .app-branding-control-title {
+            font-size: 0.74rem;
+            font-weight: 800;
+            color: var(--text);
+            margin: 0 0 0.35rem;
+        }
 
         .app-settings-error {
             margin-top: 0.22rem;
@@ -794,6 +897,9 @@
             .app-settings-row {
                 grid-template-columns: 1fr;
             }
+            .app-branding-grid {
+                grid-template-columns: 1fr;
+            }
 
             .app-settings-actions {
                 justify-content: stretch;
@@ -827,7 +933,11 @@
         <aside id="admin-drawer" class="admin-sidebar" aria-label="منوی کناری پنل">
             <div class="sidebar-brand only-desktop">
                 <div class="sidebar-logo" aria-hidden="true">
-                    <i class="fa-solid fa-layer-group"></i>
+                    @if(!empty($appIconUrl))
+                        <img src="{{ $appIconUrl }}" alt="app icon">
+                    @else
+                        <i class="{{ $appIconFaClass }}"></i>
+                    @endif
                 </div>
                 <div class="sidebar-title">{{ $appDisplayName }}</div>
             </div>
@@ -1026,8 +1136,10 @@
                     <section class="app-settings-panel" data-settings-panel="ui" hidden>
                         <h4 class="app-settings-panel-title">ظاهر و تجربه کاربری</h4>
                         <p class="app-settings-panel-subtitle">نمایش و خوانایی پنل را مطابق ترجیح تیم تنظیم کنید.</p>
-                        <form method="post" action="{{ route('admin.app-settings.ui.update') }}">
+                        <form method="post" action="{{ route('admin.app-settings.ui.update') }}" enctype="multipart/form-data">
                             @csrf
+                            <input type="hidden" name="remove_app_icon" value="0">
+                            <input type="hidden" name="remove_favicon" value="0">
                             <div class="app-settings-card">
                                 <h4>تنظیمات نمای رابط</h4>
                                 <p class="app-settings-card-desc">فونت و اندازهٔ متن روی تمام صفحات پنل ادمین اعمال می‌شود. برای ایران‌یکان و ایران‌سانس از نسخهٔ FaNum استفاده می‌شود.</p>
@@ -1062,6 +1174,130 @@
                                             <option>فشرده</option>
                                             <option selected>استاندارد</option>
                                         </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="app-settings-card">
+                                <h4>هویت بصری برنامه</h4>
+                                <p class="app-settings-card-desc">انتخاب‌ها را ساده‌تر کردیم: پیش‌نمایش زنده در سمت راست و تنظیمات در سمت چپ. در صورت آپلود فایل، تصویر نسبت به Font Awesome اولویت دارد.</p>
+                                <div class="app-branding-grid">
+                                    <div class="app-branding-previews">
+                                        <div class="app-branding-preview-item">
+                                            <div id="app-image-preview" class="app-icon-preview" aria-hidden="true">
+                                                @if(!empty($appIconUrl))
+                                                    <img src="{{ $appIconUrl }}" alt="app icon">
+                                                @else
+                                                    <i class="{{ old('app_icon_fa', $appIconFaClass) }}"></i>
+                                                @endif
+                                            </div>
+                                            <div class="app-branding-preview-meta">
+                                                <span class="app-branding-preview-label">لوگوی پنل</span>
+                                                <span class="app-branding-preview-value">نمایش در نوار کناری</span>
+                                            </div>
+                                        </div>
+                                        <div class="app-branding-preview-item">
+                                            <div id="favicon-preview" class="app-icon-preview" aria-hidden="true" style="width:28px;height:28px;border-radius:.42rem">
+                                                @if(!empty($faviconUrl))
+                                                    <img src="{{ $faviconUrl }}" alt="favicon">
+                                                @else
+                                                    <i class="{{ old('favicon_fa', $faviconFaClass) }}" style="font-size:.85rem"></i>
+                                                @endif
+                                            </div>
+                                            <div class="app-branding-preview-meta">
+                                                <span class="app-branding-preview-label">فاوآیکون</span>
+                                                <span class="app-branding-preview-value">نمایش در تب مرورگر</span>
+                                            </div>
+                                        </div>
+                                        <div class="app-branding-preview-item">
+                                            <div id="app-fa-preview" class="app-icon-preview" aria-hidden="true">
+                                                <i class="{{ old('app_icon_fa', $appIconFaClass) }}"></i>
+                                            </div>
+                                            <div class="app-branding-preview-meta">
+                                                <span class="app-branding-preview-label">آیکون پشتیبان</span>
+                                                <span class="app-branding-preview-value">Font Awesome</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="app-branding-controls">
+                                        <div class="app-branding-control-card">
+                                            <p class="app-branding-control-title">آیکون Font Awesome</p>
+                                            <div class="app-settings-field">
+                                                <label for="app-icon-fa">کلاس آیکون</label>
+                                                <input
+                                                    id="app-icon-fa"
+                                                    type="text"
+                                                    name="app_icon_fa"
+                                                    list="app-icon-fa-list"
+                                                    value="{{ old('app_icon_fa', $appIconFaClass) }}"
+                                                    placeholder="مثلاً fa-solid fa-building-columns"
+                                                >
+                                                <datalist id="app-icon-fa-list">
+                                                    <option value="fa-solid fa-layer-group"></option>
+                                                    <option value="fa-solid fa-building-columns"></option>
+                                                    <option value="fa-solid fa-coins"></option>
+                                                    <option value="fa-solid fa-hand-holding-dollar"></option>
+                                                    <option value="fa-solid fa-shield-halved"></option>
+                                                    <option value="fa-solid fa-chart-line"></option>
+                                                    <option value="fa-solid fa-wallet"></option>
+                                                    <option value="fa-solid fa-landmark"></option>
+                                                </datalist>
+                                                <p class="app-field-help">اگر فایل آیکون حذف شود یا وجود نداشته باشد، این کلاس استفاده می‌شود.</p>
+                                                @error('app_icon_fa')
+                                                    <div class="app-settings-error">{{ $message }}</div>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                        <div class="app-branding-control-card">
+                                            <p class="app-branding-control-title">فاوآیکون Font Awesome</p>
+                                            <div class="app-settings-field">
+                                                <label for="favicon-fa">کلاس آیکون فاوآیکون</label>
+                                                <input
+                                                    id="favicon-fa"
+                                                    type="text"
+                                                    name="favicon_fa"
+                                                    list="app-icon-fa-list"
+                                                    value="{{ old('favicon_fa', $faviconFaClass) }}"
+                                                    placeholder="مثلاً fa-solid fa-globe"
+                                                >
+                                                <p class="app-field-help">اگر فایل فاوآیکون نداشته باشید، این آیکون برای تب مرورگر استفاده می‌شود.</p>
+                                                @error('favicon_fa')
+                                                    <div class="app-settings-error">{{ $message }}</div>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                        <div class="app-branding-control-card">
+                                            <p class="app-branding-control-title">آپلود فایل‌ها</p>
+                                            <div class="app-settings-row">
+                                                <div class="app-settings-field">
+                                                    <label for="app-icon-upload">آیکون برنامه</label>
+                                                    <input id="app-icon-upload" type="file" name="app_icon" accept=".png,.webp,.jpg,.jpeg,.svg">
+                                                    <p class="app-field-help">فرمت پیشنهادی: PNG یا SVG مربعی (حداکثر 2MB)</p>
+                                                    @error('app_icon')
+                                                        <div class="app-settings-error">{{ $message }}</div>
+                                                    @enderror
+                                                    @if(!empty($appIconUrl))
+                                                        <label class="app-checkbox-inline">
+                                                            <input type="checkbox" name="remove_app_icon" value="1">
+                                                            حذف آیکون فعلی
+                                                        </label>
+                                                    @endif
+                                                </div>
+                                                <div class="app-settings-field">
+                                                    <label for="app-favicon-upload">فاوآیکون</label>
+                                                    <input id="app-favicon-upload" type="file" name="favicon" accept=".ico,.png,.webp,.jpg,.jpeg,.svg">
+                                                    <p class="app-field-help">فرمت پیشنهادی: ICO یا PNG (حداکثر 1MB)</p>
+                                                    @error('favicon')
+                                                        <div class="app-settings-error">{{ $message }}</div>
+                                                    @enderror
+                                                    @if(!empty($faviconUrl))
+                                                        <label class="app-checkbox-inline">
+                                                            <input type="checkbox" name="remove_favicon" value="1">
+                                                            حذف فاوآیکون فعلی
+                                                        </label>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1136,6 +1372,55 @@
         (function () {
             document.addEventListener('DOMContentLoaded', function () {
                 var mq = window.matchMedia('(max-width: 960px)');
+                var hasUploadedFavicon = @json(!empty($faviconUrl));
+                var faviconFaClass = @json($faviconFaClass ?? 'fa-solid fa-globe');
+
+                function applyFontAwesomeFavicon() {
+                    if (hasUploadedFavicon || !faviconFaClass) return;
+                    var iconProbe = document.createElement('i');
+                    iconProbe.className = faviconFaClass;
+                    iconProbe.style.position = 'absolute';
+                    iconProbe.style.left = '-9999px';
+                    iconProbe.style.top = '-9999px';
+                    document.body.appendChild(iconProbe);
+
+                    var before = window.getComputedStyle(iconProbe, '::before');
+                    var glyph = (before.content || '').replace(/^["']|["']$/g, '');
+                    var fontFamily = before.fontFamily || 'Font Awesome 6 Free';
+                    var fontWeight = before.fontWeight || '900';
+                    document.body.removeChild(iconProbe);
+                    if (!glyph || glyph === 'none') return;
+
+                    var canvas = document.createElement('canvas');
+                    canvas.width = 64;
+                    canvas.height = 64;
+                    var ctx = canvas.getContext('2d');
+                    if (!ctx) return;
+                    ctx.fillStyle = '#2563eb';
+                    if (typeof ctx.roundRect === 'function') {
+                        ctx.beginPath();
+                        ctx.roundRect(0, 0, 64, 64, 14);
+                        ctx.fill();
+                    } else {
+                        ctx.fillRect(0, 0, 64, 64);
+                    }
+                    ctx.fillStyle = '#ffffff';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.font = fontWeight + ' 34px ' + fontFamily;
+                    ctx.fillText(glyph, 32, 34);
+                    var dataUrl = canvas.toDataURL('image/png');
+
+                    document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach(function (el) {
+                        el.setAttribute('href', dataUrl);
+                    });
+                }
+
+                if (document.fonts && typeof document.fonts.ready === 'object') {
+                    document.fonts.ready.then(applyFontAwesomeFavicon).catch(function () {});
+                } else {
+                    setTimeout(applyFontAwesomeFavicon, 180);
+                }
 
                 function closeDrawer() {
                     var root = document.body;
@@ -1278,6 +1563,53 @@
                 var fontResetBtn = document.getElementById('app-ui-font-reset');
                 var fontSelect = document.getElementById('app-font-size');
                 var uiFontSelect = document.getElementById('app-ui-font');
+                var appIconFaInput = document.getElementById('app-icon-fa');
+                var appFaPreview = document.getElementById('app-fa-preview');
+                var appImagePreview = document.getElementById('app-image-preview');
+                var appIconUpload = document.getElementById('app-icon-upload');
+                var faviconUpload = document.getElementById('app-favicon-upload');
+                var faviconPreview = document.getElementById('favicon-preview');
+                var faviconFaInput = document.getElementById('favicon-fa');
+
+                function renderFaPreview() {
+                    if (!appFaPreview || !appIconFaInput) return;
+                    var cls = String(appIconFaInput.value || '').trim();
+                    if (!cls) cls = 'fa-solid fa-layer-group';
+                    appFaPreview.innerHTML = '<i class="' + cls.replace(/"/g, '') + '"></i>';
+                    var hasSelectedImage = !!(appIconUpload && appIconUpload.files && appIconUpload.files.length);
+                    if (appImagePreview && !hasSelectedImage) {
+                        var hasImg = appImagePreview.querySelector('img');
+                        if (!hasImg) {
+                            appImagePreview.innerHTML = '<i class="' + cls.replace(/"/g, '') + '"></i>';
+                        }
+                    }
+                }
+
+                function bindImagePreview(inputEl, previewEl) {
+                    if (!inputEl || !previewEl) return;
+                    inputEl.addEventListener('change', function () {
+                        var file = inputEl.files && inputEl.files[0];
+                        if (!file) return;
+                        var reader = new FileReader();
+                        reader.onload = function (ev) {
+                            var result = ev && ev.target ? ev.target.result : '';
+                            previewEl.innerHTML = '<img src="' + String(result || '') + '" alt="preview">';
+                        };
+                        reader.readAsDataURL(file);
+                    });
+                }
+
+                function renderFaviconFaPreview() {
+                    if (!faviconPreview || !faviconFaInput) return;
+                    var hasSelectedFavicon = !!(faviconUpload && faviconUpload.files && faviconUpload.files.length);
+                    if (hasSelectedFavicon) return;
+                    var cls = String(faviconFaInput.value || '').trim();
+                    if (!cls) cls = 'fa-solid fa-globe';
+                    var hasImg = faviconPreview.querySelector('img');
+                    if (!hasImg) {
+                        faviconPreview.innerHTML = '<i class="' + cls.replace(/"/g, '') + '" style="font-size:.85rem"></i>';
+                    }
+                }
 
                 if (fontResetBtn && fontSelect) {
                     fontResetBtn.addEventListener('click', function () {
@@ -1285,10 +1617,31 @@
                         if (uiFontSelect) {
                             uiFontSelect.value = 'iransans';
                         }
+                        if (appIconFaInput) {
+                            appIconFaInput.value = 'fa-solid fa-layer-group';
+                            renderFaPreview();
+                        }
+                        if (faviconFaInput) {
+                            faviconFaInput.value = 'fa-solid fa-globe';
+                            renderFaviconFaPreview();
+                        }
                     });
                 }
 
-                @if($errors->has('font_size') || $errors->has('ui_font'))
+                if (appIconFaInput) {
+                    appIconFaInput.addEventListener('input', renderFaPreview);
+                    appIconFaInput.addEventListener('change', renderFaPreview);
+                }
+                renderFaPreview();
+                bindImagePreview(appIconUpload, appImagePreview);
+                bindImagePreview(faviconUpload, faviconPreview);
+                if (faviconFaInput) {
+                    faviconFaInput.addEventListener('input', renderFaviconFaPreview);
+                    faviconFaInput.addEventListener('change', renderFaviconFaPreview);
+                }
+                renderFaviconFaPreview();
+
+                @if($errors->has('font_size') || $errors->has('ui_font') || $errors->has('app_icon') || $errors->has('favicon') || $errors->has('app_icon_fa') || $errors->has('favicon_fa'))
                 activateSettingsTab('ui');
                 openSettings();
                 @elseif($errors->has('display_name'))

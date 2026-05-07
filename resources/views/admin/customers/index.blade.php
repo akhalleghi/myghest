@@ -17,6 +17,13 @@
             box-shadow: 0 6px 18px rgba(37, 99, 235, 0.28);
         }
         .cust-add-btn:hover { filter: brightness(1.03); }
+        .cust-reload-btn {
+            border: 1px solid var(--border); border-radius: 0.7rem; padding: 0.55rem 0.7rem;
+            background: var(--bg-card); color: var(--text); cursor: pointer; font-family: inherit;
+            display: inline-flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+        }
+        .cust-reload-btn:hover { background: var(--primary-soft); border-color: rgba(37, 99, 235, 0.35); }
         .cust-search { flex: 1 1 16rem; max-width: 22rem; }
         .cust-search input {
             width: 100%; border: 1px solid var(--border); border-radius: 0.65rem; padding: 0.48rem 0.72rem;
@@ -30,6 +37,22 @@
         .cust-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
         .cust-table th, .cust-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); text-align: start; vertical-align: middle; }
         .cust-table th { background: var(--primary-soft); font-weight: 800; white-space: nowrap; }
+        .cust-main-text { font-size: 0.82rem; font-weight: 800; color: var(--text); line-height: 1.4; }
+        .cust-name-link { color: inherit; text-decoration: none; border-bottom: 1px dashed rgba(37, 99, 235, 0.35); }
+        .cust-name-link:hover { color: var(--primary-dark); }
+        .cust-sub-text { font-size: 0.68rem; color: var(--muted); line-height: 1.55; margin-top: 0.1rem; }
+        .cust-loan-count { font-size: 0.9rem; font-weight: 900; color: var(--text); line-height: 1.2; }
+        .cust-loan-ids { font-size: 0.65rem; color: var(--muted); margin-top: 0.18rem; max-width: 11rem; white-space: normal; word-break: break-word; }
+        .cust-amount { font-size: 0.8rem; font-weight: 800; color: var(--text); }
+        .cust-sms-actions { display: inline-flex; align-items: center; gap: 0.35rem; }
+        .cust-sms-circle-btn {
+            width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--border);
+            background: var(--bg-card); color: var(--text); font-size: 0.83rem; font-weight: 900;
+            cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; justify-content: center;
+        }
+        .cust-sms-circle-btn--link { border-color: rgba(37, 99, 235, 0.35); background: var(--primary-soft); color: var(--primary-dark); }
+        .cust-sms-circle-btn--welcome { border-color: rgba(249, 115, 22, 0.35); background: rgba(251, 146, 60, 0.16); color: #c2410c; }
+        .cust-sms-circle-btn:hover { filter: brightness(0.97); }
         .cust-ops { position: relative; display: inline-block; vertical-align: middle; }
         .cust-ops-trigger {
             border: 1px solid var(--border); border-radius: 0.65rem; padding: 0.45rem 0.68rem;
@@ -206,6 +229,7 @@
     @php
         $oldAccounts = old('accounts', []);
         $oldReferrers = old('referrers', []);
+        $quickSmsTemplates = $smsTemplates ?? collect();
     @endphp
 
     <div class="cust-page">
@@ -214,10 +238,15 @@
                 <h1>لیست مشتریان</h1>
                 <p>مشاهده و ثبت مشتری جدید با اطلاعات هویتی، حساب بانکی و معرف‌ها.</p>
             </div>
-            <button type="button" class="cust-add-btn" id="cust-open-modal" aria-haspopup="dialog">
-                <i class="fa-solid fa-user-plus" aria-hidden="true"></i>
-                افزودن مشتری
-            </button>
+            <div style="display:inline-flex; gap:0.45rem; align-items:center;">
+                <button type="button" class="cust-reload-btn" onclick="window.location.reload()" title="بارگذاری مجدد" aria-label="بارگذاری مجدد">
+                    <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+                </button>
+                <button type="button" class="cust-add-btn" id="cust-open-modal" aria-haspopup="dialog">
+                    <i class="fa-solid fa-user-plus" aria-hidden="true"></i>
+                    افزودن مشتری
+                </button>
+            </div>
         </div>
 
         <div class="cust-head" style="margin-top: -0.25rem;">
@@ -232,28 +261,58 @@
                     <thead>
                         <tr>
                             <th>کد مشتری</th>
-                            <th>نام و نام خانوادگی</th>
-                            <th>موبایل</th>
-                            <th>کد ملی</th>
-                            <th>نام کاربری</th>
+                            <th>نام مشتری</th>
+                            <th>تعداد وام</th>
+                            <th>مجموع وام‌های دریافتی با بهره</th>
+                            <th>مانده اقساط</th>
                             <th>تاریخ عضویت</th>
+                            <th>پیامک‌ها</th>
                             <th>عملیات</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse ($customers as $c)
+                            @php
+                                $loanCount = 0;
+                                $loanCodes = [];
+                                $loanTotalWithProfit = 0;
+                                $loanRemainInstallments = 0;
+                            @endphp
                             <tr>
                                 <td>{{ $c->customer_code }}</td>
-                                <td>{{ $c->fullName() }}</td>
-                                <td>{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers($c->mobile) }}</td>
-                                <td>{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers($c->national_id) }}</td>
-                                <td>{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers($c->username) }}</td>
+                                <td>
+                                    <div class="cust-main-text">
+                                        <a href="#" class="cust-name-link" data-cust-manage-loans data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}">
+                                            {{ $c->fullName() }}
+                                        </a>
+                                    </div>
+                                    <div class="cust-sub-text">تماس: {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers($c->mobile) }}</div>
+                                    <div class="cust-sub-text">کد ملی: {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers($c->national_id) }}</div>
+                                </td>
+                                <td>
+                                    <div class="cust-loan-count">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $loanCount) }}</div>
+                                    <div class="cust-loan-ids">
+                                        @if (count($loanCodes) > 0)
+                                            {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(implode('، ', $loanCodes)) }}
+                                        @else
+                                            —
+                                        @endif
+                                    </div>
+                                </td>
+                                <td class="cust-amount">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($loanTotalWithProfit, 0)) }} تومان</td>
+                                <td class="cust-amount">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($loanRemainInstallments, 0)) }} تومان</td>
                                 <td>
                                     @if ($c->membership_at)
                                         {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(jalali($c->membership_at)->format('Y/m/d')) }}
                                     @else
                                         —
                                     @endif
+                                </td>
+                                <td>
+                                    <div class="cust-sms-actions">
+                                        <button type="button" class="cust-sms-circle-btn cust-sms-circle-btn--link" data-cust-quick-sms data-sms-type="wallet_link" data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}" data-customer-mobile="{{ $c->mobile }}" title="ارسال لینک شارژ کیف پول">ل</button>
+                                        <button type="button" class="cust-sms-circle-btn cust-sms-circle-btn--welcome" data-cust-quick-sms data-sms-type="welcome" data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}" data-customer-mobile="{{ $c->mobile }}" title="ارسال پیامک خوش‌آمدگویی">خ</button>
+                                    </div>
                                 </td>
                                 <td>
                                     <div class="cust-ops" data-cust-ops>
@@ -268,6 +327,10 @@
                                             <i class="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i>
                                         </button>
                                         <div class="cust-ops-menu" data-cust-ops-menu hidden>
+                                            <button type="button" class="cust-ops-item" data-cust-manage-loans data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}">
+                                                <i class="fa-solid fa-list-check" aria-hidden="true"></i>
+                                                مدیریت وام ها
+                                            </button>
                                             <button type="button" class="cust-ops-item" data-cust-wallet data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}" data-customer-mobile="{{ $c->mobile }}">
                                                 <i class="fa-solid fa-wallet" aria-hidden="true"></i>
                                                 کیف پول
@@ -290,7 +353,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="cust-empty">هنوز مشتری ثبت نشده است.</td>
+                                <td colspan="8" class="cust-empty">هنوز مشتری ثبت نشده است.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -584,6 +647,54 @@
             </div>
         </div>
     </div>
+
+    <div class="cust-overlay" id="quick-sms-overlay" hidden aria-hidden="true">
+        <div class="cust-modal" style="width:min(560px,100%)" role="dialog" aria-modal="true" aria-labelledby="quick-sms-title">
+            <div class="cust-modal-head">
+                <div>
+                    <h2 id="quick-sms-title">ارسال سریع پیامک</h2>
+                    <p id="quick-sms-subtitle">ارسال پیامک به مشتری</p>
+                </div>
+                <button type="button" class="cust-modal-close" id="quick-sms-close" aria-label="بستن">&times;</button>
+            </div>
+            <div class="cust-modal-body">
+                <form id="quick-sms-form" class="wallet-form-grid" novalidate>
+                    <div class="cust-field">
+                        <label for="quick-sms-template">انتخاب قالب پیامک</label>
+                        <select id="quick-sms-template" name="sms_template_id">
+                            <option value="">بدون قالب (متن آزاد)</option>
+                            @foreach ($quickSmsTemplates as $tpl)
+                                <option value="{{ $tpl['id'] ?? '' }}">{{ ($tpl['title'] ?? '') . ' (' . ($tpl['category'] ?? '') . ')' }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="cust-field">
+                        <label for="quick-sms-text">متن پیامک</label>
+                        <textarea id="quick-sms-text" name="sms_text" maxlength="1000" placeholder="متن پیامک را بنویسید..."></textarea>
+                    </div>
+                    <div class="cust-actions" style="margin-top:0.2rem;">
+                        <button type="button" class="cust-cancel" id="quick-sms-cancel">انصراف</button>
+                        <button type="submit" class="cust-submit">ارسال پیامک</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="cust-overlay" id="loan-manage-overlay" hidden aria-hidden="true">
+        <div class="cust-modal" style="width:min(520px,100%)" role="dialog" aria-modal="true" aria-labelledby="loan-manage-title">
+            <div class="cust-modal-head">
+                <div>
+                    <h2 id="loan-manage-title">مدیریت وام ها</h2>
+                    <p>این بخش در مرحله بعدی تکمیل می‌شود.</p>
+                </div>
+                <button type="button" class="cust-modal-close" id="loan-manage-close" aria-label="بستن">&times;</button>
+            </div>
+            <div class="cust-modal-body">
+                <div id="loan-manage-text" class="cust-main-text">مدیریت وام های مشتری</div>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
@@ -638,6 +749,10 @@
                 return custListBaseUrl + '/' + id + '/wallet/transactions/export-excel';
             }
 
+            function quickSmsUrl(id) {
+                return custListBaseUrl + '/' + id + '/quick-sms';
+            }
+
             var overlay = document.getElementById('cust-modal-overlay');
             var openBtn = document.getElementById('cust-open-modal');
             var closeBtn = document.getElementById('cust-close-modal');
@@ -677,13 +792,29 @@
             var walletTransOverlay = document.getElementById('wallet-trans-overlay');
             var walletTransClose = document.getElementById('wallet-trans-close');
             var walletTransTbody = document.getElementById('wallet-trans-tbody');
+            var quickSmsOverlay = document.getElementById('quick-sms-overlay');
+            var quickSmsClose = document.getElementById('quick-sms-close');
+            var quickSmsCancel = document.getElementById('quick-sms-cancel');
+            var quickSmsForm = document.getElementById('quick-sms-form');
+            var quickSmsTitle = document.getElementById('quick-sms-title');
+            var quickSmsSubtitle = document.getElementById('quick-sms-subtitle');
+            var quickSmsTemplate = document.getElementById('quick-sms-template');
+            var quickSmsText = document.getElementById('quick-sms-text');
+            var loanManageOverlay = document.getElementById('loan-manage-overlay');
+            var loanManageClose = document.getElementById('loan-manage-close');
+            var loanManageText = document.getElementById('loan-manage-text');
             var walletCurrentCustomerId = null;
             var walletCurrentCustomerName = '';
             var walletCurrentCustomerMobile = '';
+            var quickSmsCurrentCustomerId = null;
+            var quickSmsCurrentType = '';
+            var quickSmsCurrentCustomerName = '';
+            var quickSmsTemplatesData = @json($quickSmsTemplates->values());
             var walletSmsTemplates = [];
             var walletAdjustSubmitting = false;
             var walletLockSubmitting = false;
             var customerFormSubmitting = false;
+            var quickSmsSubmitting = false;
             var walletState = {
                 balance_toman: 0,
                 is_locked: false,
@@ -1028,6 +1159,52 @@
                 walletTransOverlay.setAttribute('aria-hidden', 'true');
             }
 
+            function openQuickSmsModal(customerId, customerName, customerMobile, smsType) {
+                quickSmsCurrentCustomerId = customerId;
+                quickSmsCurrentType = smsType;
+                quickSmsCurrentCustomerName = customerName || '';
+                if (quickSmsTitle) {
+                    quickSmsTitle.textContent = smsType === 'wallet_link' ? 'ارسال پیامک لینک شارژ' : 'ارسال پیامک خوش‌آمدگویی';
+                }
+                if (quickSmsSubtitle) {
+                    quickSmsSubtitle.textContent = 'گیرنده: ' + (customerName || '') + ' - ' + (customerMobile || '');
+                }
+                if (quickSmsForm) {
+                    quickSmsForm.reset();
+                }
+                if (quickSmsText) {
+                    quickSmsText.value = smsType === 'wallet_link'
+                        ? 'سلام ' + (customerName || '') + '، لینک شارژ کیف پول شما: —'
+                        : 'سلام ' + (customerName || '') + '، به سامانه خوش آمدید.';
+                }
+                if (quickSmsOverlay) {
+                    quickSmsOverlay.hidden = false;
+                    quickSmsOverlay.setAttribute('aria-hidden', 'false');
+                }
+            }
+
+            function closeQuickSmsModal() {
+                if (!quickSmsOverlay) return;
+                quickSmsOverlay.hidden = true;
+                quickSmsOverlay.setAttribute('aria-hidden', 'true');
+            }
+
+            function openLoanManageModal(customerName) {
+                if (loanManageText) {
+                    loanManageText.textContent = 'مدیریت وام های ' + (customerName || '');
+                }
+                if (loanManageOverlay) {
+                    loanManageOverlay.hidden = false;
+                    loanManageOverlay.setAttribute('aria-hidden', 'false');
+                }
+            }
+
+            function closeLoanManageModal() {
+                if (!loanManageOverlay) return;
+                loanManageOverlay.hidden = true;
+                loanManageOverlay.setAttribute('aria-hidden', 'true');
+            }
+
             function syncUsername() {
                 if (!userPrev) return;
                 var u = usernameFromMobile(mobile ? mobile.value : '');
@@ -1060,6 +1237,28 @@
 
             /* capture: از آنجا که روی منو e.stopPropagation() است، در حباب رویداد هرگز به document نمی‌رسد */
             document.addEventListener('click', function (e) {
+                var manageLoansBtn = e.target.closest('[data-cust-manage-loans]');
+                if (manageLoansBtn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var manageCustomerName = manageLoansBtn.getAttribute('data-customer-name') || '';
+                    closeAllCustMenus();
+                    openLoanManageModal(manageCustomerName);
+                    return;
+                }
+                var quickSmsBtn = e.target.closest('[data-cust-quick-sms]');
+                if (quickSmsBtn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var quickCustomerId = quickSmsBtn.getAttribute('data-customer-id');
+                    var quickCustomerName = quickSmsBtn.getAttribute('data-customer-name') || '';
+                    var quickCustomerMobile = quickSmsBtn.getAttribute('data-customer-mobile') || '';
+                    var quickSmsType = quickSmsBtn.getAttribute('data-sms-type') || 'welcome';
+                    if (quickCustomerId) {
+                        openQuickSmsModal(parseInt(quickCustomerId, 10), quickCustomerName, quickCustomerMobile, quickSmsType);
+                    }
+                    return;
+                }
                 var walletBtn = e.target.closest('[data-cust-wallet]');
                 if (walletBtn) {
                     e.preventDefault();
@@ -1109,6 +1308,19 @@
             if (walletTransOverlay) {
                 walletTransOverlay.addEventListener('click', function (e) {
                     if (e.target === walletTransOverlay) closeWalletTransactionsModal();
+                });
+            }
+            if (quickSmsClose) quickSmsClose.addEventListener('click', closeQuickSmsModal);
+            if (quickSmsCancel) quickSmsCancel.addEventListener('click', closeQuickSmsModal);
+            if (quickSmsOverlay) {
+                quickSmsOverlay.addEventListener('click', function (e) {
+                    if (e.target === quickSmsOverlay) closeQuickSmsModal();
+                });
+            }
+            if (loanManageClose) loanManageClose.addEventListener('click', closeLoanManageModal);
+            if (loanManageOverlay) {
+                loanManageOverlay.addEventListener('click', function (e) {
+                    if (e.target === loanManageOverlay) closeLoanManageModal();
                 });
             }
 
@@ -1380,6 +1592,75 @@
                 });
             }
 
+            if (quickSmsTemplate && quickSmsText) {
+                quickSmsTemplate.addEventListener('change', function () {
+                    var tplId = parseInt(String(quickSmsTemplate.value || '0'), 10);
+                    if (!tplId) {
+                        return;
+                    }
+                    var tpl = quickSmsTemplatesData.find(function (x) {
+                        return parseInt(String(x.id), 10) === tplId;
+                    });
+                    if (!tpl) {
+                        return;
+                    }
+                    quickSmsText.value = renderWalletTemplateText(tpl.body || '', {
+                        store_name: document.title || 'سامانه',
+                        customer_name: quickSmsCurrentCustomerName
+                    });
+                });
+            }
+
+            if (quickSmsForm) {
+                quickSmsForm.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    if (!quickSmsCurrentCustomerId || quickSmsSubmitting) return;
+                    quickSmsSubmitting = true;
+                    var submitBtn = quickSmsForm.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.textContent = 'در حال ارسال...';
+                    }
+
+                    var payload = {
+                        sms_type: quickSmsCurrentType || 'welcome',
+                        sms_template_id: quickSmsTemplate ? String(quickSmsTemplate.value || '') : '',
+                        sms_text: quickSmsText ? String(quickSmsText.value || '').trim() : ''
+                    };
+                    fetch(quickSmsUrl(quickSmsCurrentCustomerId), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': @json(csrf_token())
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify(payload)
+                    }).then(function (r) {
+                        return r.json().then(function (json) { return { ok: r.ok, json: json }; });
+                    }).then(function (res) {
+                        if (!res.ok) {
+                            throw new Error((res.json && res.json.message) ? res.json.message : 'ارسال پیامک ناموفق بود.');
+                        }
+                        closeQuickSmsModal();
+                        if (window.AdminSwal && window.AdminSwal.success) {
+                            AdminSwal.success(res.json.message || 'پیامک ارسال شد.');
+                        }
+                    }).catch(function (err) {
+                        if (window.AdminSwal && window.AdminSwal.error) {
+                            AdminSwal.error(err.message || 'ارسال پیامک ناموفق بود.');
+                        }
+                    }).finally(function () {
+                        quickSmsSubmitting = false;
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = 'ارسال پیامک';
+                        }
+                    });
+                });
+            }
+
             function initPickers() {
                 if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.pDatepicker) {
                     return;
@@ -1642,6 +1923,8 @@
                 if (walletAdjustOverlay && !walletAdjustOverlay.hidden) closeWalletAdjustModal();
                 if (walletTransOverlay && !walletTransOverlay.hidden) closeWalletTransactionsModal();
                 if (walletModalOverlay && !walletModalOverlay.hidden) closeWalletModal();
+                if (quickSmsOverlay && !quickSmsOverlay.hidden) closeQuickSmsModal();
+                if (loanManageOverlay && !loanManageOverlay.hidden) closeLoanManageModal();
             });
 
             @if ($errors->any() && ! session('open_edit_customer_id'))
