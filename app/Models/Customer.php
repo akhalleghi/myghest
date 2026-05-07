@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 final class Customer extends Model
 {
@@ -49,6 +50,11 @@ final class Customer extends Model
     public function referrers(): HasMany
     {
         return $this->hasMany(CustomerReferrer::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    public function wallet(): HasOne
+    {
+        return $this->hasOne(CustomerWallet::class);
     }
 
     public function fullName(): string

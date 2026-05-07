@@ -9,6 +9,7 @@ use App\Models\AppSetting;
 use App\Models\Customer;
 use App\Models\CustomerBankAccount;
 use App\Models\CustomerReferrer;
+use App\Models\CustomerWallet;
 use App\Models\SmsLog;
 use App\Models\SmsPanelSetting;
 use App\Rules\IranNationalId;
@@ -173,6 +174,12 @@ final class CustomerController extends Controller
                     'sort_order' => $i,
                 ]);
             }
+
+            CustomerWallet::query()->create([
+                'customer_id' => $c->id,
+                'balance_toman' => 0,
+                'is_locked' => false,
+            ]);
 
             return $c;
         });
@@ -532,10 +539,8 @@ final class CustomerController extends Controller
             ],
         ]);
 
-        $active->last_connection_status = $result->ok ? 'connected' : 'disconnected';
-        $active->last_connection_message = $result->message;
-        $active->last_connected_at = now();
-        $active->save();
+        // Do not mutate panel connection health here.
+        // Operational SMS failures must not flip panel status in settings.
 
         return [
             'ok' => $result->ok,

@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
 use App\Http\Controllers\Admin\Auth\AdminDashboardController;
 use App\Http\Controllers\Admin\Auth\AdminLoginController;
 use App\Http\Controllers\Admin\CustomerController;
+use App\Http\Controllers\Admin\CustomerWalletController;
 use App\Http\Controllers\Admin\LoanTypeController;
 use App\Http\Controllers\Admin\SmsManagementController;
 use Illuminate\Support\Facades\Route;
@@ -83,6 +84,26 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::delete('/customers/{customer}', [CustomerController::class, 'destroy'])
         ->middleware('throttle:30,1')
         ->name('customers.destroy');
+
+    Route::get('/customers/{customer}/wallet', [CustomerWalletController::class, 'show'])
+        ->middleware('throttle:60,1')
+        ->name('customers.wallet.show');
+
+    Route::post('/customers/{customer}/wallet/lock', [CustomerWalletController::class, 'setLock'])
+        ->middleware('throttle:30,1')
+        ->name('customers.wallet.lock');
+
+    Route::post('/customers/{customer}/wallet/adjust', [CustomerWalletController::class, 'adjust'])
+        ->middleware('throttle:30,1')
+        ->name('customers.wallet.adjust');
+
+    Route::get('/customers/{customer}/wallet/transactions', [CustomerWalletController::class, 'transactions'])
+        ->middleware('throttle:60,1')
+        ->name('customers.wallet.transactions');
+
+    Route::get('/customers/{customer}/wallet/transactions/export-excel', [CustomerWalletController::class, 'exportTransactionsExcel'])
+        ->middleware('throttle:20,1')
+        ->name('customers.wallet.transactions.export-excel');
 
     /*
     | تعریف انواع وام — فهرست و جدول (افزودن/ویرایش در گام بعدی).

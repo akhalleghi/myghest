@@ -31,8 +31,9 @@ final class SmsManagementController extends Controller
         $filters = $this->resolveFilters($request);
         $query = $this->buildFilteredQuery($filters['from'], $filters['to'], $filters['status'], $filters['search']);
         $providerOptions = $this->panelManager->providerOptions();
-        $activeProvider = $this->resolveActiveProvider($providerOptions);
-        $panelSetting = SmsPanelSetting::query()->where('provider', $activeProvider)->first();
+        $activeSetting = SmsPanelSetting::query()->where('is_active', true)->first();
+        $activeProvider = $activeSetting?->provider ?? $this->resolveActiveProvider($providerOptions);
+        $panelSetting = $activeSetting;
         $connectionState = $this->connectionStateFromSetting($panelSetting);
         $templateCategories = $this->templateCategories();
         $templatePatterns = $this->templatePatterns();
@@ -133,14 +134,14 @@ final class SmsManagementController extends Controller
     public function sendPanelTest(Request $request): RedirectResponse
     {
         $providerOptions = $this->panelManager->providerOptions();
-        $activeProvider = $this->resolveActiveProvider($providerOptions);
-        $setting = SmsPanelSetting::query()->where('provider', $activeProvider)->first();
-        if ($setting === null || ! $setting->is_active) {
+        $setting = SmsPanelSetting::query()->where('is_active', true)->first();
+        if ($setting === null) {
             return redirect()
                 ->route('admin.sms.index')
                 ->with('flash_error', 'ابتدا تنظیمات پنل را ذخیره کنید.')
                 ->with('sms_active_tab', 'settings');
         }
+        $activeProvider = $setting->provider;
 
         $validated = $request->validate([
             'test_recipient' => ['required', 'regex:/^09\d{9}$/'],
@@ -443,11 +444,11 @@ final class SmsManagementController extends Controller
      */
     private function connectionStateFromSetting(?SmsPanelSetting $setting): array
     {
-        if ($setting === null || $setting->username === null || $setting->username === '') {
+        if ($setting === null || ! $setting->is_active || $setting->username === null || $setting->username === '') {
             return [
                 'state' => 'not-configured',
                 'label' => 'تنظیم نشده',
-                'message' => 'اطلاعات پنل هنوز ثبت نشده است.',
+                'message' => 'پنل فعالی انتخاب نشده است. ابتدا تنظیمات پنل را ذخیره کنید.',
             ];
         }
 
