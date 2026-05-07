@@ -153,6 +153,10 @@ Route::middleware(['auth:admin'])->group(function (): void {
         ->middleware('throttle:20,1')
         ->name('sms.scenario-templates.update');
 
+    Route::post('/sms-management/reminder-settings', [SmsManagementController::class, 'updateReminderSettings'])
+        ->middleware('throttle:20,1')
+        ->name('sms.reminder-settings.update');
+
     Route::post('/sms-management/templates', [SmsManagementController::class, 'storeTemplate'])
         ->middleware('throttle:30,1')
         ->name('sms.templates.store');

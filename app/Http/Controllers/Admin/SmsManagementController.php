@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\AppSetting;
 use App\Models\SmsLog;
 use App\Models\SmsPanelSetting;
 use App\Models\SmsTemplate;
 use App\Services\Sms\SmsPanelManager;
+use App\Services\Sms\SmsSettingsService;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,6 +25,7 @@ final class SmsManagementController extends Controller
 {
     public function __construct(
         private readonly SmsPanelManager $panelManager,
+        private readonly SmsSettingsService $smsSettings,
     ) {}
 
     public function index(Request $request): View
@@ -39,7 +40,8 @@ final class SmsManagementController extends Controller
         $templateCategories = $this->templateCategories();
         $templatePatterns = $this->templatePatterns();
         $smsTemplates = SmsTemplate::query()->latest('id')->get();
-        $scenarioTemplateIds = $this->smsScenarioTemplateIds();
+        $scenarioTemplateIds = $this->smsSettings->scenarioTemplateIds();
+        $smsReminderSettings = $this->smsSettings->reminderSettings();
 
         $logs = $query->latest('sent_at')->paginate(20)->withQueryString();
 
@@ -64,6 +66,7 @@ final class SmsManagementController extends Controller
             'smsTemplatePatterns' => $templatePatterns,
             'smsTemplates' => $smsTemplates,
             'smsScenarioTemplateIds' => $scenarioTemplateIds,
+            'smsReminderSettings' => $smsReminderSettings,
         ]);
     }
 
@@ -148,16 +151,92 @@ final class SmsManagementController extends Controller
             'tpl_register_welcome_id' => 'قالب پیامک خوش آمد ثبت نام',
         ]);
 
-        $this->storeSmsScenarioTemplateIds([
-            'sms_tpl_installment_thanks_id' => $validated['tpl_installment_thanks_id'] ?? null,
-            'sms_tpl_login_id' => $validated['tpl_login_id'] ?? null,
-            'sms_tpl_register_verify_code_id' => $validated['tpl_register_verify_code_id'] ?? null,
-            'sms_tpl_register_welcome_id' => $validated['tpl_register_welcome_id'] ?? null,
+        $this->smsSettings->saveScenarioTemplateIds([
+            'tpl_installment_thanks_id' => $validated['tpl_installment_thanks_id'] ?? null,
+            'tpl_login_id' => $validated['tpl_login_id'] ?? null,
+            'tpl_register_verify_code_id' => $validated['tpl_register_verify_code_id'] ?? null,
+            'tpl_register_welcome_id' => $validated['tpl_register_welcome_id'] ?? null,
         ]);
 
         return redirect()
             ->route('admin.sms.index')
             ->with('flash_success', 'الگوهای پیش‌فرض پیامک با موفقیت ذخیره شد.')
+            ->with('sms_active_tab', 'settings');
+    }
+
+    public function updateReminderSettings(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'reminder_enabled' => ['nullable', 'boolean'],
+            'reminder_send_time' => [
+                Rule::requiredIf(fn (): bool => $request->boolean('reminder_enabled')),
+                'nullable',
+                'date_format:H:i',
+            ],
+            'due_day_enabled' => ['nullable', 'boolean'],
+            'due_day_template_id' => [
+                Rule::requiredIf(fn (): bool => $request->boolean('reminder_enabled') && $request->boolean('due_day_enabled')),
+                'nullable',
+                'integer',
+                'exists:sms_templates,id',
+            ],
+            'before_due_enabled' => ['nullable', 'boolean'],
+            'before_due_template_id' => [
+                Rule::requiredIf(fn (): bool => $request->boolean('reminder_enabled') && $request->boolean('before_due_enabled')),
+                'nullable',
+                'integer',
+                'exists:sms_templates,id',
+            ],
+            'before_due_days' => [
+                Rule::requiredIf(fn (): bool => $request->boolean('reminder_enabled') && $request->boolean('before_due_enabled')),
+                'nullable',
+                'integer',
+                'min:1',
+                'max:365',
+            ],
+            'overdue_days_after' => [
+                Rule::requiredIf(fn (): bool => $request->boolean('reminder_enabled')),
+                'nullable',
+                'integer',
+                'min:0',
+                'max:365',
+            ],
+            'overdue_daily_until_paid' => ['nullable', 'boolean'],
+            'overdue_template_id' => [
+                Rule::requiredIf(fn (): bool => $request->boolean('reminder_enabled')),
+                'nullable',
+                'integer',
+                'exists:sms_templates,id',
+            ],
+        ], [], [
+            'reminder_enabled' => 'فعال‌سازی پیامک‌های یادآوری',
+            'reminder_send_time' => 'ساعت ارسال پیامک',
+            'due_day_enabled' => 'ارسال یادآوری روز سررسید',
+            'due_day_template_id' => 'قالب پیامک روز سررسید',
+            'before_due_enabled' => 'ارسال یادآوری پیش از موعد',
+            'before_due_template_id' => 'قالب پیامک سررسید پیش از موعد',
+            'before_due_days' => 'تعداد روز قبل از سررسید',
+            'overdue_days_after' => 'تعداد روز پس از سررسید برای شروع معوق',
+            'overdue_daily_until_paid' => 'ارسال روزانه تا زمان وصول',
+            'overdue_template_id' => 'قالب پیامک اقساط معوق',
+        ]);
+
+        $this->smsSettings->saveReminderSettings([
+            'reminder_enabled' => $request->boolean('reminder_enabled'),
+            'reminder_send_time' => trim((string) ($validated['reminder_send_time'] ?? '')),
+            'due_day_enabled' => $request->boolean('due_day_enabled'),
+            'due_day_template_id' => $validated['due_day_template_id'] ?? null,
+            'before_due_enabled' => $request->boolean('before_due_enabled'),
+            'before_due_template_id' => $validated['before_due_template_id'] ?? null,
+            'before_due_days' => $validated['before_due_days'] ?? null,
+            'overdue_days_after' => $validated['overdue_days_after'] ?? null,
+            'overdue_daily_until_paid' => $request->boolean('overdue_daily_until_paid'),
+            'overdue_template_id' => $validated['overdue_template_id'] ?? null,
+        ]);
+
+        return redirect()
+            ->route('admin.sms.index')
+            ->with('flash_success', 'تنظیمات پیامک یادآوری با موفقیت ذخیره شد.')
             ->with('sms_active_tab', 'settings');
     }
 
@@ -507,45 +586,6 @@ final class SmsManagementController extends Controller
             return Crypt::decryptString($value);
         } catch (\Throwable) {
             return '';
-        }
-    }
-
-    /**
-     * @return array{
-     *   tpl_installment_thanks_id:string,
-     *   tpl_login_id:string,
-     *   tpl_register_verify_code_id:string,
-     *   tpl_register_welcome_id:string
-     * }
-     */
-    private function smsScenarioTemplateIds(): array
-    {
-        $map = [
-            'tpl_installment_thanks_id' => 'sms_tpl_installment_thanks_id',
-            'tpl_login_id' => 'sms_tpl_login_id',
-            'tpl_register_verify_code_id' => 'sms_tpl_register_verify_code_id',
-            'tpl_register_welcome_id' => 'sms_tpl_register_welcome_id',
-        ];
-        $out = [];
-        foreach ($map as $formKey => $settingKey) {
-            $value = AppSetting::query()->where('key', $settingKey)->value('value');
-            $out[$formKey] = is_scalar($value) ? trim((string) $value) : '';
-        }
-
-        return $out;
-    }
-
-    /**
-     * @param  array<string, int|string|null>  $pairs
-     */
-    private function storeSmsScenarioTemplateIds(array $pairs): void
-    {
-        foreach ($pairs as $key => $value) {
-            $clean = $value === null ? '' : trim((string) $value);
-            AppSetting::query()->updateOrCreate(
-                ['key' => $key],
-                ['value' => $clean]
-            );
         }
     }
 

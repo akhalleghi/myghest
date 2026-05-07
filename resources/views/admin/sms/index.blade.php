@@ -28,6 +28,21 @@
         .sms-field-error { margin-top: 0.22rem; font-size: 0.72rem; color: #b91c1c; font-weight: 700; }
         .sms-settings-submit { border: none; border-radius: 0.62rem; padding: 0.52rem 1rem; background: linear-gradient(180deg, var(--primary), var(--primary-dark)); color: #fff; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
         .sms-settings-note { margin: 0 0 0.6rem; font-size: 0.74rem; color: var(--muted); }
+        .sms-toggle-row { min-width: 100%; padding: 0.46rem 0.55rem; border: 1px dashed var(--border); border-radius: 0.62rem; background: color-mix(in oklab, var(--bg-card) 88%, var(--primary-soft)); }
+        .sms-toggle-label { display: inline-flex; align-items: center; gap: 0.45rem; margin: 0; font-size: 0.79rem; font-weight: 700; color: var(--text); cursor: pointer; }
+        .sms-toggle-label input[type="checkbox"] { width: 1rem; height: 1rem; accent-color: var(--primary); }
+        .sms-reminder-grid { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: 0.65rem; }
+        .sms-reminder-section { border: 1px solid var(--border); border-radius: 0.72rem; background: var(--bg-card); padding: 0.58rem; display: grid; gap: 0.52rem; min-width: 0; }
+        .sms-reminder-section-title { margin: 0; font-size: 0.76rem; font-weight: 800; color: var(--text); display: inline-flex; align-items: center; gap: 0.35rem; }
+        .sms-reminder-section-sub { margin: -0.2rem 0 0.1rem; font-size: 0.71rem; color: var(--muted); line-height: 1.55; }
+        .sms-reminder-hidden { display: none !important; }
+        .sms-reminder-full { grid-column: 1 / -1; }
+        .sms-timepicker-row { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+        .sms-timepicker-row select { width: auto; min-width: 5.2rem; }
+        .sms-timepicker-sep { font-weight: 800; color: var(--muted); }
+        @media (max-width: 860px) {
+            .sms-reminder-grid { grid-template-columns: 1fr; }
+        }
         .sms-template-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
         .sms-template-toolbar-note { margin: 0; font-size: 0.75rem; color: var(--muted); }
         .sms-template-add-btn { border: none; border-radius: 0.62rem; padding: 0.5rem 0.9rem; background: linear-gradient(180deg, #2563eb, #1d4ed8); color: #fff; font-size: 0.78rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.38rem; }
@@ -460,6 +475,149 @@
                     </button>
                 </form>
             </div>
+
+            <div class="sms-panel-select-card">
+                <div class="sms-panel-select-head">
+                    <i class="fa-solid fa-bell" aria-hidden="true"></i>
+                    تنظیمات پیامک‌های یادآوری
+                </div>
+                <p class="sms-panel-select-sub">ابتدا فعال‌سازی پیامک یادآوری را تعیین کنید. در صورت فعال‌سازی، سایر تنظیمات نمایش داده می‌شوند.</p>
+
+                <form method="post" action="{{ route('admin.sms.reminder-settings.update') }}" class="sms-settings-form">
+                    @csrf
+                    <div class="sms-toggle-row">
+                        <label class="sms-toggle-label">
+                            <input
+                                type="checkbox"
+                                name="reminder_enabled"
+                                id="sms-reminder-enabled"
+                                value="1"
+                                @checked(old('reminder_enabled', $smsReminderSettings['reminder_enabled'] ?? '') === '1')
+                            >
+                            پیامک های یادآوری فعال باشد؟
+                        </label>
+                        @error('reminder_enabled')<div class="sms-field-error">{{ $message }}</div>@enderror
+                    </div>
+
+                    <div id="sms-reminder-fields" class="sms-reminder-grid">
+                        <div class="sms-reminder-section sms-reminder-full">
+                            <p class="sms-reminder-section-title"><i class="fa-regular fa-clock"></i> زمان‌بندی ارسال</p>
+                            <p class="sms-reminder-section-sub">همه پیامک‌های یادآوری در ساعت مشخص‌شده پردازش می‌شوند.</p>
+                            <div class="sms-settings-field">
+                            <label for="sms-reminder-send-time">پیام ها راس چه ساعتی ارسال شوند؟</label>
+                            @php($reminderTimeRaw = old('reminder_send_time', $smsReminderSettings['reminder_send_time'] ?? '09:00'))
+                            @php($timeParts = explode(':', (string) $reminderTimeRaw))
+                            @php($selectedHour = str_pad((string) ((int) ($timeParts[0] ?? 9)), 2, '0', STR_PAD_LEFT))
+                            @php($selectedMinute = str_pad((string) ((int) ($timeParts[1] ?? 0)), 2, '0', STR_PAD_LEFT))
+                            <input type="hidden" id="sms-reminder-send-time" name="reminder_send_time" value="{{ $selectedHour.':'.$selectedMinute }}">
+                            <div class="sms-timepicker-row" aria-label="انتخاب زمان ارسال">
+                                <select id="sms-reminder-hour">
+                                    @for($h = 0; $h <= 23; $h++)
+                                        @php($hv = str_pad((string) $h, 2, '0', STR_PAD_LEFT))
+                                        <option value="{{ $hv }}" @selected($selectedHour === $hv)>{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers($hv) }}</option>
+                                    @endfor
+                                </select>
+                                <span class="sms-timepicker-sep">:</span>
+                                <select id="sms-reminder-minute">
+                                    @for($m = 0; $m <= 59; $m += 5)
+                                        @php($mv = str_pad((string) $m, 2, '0', STR_PAD_LEFT))
+                                        <option value="{{ $mv }}" @selected($selectedMinute === $mv)>{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers($mv) }}</option>
+                                    @endfor
+                                </select>
+                            </div>
+                            @error('reminder_send_time')<div class="sms-field-error">{{ $message }}</div>@enderror
+                            </div>
+                        </div>
+
+                        <div class="sms-reminder-section sms-reminder-full">
+                            <p class="sms-reminder-section-title"><i class="fa-regular fa-calendar-check"></i> یادآوری روز سررسید</p>
+                            <label class="sms-toggle-label">
+                                <input
+                                    type="checkbox"
+                                    name="due_day_enabled"
+                                    id="sms-due-day-enabled"
+                                    value="1"
+                                    @checked(old('due_day_enabled', $smsReminderSettings['due_day_enabled'] ?? '') === '1')
+                                >
+                                پیامک یادآوری روز سررسید ارسال شود؟
+                            </label>
+                            <div class="sms-settings-field" id="sms-due-day-template-wrap">
+                                <label for="sms-due-day-template">انتخاب قالب پیامک روز سررسید</label>
+                                <select id="sms-due-day-template" name="due_day_template_id">
+                                    <option value="">انتخاب نشده</option>
+                                    @foreach($smsTemplates as $tpl)
+                                        <option value="{{ $tpl->id }}" @selected(old('due_day_template_id', $smsReminderSettings['due_day_template_id'] ?? '') == (string) $tpl->id)>{{ $tpl->title }}</option>
+                                    @endforeach
+                                </select>
+                                @error('due_day_template_id')<div class="sms-field-error">{{ $message }}</div>@enderror
+                            </div>
+                        </div>
+
+                        <div class="sms-reminder-section sms-reminder-full">
+                            <p class="sms-reminder-section-title"><i class="fa-solid fa-hourglass-half"></i> یادآوری پیش از موعد</p>
+                            <label class="sms-toggle-label">
+                                <input
+                                    type="checkbox"
+                                    name="before_due_enabled"
+                                    id="sms-before-due-enabled"
+                                    value="1"
+                                    @checked(old('before_due_enabled', $smsReminderSettings['before_due_enabled'] ?? '') === '1')
+                                >
+                                پیامک یادآوری سررسید پیش از موعد ارسال شود؟
+                            </label>
+                            <div class="sms-settings-field" id="sms-before-due-template-wrap">
+                                <label for="sms-before-due-template">انتخاب قالب سررسید پیش از موعد</label>
+                                <select id="sms-before-due-template" name="before_due_template_id">
+                                    <option value="">انتخاب نشده</option>
+                                    @foreach($smsTemplates as $tpl)
+                                        <option value="{{ $tpl->id }}" @selected(old('before_due_template_id', $smsReminderSettings['before_due_template_id'] ?? '') == (string) $tpl->id)>{{ $tpl->title }}</option>
+                                    @endforeach
+                                </select>
+                                @error('before_due_template_id')<div class="sms-field-error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="sms-settings-field" id="sms-before-due-days-wrap">
+                                <label for="sms-before-due-days">چند روز قبل از سررسید ارسال شود؟</label>
+                                <input id="sms-before-due-days" type="number" min="1" max="365" step="1" name="before_due_days" value="{{ old('before_due_days', $smsReminderSettings['before_due_days'] ?? '') }}" placeholder="مثلاً 5">
+                                @error('before_due_days')<div class="sms-field-error">{{ $message }}</div>@enderror
+                            </div>
+                        </div>
+
+                        <div class="sms-reminder-section sms-reminder-full">
+                            <p class="sms-reminder-section-title"><i class="fa-solid fa-triangle-exclamation"></i> پیامک معوق</p>
+                            <div class="sms-settings-field">
+                                <label for="sms-overdue-days-after">پیامک اقساط معوق چند روز پس از سررسید ارسال شود؟</label>
+                                <input id="sms-overdue-days-after" type="number" min="0" max="365" step="1" name="overdue_days_after" value="{{ old('overdue_days_after', $smsReminderSettings['overdue_days_after'] ?? '') }}" placeholder="مثلاً 3">
+                                @error('overdue_days_after')<div class="sms-field-error">{{ $message }}</div>@enderror
+                            </div>
+                            <label class="sms-toggle-label">
+                                <input
+                                    type="checkbox"
+                                    name="overdue_daily_until_paid"
+                                    id="sms-overdue-daily-until-paid"
+                                    value="1"
+                                    @checked(old('overdue_daily_until_paid', $smsReminderSettings['overdue_daily_until_paid'] ?? '') === '1')
+                                >
+                                پیامک یادآوری معوق تا زمان وصول هر روز ارسال شود؟
+                            </label>
+                            <div class="sms-settings-field">
+                                <label for="sms-overdue-template">قالب پیامک اقساط معوق شده</label>
+                                <select id="sms-overdue-template" name="overdue_template_id">
+                                    <option value="">انتخاب نشده</option>
+                                    @foreach($smsTemplates as $tpl)
+                                        <option value="{{ $tpl->id }}" @selected(old('overdue_template_id', $smsReminderSettings['overdue_template_id'] ?? '') == (string) $tpl->id)>{{ $tpl->title }}</option>
+                                    @endforeach
+                                </select>
+                                @error('overdue_template_id')<div class="sms-field-error">{{ $message }}</div>@enderror
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="sms-settings-submit" type="submit">
+                        <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+                        ذخیره تنظیمات یادآوری
+                    </button>
+                </form>
+            </div>
         </section>
     </div>
 
@@ -756,6 +914,52 @@
                 templateBody.addEventListener('input', renderTemplatePreview);
             }
             renderTemplatePreview();
+
+            var reminderEnabled = document.getElementById('sms-reminder-enabled');
+            var reminderFields = document.getElementById('sms-reminder-fields');
+            var reminderSendTimeInput = document.getElementById('sms-reminder-send-time');
+            var reminderHourSelect = document.getElementById('sms-reminder-hour');
+            var reminderMinuteSelect = document.getElementById('sms-reminder-minute');
+            var dueDayEnabled = document.getElementById('sms-due-day-enabled');
+            var dueDayTemplateWrap = document.getElementById('sms-due-day-template-wrap');
+            var beforeDueEnabled = document.getElementById('sms-before-due-enabled');
+            var beforeDueTemplateWrap = document.getElementById('sms-before-due-template-wrap');
+            var beforeDueDaysWrap = document.getElementById('sms-before-due-days-wrap');
+            function syncReminderTimeValue() {
+                if (!reminderSendTimeInput || !reminderHourSelect || !reminderMinuteSelect) return;
+                reminderSendTimeInput.value = String(reminderHourSelect.value || '00') + ':' + String(reminderMinuteSelect.value || '00');
+            }
+            function setVisibility(el, visible) {
+                if (!el) return;
+                el.classList.toggle('sms-reminder-hidden', !visible);
+            }
+            function setEnabledRecursive(root, enabled) {
+                if (!root) return;
+                root.querySelectorAll('input, select, textarea, button').forEach(function (field) {
+                    if (field.id === 'sms-reminder-enabled') return;
+                    field.disabled = !enabled;
+                });
+            }
+            function syncReminderVisibility() {
+                var rootEnabled = !!(reminderEnabled && reminderEnabled.checked);
+                setVisibility(reminderFields, rootEnabled);
+                setEnabledRecursive(reminderFields, rootEnabled);
+                var dueEnabled = rootEnabled && !!(dueDayEnabled && dueDayEnabled.checked);
+                setVisibility(dueDayTemplateWrap, dueEnabled);
+                setEnabledRecursive(dueDayTemplateWrap, dueEnabled);
+                var beforeEnabled = rootEnabled && !!(beforeDueEnabled && beforeDueEnabled.checked);
+                setVisibility(beforeDueTemplateWrap, beforeEnabled);
+                setVisibility(beforeDueDaysWrap, beforeEnabled);
+                setEnabledRecursive(beforeDueTemplateWrap, beforeEnabled);
+                setEnabledRecursive(beforeDueDaysWrap, beforeEnabled);
+            }
+            if (reminderEnabled) reminderEnabled.addEventListener('change', syncReminderVisibility);
+            if (dueDayEnabled) dueDayEnabled.addEventListener('change', syncReminderVisibility);
+            if (beforeDueEnabled) beforeDueEnabled.addEventListener('change', syncReminderVisibility);
+            if (reminderHourSelect) reminderHourSelect.addEventListener('change', syncReminderTimeValue);
+            if (reminderMinuteSelect) reminderMinuteSelect.addEventListener('change', syncReminderTimeValue);
+            syncReminderTimeValue();
+            syncReminderVisibility();
 
             function initJalaliPicker() {
                 if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.pDatepicker) {

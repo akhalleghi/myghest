@@ -6,10 +6,10 @@
     <div class="brand">
         <div class="brand-row">
             <div class="brand-ico" aria-hidden="true">
-                @if(!empty($appIconUrl))
+                @if(!empty($appIconUrl ?? null))
                     <img src="{{ $appIconUrl }}" alt="app icon" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block">
                 @else
-                    <i class="{{ $appIconFaClass }}"></i>
+                    <i class="{{ $appIconFaClass ?? 'fa-solid fa-shield-halved' }}"></i>
                 @endif
             </div>
             <div>
