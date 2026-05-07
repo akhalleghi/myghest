@@ -8,8 +8,10 @@ use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\Customer;
 use App\Models\CustomerBankAccount;
+use App\Models\CustomerLoanFile;
 use App\Models\CustomerReferrer;
 use App\Models\CustomerWallet;
+use App\Models\LoanType;
 use App\Models\SmsLog;
 use App\Models\SmsPanelSetting;
 use App\Models\SmsTemplate;
@@ -38,6 +40,7 @@ final class CustomerController extends Controller
         $q = trim((string) $request->query('q', ''));
 
         $customers = Customer::query()
+            ->with(['loanFiles.loanType:id,title,interest_rate'])
             ->when($q !== '', function ($query) use ($q): void {
                 $query->where(function ($w) use ($q): void {
                     $w->where('customer_code', 'like', '%'.$q.'%')
@@ -54,6 +57,24 @@ final class CustomerController extends Controller
         return view('admin.customers.index', [
             'customers' => $customers,
             'search' => $q,
+            'loanTypes' => LoanType::query()
+                ->latest('id')
+                ->get(['id', 'title', 'interest_rate', 'installment_gap_unit'])
+                ->values(),
+            'loanManageMap' => $customers->getCollection()->mapWithKeys(function (Customer $customer): array {
+                $loanFiles = $customer->loanFiles->map(fn (CustomerLoanFile $file): array => $this->mapLoanFile($file))->values();
+                $loanTotalWithProfit = $loanFiles->sum(static fn (array $row): int => (int) ($row['total_repayable_toman'] ?? 0));
+                $remainingInstallments = $loanFiles->sum(static fn (array $row): int => (int) ($row['remaining_amount_toman'] ?? 0));
+
+                return [
+                    (string) $customer->id => [
+                        'loan_files' => $loanFiles->all(),
+                        'loan_count' => $loanFiles->count(),
+                        'loan_total_with_profit' => $loanTotalWithProfit,
+                        'loan_remaining_installments' => $remainingInstallments,
+                    ],
+                ];
+            }),
             'smsTemplates' => SmsTemplate::query()
                 ->latest('id')
                 ->get(['id', 'title', 'category', 'body'])
@@ -64,6 +85,159 @@ final class CustomerController extends Controller
                     'body' => $tpl->body,
                 ])
                 ->values(),
+        ]);
+    }
+
+    public function storeLoan(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'loan_start_jdate' => ['required', 'string', 'max:20'],
+            'disbursement_due_jdate' => ['nullable', 'string', 'max:20'],
+            'loan_type_id' => ['required', 'integer', 'exists:loan_types,id'],
+            'amount_toman' => ['required', 'integer', 'min:1', 'max:999999999999'],
+            'installments_count' => ['required', 'integer', 'min:1', 'max:1200'],
+            'installment_interval_count' => ['required', 'integer', 'min:1', 'max:120'],
+            'installment_interval_unit' => ['required', Rule::in([LoanType::GAP_MONTHLY, LoanType::GAP_WEEKLY])],
+            'installment_amount_toman' => ['required', 'integer', 'min:1', 'max:999999999999'],
+            'down_payment_toman' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
+            'sub_file_number' => ['nullable', 'string', 'max:120'],
+            'description' => ['nullable', 'string', 'max:3000'],
+            'is_settled' => ['nullable', 'boolean'],
+            'settled_jdate' => ['nullable', 'string', 'max:20'],
+            'has_custom_interest_rate' => ['nullable', 'boolean'],
+            'custom_interest_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'send_sms' => ['nullable', 'boolean'],
+            'sms_text' => ['nullable', 'string', 'max:1000'],
+            'sms_template_id' => ['nullable', 'integer', 'exists:sms_templates,id'],
+        ]);
+
+        $startDate = $this->parseJalaliDate((string) $validated['loan_start_jdate']);
+        if ($startDate === null) {
+            return response()->json(['message' => 'تاریخ شروع وام معتبر نیست.'], 422);
+        }
+
+        $disbursementDueDate = null;
+        if (($validated['disbursement_due_jdate'] ?? '') !== '') {
+            $disbursementDueDate = $this->parseJalaliDate((string) $validated['disbursement_due_jdate']);
+            if ($disbursementDueDate === null) {
+                return response()->json(['message' => 'سررسید واریز معتبر نیست.'], 422);
+            }
+        }
+
+        $isSettled = (bool) ($validated['is_settled'] ?? false);
+        $settledAt = null;
+        if ($isSettled) {
+            if (($validated['settled_jdate'] ?? '') === '') {
+                return response()->json(['message' => 'تاریخ تسویه الزامی است.'], 422);
+            }
+            $settledAt = $this->parseJalaliDate((string) $validated['settled_jdate']);
+            if ($settledAt === null) {
+                return response()->json(['message' => 'تاریخ تسویه معتبر نیست.'], 422);
+            }
+            if ($settledAt->lt($startDate)) {
+                return response()->json(['message' => 'تاریخ تسویه نمی‌تواند قبل از تاریخ شروع وام باشد.'], 422);
+            }
+        }
+
+        $amount = (int) $validated['amount_toman'];
+        $installmentsCount = (int) $validated['installments_count'];
+        $installmentAmount = (int) $validated['installment_amount_toman'];
+        $sumInstallments = $installmentAmount * $installmentsCount;
+        if ($sumInstallments > $amount) {
+            return response()->json(['message' => 'مجموع مبلغ اقساط نمی‌تواند بیشتر از مبلغ وام باشد.'], 422);
+        }
+
+        $downPayment = (int) ($validated['down_payment_toman'] ?? 0);
+        if ($downPayment > $amount) {
+            return response()->json(['message' => 'مبلغ پیش‌پرداخت نمی‌تواند بیشتر از مبلغ وام باشد.'], 422);
+        }
+
+        $loanType = LoanType::query()->findOrFail((int) $validated['loan_type_id']);
+        $baseInterestRate = (float) $loanType->interest_rate;
+        $hasCustomInterestRate = (bool) ($validated['has_custom_interest_rate'] ?? false);
+        $customInterestRate = null;
+        if ($hasCustomInterestRate) {
+            if (($validated['custom_interest_rate'] ?? null) === null || $validated['custom_interest_rate'] === '') {
+                return response()->json(['message' => 'درصد بهره جدید را وارد کنید.'], 422);
+            }
+            $customInterestRate = round((float) $validated['custom_interest_rate'], 2);
+        }
+        $effectiveInterestRate = $hasCustomInterestRate ? (float) $customInterestRate : $baseInterestRate;
+
+        $loanFile = DB::transaction(function () use (
+            $customer,
+            $loanType,
+            $startDate,
+            $disbursementDueDate,
+            $amount,
+            $validated,
+            $installmentsCount,
+            $installmentAmount,
+            $downPayment,
+            $isSettled,
+            $settledAt,
+            $baseInterestRate,
+            $hasCustomInterestRate,
+            $customInterestRate,
+            $effectiveInterestRate
+        ): CustomerLoanFile {
+            $file = CustomerLoanFile::query()->create([
+                'customer_id' => $customer->id,
+                'loan_type_id' => $loanType->id,
+                'loan_code' => 'TMP',
+                'loan_start_date' => $startDate,
+                'disbursement_due_date' => $disbursementDueDate,
+                'amount_toman' => $amount,
+                'installments_count' => $installmentsCount,
+                'installment_interval_count' => (int) $validated['installment_interval_count'],
+                'installment_interval_unit' => (string) $validated['installment_interval_unit'],
+                'installment_amount_toman' => $installmentAmount,
+                'down_payment_toman' => $downPayment,
+                'sub_file_number' => trim((string) ($validated['sub_file_number'] ?? '')) ?: null,
+                'description' => trim((string) ($validated['description'] ?? '')) ?: null,
+                'is_settled' => $isSettled,
+                'settled_at' => $settledAt,
+                'base_interest_rate' => $baseInterestRate,
+                'has_custom_interest_rate' => $hasCustomInterestRate,
+                'custom_interest_rate' => $customInterestRate,
+                'effective_interest_rate' => $effectiveInterestRate,
+                'created_by_admin_id' => auth('admin')->id(),
+            ]);
+            $file->loan_code = 'LF-'.str_pad((string) $file->id, 7, '0', STR_PAD_LEFT);
+            $file->save();
+
+            return $file->fresh(['loanType']) ?? $file;
+        });
+
+        $smsFeedback = '';
+        if ((bool) ($validated['send_sms'] ?? false)) {
+            $smsText = trim((string) ($validated['sms_text'] ?? ''));
+            if ($smsText === '' && isset($validated['sms_template_id'])) {
+                $template = SmsTemplate::query()->find((int) $validated['sms_template_id']);
+                if ($template !== null) {
+                    $smsText = $this->renderTemplate($template->body, [
+                        'store_name' => $this->appDisplayName(),
+                        'customer_name' => $customer->fullName(),
+                        'loan_code' => (string) $loanFile->loan_code,
+                        'loan_amount' => number_format((int) $loanFile->amount_toman, 0, '.', ',').' تومان',
+                        'installment_amount' => number_format((int) $loanFile->installment_amount_toman, 0, '.', ',').' تومان',
+                    ]);
+                }
+            }
+            if ($smsText === '') {
+                $smsText = 'سامانه '.$this->appDisplayName()."\n"
+                    .'مشتری: '.$customer->fullName()."\n"
+                    .'پرونده وام: '.$loanFile->loan_code."\n"
+                    .'مبلغ وام: '.number_format((int) $loanFile->amount_toman, 0, '.', ',').' تومان'."\n"
+                    .'مبلغ هر قسط: '.number_format((int) $loanFile->installment_amount_toman, 0, '.', ',').' تومان';
+            }
+            $smsResult = $this->sendRawSms($customer->mobile, $smsText, 'loan-file-created');
+            $smsFeedback = ' '.$smsResult['message'];
+        }
+
+        return response()->json([
+            'message' => 'پرونده وام با موفقیت ثبت شد.'.$smsFeedback,
+            'loan_file' => $this->mapLoanFile($loanFile),
         ]);
     }
 
@@ -671,5 +845,39 @@ final class CustomerController extends Controller
         $en = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
         return str_replace($ar, $en, str_replace($fa, $en, $value));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mapLoanFile(CustomerLoanFile $file): array
+    {
+        $totalRepayable = (int) $file->installments_count * (int) $file->installment_amount_toman;
+        $remainingAmount = $file->is_settled ? 0 : max(0, $totalRepayable - (int) $file->down_payment_toman);
+
+        return [
+            'id' => $file->id,
+            'loan_code' => (string) $file->loan_code,
+            'loan_type_id' => (int) $file->loan_type_id,
+            'loan_type_title' => (string) ($file->loanType?->title ?? '—'),
+            'loan_start_jdate' => $file->loan_start_date ? Jalali::instance(Carbon::parse($file->loan_start_date))->format('Y/m/d') : '',
+            'disbursement_due_jdate' => $file->disbursement_due_date ? Jalali::instance(Carbon::parse($file->disbursement_due_date))->format('Y/m/d') : '',
+            'amount_toman' => (int) $file->amount_toman,
+            'installments_count' => (int) $file->installments_count,
+            'installment_interval_count' => (int) $file->installment_interval_count,
+            'installment_interval_unit' => (string) $file->installment_interval_unit,
+            'installment_amount_toman' => (int) $file->installment_amount_toman,
+            'down_payment_toman' => (int) $file->down_payment_toman,
+            'sub_file_number' => (string) ($file->sub_file_number ?? ''),
+            'description' => (string) ($file->description ?? ''),
+            'is_settled' => (bool) $file->is_settled,
+            'settled_jdate' => $file->settled_at ? Jalali::instance(Carbon::parse($file->settled_at))->format('Y/m/d') : '',
+            'base_interest_rate' => (float) $file->base_interest_rate,
+            'has_custom_interest_rate' => (bool) $file->has_custom_interest_rate,
+            'custom_interest_rate' => $file->custom_interest_rate !== null ? (float) $file->custom_interest_rate : null,
+            'effective_interest_rate' => (float) $file->effective_interest_rate,
+            'total_repayable_toman' => $totalRepayable,
+            'remaining_amount_toman' => $remainingAmount,
+        ];
     }
 }

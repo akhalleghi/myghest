@@ -57,6 +57,11 @@ final class Customer extends Model
         return $this->hasOne(CustomerWallet::class);
     }
 
+    public function loanFiles(): HasMany
+    {
+        return $this->hasMany(CustomerLoanFile::class)->latest('id');
+    }
+
     public function fullName(): string
     {
         return trim($this->first_name.' '.$this->last_name);

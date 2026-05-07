@@ -116,6 +116,115 @@
         .cust-field--full { grid-column: 1 / -1; }
         .cust-field-error { margin-top: 0.22rem; font-size: 0.72rem; color: #b91c1c; font-weight: 700; }
         .cust-field-hint { display: block; margin-top: 0.18rem; font-size: 0.7rem; color: var(--muted); line-height: 1.4; }
+        .loan-manage-modal { width: min(1020px, 100%); }
+        .loan-manage-top {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0.55rem;
+            margin-bottom: 0.85rem;
+        }
+        .loan-manage-pill {
+            border: 1px solid var(--border);
+            border-radius: 0.72rem;
+            background: var(--bg-card);
+            padding: 0.58rem 0.68rem;
+            text-align: right;
+            min-height: 2.8rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 0.35rem;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        .loan-manage-pill-ico {
+            width: 1.05rem;
+            flex-shrink: 0;
+            text-align: center;
+            color: var(--primary-dark);
+            opacity: 0.92;
+        }
+        button.loan-manage-pill {
+            font-family: inherit;
+            cursor: pointer;
+        }
+        button.loan-manage-pill:hover {
+            border-color: rgba(37, 99, 235, 0.35);
+            background: var(--primary-soft);
+        }
+        .loan-manage-pill-label { font-size: 0.72rem; font-weight: 700; color: var(--muted); flex-shrink: 0; }
+        .loan-manage-pill-value { font-size: 0.8rem; font-weight: 800; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .loan-manage-pill-value--good { color: #047857; }
+        .loan-manage-pill-value--normal { color: #b45309; }
+        .loan-manage-pill-value--weak { color: #b91c1c; }
+        .loan-manage-placeholder {
+            border: 1px dashed var(--border);
+            border-radius: 0.78rem;
+            padding: 0.9rem;
+            background: rgba(248, 250, 252, 0.5);
+            color: var(--muted);
+            font-size: 0.78rem;
+            line-height: 1.8;
+        }
+        .loan-files-head {
+            margin-bottom: 0.65rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.55rem;
+            flex-wrap: wrap;
+        }
+        .loan-files-summary { font-size: 0.72rem; color: var(--muted); font-weight: 700; }
+        .loan-files-table-wrap { border: 1px solid var(--border); border-radius: 0.72rem; overflow: auto; max-height: 50vh; }
+        .loan-files-table { width: 100%; border-collapse: collapse; font-size: 0.74rem; }
+        .loan-files-table th, .loan-files-table td { border-bottom: 1px solid var(--border); padding: 0.42rem 0.5rem; text-align: start; vertical-align: top; white-space: nowrap; }
+        .loan-files-table th { background: var(--primary-soft); font-weight: 800; position: sticky; top: 0; z-index: 1; }
+        .loan-files-empty { text-align: center; color: var(--muted); font-size: 0.76rem; padding: 0.9rem; }
+        .loan-interest-note { margin-top: 0.22rem; font-size: 0.7rem; color: var(--muted); }
+        .loan-extra-box {
+            border: 1px dashed var(--border);
+            border-radius: 0.66rem;
+            padding: 0.58rem;
+            background: rgba(248, 250, 252, 0.52);
+        }
+        html[data-theme="dark"] .loan-extra-box { background: rgba(30, 41, 59, 0.45); }
+        .loan-extra-box[hidden] { display: none !important; }
+        .loan-manage-sep {
+            border: 0;
+            border-top: 1px solid rgba(148, 163, 184, 0.35);
+            margin: 0.1rem 0 0.75rem;
+        }
+        .loan-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-bottom: 0.72rem;
+            justify-content: center;
+        }
+        .loan-tab-btn {
+            border: 1px solid var(--border);
+            border-radius: 0.62rem;
+            padding: 0.4rem 0.68rem;
+            background: var(--bg-card);
+            color: var(--muted);
+            font-size: 0.75rem;
+            font-weight: 800;
+            font-family: inherit;
+            cursor: pointer;
+        }
+        .loan-tab-btn.is-active {
+            background: var(--primary-soft);
+            color: var(--primary-dark);
+            border-color: rgba(37, 99, 235, 0.35);
+        }
+        .loan-tab-panel[hidden] { display: none !important; }
+        @media (max-width: 860px) {
+            .loan-manage-top { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 520px) {
+            .loan-manage-top { grid-template-columns: 1fr; }
+        }
 
         .cust-section {
             margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--border);
@@ -230,6 +339,8 @@
         $oldAccounts = old('accounts', []);
         $oldReferrers = old('referrers', []);
         $quickSmsTemplates = $smsTemplates ?? collect();
+        $loanTypes = $loanTypes ?? collect();
+        $loanManageMap = $loanManageMap ?? collect();
     @endphp
 
     <div class="cust-page">
@@ -273,16 +384,18 @@
                     <tbody>
                         @forelse ($customers as $c)
                             @php
-                                $loanCount = 0;
-                                $loanCodes = [];
-                                $loanTotalWithProfit = 0;
-                                $loanRemainInstallments = 0;
+                                $loanMeta = $loanManageMap->get((string) $c->id, []);
+                                $loanFiles = $loanMeta['loan_files'] ?? [];
+                                $loanCount = (int) ($loanMeta['loan_count'] ?? 0);
+                                $loanCodes = array_map(static fn ($item): string => (string) ($item['loan_code'] ?? ''), $loanFiles);
+                                $loanTotalWithProfit = (int) ($loanMeta['loan_total_with_profit'] ?? 0);
+                                $loanRemainInstallments = (int) ($loanMeta['loan_remaining_installments'] ?? 0);
                             @endphp
                             <tr>
                                 <td>{{ $c->customer_code }}</td>
                                 <td>
                                     <div class="cust-main-text">
-                                        <a href="#" class="cust-name-link" data-cust-manage-loans data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}">
+                                        <a href="#" class="cust-name-link" data-cust-manage-loans data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}" data-customer-mobile="{{ $c->mobile }}">
                                             {{ $c->fullName() }}
                                         </a>
                                     </div>
@@ -327,7 +440,7 @@
                                             <i class="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i>
                                         </button>
                                         <div class="cust-ops-menu" data-cust-ops-menu hidden>
-                                            <button type="button" class="cust-ops-item" data-cust-manage-loans data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}">
+                                            <button type="button" class="cust-ops-item" data-cust-manage-loans data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}" data-customer-mobile="{{ $c->mobile }}">
                                                 <i class="fa-solid fa-list-check" aria-hidden="true"></i>
                                                 مدیریت وام ها
                                             </button>
@@ -682,16 +795,183 @@
     </div>
 
     <div class="cust-overlay" id="loan-manage-overlay" hidden aria-hidden="true">
-        <div class="cust-modal" style="width:min(520px,100%)" role="dialog" aria-modal="true" aria-labelledby="loan-manage-title">
+        <div class="cust-modal loan-manage-modal" role="dialog" aria-modal="true" aria-labelledby="loan-manage-title">
             <div class="cust-modal-head">
                 <div>
                     <h2 id="loan-manage-title">مدیریت وام ها</h2>
-                    <p>این بخش در مرحله بعدی تکمیل می‌شود.</p>
                 </div>
                 <button type="button" class="cust-modal-close" id="loan-manage-close" aria-label="بستن">&times;</button>
             </div>
             <div class="cust-modal-body">
-                <div id="loan-manage-text" class="cust-main-text">مدیریت وام های مشتری</div>
+                <div class="loan-manage-top">
+                    <button type="button" class="loan-manage-pill" id="loan-manage-open-edit">
+                        <i class="fa-regular fa-user loan-manage-pill-ico" aria-hidden="true"></i>
+                        <span class="loan-manage-pill-label">نام کاربر:</span>
+                        <span class="loan-manage-pill-value" id="loan-manage-customer-name">—</span>
+                    </button>
+                    <div class="loan-manage-pill">
+                        <i class="fa-solid fa-mobile-screen-button loan-manage-pill-ico" aria-hidden="true"></i>
+                        <span class="loan-manage-pill-label">موبایل:</span>
+                        <span class="loan-manage-pill-value" id="loan-manage-customer-mobile">—</span>
+                    </div>
+                    <div class="loan-manage-pill">
+                        <i class="fa-solid fa-chart-line loan-manage-pill-ico" aria-hidden="true"></i>
+                        <span class="loan-manage-pill-label">وضعیت خوش حسابی:</span>
+                        <span class="loan-manage-pill-value" id="loan-manage-credit-status">در حال ارزیابی</span>
+                    </div>
+                    <button type="button" class="loan-manage-pill" id="loan-manage-open-wallet">
+                        <i class="fa-solid fa-wallet loan-manage-pill-ico" aria-hidden="true"></i>
+                        <span class="loan-manage-pill-label">اعتبار کیف پول:</span>
+                        <span class="loan-manage-pill-value" id="loan-manage-wallet-balance">در حال دریافت...</span>
+                    </button>
+                </div>
+                <hr class="loan-manage-sep">
+                <div class="loan-tabs" role="tablist" aria-label="تب‌های مدیریت وام">
+                    <button type="button" class="loan-tab-btn is-active" data-loan-tab="files">پرونده وام ها</button>
+                    <button type="button" class="loan-tab-btn" data-loan-tab="requests">درخواست وام ها</button>
+                    <button type="button" class="loan-tab-btn" data-loan-tab="transactions">تراکنش ها</button>
+                    <button type="button" class="loan-tab-btn" data-loan-tab="sms">پیامک ها</button>
+                    <button type="button" class="loan-tab-btn" data-loan-tab="tickets">تیکت ها</button>
+                    <button type="button" class="loan-tab-btn" data-loan-tab="guarantees">تضامین</button>
+                </div>
+                <div class="loan-tab-panel" data-loan-panel="files">
+                    <div class="loan-files-head">
+                        <div class="loan-files-summary" id="loan-files-summary">برای این مشتری هنوز پرونده وام ثبت نشده است.</div>
+                        <button type="button" class="cust-mini-btn" id="loan-open-create-modal">
+                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                            افزودن وام
+                        </button>
+                    </div>
+                    <div class="loan-files-table-wrap">
+                        <table class="loan-files-table">
+                            <thead>
+                                <tr>
+                                    <th>شماره پرونده</th>
+                                    <th>نوع وام</th>
+                                    <th>شروع</th>
+                                    <th>مبلغ</th>
+                                    <th>تعداد اقساط</th>
+                                    <th>مبلغ هر قسط</th>
+                                    <th>مانده</th>
+                                    <th>وضعیت</th>
+                                </tr>
+                            </thead>
+                            <tbody id="loan-files-tbody">
+                                <tr><td colspan="8" class="loan-files-empty">در حال بارگذاری...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="loan-tab-panel" data-loan-panel="requests" hidden>
+                    <div class="loan-manage-placeholder">درخواست وام‌ها: این بخش به‌زودی با لیست درخواست‌های وام تکمیل می‌شود.</div>
+                </div>
+                <div class="loan-tab-panel" data-loan-panel="transactions" hidden>
+                    <div class="loan-manage-placeholder">تراکنش‌ها: این بخش به‌زودی با تراکنش‌های مرتبط با وام تکمیل می‌شود.</div>
+                </div>
+                <div class="loan-tab-panel" data-loan-panel="sms" hidden>
+                    <div class="loan-manage-placeholder">پیامک‌ها: این بخش به‌زودی با تاریخچه پیامک‌های وام تکمیل می‌شود.</div>
+                </div>
+                <div class="loan-tab-panel" data-loan-panel="tickets" hidden>
+                    <div class="loan-manage-placeholder">تیکت‌ها: این بخش به‌زودی با تیکت‌های پشتیبانی مشتری تکمیل می‌شود.</div>
+                </div>
+                <div class="loan-tab-panel" data-loan-panel="guarantees" hidden>
+                    <div class="loan-manage-placeholder">تضامین: این بخش به‌زودی با اطلاعات تضامین مشتری تکمیل می‌شود.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="cust-overlay" id="loan-create-overlay" hidden aria-hidden="true">
+        <div class="cust-modal" style="width:min(980px,100%)" role="dialog" aria-modal="true" aria-labelledby="loan-create-title">
+            <div class="cust-modal-head">
+                <div>
+                    <h2 id="loan-create-title">ثبت وام</h2>
+                    <p id="loan-create-subtitle">ثبت پرونده وام برای مشتری انتخاب‌شده</p>
+                </div>
+                <button type="button" class="cust-modal-close" id="loan-create-close" aria-label="بستن">&times;</button>
+            </div>
+            <div class="cust-modal-body">
+                <form id="loan-create-form" class="cust-form-grid" novalidate>
+                    <div class="cust-field">
+                        <label for="loan-start-jdate">تاریخ شروع وام <span class="req">*</span></label>
+                        <input id="loan-start-jdate" name="loan_start_jdate" required placeholder="مثلاً 1405/02/10">
+                    </div>
+                    <div class="cust-field">
+                        <label for="loan-disbursement-due-jdate">سررسید واریز به حساب مشتری</label>
+                        <input id="loan-disbursement-due-jdate" name="disbursement_due_jdate" placeholder="اختیاری">
+                    </div>
+                    <div class="cust-field">
+                        <label for="loan-customer-name">مشتری مد نظر <span class="req">*</span></label>
+                        <input id="loan-customer-name" disabled>
+                    </div>
+                    <div class="cust-field">
+                        <label for="loan-type-id">وام <span class="req">*</span></label>
+                        <select id="loan-type-id" name="loan_type_id" required>
+                            <option value="">انتخاب نوع وام</option>
+                            @foreach ($loanTypes as $lt)
+                                <option value="{{ $lt->id }}" data-interest-rate="{{ (float) $lt->interest_rate }}" data-default-unit="{{ $lt->installment_gap_unit }}">{{ $lt->title }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="cust-field">
+                        <label for="loan-amount">مبلغ (تومان) <span class="req">*</span></label>
+                        <input id="loan-amount" name="amount_toman" inputmode="numeric" required placeholder="مثلاً 150,000,000">
+                    </div>
+                    <div class="cust-field">
+                        <label for="loan-installments-count">تعداد اقساط <span class="req">*</span></label>
+                        <input id="loan-installments-count" name="installments_count" type="number" min="1" step="1" required value="12">
+                    </div>
+                    <div class="cust-field">
+                        <label for="loan-installment-interval-count">فاصله اقساط <span class="req">*</span></label>
+                        <input id="loan-installment-interval-count" name="installment_interval_count" type="number" min="1" step="1" required value="1">
+                    </div>
+                    <div class="cust-field">
+                        <label for="loan-installment-interval-unit">محدوده زمانی اقساط <span class="req">*</span></label>
+                        <select id="loan-installment-interval-unit" name="installment_interval_unit" required>
+                            <option value="monthly">ماهانه</option>
+                            <option value="weekly">هفتگی</option>
+                        </select>
+                    </div>
+                    <div class="cust-field">
+                        <label for="loan-installment-amount">مبلغ هر قسط (تومان) <span class="req">*</span></label>
+                        <input id="loan-installment-amount" name="installment_amount_toman" inputmode="numeric" required>
+                        <span class="loan-interest-note" id="loan-installment-help">به‌صورت خودکار محاسبه می‌شود؛ قابل ویرایش است.</span>
+                    </div>
+                    <div class="cust-field">
+                        <label for="loan-down-payment">مبلغ پیش پرداخت</label>
+                        <input id="loan-down-payment" name="down_payment_toman" inputmode="numeric" placeholder="اختیاری">
+                    </div>
+                    <div class="cust-field">
+                        <label for="loan-sub-file-number">شماره پرونده فرعی</label>
+                        <input id="loan-sub-file-number" name="sub_file_number" maxlength="120">
+                    </div>
+                    <div class="cust-field cust-field--full">
+                        <label for="loan-description">توضیحات</label>
+                        <textarea id="loan-description" name="description" maxlength="3000"></textarea>
+                    </div>
+                    <div class="cust-field cust-field--full loan-extra-box">
+                        <label><input type="checkbox" id="loan-is-settled" name="is_settled" value="1"> وام تسویه شده است</label>
+                        <div id="loan-settled-wrap" style="margin-top:.45rem;" hidden>
+                            <label for="loan-settled-jdate">تاریخ تسویه</label>
+                            <input id="loan-settled-jdate" name="settled_jdate" placeholder="مثلاً 1405/10/20">
+                        </div>
+                    </div>
+                    <div class="cust-field cust-field--full loan-extra-box">
+                        <label><input type="checkbox" id="loan-has-custom-interest" name="has_custom_interest_rate" value="1"> تغییر درصد بهره برای پرونده</label>
+                        <div id="loan-custom-interest-wrap" style="margin-top:.45rem;" hidden>
+                            <div class="loan-interest-note">درصد بهره فعلی: <strong id="loan-current-interest-rate">—</strong></div>
+                            <label for="loan-custom-interest-rate">درصد بهره جدید</label>
+                            <input id="loan-custom-interest-rate" name="custom_interest_rate" type="number" min="0" max="100" step="0.01" placeholder="مثلاً 18.5">
+                        </div>
+                    </div>
+                    <div class="cust-field cust-field--full">
+                        <div class="loan-interest-note" id="loan-total-check">جمع اقساط: 0 تومان</div>
+                    </div>
+                    <div class="cust-actions cust-field--full" style="margin-top:0.2rem;">
+                        <button type="button" class="cust-cancel" id="loan-create-cancel">انصراف</button>
+                        <button type="submit" class="cust-submit">ثبت وام</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -753,6 +1033,10 @@
                 return custListBaseUrl + '/' + id + '/quick-sms';
             }
 
+            function customerLoanStoreUrl(id) {
+                return custListBaseUrl + '/' + id + '/loan-files';
+            }
+
             var overlay = document.getElementById('cust-modal-overlay');
             var openBtn = document.getElementById('cust-open-modal');
             var closeBtn = document.getElementById('cust-close-modal');
@@ -802,7 +1086,17 @@
             var quickSmsText = document.getElementById('quick-sms-text');
             var loanManageOverlay = document.getElementById('loan-manage-overlay');
             var loanManageClose = document.getElementById('loan-manage-close');
-            var loanManageText = document.getElementById('loan-manage-text');
+            var loanFilesSummary = document.getElementById('loan-files-summary');
+            var loanFilesTbody = document.getElementById('loan-files-tbody');
+            var loanOpenCreateModalBtn = document.getElementById('loan-open-create-modal');
+            var loanManageOpenEditBtn = document.getElementById('loan-manage-open-edit');
+            var loanManageOpenWalletBtn = document.getElementById('loan-manage-open-wallet');
+            var loanTabButtons = Array.prototype.slice.call(document.querySelectorAll('[data-loan-tab]'));
+            var loanTabPanels = Array.prototype.slice.call(document.querySelectorAll('[data-loan-panel]'));
+            var loanManageCustomerNameView = document.getElementById('loan-manage-customer-name');
+            var loanManageCustomerMobileView = document.getElementById('loan-manage-customer-mobile');
+            var loanManageCreditStatusView = document.getElementById('loan-manage-credit-status');
+            var loanManageWalletBalanceView = document.getElementById('loan-manage-wallet-balance');
             var walletCurrentCustomerId = null;
             var walletCurrentCustomerName = '';
             var walletCurrentCustomerMobile = '';
@@ -815,6 +1109,36 @@
             var walletLockSubmitting = false;
             var customerFormSubmitting = false;
             var quickSmsSubmitting = false;
+            var loanManageCurrentCustomerId = null;
+            var loanManageCurrentCustomerName = '';
+            var loanManageCurrentCustomerMobile = '';
+            var loanManageMap = @json($loanManageMap);
+            var loanTypesData = @json($loanTypes->values());
+            var loanCreateOverlay = document.getElementById('loan-create-overlay');
+            var loanCreateClose = document.getElementById('loan-create-close');
+            var loanCreateCancel = document.getElementById('loan-create-cancel');
+            var loanCreateSubtitle = document.getElementById('loan-create-subtitle');
+            var loanCreateForm = document.getElementById('loan-create-form');
+            var loanCustomerNameInput = document.getElementById('loan-customer-name');
+            var loanTypeIdSelect = document.getElementById('loan-type-id');
+            var loanAmountInput = document.getElementById('loan-amount');
+            var loanInstallmentsCountInput = document.getElementById('loan-installments-count');
+            var loanInstallmentAmountInput = document.getElementById('loan-installment-amount');
+            var loanInstallmentIntervalCountInput = document.getElementById('loan-installment-interval-count');
+            var loanInstallmentIntervalUnitSelect = document.getElementById('loan-installment-interval-unit');
+            var loanDownPaymentInput = document.getElementById('loan-down-payment');
+            var loanIsSettledCheckbox = document.getElementById('loan-is-settled');
+            var loanSettledWrap = document.getElementById('loan-settled-wrap');
+            var loanHasCustomInterestCheckbox = document.getElementById('loan-has-custom-interest');
+            var loanCustomInterestWrap = document.getElementById('loan-custom-interest-wrap');
+            var loanCurrentInterestRate = document.getElementById('loan-current-interest-rate');
+            var loanCustomInterestRateInput = document.getElementById('loan-custom-interest-rate');
+            var loanTotalCheck = document.getElementById('loan-total-check');
+            var loanStartJdateInput = document.getElementById('loan-start-jdate');
+            var loanDisbursementDueJdateInput = document.getElementById('loan-disbursement-due-jdate');
+            var loanSettledJdateInput = document.getElementById('loan-settled-jdate');
+            var loanCreateSubmitting = false;
+            var loanInstallmentAutoDirty = false;
             var walletState = {
                 balance_toman: 0,
                 is_locked: false,
@@ -845,12 +1169,28 @@
                 return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
             }
 
+            function parseThousandsInput(rawValue) {
+                var digits = toEnglishDigits(String(rawValue || '')).replace(/[^\d]/g, '');
+                if (!digits) return 0;
+                var n = parseInt(digits, 10);
+                return Number.isFinite(n) ? n : 0;
+            }
+
             function renderWalletTemplateText(templateBody, vars) {
                 var text = String(templateBody || '');
                 return text.replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, function (_, key) {
                     var k = String(key || '').toLowerCase();
                     return vars[k] !== undefined ? String(vars[k]) : '';
                 });
+            }
+
+            function selectedLoanTypeData() {
+                if (!loanTypeIdSelect) return null;
+                var selectedId = parseInt(String(loanTypeIdSelect.value || '0'), 10);
+                if (!selectedId) return null;
+                return loanTypesData.find(function (x) {
+                    return parseInt(String(x.id), 10) === selectedId;
+                }) || null;
             }
 
             function removeMethodField() {
@@ -1189,14 +1529,147 @@
                 quickSmsOverlay.setAttribute('aria-hidden', 'true');
             }
 
-            function openLoanManageModal(customerName) {
-                if (loanManageText) {
-                    loanManageText.textContent = 'مدیریت وام های ' + (customerName || '');
+            function loadLoanManageWalletSummary(customerId) {
+                if (!loanManageWalletBalanceView || !customerId) return;
+                loanManageWalletBalanceView.textContent = 'در حال دریافت...';
+                fetch(walletShowUrl(customerId), {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                }).then(function (r) {
+                    if (!r.ok) throw new Error('bad');
+                    return r.json();
+                }).then(function (data) {
+                    var balance = Number((data && data.wallet ? data.wallet.balance_toman : 0) || 0);
+                    loanManageWalletBalanceView.textContent = formatToman(balance) + ' تومان';
+                }).catch(function () {
+                    loanManageWalletBalanceView.textContent = 'نامشخص';
+                });
+            }
+
+            function loanIntervalUnitLabel(unit) {
+                return String(unit || '') === 'weekly' ? 'هفتگی' : 'ماهانه';
+            }
+
+            function renderLoanFilesForCustomer(customerId) {
+                if (!loanFilesTbody || !loanFilesSummary) return;
+                var meta = loanManageMap ? loanManageMap[String(customerId || '')] : null;
+                var rows = (meta && Array.isArray(meta.loan_files)) ? meta.loan_files : [];
+                var count = rows.length;
+                var total = rows.reduce(function (sum, row) {
+                    return sum + Number(row.total_repayable_toman || 0);
+                }, 0);
+                var remain = rows.reduce(function (sum, row) {
+                    return sum + Number(row.remaining_amount_toman || 0);
+                }, 0);
+                loanFilesSummary.textContent = count
+                    ? ('تعداد پرونده: ' + formatToman(count) + ' | مجموع بازپرداخت: ' + formatToman(total) + ' تومان | مانده: ' + formatToman(remain) + ' تومان')
+                    : 'برای این مشتری هنوز پرونده وام ثبت نشده است.';
+                if (!count) {
+                    loanFilesTbody.innerHTML = '<tr><td colspan="8" class="loan-files-empty">هنوز پرونده‌ای ثبت نشده است.</td></tr>';
+                    return;
                 }
+                loanFilesTbody.innerHTML = rows.map(function (row) {
+                    return '<tr>' +
+                        '<td>' + escapeHtmlText(row.loan_code || '—') + '</td>' +
+                        '<td>' + escapeHtmlText(row.loan_type_title || '—') + '</td>' +
+                        '<td>' + escapeHtmlText(row.loan_start_jdate || '—') + '</td>' +
+                        '<td>' + formatToman(row.amount_toman || 0) + '</td>' +
+                        '<td>' + formatToman(row.installments_count || 0) + ' (' + formatToman(row.installment_interval_count || 1) + ' ' + loanIntervalUnitLabel(row.installment_interval_unit) + ')</td>' +
+                        '<td>' + formatToman(row.installment_amount_toman || 0) + '</td>' +
+                        '<td>' + formatToman(row.remaining_amount_toman || 0) + '</td>' +
+                        '<td>' + (row.is_settled ? 'تسویه‌شده' : 'فعال') + '</td>' +
+                    '</tr>';
+                }).join('');
+            }
+
+            function syncLoanCurrentInterestView() {
+                if (!loanCurrentInterestRate) return;
+                var lt = selectedLoanTypeData();
+                if (!lt) {
+                    loanCurrentInterestRate.textContent = '—';
+                    return;
+                }
+                var rate = Number(lt.interest_rate || 0);
+                loanCurrentInterestRate.textContent = rate.toFixed(2) + '%';
+                if (loanInstallmentIntervalUnitSelect && lt.installment_gap_unit) {
+                    loanInstallmentIntervalUnitSelect.value = String(lt.installment_gap_unit);
+                }
+            }
+
+            function syncLoanInstallmentCalculation(force) {
+                if (!loanInstallmentAmountInput || !loanAmountInput || !loanInstallmentsCountInput || !loanTotalCheck) return;
+                var amount = parseThousandsInput(loanAmountInput.value);
+                var count = parseInt(String(loanInstallmentsCountInput.value || '0'), 10);
+                if (!Number.isFinite(count) || count < 1) count = 0;
+                if ((force || !loanInstallmentAutoDirty) && amount > 0 && count > 0) {
+                    var calculated = Math.floor(amount / count);
+                    loanInstallmentAmountInput.value = formatThousandsInputValue(String(calculated));
+                }
+                var installment = parseThousandsInput(loanInstallmentAmountInput.value);
+                var sum = installment * count;
+                loanTotalCheck.textContent = 'جمع اقساط: ' + formatToman(sum) + ' تومان از ' + formatToman(amount) + ' تومان';
+                loanTotalCheck.style.color = sum > amount ? '#b91c1c' : 'var(--muted)';
+            }
+
+            function openLoanCreateModal() {
+                if (!loanManageCurrentCustomerId || !loanCreateOverlay || !loanCreateForm) return;
+                loanInstallmentAutoDirty = false;
+                loanCreateForm.reset();
+                if (loanCustomerNameInput) {
+                    loanCustomerNameInput.value = loanManageCurrentCustomerName || '—';
+                }
+                if (loanCreateSubtitle) {
+                    loanCreateSubtitle.textContent = 'ثبت پرونده وام برای ' + (loanManageCurrentCustomerName || '');
+                }
+                if (loanSettledWrap) loanSettledWrap.hidden = true;
+                if (loanCustomInterestWrap) loanCustomInterestWrap.hidden = true;
+                if (loanInstallmentsCountInput) loanInstallmentsCountInput.value = '12';
+                if (loanInstallmentIntervalCountInput) loanInstallmentIntervalCountInput.value = '1';
+                syncLoanCurrentInterestView();
+                syncLoanInstallmentCalculation(true);
+                loanCreateOverlay.hidden = false;
+                loanCreateOverlay.setAttribute('aria-hidden', 'false');
+                setTimeout(function () {
+                    initLoanPickers();
+                }, 80);
+            }
+
+            function closeLoanCreateModal() {
+                if (!loanCreateOverlay) return;
+                loanCreateOverlay.hidden = true;
+                loanCreateOverlay.setAttribute('aria-hidden', 'true');
+            }
+
+            function openLoanManageModal(customerId, customerName, customerMobile) {
+                loanManageCurrentCustomerId = customerId || null;
+                loanManageCurrentCustomerName = customerName || '';
+                loanManageCurrentCustomerMobile = customerMobile || '';
+                if (loanManageCustomerNameView) loanManageCustomerNameView.textContent = loanManageCurrentCustomerName || '—';
+                if (loanManageCustomerMobileView) loanManageCustomerMobileView.textContent = loanManageCurrentCustomerMobile || '—';
+                if (loanManageCreditStatusView) {
+                    loanManageCreditStatusView.textContent = 'در حال ارزیابی';
+                    loanManageCreditStatusView.classList.remove('loan-manage-pill-value--good', 'loan-manage-pill-value--normal', 'loan-manage-pill-value--weak');
+                }
+                loadLoanManageWalletSummary(loanManageCurrentCustomerId);
+                renderLoanFilesForCustomer(loanManageCurrentCustomerId);
+                setLoanTab('files');
                 if (loanManageOverlay) {
                     loanManageOverlay.hidden = false;
                     loanManageOverlay.setAttribute('aria-hidden', 'false');
                 }
+            }
+
+            function setLoanTab(tabId) {
+                loanTabButtons.forEach(function (btn) {
+                    var active = btn.getAttribute('data-loan-tab') === tabId;
+                    btn.classList.toggle('is-active', active);
+                });
+                loanTabPanels.forEach(function (panel) {
+                    panel.hidden = panel.getAttribute('data-loan-panel') !== tabId;
+                });
             }
 
             function closeLoanManageModal() {
@@ -1241,9 +1714,11 @@
                 if (manageLoansBtn) {
                     e.preventDefault();
                     e.stopPropagation();
+                    var manageCustomerId = parseInt(manageLoansBtn.getAttribute('data-customer-id') || '0', 10);
                     var manageCustomerName = manageLoansBtn.getAttribute('data-customer-name') || '';
+                    var manageCustomerMobile = manageLoansBtn.getAttribute('data-customer-mobile') || '';
                     closeAllCustMenus();
-                    openLoanManageModal(manageCustomerName);
+                    openLoanManageModal(manageCustomerId, manageCustomerName, manageCustomerMobile);
                     return;
                 }
                 var quickSmsBtn = e.target.closest('[data-cust-quick-sms]');
@@ -1321,6 +1796,241 @@
             if (loanManageOverlay) {
                 loanManageOverlay.addEventListener('click', function (e) {
                     if (e.target === loanManageOverlay) closeLoanManageModal();
+                });
+            }
+            if (loanManageOpenEditBtn) {
+                loanManageOpenEditBtn.addEventListener('click', function () {
+                    if (!loanManageCurrentCustomerId) return;
+                    closeLoanManageModal();
+                    openEditModal(loanManageCurrentCustomerId);
+                });
+            }
+            if (loanManageOpenWalletBtn) {
+                loanManageOpenWalletBtn.addEventListener('click', function () {
+                    if (!loanManageCurrentCustomerId) return;
+                    closeLoanManageModal();
+                    openWalletModal(loanManageCurrentCustomerId, loanManageCurrentCustomerName, loanManageCurrentCustomerMobile);
+                });
+            }
+            loanTabButtons.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    setLoanTab(btn.getAttribute('data-loan-tab') || 'files');
+                });
+            });
+            if (loanOpenCreateModalBtn) {
+                loanOpenCreateModalBtn.addEventListener('click', function () {
+                    openLoanCreateModal();
+                });
+            }
+            if (loanCreateClose) loanCreateClose.addEventListener('click', closeLoanCreateModal);
+            if (loanCreateCancel) loanCreateCancel.addEventListener('click', closeLoanCreateModal);
+            if (loanCreateOverlay) {
+                loanCreateOverlay.addEventListener('click', function (e) {
+                    if (e.target === loanCreateOverlay) closeLoanCreateModal();
+                });
+            }
+            if (loanIsSettledCheckbox && loanSettledWrap) {
+                loanIsSettledCheckbox.addEventListener('change', function () {
+                    loanSettledWrap.hidden = !loanIsSettledCheckbox.checked;
+                });
+            }
+            if (loanHasCustomInterestCheckbox && loanCustomInterestWrap) {
+                loanHasCustomInterestCheckbox.addEventListener('change', function () {
+                    loanCustomInterestWrap.hidden = !loanHasCustomInterestCheckbox.checked;
+                });
+            }
+            if (loanTypeIdSelect) {
+                loanTypeIdSelect.addEventListener('change', function () {
+                    syncLoanCurrentInterestView();
+                });
+            }
+            [loanAmountInput, loanInstallmentAmountInput, loanDownPaymentInput].forEach(function (el) {
+                if (!el) return;
+                el.addEventListener('input', function () {
+                    el.value = formatThousandsInputValue(el.value);
+                });
+                el.addEventListener('blur', function () {
+                    el.value = formatThousandsInputValue(el.value);
+                });
+            });
+            if (loanAmountInput) {
+                loanAmountInput.addEventListener('input', function () {
+                    syncLoanInstallmentCalculation(false);
+                });
+            }
+            if (loanInstallmentsCountInput) {
+                loanInstallmentsCountInput.addEventListener('input', function () {
+                    syncLoanInstallmentCalculation(false);
+                });
+            }
+            if (loanInstallmentAmountInput) {
+                loanInstallmentAmountInput.addEventListener('input', function () {
+                    loanInstallmentAutoDirty = true;
+                    syncLoanInstallmentCalculation(false);
+                });
+            }
+            if (loanCreateForm) {
+                loanCreateForm.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    if (!loanManageCurrentCustomerId || loanCreateSubmitting) return;
+                    var submitBtn = loanCreateForm.querySelector('button[type="submit"]');
+                    var payload = {
+                        loan_start_jdate: String((loanStartJdateInput && loanStartJdateInput.value) || '').trim(),
+                        disbursement_due_jdate: String((loanDisbursementDueJdateInput && loanDisbursementDueJdateInput.value) || '').trim(),
+                        loan_type_id: parseInt(String((loanTypeIdSelect && loanTypeIdSelect.value) || '0'), 10),
+                        amount_toman: parseThousandsInput((loanAmountInput && loanAmountInput.value) || ''),
+                        installments_count: parseInt(String((loanInstallmentsCountInput && loanInstallmentsCountInput.value) || '0'), 10),
+                        installment_interval_count: parseInt(String((loanInstallmentIntervalCountInput && loanInstallmentIntervalCountInput.value) || '0'), 10),
+                        installment_interval_unit: String((loanInstallmentIntervalUnitSelect && loanInstallmentIntervalUnitSelect.value) || 'monthly'),
+                        installment_amount_toman: parseThousandsInput((loanInstallmentAmountInput && loanInstallmentAmountInput.value) || ''),
+                        down_payment_toman: parseThousandsInput((loanDownPaymentInput && loanDownPaymentInput.value) || ''),
+                        sub_file_number: String((document.getElementById('loan-sub-file-number').value) || '').trim(),
+                        description: String((document.getElementById('loan-description').value) || '').trim(),
+                        is_settled: loanIsSettledCheckbox && loanIsSettledCheckbox.checked,
+                        settled_jdate: String((loanSettledJdateInput && loanSettledJdateInput.value) || '').trim(),
+                        has_custom_interest_rate: loanHasCustomInterestCheckbox && loanHasCustomInterestCheckbox.checked,
+                        custom_interest_rate: String((loanCustomInterestRateInput && loanCustomInterestRateInput.value) || '').trim()
+                    };
+                    if (!payload.loan_start_jdate || !payload.loan_type_id || payload.amount_toman <= 0 || payload.installments_count <= 0 || payload.installment_amount_toman <= 0 || payload.installment_interval_count <= 0) {
+                        if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('لطفاً فیلدهای الزامی ثبت وام را کامل کنید.');
+                        return;
+                    }
+                    if ((payload.installment_amount_toman * payload.installments_count) > payload.amount_toman) {
+                        if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('جمع مبلغ اقساط نباید بیشتر از مبلغ وام باشد.');
+                        return;
+                    }
+
+                    function submitLoanCreate(finalPayload) {
+                        loanCreateSubmitting = true;
+                        if (submitBtn) {
+                            submitBtn.disabled = true;
+                            submitBtn.textContent = 'در حال ثبت...';
+                        }
+                        fetch(customerLoanStoreUrl(loanManageCurrentCustomerId), {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': @json(csrf_token())
+                            },
+                            credentials: 'same-origin',
+                            body: JSON.stringify(finalPayload)
+                        }).then(function (r) {
+                            return r.json().then(function (json) {
+                                return { ok: r.ok, json: json };
+                            });
+                        }).then(function (res) {
+                            if (!res.ok) {
+                                throw new Error((res.json && res.json.message) ? res.json.message : 'ثبت پرونده ناموفق بود.');
+                            }
+                            var key = String(loanManageCurrentCustomerId);
+                            if (!loanManageMap[key]) {
+                                loanManageMap[key] = { loan_files: [], loan_count: 0, loan_total_with_profit: 0, loan_remaining_installments: 0 };
+                            }
+                            loanManageMap[key].loan_files = [res.json.loan_file].concat(loanManageMap[key].loan_files || []);
+                            renderLoanFilesForCustomer(loanManageCurrentCustomerId);
+                            closeLoanCreateModal();
+                            if (window.AdminSwal && window.AdminSwal.success) AdminSwal.success(res.json.message || 'پرونده وام ثبت شد.');
+                        }).catch(function (err) {
+                            if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error(err.message || 'ثبت پرونده وام ناموفق بود.');
+                        }).finally(function () {
+                            loanCreateSubmitting = false;
+                            if (submitBtn) {
+                                submitBtn.disabled = false;
+                                submitBtn.textContent = 'ثبت وام';
+                            }
+                        });
+                    }
+
+                    if (typeof Swal === 'undefined') {
+                        submitLoanCreate(payload);
+                        return;
+                    }
+
+                    var amountText = formatToman(payload.amount_toman) + ' تومان';
+                    var installmentText = formatToman(payload.installment_amount_toman) + ' تومان';
+                    var defaultLoanSms =
+                        'سامانه\n' +
+                        'مشتری: ' + (loanManageCurrentCustomerName || '') + '\n' +
+                        'ثبت پرونده وام جدید انجام شد.\n' +
+                        'مبلغ وام: ' + amountText + '\n' +
+                        'مبلغ هر قسط: ' + installmentText;
+
+                    var templateOptionsHtml = '<option value="">بدون قالب (متن آزاد)</option>';
+                    quickSmsTemplatesData.forEach(function (tpl) {
+                        templateOptionsHtml += '<option value="' + String(tpl.id) + '">' + escapeHtmlText((tpl.title || '') + ' (' + (tpl.category || '') + ')') + '</option>';
+                    });
+
+                    Swal.fire({
+                        icon: 'question',
+                        title: 'ارسال پیامک پس از ثبت وام',
+                        width: 540,
+                        customClass: {
+                            popup: 'wallet-sms-swal',
+                            title: 'wallet-sms-swal-title',
+                        },
+                        html:
+                            '<div style="text-align:right">' +
+                            '<div style="font-size:.73rem;color:#64748b;margin-bottom:.3rem">موبایل مشتری: ' + escapeHtmlText(loanManageCurrentCustomerMobile || '—') + '</div>' +
+                            '<label style="display:block;font-size:.72rem;font-weight:700;margin-bottom:.2rem">قالب پیامک</label>' +
+                            '<select id="loan-create-sms-template" class="swal2-select" style="width:100%;margin:0 0 .35rem;min-height:2.1rem">' + templateOptionsHtml + '</select>' +
+                            '<label style="display:block;font-size:.72rem;font-weight:700;margin-bottom:.2rem">متن پیامک (قابل ویرایش)</label>' +
+                            '<textarea id="loan-create-sms-text" class="swal2-textarea" style="width:100%;margin:0;min-height:88px;padding:.45rem .55rem">' + escapeHtmlText(defaultLoanSms) + '</textarea>' +
+                            '</div>',
+                        showDenyButton: true,
+                        showCancelButton: true,
+                        confirmButtonText: 'ذخیره و ارسال پیامک',
+                        denyButtonText: 'فقط ذخیره',
+                        cancelButtonText: 'لغو',
+                        reverseButtons: true,
+                        focusCancel: false,
+                        didOpen: function () {
+                            var p = document.querySelector('.swal2-popup');
+                            if (p) p.setAttribute('dir', 'rtl');
+                            var selectEl = document.getElementById('loan-create-sms-template');
+                            var txtEl = document.getElementById('loan-create-sms-text');
+                            if (selectEl && txtEl) {
+                                selectEl.addEventListener('change', function () {
+                                    var selectedId = parseInt(String(selectEl.value || '0'), 10);
+                                    if (!selectedId) return;
+                                    var tpl = quickSmsTemplatesData.find(function (x) {
+                                        return parseInt(String(x.id), 10) === selectedId;
+                                    });
+                                    if (!tpl) return;
+                                    txtEl.value = renderWalletTemplateText(tpl.body || '', {
+                                        store_name: document.title || 'سامانه',
+                                        customer_name: loanManageCurrentCustomerName,
+                                        loan_amount: amountText,
+                                        installment_amount: installmentText
+                                    });
+                                });
+                            }
+                        },
+                        preConfirm: function () {
+                            var txtEl = document.getElementById('loan-create-sms-text');
+                            var selectEl = document.getElementById('loan-create-sms-template');
+                            return {
+                                sms_text: txtEl ? String(txtEl.value || '').trim() : '',
+                                sms_template_id: selectEl ? (selectEl.value || '') : ''
+                            };
+                        }
+                    }).then(function (result) {
+                        if (result.isDismissed) {
+                            return;
+                        }
+                        if (result.isConfirmed) {
+                            payload.send_sms = true;
+                            payload.sms_text = (result.value && result.value.sms_text) ? result.value.sms_text : '';
+                            payload.sms_template_id = (result.value && result.value.sms_template_id) ? result.value.sms_template_id : '';
+                            submitLoanCreate(payload);
+                            return;
+                        }
+                        if (result.isDenied) {
+                            payload.send_sms = false;
+                            submitLoanCreate(payload);
+                        }
+                    });
                 });
             }
 
@@ -1668,6 +2378,28 @@
                 destroyCustPickers();
                 window.jQuery('#cust-membership-jdate, #cust-birth-jdate').each(function () {
                     var $el = window.jQuery(this);
+                    $el.pDatepicker({
+                        format: 'YYYY/MM/DD',
+                        autoClose: true,
+                        initialValue: false,
+                        calendarType: 'persian',
+                        initialValueType: 'persian',
+                        toolbox: { calendarSwitch: false }
+                    });
+                });
+            }
+
+            function initLoanPickers() {
+                if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.pDatepicker) {
+                    return;
+                }
+                window.jQuery('#loan-start-jdate, #loan-disbursement-due-jdate, #loan-settled-jdate').each(function () {
+                    var $el = window.jQuery(this);
+                    try {
+                        if ($el.data('datepicker')) {
+                            $el.pDatepicker('destroy');
+                        }
+                    } catch (err) { /* noop */ }
                     $el.pDatepicker({
                         format: 'YYYY/MM/DD',
                         autoClose: true,

@@ -89,6 +89,10 @@ Route::middleware(['auth:admin'])->group(function (): void {
         ->middleware('throttle:20,1')
         ->name('customers.quick-sms');
 
+    Route::post('/customers/{customer}/loan-files', [CustomerController::class, 'storeLoan'])
+        ->middleware('throttle:20,1')
+        ->name('customers.loan-files.store');
+
     Route::get('/customers/{customer}/wallet', [CustomerWalletController::class, 'show'])
         ->middleware('throttle:60,1')
         ->name('customers.wallet.show');
