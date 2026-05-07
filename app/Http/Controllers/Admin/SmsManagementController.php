@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AppSetting;
 use App\Models\SmsLog;
 use App\Models\SmsPanelSetting;
 use App\Models\SmsTemplate;
@@ -38,6 +39,7 @@ final class SmsManagementController extends Controller
         $templateCategories = $this->templateCategories();
         $templatePatterns = $this->templatePatterns();
         $smsTemplates = SmsTemplate::query()->latest('id')->get();
+        $scenarioTemplateIds = $this->smsScenarioTemplateIds();
 
         $logs = $query->latest('sent_at')->paginate(20)->withQueryString();
 
@@ -61,6 +63,7 @@ final class SmsManagementController extends Controller
             'smsTemplateCategories' => $templateCategories,
             'smsTemplatePatterns' => $templatePatterns,
             'smsTemplates' => $smsTemplates,
+            'smsScenarioTemplateIds' => $scenarioTemplateIds,
         ]);
     }
 
@@ -128,6 +131,33 @@ final class SmsManagementController extends Controller
         return redirect()
             ->route('admin.sms.index')
             ->with($connection->ok ? 'flash_success' : 'flash_error', $connection->message)
+            ->with('sms_active_tab', 'settings');
+    }
+
+    public function updateScenarioTemplates(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'tpl_installment_thanks_id' => ['nullable', 'integer', 'exists:sms_templates,id'],
+            'tpl_login_id' => ['nullable', 'integer', 'exists:sms_templates,id'],
+            'tpl_register_verify_code_id' => ['nullable', 'integer', 'exists:sms_templates,id'],
+            'tpl_register_welcome_id' => ['nullable', 'integer', 'exists:sms_templates,id'],
+        ], [], [
+            'tpl_installment_thanks_id' => 'قالب پیامک ثبت قسط و تشکر',
+            'tpl_login_id' => 'قالب پیامک ورود به سیستم',
+            'tpl_register_verify_code_id' => 'قالب پیامک رمز تاییدیه ثبت نام',
+            'tpl_register_welcome_id' => 'قالب پیامک خوش آمد ثبت نام',
+        ]);
+
+        $this->storeSmsScenarioTemplateIds([
+            'sms_tpl_installment_thanks_id' => $validated['tpl_installment_thanks_id'] ?? null,
+            'sms_tpl_login_id' => $validated['tpl_login_id'] ?? null,
+            'sms_tpl_register_verify_code_id' => $validated['tpl_register_verify_code_id'] ?? null,
+            'sms_tpl_register_welcome_id' => $validated['tpl_register_welcome_id'] ?? null,
+        ]);
+
+        return redirect()
+            ->route('admin.sms.index')
+            ->with('flash_success', 'الگوهای پیش‌فرض پیامک با موفقیت ذخیره شد.')
             ->with('sms_active_tab', 'settings');
     }
 
@@ -477,6 +507,45 @@ final class SmsManagementController extends Controller
             return Crypt::decryptString($value);
         } catch (\Throwable) {
             return '';
+        }
+    }
+
+    /**
+     * @return array{
+     *   tpl_installment_thanks_id:string,
+     *   tpl_login_id:string,
+     *   tpl_register_verify_code_id:string,
+     *   tpl_register_welcome_id:string
+     * }
+     */
+    private function smsScenarioTemplateIds(): array
+    {
+        $map = [
+            'tpl_installment_thanks_id' => 'sms_tpl_installment_thanks_id',
+            'tpl_login_id' => 'sms_tpl_login_id',
+            'tpl_register_verify_code_id' => 'sms_tpl_register_verify_code_id',
+            'tpl_register_welcome_id' => 'sms_tpl_register_welcome_id',
+        ];
+        $out = [];
+        foreach ($map as $formKey => $settingKey) {
+            $value = AppSetting::query()->where('key', $settingKey)->value('value');
+            $out[$formKey] = is_scalar($value) ? trim((string) $value) : '';
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  array<string, int|string|null>  $pairs
+     */
+    private function storeSmsScenarioTemplateIds(array $pairs): void
+    {
+        foreach ($pairs as $key => $value) {
+            $clean = $value === null ? '' : trim((string) $value);
+            AppSetting::query()->updateOrCreate(
+                ['key' => $key],
+                ['value' => $clean]
+            );
         }
     }
 

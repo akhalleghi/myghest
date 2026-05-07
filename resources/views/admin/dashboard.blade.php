@@ -107,16 +107,25 @@
         .quick-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            grid-auto-rows: 1fr;
             gap: 0.65rem;
             margin-bottom: 1rem;
         }
 
         .quick-grid > .dash-widget {
             min-width: 0;
+            display: flex;
         }
 
-        .quick-grid > .dash-widget > .qk {
+        .quick-grid > .dash-widget > .qk,
+        .quick-grid > .dash-widget > .qk-link > .qk {
             height: 100%;
+            width: 100%;
+        }
+
+        .quick-grid > .dash-widget > .qk-link {
+            display: flex;
+            width: 100%;
         }
 
         .charts-row > .dash-widget {
@@ -129,9 +138,16 @@
             border-radius: 0.85rem;
             padding: 0.75rem 0.8rem;
             box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
-            min-height: 7.5rem;
+            min-height: 9.4rem;
+            height: 9.4rem;
             display: flex;
             flex-direction: column;
+        }
+        .qk-link {
+            display: block;
+            color: inherit;
+            text-decoration: none;
+            height: 100%;
         }
 
         html[data-theme="dark"] .qk {
@@ -157,10 +173,16 @@
             width: 1.75rem;
             height: 1.75rem;
             border-radius: 0.45rem;
-            margin-bottom: 0.45rem;
             display: grid;
             place-items: center;
             font-size: 0.88rem;
+            flex-shrink: 0;
+        }
+
+        .qk-head {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
         .qk h3 {
@@ -650,15 +672,16 @@
         ],
         [
             'widget_id' => 'summary-sms-email',
-            'title' => 'وضعیت پیامک و ایمیل',
+            'title' => 'وضعیت پیامک',
             'icon' => 'fa-paper-plane',
             'c' => '#f97316',
-            'clickable' => false,
+            'clickable' => true,
+            'href' => route('admin.sms.index'),
             'lines' => [
-                ['k' => 'ارسال موفق پیامک امروز', 'v' => '۰ مورد'],
-                ['k' => 'ارسال موفق ایمیل امروز', 'v' => '۰ مورد'],
+                ['k' => 'ارسال موفق پیامک امروز', 'v' => \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) ($smsDeliveredToday ?? 0)).' مورد'],
+                ['k' => 'وضعیت پنل پیامکی', 'v' => (string) ($smsPanelStatusLabel ?? 'تنظیم نشده')],
             ],
-            'footer' => null,
+            'footer' => 'جهت مشاهده بر روی باکس کلیک کنید',
         ],
         [
             'widget_id' => 'summary-counterparty-matured',
@@ -681,11 +704,16 @@
                 data-dash-title="{{ $qk['title'] }}"
                 data-dash-group="summary"
             >
-            <div class="qk @if(! empty($qk['clickable'])) qk--clickable @endif" @if(! empty($qk['clickable'])) tabindex="0" role="button" @endif>
-                <span class="qk-ico-wrap" style="background: {{ $qk['c'] }}22;border:1px solid {{ $qk['c'] }}44;color: {{ $qk['c'] }}">
-                    <i class="fa-solid {{ $qk['icon'] }}" aria-hidden="true"></i>
-                </span>
-                <h3>{{ $qk['title'] }}</h3>
+            @if(!empty($qk['href']))
+            <a href="{{ $qk['href'] }}" class="qk-link">
+            @endif
+            <div class="qk @if(! empty($qk['clickable'])) qk--clickable @endif" @if(! empty($qk['clickable']) && empty($qk['href'])) tabindex="0" role="button" @endif>
+                <div class="qk-head">
+                    <span class="qk-ico-wrap" style="background: {{ $qk['c'] }}22;border:1px solid {{ $qk['c'] }}44;color: {{ $qk['c'] }}">
+                        <i class="fa-solid {{ $qk['icon'] }}" aria-hidden="true"></i>
+                    </span>
+                    <h3>{{ $qk['title'] }}</h3>
+                </div>
                 <div class="qk-body">
                     @foreach ($qk['lines'] as $ln)
                         @isset($ln['k'])
@@ -708,6 +736,9 @@
                     <div class="qk-footer">{{ $qk['footer'] }}</div>
                 @endif
             </div>
+            @if(!empty($qk['href']))
+            </a>
+            @endif
             </div>
         @endforeach
     </div>

@@ -396,6 +396,70 @@
                     </button>
                 </form>
             </div>
+
+            <div class="sms-panel-select-card">
+                <div class="sms-panel-select-head">
+                    <i class="fa-solid fa-list-check" aria-hidden="true"></i>
+                    الگوهای پیش‌فرض سناریوها
+                </div>
+                <p class="sms-panel-select-sub">برای هر سناریوی پیامکی، یکی از الگوهای تعریف‌شده را انتخاب کنید. این تنظیمات جدا از اتصال پنل ذخیره می‌شوند.</p>
+
+                <form method="post" action="{{ route('admin.sms.scenario-templates.update') }}" class="sms-settings-form">
+                    @csrf
+                    <div class="sms-settings-field">
+                        <label for="tpl-installment-thanks">قالب پیامک ثبت قسط و تشکر</label>
+                        <select id="tpl-installment-thanks" name="tpl_installment_thanks_id">
+                            <option value="">انتخاب نشده</option>
+                            @foreach($smsTemplates as $tpl)
+                                <option value="{{ $tpl->id }}" @selected(old('tpl_installment_thanks_id', $smsScenarioTemplateIds['tpl_installment_thanks_id'] ?? '') == (string) $tpl->id)>
+                                    {{ $tpl->title }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('tpl_installment_thanks_id')<div class="sms-field-error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="sms-settings-field">
+                        <label for="tpl-login">قالب پیامک ورود به سیستم</label>
+                        <select id="tpl-login" name="tpl_login_id">
+                            <option value="">انتخاب نشده</option>
+                            @foreach($smsTemplates as $tpl)
+                                <option value="{{ $tpl->id }}" @selected(old('tpl_login_id', $smsScenarioTemplateIds['tpl_login_id'] ?? '') == (string) $tpl->id)>
+                                    {{ $tpl->title }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('tpl_login_id')<div class="sms-field-error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="sms-settings-field">
+                        <label for="tpl-register-verify">قالب پیامک رمز تاییدیه ثبت نام</label>
+                        <select id="tpl-register-verify" name="tpl_register_verify_code_id">
+                            <option value="">انتخاب نشده</option>
+                            @foreach($smsTemplates as $tpl)
+                                <option value="{{ $tpl->id }}" @selected(old('tpl_register_verify_code_id', $smsScenarioTemplateIds['tpl_register_verify_code_id'] ?? '') == (string) $tpl->id)>
+                                    {{ $tpl->title }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('tpl_register_verify_code_id')<div class="sms-field-error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="sms-settings-field">
+                        <label for="tpl-register-welcome">قالب پیامک خوش آمد ثبت نام</label>
+                        <select id="tpl-register-welcome" name="tpl_register_welcome_id">
+                            <option value="">انتخاب نشده</option>
+                            @foreach($smsTemplates as $tpl)
+                                <option value="{{ $tpl->id }}" @selected(old('tpl_register_welcome_id', $smsScenarioTemplateIds['tpl_register_welcome_id'] ?? '') == (string) $tpl->id)>
+                                    {{ $tpl->title }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('tpl_register_welcome_id')<div class="sms-field-error">{{ $message }}</div>@enderror
+                    </div>
+                    <button class="sms-settings-submit" type="submit">
+                        <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+                        ذخیره الگوهای سناریو
+                    </button>
+                </form>
+            </div>
         </section>
     </div>
 

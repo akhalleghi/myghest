@@ -149,6 +149,10 @@ Route::middleware(['auth:admin'])->group(function (): void {
         ->middleware('throttle:20,1')
         ->name('sms.panel-test.send');
 
+    Route::post('/sms-management/scenario-templates', [SmsManagementController::class, 'updateScenarioTemplates'])
+        ->middleware('throttle:20,1')
+        ->name('sms.scenario-templates.update');
+
     Route::post('/sms-management/templates', [SmsManagementController::class, 'storeTemplate'])
         ->middleware('throttle:30,1')
         ->name('sms.templates.store');
