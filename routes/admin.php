@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Admin\AppSettingsController;
 use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
 use App\Http\Controllers\Admin\Auth\AdminDashboardController;
 use App\Http\Controllers\Admin\Auth\AdminLoginController;
+use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\LoanTypeController;
 use App\Http\Controllers\Admin\SmsManagementController;
 use Illuminate\Support\Facades\Route;
@@ -62,6 +64,26 @@ Route::middleware(['auth:admin'])->group(function (): void {
     */
     Route::get('/', AdminDashboardController::class)->name('dashboard');
 
+    Route::get('/customers', [CustomerController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('customers.index');
+
+    Route::post('/customers', [CustomerController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('customers.store');
+
+    Route::get('/customers/{customer}/edit-data', [CustomerController::class, 'editData'])
+        ->middleware('throttle:60,1')
+        ->name('customers.edit-data');
+
+    Route::put('/customers/{customer}', [CustomerController::class, 'update'])
+        ->middleware('throttle:20,1')
+        ->name('customers.update');
+
+    Route::delete('/customers/{customer}', [CustomerController::class, 'destroy'])
+        ->middleware('throttle:30,1')
+        ->name('customers.destroy');
+
     /*
     | تعریف انواع وام — فهرست و جدول (افزودن/ویرایش در گام بعدی).
     */
@@ -117,4 +139,12 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::delete('/sms-management/{smsLog}', [SmsManagementController::class, 'destroyLog'])
         ->middleware('throttle:30,1')
         ->name('sms.destroy');
+
+    Route::post('/app-settings/base', [AppSettingsController::class, 'updateBase'])
+        ->middleware('throttle:20,1')
+        ->name('app-settings.base.update');
+
+    Route::post('/app-settings/ui', [AppSettingsController::class, 'updateUi'])
+        ->middleware('throttle:20,1')
+        ->name('app-settings.ui.update');
 });

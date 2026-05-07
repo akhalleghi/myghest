@@ -17,6 +17,7 @@
 
         {{-- بارگذاری بعد از Tailwind تا IRANSans (FaNum) اولویت داشته باشد --}}
         <link rel="stylesheet" href="{{ asset('css/iransans-fanum.css') }}">
+        <link rel="stylesheet" href="{{ asset('css/iransans-fanum-apply.css') }}">
     </head>
     <body class="bg-[#f0f7ff] dark:bg-[#0a0a0a] text-[#0f172a] flex p-6 lg:p-8 items-center lg:justify-center min-h-screen flex-col">
         <header class="w-full lg:max-w-4xl max-w-[335px] text-sm mb-6 not-has-[nav]:hidden">

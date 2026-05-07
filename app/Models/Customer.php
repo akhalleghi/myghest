@@ -1,0 +1,58 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+final class Customer extends Model
+{
+    protected $fillable = [
+        'customer_code',
+        'username',
+        'first_name',
+        'last_name',
+        'father_name',
+        'national_id',
+        'mobile',
+        'phone_landline',
+        'membership_at',
+        'birth_date',
+        'email',
+        'password',
+        'city',
+        'address',
+        'postal_code',
+        'credentials_sms_sent_at',
+    ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'membership_at' => 'date',
+            'birth_date' => 'date',
+            'credentials_sms_sent_at' => 'datetime',
+            'password' => 'hashed',
+        ];
+    }
+
+    public function bankAccounts(): HasMany
+    {
+        return $this->hasMany(CustomerBankAccount::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    public function referrers(): HasMany
+    {
+        return $this->hasMany(CustomerReferrer::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    public function fullName(): string
+    {
+        return trim($this->first_name.' '.$this->last_name);
+    }
+}

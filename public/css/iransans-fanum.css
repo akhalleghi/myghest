@@ -1,5 +1,6 @@
 /**
- * IRANSans (نسخه‌ی فارسی ارقام / FaNum) — بارگذاری محلی تحت `public/fonts/iransans/`
+ * IRANSans (نسخه‌ی فارسی ارقام / FaNum) — فقط @font-face؛ مسیر: public/fonts/iransans/
+ * برای اعمال روی صفحه، iransans-fanum-apply.css را هم بارگذاری کنید.
  */
 
 @font-face {
@@ -19,31 +20,4 @@
     font-weight: 700;
     font-display: swap;
     src: url("/fonts/iransans/iransans-fanum-700.woff2") format("woff2");
-}
-
-html {
-    font-family:
-        IRANSans,
-        system-ui,
-        -apple-system,
-        "Segoe UI",
-        Tahoma,
-        sans-serif;
-}
-
-body {
-    font-family:
-        IRANSans,
-        system-ui,
-        -apple-system,
-        "Segoe UI",
-        Tahoma,
-        sans-serif;
-}
-
-input,
-button,
-textarea,
-select {
-    font-family: inherit;
 }

@@ -1,0 +1,30 @@
+/**
+ * اعمال IRANSans (FaNum) روی ریشهٔ صفحه — بعد از iransans-fanum.css (فقط @font-face) بارگذاری شود.
+ */
+
+html {
+    font-family:
+        IRANSans,
+        system-ui,
+        -apple-system,
+        "Segoe UI",
+        Tahoma,
+        sans-serif;
+}
+
+body {
+    font-family:
+        IRANSans,
+        system-ui,
+        -apple-system,
+        "Segoe UI",
+        Tahoma,
+        sans-serif;
+}
+
+input,
+button,
+textarea,
+select {
+    font-family: inherit;
+}

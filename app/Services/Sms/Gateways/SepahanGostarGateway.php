@@ -23,7 +23,7 @@ final class SepahanGostarGateway implements SmsPanelGateway
     }
 
     /**
-     * @param array<string, mixed> $config
+     * @param  array<string, mixed>  $config
      */
     public function testConnection(string $username, string $password, array $config = []): SmsPanelConnectionResult
     {
@@ -34,12 +34,17 @@ final class SepahanGostarGateway implements SmsPanelGateway
             $password,
             $receiverNumber,
             'پیام تست اتصال سامانه',
-            $config
+            [
+                'domain_name' => (string) ($config['domain_name'] ?? 'sepahansms'),
+                // اتصال پنل باید مستقل از شماره فرستنده تست شود.
+                // شماره فرستنده ممکن است در پنل غیرفعال/جابجا شده باشد و نتیجه تست اعتبار را خراب کند.
+                'sender_number' => '50003300',
+            ]
         );
     }
 
     /**
-     * @param array<string, mixed> $config
+     * @param  array<string, mixed>  $config
      */
     public function sendTestMessage(
         string $username,

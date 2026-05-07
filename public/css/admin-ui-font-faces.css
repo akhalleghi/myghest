@@ -1,0 +1,54 @@
+/**
+ * فقط @font-face برای فونت‌های انتخابی پنل ادمین.
+ * ایران‌یکان: نسخه‌های fanum. انجمن: فایل‌های موجود در public/fonts/Anjoman/
+ */
+
+@font-face {
+    font-family: IRANYekan;
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src:
+        url("/fonts/IRANYekan/woff/iranyekanwebregularfanum.woff") format("woff"),
+        url("/fonts/IRANYekan/ttf/iranyekanwebregularfanum.ttf") format("truetype");
+}
+
+@font-face {
+    font-family: IRANYekan;
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src:
+        url("/fonts/IRANYekan/woff/iranyekanwebmediumfanum.woff") format("woff"),
+        url("/fonts/IRANYekan/ttf/iranyekanwebmediumfanum.ttf") format("truetype");
+}
+
+@font-face {
+    font-family: IRANYekan;
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src:
+        url("/fonts/IRANYekan/woff/iranyekanwebboldfanum.woff") format("woff"),
+        url("/fonts/IRANYekan/ttf/iranyekanwebboldfanum.ttf") format("truetype");
+}
+
+@font-face {
+    font-family: Anjoman;
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src:
+        url("/fonts/Anjoman/woff2/Anjoman-Regular.woff2") format("woff2"),
+        url("/fonts/Anjoman/woff/Anjoman-Regular.woff") format("woff");
+}
+
+@font-face {
+    font-family: Anjoman;
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src:
+        url("/fonts/Anjoman/woff2/Anjoman-Bold.woff2") format("woff2"),
+        url("/fonts/Anjoman/woff/Anjoman-Bold.woff") format("woff");
+}

@@ -1,13 +1,14 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="rtl" data-theme="light">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="rtl" data-theme="light" data-admin-font="{{ $appFontSize }}" data-admin-ui-font="{{ $appUiFont }}">
 <head>
     <meta charset="utf-8">
     @include('layouts.partials.theme-boot')
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-    <title>@yield('title', 'ورود مدیر') — {{ config('app.name') }}</title>
-    @include('layouts.partials.iransans-fanum')
+    <title>@yield('title', 'ورود مدیر') — {{ $appDisplayName }}</title>
+    @include('layouts.partials.admin-ui-font-assets')
+    @include('layouts.partials.admin-ui-font-style')
     @include('layouts.partials.fontawesome-local')
     <style>
         :root {
@@ -59,7 +60,6 @@
         body {
             margin: 0;
             min-height: 100vh;
-            font-family: IRANSans, system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
             color: var(--text-main);
             background:
                 radial-gradient(900px 520px at 12% -8%, rgba(59, 130, 246, 0.2), transparent 55%),

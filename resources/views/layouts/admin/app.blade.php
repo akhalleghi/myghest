@@ -1,13 +1,14 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="rtl" data-theme="light">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="rtl" data-theme="light" data-admin-font="{{ $appFontSize }}" data-admin-ui-font="{{ $appUiFont }}">
 <head>
     <meta charset="utf-8">
     @include('layouts.partials.theme-boot')
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="robots" content="noindex, nofollow">
-    <title>@yield('title', 'داشبورد') — {{ config('app.name') }}</title>
-    @include('layouts.partials.iransans-fanum')
+    <title>@yield('title', 'داشبورد') — {{ $appDisplayName }}</title>
+    @include('layouts.partials.admin-ui-font-assets')
+    @include('layouts.partials.admin-ui-font-style')
     @include('layouts.partials.fontawesome-local')
     <style>
         :root {
@@ -57,7 +58,6 @@
         body.admin-app {
             margin: 0;
             min-height: 100vh;
-            font-family: IRANSans, system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
             color: var(--text);
             background: var(--bg-page);
             line-height: 1.55;
@@ -724,6 +724,13 @@
             font-size: 0.78rem;
         }
 
+        .app-settings-error {
+            margin-top: 0.22rem;
+            font-size: 0.72rem;
+            color: #b91c1c;
+            font-weight: 700;
+        }
+
         .app-settings-note {
             margin: 0;
             font-size: 0.74rem;
@@ -822,14 +829,14 @@
                 <div class="sidebar-logo" aria-hidden="true">
                     <i class="fa-solid fa-layer-group"></i>
                 </div>
-                <div class="sidebar-title">{{ config('app.name') }}</div>
+                <div class="sidebar-title">{{ $appDisplayName }}</div>
             </div>
             <nav class="sidebar-nav">
                 <div class="nav-section-label">منو</div>
                 @php($nav = [
                     ['label' => 'داشبورد', 'href' => route('admin.dashboard'), 'icon' => 'fa-gauge-high', 'route' => 'admin.dashboard'],
                     ['label' => 'تعریف انواع وام', 'href' => route('admin.loan-types.index'), 'icon' => 'fa-money-bill-transfer', 'route' => 'admin.loan-types.index'],
-                    ['label' => 'لیست مشتریان', 'icon' => 'fa-users', 'disabled' => true],
+                    ['label' => 'لیست مشتریان', 'href' => route('admin.customers.index'), 'icon' => 'fa-users', 'route' => 'admin.customers.index'],
                     ['label' => 'اعلام واریزها', 'icon' => 'fa-building-columns', 'disabled' => true],
                     ['label' => 'مدیریت پیامک', 'href' => route('admin.sms.index'), 'icon' => 'fa-envelope', 'route' => 'admin.sms.index'],
                     ['label' => 'درخواست وام‌ها', 'icon' => 'fa-file-invoice', 'disabled' => true],
@@ -919,7 +926,7 @@
                     <i class="fa-solid fa-bars mobile-nav-toggle__ico mobile-nav-toggle__ico--bars" aria-hidden="true"></i>
                     <i class="fa-solid fa-xmark mobile-nav-toggle__ico mobile-nav-toggle__ico--close" aria-hidden="true"></i>
                 </button>
-                <h1 class="mobile-app-title">{{ config('app.name') }}</h1>
+                <h1 class="mobile-app-title">{{ $appDisplayName }}</h1>
             </header>
 
             <header class="topbar only-desktop">
@@ -1000,54 +1007,69 @@
                         <p class="app-settings-panel-subtitle">پارامترهای اصلی سامانه که رفتار کلی را تعیین می‌کنند.</p>
                         <div class="app-settings-card">
                             <h4>اطلاعات پایه سامانه</h4>
-                            <p class="app-settings-card-desc">این بخش برای تعریف اطلاعات پایه‌ای و ثابت محیط کاری استفاده می‌شود.</p>
-                            <div class="app-settings-row">
+                            <p class="app-settings-card-desc">نام نمایشی در عنوان پنل و بخش‌های عمومی سامانه نمایش داده می‌شود.</p>
+                            <form method="post" action="{{ route('admin.app-settings.base.update') }}">
+                                @csrf
                                 <div class="app-settings-field">
-                                    <label>نام نمایشی سامانه</label>
-                                    <input type="text" value="{{ config('app.name') }}" readonly>
+                                    <label for="app-display-name">نام نمایشی سامانه</label>
+                                    <input id="app-display-name" type="text" name="display_name" value="{{ old('display_name', $appDisplayName) }}">
+                                    @error('display_name')
+                                        <div class="app-settings-error">{{ $message }}</div>
+                                    @enderror
                                 </div>
-                                <div class="app-settings-field">
-                                    <label>منطقه زمانی</label>
-                                    <select>
-                                        <option>Asia/Tehran</option>
-                                        <option>UTC</option>
-                                    </select>
+                                <div class="app-settings-actions">
+                                    <button type="submit" class="app-settings-btn app-settings-btn--primary">ذخیره تغییرات</button>
                                 </div>
-                            </div>
-                        </div>
-                        <p class="app-settings-note">این آیتم‌ها نمایشی هستند و در مرحله بعدی به ذخیره‌سازی واقعی متصل می‌شوند.</p>
-                        <div class="app-settings-actions">
-                            <button type="button" class="app-settings-btn">بازنشانی</button>
-                            <button type="button" class="app-settings-btn app-settings-btn--primary">ذخیره تغییرات</button>
+                            </form>
                         </div>
                     </section>
                     <section class="app-settings-panel" data-settings-panel="ui" hidden>
                         <h4 class="app-settings-panel-title">ظاهر و تجربه کاربری</h4>
                         <p class="app-settings-panel-subtitle">نمایش و خوانایی پنل را مطابق ترجیح تیم تنظیم کنید.</p>
-                        <div class="app-settings-card">
-                            <h4>تنظیمات نمای رابط</h4>
-                            <p class="app-settings-card-desc">تنظیمات این بخش روی نحوه نمایش صفحات و اجزای پنل اثر می‌گذارد.</p>
-                            <div class="app-settings-row">
-                                <div class="app-settings-field">
-                                    <label>چیدمان پیش‌فرض داشبورد</label>
-                                    <select>
-                                        <option>فشرده</option>
-                                        <option>استاندارد</option>
-                                    </select>
+                        <form method="post" action="{{ route('admin.app-settings.ui.update') }}">
+                            @csrf
+                            <div class="app-settings-card">
+                                <h4>تنظیمات نمای رابط</h4>
+                                <p class="app-settings-card-desc">فونت و اندازهٔ متن روی تمام صفحات پنل ادمین اعمال می‌شود. برای ایران‌یکان و ایران‌سانس از نسخهٔ FaNum استفاده می‌شود.</p>
+                                <div class="app-settings-row">
+                                    <div class="app-settings-field">
+                                        <label for="app-ui-font">فونت رابط</label>
+                                        <select id="app-ui-font" name="ui_font">
+                                            <option value="iransans" @selected(old('ui_font', $appUiFont) === 'iransans')>ایران‌سنس (FaNum)</option>
+                                            <option value="iranyekan" @selected(old('ui_font', $appUiFont) === 'iranyekan')>ایران‌یکان (FaNum)</option>
+                                            <option value="anjoman" @selected(old('ui_font', $appUiFont) === 'anjoman')>انجمن</option>
+                                        </select>
+                                        @error('ui_font')
+                                            <div class="app-settings-error">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                    <div class="app-settings-field">
+                                        <label for="app-font-size">اندازه فونت</label>
+                                        <select id="app-font-size" name="font_size">
+                                            <option value="small" @selected(old('font_size', $appFontSize) === 'small')>کوچک</option>
+                                            <option value="normal" @selected(old('font_size', $appFontSize) === 'normal')>معمولی</option>
+                                            <option value="large" @selected(old('font_size', $appFontSize) === 'large')>بزرگ</option>
+                                        </select>
+                                        @error('font_size')
+                                            <div class="app-settings-error">{{ $message }}</div>
+                                        @enderror
+                                    </div>
                                 </div>
-                                <div class="app-settings-field">
-                                    <label>اندازه فونت</label>
-                                    <select>
-                                        <option>معمولی</option>
-                                        <option>بزرگ</option>
-                                    </select>
+                                <div class="app-settings-row">
+                                    <div class="app-settings-field">
+                                        <label>چیدمان پیش‌فرض داشبورد</label>
+                                        <select disabled aria-disabled="true" title="به‌زودی">
+                                            <option>فشرده</option>
+                                            <option selected>استاندارد</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div class="app-settings-actions">
-                            <button type="button" class="app-settings-btn">بازنشانی</button>
-                            <button type="button" class="app-settings-btn app-settings-btn--primary">ذخیره تغییرات</button>
-                        </div>
+                            <div class="app-settings-actions">
+                                <button type="button" id="app-ui-font-reset" class="app-settings-btn">بازنشانی</button>
+                                <button type="submit" class="app-settings-btn app-settings-btn--primary">ذخیره تغییرات</button>
+                            </div>
+                        </form>
                     </section>
                     <section class="app-settings-panel" data-settings-panel="notifications" hidden>
                         <h4 class="app-settings-panel-title">اعلان‌ها</h4>
@@ -1253,7 +1275,28 @@
                     });
                 });
 
+                var fontResetBtn = document.getElementById('app-ui-font-reset');
+                var fontSelect = document.getElementById('app-font-size');
+                var uiFontSelect = document.getElementById('app-ui-font');
+
+                if (fontResetBtn && fontSelect) {
+                    fontResetBtn.addEventListener('click', function () {
+                        fontSelect.value = 'normal';
+                        if (uiFontSelect) {
+                            uiFontSelect.value = 'iransans';
+                        }
+                    });
+                }
+
+                @if($errors->has('font_size') || $errors->has('ui_font'))
+                activateSettingsTab('ui');
+                openSettings();
+                @elseif($errors->has('display_name'))
                 activateSettingsTab('base');
+                openSettings();
+                @else
+                activateSettingsTab('base');
+                @endif
             });
         })();
     </script>

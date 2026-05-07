@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\SmsPanelSetting;
 use App\Models\SmsLog;
+use App\Models\SmsPanelSetting;
 use App\Models\SmsTemplate;
 use App\Services\Sms\SmsPanelManager;
 use Carbon\Carbon;
@@ -15,8 +15,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -24,8 +24,7 @@ final class SmsManagementController extends Controller
 {
     public function __construct(
         private readonly SmsPanelManager $panelManager,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -104,7 +103,6 @@ final class SmsManagementController extends Controller
         $gateway = $this->panelManager->gateway($provider);
         $connection = $gateway->testConnection($username, $plainPassword, [
             'domain_name' => (string) ($setting->domain_name ?: 'sepahansms'),
-            'sender_number' => $senderNumber,
         ]);
 
         SmsPanelSetting::query()->where('is_active', true)->update(['is_active' => false]);
@@ -398,8 +396,8 @@ final class SmsManagementController extends Controller
     }
 
     /**
-     * @param resource $out
-     * @param array<int, string> $cells
+     * @param  resource  $out
+     * @param  array<int, string>  $cells
      */
     private function writeExcelUnicodeRow($out, array $cells): void
     {
@@ -428,7 +426,7 @@ final class SmsManagementController extends Controller
     }
 
     /**
-     * @param array<string, string> $providerOptions
+     * @param  array<string, string>  $providerOptions
      */
     private function resolveActiveProvider(array $providerOptions): string
     {
