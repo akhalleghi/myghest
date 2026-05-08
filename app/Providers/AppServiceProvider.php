@@ -56,7 +56,7 @@ class AppServiceProvider extends ServiceProvider
                 ->value('value');
 
             $view->with('appDisplayName', is_string($displayName) && $displayName !== '' ? $displayName : config('app.name'));
-            $view->with('appFontSize', is_string($fontSize) && in_array($fontSize, ['small', 'normal', 'large'], true) ? $fontSize : 'normal');
+            $view->with('appFontSize', is_string($fontSize) && in_array($fontSize, ['small', 'normal', 'large', 'xlarge'], true) ? $fontSize : 'normal');
             $view->with('appUiFont', is_string($uiFont) && in_array($uiFont, ['iransans', 'iranyekan', 'anjoman'], true) ? $uiFont : 'iransans');
             $view->with('appIconUrl', is_string($appIconPath) && $appIconPath !== '' ? asset($appIconPath) : null);
             $view->with('faviconUrl', is_string($faviconPath) && $faviconPath !== '' ? asset($faviconPath) : null);

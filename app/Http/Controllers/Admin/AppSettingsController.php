@@ -32,7 +32,7 @@ final class AppSettingsController extends Controller
     public function updateUi(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'font_size' => ['required', 'in:small,normal,large'],
+            'font_size' => ['required', 'in:small,normal,large,xlarge'],
             'ui_font' => ['required', 'in:iransans,iranyekan,anjoman'],
             'app_icon_fa' => ['nullable', 'string', 'max:80', 'regex:/^fa-(solid|regular|brands)\s+fa-[a-z0-9-]+$/'],
             'favicon_fa' => ['nullable', 'string', 'max:80', 'regex:/^fa-(solid|regular|brands)\s+fa-[a-z0-9-]+$/'],

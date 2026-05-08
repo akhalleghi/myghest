@@ -111,12 +111,19 @@
             width: 100%; border: 1px solid var(--border); border-radius: 0.62rem; padding: 0.48rem 0.62rem;
             background: var(--bg-card); color: var(--text); font-family: inherit; font-size: 0.82rem;
         }
+        .cust-field input.is-invalid,
+        .cust-field textarea.is-invalid,
+        .cust-field select.is-invalid {
+            border-color: #b91c1c;
+            box-shadow: 0 0 0 2px rgba(185, 28, 28, 0.08);
+            background: rgba(254, 242, 242, 0.55);
+        }
         .cust-field input:disabled { opacity: 0.72; cursor: not-allowed; background: var(--primary-soft); }
         .cust-field textarea { min-height: 4rem; resize: vertical; }
         .cust-field--full { grid-column: 1 / -1; }
         .cust-field-error { margin-top: 0.22rem; font-size: 0.72rem; color: #b91c1c; font-weight: 700; }
         .cust-field-hint { display: block; margin-top: 0.18rem; font-size: 0.7rem; color: var(--muted); line-height: 1.4; }
-        .loan-manage-modal { width: min(1020px, 100%); }
+        .loan-manage-modal { width: min(1180px, 100%); }
         .loan-manage-top {
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -137,6 +144,7 @@
             color: var(--text);
             white-space: nowrap;
             overflow: hidden;
+            min-width: 0;
         }
         .loan-manage-pill-ico {
             width: 1.05rem;
@@ -154,7 +162,7 @@
             background: var(--primary-soft);
         }
         .loan-manage-pill-label { font-size: 0.72rem; font-weight: 700; color: var(--muted); flex-shrink: 0; }
-        .loan-manage-pill-value { font-size: 0.8rem; font-weight: 800; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .loan-manage-pill-value { font-size: 0.8rem; font-weight: 800; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         .loan-manage-pill-value--good { color: #047857; }
         .loan-manage-pill-value--normal { color: #b45309; }
         .loan-manage-pill-value--weak { color: #b91c1c; }
@@ -176,11 +184,110 @@
             flex-wrap: wrap;
         }
         .loan-files-summary { font-size: 0.72rem; color: var(--muted); font-weight: 700; }
-        .loan-files-table-wrap { border: 1px solid var(--border); border-radius: 0.72rem; overflow: auto; max-height: 50vh; }
-        .loan-files-table { width: 100%; border-collapse: collapse; font-size: 0.74rem; }
-        .loan-files-table th, .loan-files-table td { border-bottom: 1px solid var(--border); padding: 0.42rem 0.5rem; text-align: start; vertical-align: top; white-space: nowrap; }
-        .loan-files-table th { background: var(--primary-soft); font-weight: 800; position: sticky; top: 0; z-index: 1; }
-        .loan-files-empty { text-align: center; color: var(--muted); font-size: 0.76rem; padding: 0.9rem; }
+        .loan-files-list { display: grid; gap: 0.85rem; }
+        .loan-files-empty {
+            text-align: center; color: var(--muted); font-size: 0.78rem; padding: 1.15rem;
+            border: 1px dashed var(--border); border-radius: 0.72rem; background: rgba(248, 250, 252, 0.52);
+        }
+        .loan-file-card {
+            border: 1px solid var(--border);
+            border-radius: 0.82rem;
+            background: var(--bg-card);
+            padding: 0.75rem 0.8rem;
+            box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);
+            position: relative;
+        }
+        .loan-file-card--settled {
+            border-color: rgba(239, 68, 68, 0.38);
+            background: linear-gradient(180deg, rgba(254, 242, 242, 0.72), rgba(255, 255, 255, 0.98));
+            box-shadow: 0 8px 24px rgba(239, 68, 68, 0.09);
+        }
+        html[data-theme="dark"] .loan-file-card--settled {
+            background: linear-gradient(180deg, rgba(127, 29, 29, 0.16), rgba(30, 41, 59, 0.82));
+            border-color: rgba(248, 113, 113, 0.45);
+        }
+        .loan-file-badge-settled {
+            position: absolute;
+            top: 0.45rem;
+            left: 0.5rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 999px;
+            background: rgba(239, 68, 68, 0.12);
+            color: #b91c1c;
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            font-size: 0.68rem;
+            font-weight: 900;
+        }
+        .loan-file-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.7rem;
+        }
+        .loan-file-col { min-width: 0; }
+        .loan-file-col-title {
+            margin: 0;
+            font-size: 0.9rem;
+            font-weight: 900;
+            color: var(--text);
+        }
+        .loan-file-col-sep {
+            margin: 0.28rem 0 0.45rem;
+            border: 0;
+            border-top: 1px dashed rgba(148, 163, 184, 0.45);
+        }
+        .loan-file-items { display: grid; gap: 0.24rem; }
+        .loan-file-item { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+        .loan-file-k { font-size: 0.74rem; color: var(--muted); font-weight: 700; flex-shrink: 0; }
+        .loan-file-v { font-size: 0.77rem; color: var(--text); font-weight: 800; text-align: end; }
+        .loan-file-v--danger { color: #b91c1c; }
+        .loan-file-v--ok { color: #047857; }
+        .loan-file-v--warn { color: #b45309; }
+        .loan-file-desc {
+            margin: 0;
+            font-size: 0.77rem;
+            line-height: 1.8;
+            color: var(--text);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .loan-file-desc--empty { color: var(--muted); font-style: italic; }
+        .loan-file-foot {
+            margin-top: 0.72rem;
+            padding-top: 0.55rem;
+            border-top: 1px solid rgba(148, 163, 184, 0.22);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.55rem;
+            flex-wrap: wrap;
+        }
+        .loan-file-actions-right, .loan-file-actions-left {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+        }
+        .loan-file-btn {
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 0.32rem 0.64rem;
+            background: var(--bg-card);
+            color: var(--text);
+            font-size: 0.72rem;
+            font-weight: 800;
+            font-family: inherit;
+            cursor: pointer;
+        }
+        .loan-file-btn:hover { background: var(--primary-soft); border-color: rgba(37, 99, 235, 0.35); }
+        .loan-file-btn--mini {
+            width: 2rem; height: 2rem; border-radius: 50%; padding: 0;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .loan-file-btn--danger { color: #b91c1c; border-color: rgba(239, 68, 68, 0.4); background: rgba(248, 113, 113, 0.1); }
+        .loan-file-btn--disc { font-size: 0.68rem; padding: 0.22rem 0.52rem; }
+        @media (max-width: 980px) {
+            .loan-file-grid { grid-template-columns: 1fr; }
+        }
         .loan-interest-note { margin-top: 0.22rem; font-size: 0.7rem; color: var(--muted); }
         .loan-extra-box {
             border: 1px dashed var(--border);
@@ -224,6 +331,20 @@
         }
         @media (max-width: 520px) {
             .loan-manage-top { grid-template-columns: 1fr; }
+        }
+        html[data-admin-font="large"] .loan-manage-pill {
+            min-height: 3.2rem;
+            white-space: normal;
+            align-items: flex-start;
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+        html[data-admin-font="large"] .loan-manage-pill-label,
+        html[data-admin-font="large"] .loan-manage-pill-value {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+            line-height: 1.5;
         }
 
         .cust-section {
@@ -842,24 +963,8 @@
                             افزودن وام
                         </button>
                     </div>
-                    <div class="loan-files-table-wrap">
-                        <table class="loan-files-table">
-                            <thead>
-                                <tr>
-                                    <th>شماره پرونده</th>
-                                    <th>نوع وام</th>
-                                    <th>شروع</th>
-                                    <th>مبلغ</th>
-                                    <th>تعداد اقساط</th>
-                                    <th>مبلغ هر قسط</th>
-                                    <th>مانده</th>
-                                    <th>وضعیت</th>
-                                </tr>
-                            </thead>
-                            <tbody id="loan-files-tbody">
-                                <tr><td colspan="8" class="loan-files-empty">در حال بارگذاری...</td></tr>
-                            </tbody>
-                        </table>
+                    <div id="loan-files-list" class="loan-files-list">
+                        <div class="loan-files-empty">در حال بارگذاری...</div>
                     </div>
                 </div>
                 <div class="loan-tab-panel" data-loan-panel="requests" hidden>
@@ -949,7 +1054,7 @@
                         <label for="loan-description">توضیحات</label>
                         <textarea id="loan-description" name="description" maxlength="3000"></textarea>
                     </div>
-                    <div class="cust-field cust-field--full loan-extra-box">
+                    <div class="cust-field cust-field--full loan-extra-box" id="loan-settled-section" hidden>
                         <label><input type="checkbox" id="loan-is-settled" name="is_settled" value="1"> وام تسویه شده است</label>
                         <div id="loan-settled-wrap" style="margin-top:.45rem;" hidden>
                             <label for="loan-settled-jdate">تاریخ تسویه</label>
@@ -1000,6 +1105,7 @@
             var custFormMode = 'create';
             var custListBaseUrl = @json(rtrim(route('admin.customers.index'), '/'));
             var custStoreUrl = @json(route('admin.customers.store'));
+            var appDisplayName = @json($appDisplayName ?? config('app.name'));
 
             function custEditDataUrl(id) {
                 return custListBaseUrl + '/' + id + '/edit-data';
@@ -1035,6 +1141,9 @@
 
             function customerLoanStoreUrl(id) {
                 return custListBaseUrl + '/' + id + '/loan-files';
+            }
+            function customerLoanUpdateUrl(customerId, loanFileId) {
+                return custListBaseUrl + '/' + customerId + '/loan-files/' + loanFileId;
             }
 
             var overlay = document.getElementById('cust-modal-overlay');
@@ -1087,7 +1196,7 @@
             var loanManageOverlay = document.getElementById('loan-manage-overlay');
             var loanManageClose = document.getElementById('loan-manage-close');
             var loanFilesSummary = document.getElementById('loan-files-summary');
-            var loanFilesTbody = document.getElementById('loan-files-tbody');
+            var loanFilesList = document.getElementById('loan-files-list');
             var loanOpenCreateModalBtn = document.getElementById('loan-open-create-modal');
             var loanManageOpenEditBtn = document.getElementById('loan-manage-open-edit');
             var loanManageOpenWalletBtn = document.getElementById('loan-manage-open-wallet');
@@ -1128,6 +1237,7 @@
             var loanInstallmentIntervalUnitSelect = document.getElementById('loan-installment-interval-unit');
             var loanDownPaymentInput = document.getElementById('loan-down-payment');
             var loanIsSettledCheckbox = document.getElementById('loan-is-settled');
+            var loanSettledSection = document.getElementById('loan-settled-section');
             var loanSettledWrap = document.getElementById('loan-settled-wrap');
             var loanHasCustomInterestCheckbox = document.getElementById('loan-has-custom-interest');
             var loanCustomInterestWrap = document.getElementById('loan-custom-interest-wrap');
@@ -1139,6 +1249,8 @@
             var loanSettledJdateInput = document.getElementById('loan-settled-jdate');
             var loanCreateSubmitting = false;
             var loanInstallmentAutoDirty = false;
+            var loanFormMode = 'create';
+            var loanEditingFileId = null;
             var walletState = {
                 balance_toman: 0,
                 is_locked: false,
@@ -1191,6 +1303,94 @@
                 return loanTypesData.find(function (x) {
                     return parseInt(String(x.id), 10) === selectedId;
                 }) || null;
+            }
+
+            function loanRepaymentDurationMonths(installmentsCount, intervalCount, intervalUnit) {
+                var c = Number(installmentsCount || 0);
+                var gap = Number(intervalCount || 0);
+                if (!Number.isFinite(c) || c <= 0 || !Number.isFinite(gap) || gap <= 0) return 0;
+                var mul = String(intervalUnit || 'monthly') === 'weekly' ? (12 / 52) : 1;
+                return c * gap * mul;
+            }
+
+            function loanProfitToman(amountToman, interestRatePercent, profitMethod, installmentsCount, intervalCount, intervalUnit) {
+                var amount = Number(amountToman || 0);
+                var rate = Number(interestRatePercent || 0);
+                var months = loanRepaymentDurationMonths(installmentsCount, intervalCount, intervalUnit);
+                if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(rate) || rate <= 0 || months <= 0) return 0;
+                var rateFactor = rate / 100;
+                var profit = String(profitMethod || 'monthly') === 'bank'
+                    ? (amount * rateFactor * (months / 12))
+                    : (amount * rateFactor * months);
+                return Math.max(0, Math.round(profit));
+            }
+
+            function activeInterestRatePercent() {
+                var lt = selectedLoanTypeData();
+                var base = Number(lt && lt.interest_rate ? lt.interest_rate : 0);
+                if (loanHasCustomInterestCheckbox && loanHasCustomInterestCheckbox.checked) {
+                    var custom = Number(toEnglishDigits(String((loanCustomInterestRateInput && loanCustomInterestRateInput.value) || '')).replace(',', '.'));
+                    if (Number.isFinite(custom) && custom >= 0) {
+                        return custom;
+                    }
+                }
+                return base;
+            }
+
+            function isRepaymentAllowedByLoanType(loanType, amount, installmentsCount, intervalCount, intervalUnit) {
+                if (!loanType) return true;
+                var periods = loanType.repayment_periods && typeof loanType.repayment_periods === 'object'
+                    ? loanType.repayment_periods
+                    : null;
+                if (!periods || !periods.type || periods.type === 'unlimited') return true;
+                var months = Math.ceil(loanRepaymentDurationMonths(installmentsCount, intervalCount, intervalUnit));
+                if (periods.type === 'max_until') {
+                    var maxMonths = parseInt(String(periods.max_months || '0'), 10);
+                    return !maxMonths || maxMonths < 1 || months <= maxMonths;
+                }
+                if (periods.type === 'allowed_months') {
+                    var rows = Array.isArray(periods.allowed_rows) ? periods.allowed_rows : [];
+                    return rows.some(function (row) {
+                        var m = parseInt(String((row && row.months) || '0'), 10);
+                        var cap = Math.round(Number((row && row.cap) || 0));
+                        return m === months && (!cap || cap < 1 || amount <= cap);
+                    });
+                }
+                return true;
+            }
+
+            function setLoanFieldError(fieldEl, message) {
+                if (!fieldEl) return;
+                var wrapper = fieldEl.closest('.cust-field');
+                if (!wrapper) return;
+                fieldEl.classList.add('is-invalid');
+                var err = wrapper.querySelector('.cust-field-error[data-loan-field-error]');
+                if (!err) {
+                    err = document.createElement('div');
+                    err.className = 'cust-field-error';
+                    err.setAttribute('data-loan-field-error', '1');
+                    wrapper.appendChild(err);
+                }
+                err.textContent = message;
+            }
+
+            function clearLoanFieldError(fieldEl) {
+                if (!fieldEl) return;
+                var wrapper = fieldEl.closest('.cust-field');
+                if (!wrapper) return;
+                fieldEl.classList.remove('is-invalid');
+                var err = wrapper.querySelector('.cust-field-error[data-loan-field-error]');
+                if (err) err.remove();
+            }
+
+            function clearAllLoanFieldErrors() {
+                if (!loanCreateForm) return;
+                loanCreateForm.querySelectorAll('.is-invalid').forEach(function (el) {
+                    el.classList.remove('is-invalid');
+                });
+                loanCreateForm.querySelectorAll('.cust-field-error[data-loan-field-error]').forEach(function (el) {
+                    el.remove();
+                });
             }
 
             function removeMethodField() {
@@ -1554,7 +1754,7 @@
             }
 
             function renderLoanFilesForCustomer(customerId) {
-                if (!loanFilesTbody || !loanFilesSummary) return;
+                if (!loanFilesList || !loanFilesSummary) return;
                 var meta = loanManageMap ? loanManageMap[String(customerId || '')] : null;
                 var rows = (meta && Array.isArray(meta.loan_files)) ? meta.loan_files : [];
                 var count = rows.length;
@@ -1568,20 +1768,72 @@
                     ? ('تعداد پرونده: ' + formatToman(count) + ' | مجموع بازپرداخت: ' + formatToman(total) + ' تومان | مانده: ' + formatToman(remain) + ' تومان')
                     : 'برای این مشتری هنوز پرونده وام ثبت نشده است.';
                 if (!count) {
-                    loanFilesTbody.innerHTML = '<tr><td colspan="8" class="loan-files-empty">هنوز پرونده‌ای ثبت نشده است.</td></tr>';
+                    loanFilesList.innerHTML = '<div class="loan-files-empty">هنوز پرونده‌ای ثبت نشده است.</div>';
                     return;
                 }
-                loanFilesTbody.innerHTML = rows.map(function (row) {
-                    return '<tr>' +
-                        '<td>' + escapeHtmlText(row.loan_code || '—') + '</td>' +
-                        '<td>' + escapeHtmlText(row.loan_type_title || '—') + '</td>' +
-                        '<td>' + escapeHtmlText(row.loan_start_jdate || '—') + '</td>' +
-                        '<td>' + formatToman(row.amount_toman || 0) + '</td>' +
-                        '<td>' + formatToman(row.installments_count || 0) + ' (' + formatToman(row.installment_interval_count || 1) + ' ' + loanIntervalUnitLabel(row.installment_interval_unit) + ')</td>' +
-                        '<td>' + formatToman(row.installment_amount_toman || 0) + '</td>' +
-                        '<td>' + formatToman(row.remaining_amount_toman || 0) + '</td>' +
-                        '<td>' + (row.is_settled ? 'تسویه‌شده' : 'فعال') + '</td>' +
-                    '</tr>';
+
+                loanFilesList.innerHTML = rows.map(function (row) {
+                    var paidInstallments = Number(row.paid_installments_count || 0);
+                    var paidAmount = Number(row.paid_installments_amount_toman || 0);
+                    var remainingAmount = Number(row.remaining_amount_toman || 0);
+                    var discountAmount = Number(row.discount_amount_toman || 0);
+                    var settlementText = row.is_settled ? 'بلی' : 'خیر';
+                    var accountStatus = remainingAmount > 0 ? 'بدهکار' : (remainingAmount < 0 ? 'بستانکار' : 'تراز');
+                    var accountClass = remainingAmount > 0 ? 'loan-file-v--danger' : (remainingAmount < 0 ? 'loan-file-v--ok' : 'loan-file-v--warn');
+                    var description = String(row.description || '').trim();
+
+                    return '<article class="loan-file-card' + (row.is_settled ? ' loan-file-card--settled' : '') + '">' +
+                        (row.is_settled ? '<span class="loan-file-badge-settled">تسویه شده</span>' : '') +
+                        '<div class="loan-file-grid">' +
+                            '<section class="loan-file-col">' +
+                                '<h3 class="loan-file-col-title">' + escapeHtmlText(row.loan_type_title || 'نوع وام') + '</h3>' +
+                                '<hr class="loan-file-col-sep">' +
+                                '<div class="loan-file-items">' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">شماره وام:</span><span class="loan-file-v">' + escapeHtmlText(row.loan_code || '—') + '</span></div>' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">شماره فرعی:</span><span class="loan-file-v">' + escapeHtmlText(row.sub_file_number || '—') + '</span></div>' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">تاریخ شروع:</span><span class="loan-file-v">' + escapeHtmlText(row.loan_start_jdate || '—') + '</span></div>' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">مبلغ وام:</span><span class="loan-file-v">' + formatToman(row.amount_toman || 0) + ' تومان</span></div>' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">مبلغ بازپرداخت با بهره:</span><span class="loan-file-v">' + formatToman(row.total_repayable_toman || 0) + ' تومان</span></div>' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">تعداد اقساط:</span><span class="loan-file-v">' + formatToman(row.installments_count || 0) + '</span></div>' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">مبلغ هر قسط:</span><span class="loan-file-v">' + formatToman(row.installment_amount_toman || 0) + ' تومان</span></div>' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">مبلغ پیش پرداخت:</span><span class="loan-file-v">' + formatToman(row.down_payment_toman || 0) + ' تومان</span></div>' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">درصد بهره:</span><span class="loan-file-v">' + String(Number(row.effective_interest_rate || 0).toFixed(2)) + '%</span></div>' +
+                                '</div>' +
+                            '</section>' +
+                            '<section class="loan-file-col">' +
+                                '<h3 class="loan-file-col-title">بازپرداخت ها</h3>' +
+                                '<hr class="loan-file-col-sep">' +
+                                '<div class="loan-file-items">' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">تعداد اقساط پرداختی:</span><span class="loan-file-v">' + formatToman(paidInstallments) + '</span></div>' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">مجموع مبلغ اقساط پرداخت شده:</span><span class="loan-file-v">' + formatToman(paidAmount) + ' تومان</span></div>' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">دیرکرد / زودکرد:</span><span class="loan-file-v">—</span></div>' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">تخفیف:</span><span class="loan-file-v">' + formatToman(discountAmount) + ' تومان <button type="button" class="loan-file-btn loan-file-btn--disc">ثبت تخفیف</button></span></div>' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">مبلغ باقیمانده:</span><span class="loan-file-v ' + accountClass + '">' + formatToman(remainingAmount) + ' تومان</span></div>' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">تسویه شده:</span><span class="loan-file-v">' + settlementText + '</span></div>' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">وضعیت حساب:</span><span class="loan-file-v ' + accountClass + '">' + accountStatus + '</span></div>' +
+                                '</div>' +
+                            '</section>' +
+                            '<section class="loan-file-col">' +
+                                '<h3 class="loan-file-col-title">توضیحات</h3>' +
+                                '<hr class="loan-file-col-sep">' +
+                                '<p class="loan-file-desc' + (description ? '' : ' loan-file-desc--empty') + '">' + escapeHtmlText(description || 'توضیحاتی درج نشده است') + '</p>' +
+                            '</section>' +
+                        '</div>' +
+                        '<div class="loan-file-foot">' +
+                            '<div class="loan-file-actions-left">' +
+                                '<button type="button" class="loan-file-btn loan-file-btn--mini" title="پرینت"><i class="fa-solid fa-print" aria-hidden="true"></i></button>' +
+                                '<button type="button" class="loan-file-btn loan-file-btn--mini" title="پیامک"><i class="fa-regular fa-message" aria-hidden="true"></i></button>' +
+                                '<button type="button" class="loan-file-btn loan-file-btn--mini loan-file-btn--danger" title="حذف"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>' +
+                                '<button type="button" class="loan-file-btn loan-file-btn--mini" title="ویرایش" data-loan-edit-id="' + String(row.id || '') + '"><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i></button>' +
+                            '</div>' +
+                            '<div class="loan-file-actions-right">' +
+                                '<button type="button" class="loan-file-btn">مشاهده اقساط و پرداخت</button>' +
+                                '<button type="button" class="loan-file-btn">تضامین</button>' +
+                                '<button type="button" class="loan-file-btn">مشاهده مبلغ تسویه آنی</button>' +
+                                '<button type="button" class="loan-file-btn">فسخ قرارداد</button>' +
+                            '</div>' +
+                        '</div>' +
+                    '</article>';
                 }).join('');
             }
 
@@ -1604,32 +1856,98 @@
                 var amount = parseThousandsInput(loanAmountInput.value);
                 var count = parseInt(String(loanInstallmentsCountInput.value || '0'), 10);
                 if (!Number.isFinite(count) || count < 1) count = 0;
-                if ((force || !loanInstallmentAutoDirty) && amount > 0 && count > 0) {
-                    var calculated = Math.floor(amount / count);
+                var intervalCount = parseInt(String((loanInstallmentIntervalCountInput && loanInstallmentIntervalCountInput.value) || '0'), 10);
+                if (!Number.isFinite(intervalCount) || intervalCount < 1) intervalCount = 1;
+                var intervalUnit = String((loanInstallmentIntervalUnitSelect && loanInstallmentIntervalUnitSelect.value) || 'monthly');
+                var downPayment = parseThousandsInput((loanDownPaymentInput && loanDownPaymentInput.value) || '');
+                var lt = selectedLoanTypeData();
+                var interestRate = activeInterestRatePercent();
+                var profitMethod = String((lt && lt.profit_calculation_method) || 'monthly');
+                var profit = loanProfitToman(amount, interestRate, profitMethod, count, intervalCount, intervalUnit);
+                var payableAfterDownPayment = Math.max(0, (amount + profit) - downPayment);
+                if ((force || !loanInstallmentAutoDirty) && payableAfterDownPayment > 0 && count > 0) {
+                    var calculated = Math.floor(payableAfterDownPayment / count);
                     loanInstallmentAmountInput.value = formatThousandsInputValue(String(calculated));
                 }
                 var installment = parseThousandsInput(loanInstallmentAmountInput.value);
                 var sum = installment * count;
-                loanTotalCheck.textContent = 'جمع اقساط: ' + formatToman(sum) + ' تومان از ' + formatToman(amount) + ' تومان';
-                loanTotalCheck.style.color = sum > amount ? '#b91c1c' : 'var(--muted)';
+                loanTotalCheck.textContent = 'اصل وام: ' + formatToman(amount) + ' | نرخ بهره: ' + String(interestRate) + '% | بهره تخمینی: ' + formatToman(profit) + ' | قابل بازپرداخت: ' + formatToman(payableAfterDownPayment) + ' | جمع اقساط: ' + formatToman(sum);
+                loanTotalCheck.style.color = sum > payableAfterDownPayment ? '#b91c1c' : 'var(--muted)';
             }
 
             function openLoanCreateModal() {
                 if (!loanManageCurrentCustomerId || !loanCreateOverlay || !loanCreateForm) return;
+                loanFormMode = 'create';
+                loanEditingFileId = null;
                 loanInstallmentAutoDirty = false;
                 loanCreateForm.reset();
                 if (loanCustomerNameInput) {
                     loanCustomerNameInput.value = loanManageCurrentCustomerName || '—';
                 }
+                var titleEl = document.getElementById('loan-create-title');
+                if (titleEl) titleEl.textContent = 'ثبت وام';
                 if (loanCreateSubtitle) {
                     loanCreateSubtitle.textContent = 'ثبت پرونده وام برای ' + (loanManageCurrentCustomerName || '');
                 }
                 if (loanSettledWrap) loanSettledWrap.hidden = true;
+                if (loanSettledSection) loanSettledSection.hidden = true;
                 if (loanCustomInterestWrap) loanCustomInterestWrap.hidden = true;
                 if (loanInstallmentsCountInput) loanInstallmentsCountInput.value = '12';
                 if (loanInstallmentIntervalCountInput) loanInstallmentIntervalCountInput.value = '1';
+                var submitBtn = loanCreateForm.querySelector('button[type="submit"]');
+                if (submitBtn) submitBtn.textContent = 'ثبت وام';
                 syncLoanCurrentInterestView();
                 syncLoanInstallmentCalculation(true);
+                loanCreateOverlay.hidden = false;
+                loanCreateOverlay.setAttribute('aria-hidden', 'false');
+                setTimeout(function () {
+                    initLoanPickers();
+                }, 80);
+            }
+
+            function openLoanEditModal(loanFileId) {
+                if (!loanManageCurrentCustomerId || !loanCreateOverlay || !loanCreateForm) return;
+                var meta = loanManageMap ? loanManageMap[String(loanManageCurrentCustomerId || '')] : null;
+                var rows = (meta && Array.isArray(meta.loan_files)) ? meta.loan_files : [];
+                var row = rows.find(function (x) { return Number(x.id || 0) === Number(loanFileId || 0); });
+                if (!row) return;
+                loanFormMode = 'edit';
+                loanEditingFileId = Number(row.id || 0);
+                loanInstallmentAutoDirty = false;
+                clearAllLoanFieldErrors();
+                loanCreateForm.reset();
+                var titleEl = document.getElementById('loan-create-title');
+                if (titleEl) titleEl.textContent = 'ویرایش وام';
+                if (loanCreateSubtitle) {
+                    loanCreateSubtitle.textContent = 'ویرایش پرونده ' + (row.loan_code || '');
+                }
+                if (loanCustomerNameInput) loanCustomerNameInput.value = loanManageCurrentCustomerName || '—';
+                if (loanStartJdateInput) loanStartJdateInput.value = row.loan_start_jdate || '';
+                if (loanDisbursementDueJdateInput) loanDisbursementDueJdateInput.value = row.disbursement_due_jdate || '';
+                if (loanTypeIdSelect) loanTypeIdSelect.value = String(row.loan_type_id || '');
+                if (loanAmountInput) loanAmountInput.value = formatThousandsInputValue(String(row.amount_toman || ''));
+                if (loanInstallmentsCountInput) loanInstallmentsCountInput.value = String(row.installments_count || 1);
+                if (loanInstallmentIntervalCountInput) loanInstallmentIntervalCountInput.value = String(row.installment_interval_count || 1);
+                if (loanInstallmentIntervalUnitSelect) loanInstallmentIntervalUnitSelect.value = String(row.installment_interval_unit || 'monthly');
+                if (loanInstallmentAmountInput) loanInstallmentAmountInput.value = formatThousandsInputValue(String(row.installment_amount_toman || ''));
+                if (loanDownPaymentInput) loanDownPaymentInput.value = formatThousandsInputValue(String(row.down_payment_toman || ''));
+                var subFileEl = document.getElementById('loan-sub-file-number');
+                if (subFileEl) subFileEl.value = row.sub_file_number || '';
+                var descEl = document.getElementById('loan-description');
+                if (descEl) descEl.value = row.description || '';
+
+                if (loanSettledSection) loanSettledSection.hidden = false;
+                if (loanIsSettledCheckbox) loanIsSettledCheckbox.checked = !!row.is_settled;
+                if (loanSettledWrap) loanSettledWrap.hidden = !row.is_settled;
+                if (loanSettledJdateInput) loanSettledJdateInput.value = row.settled_jdate || '';
+
+                if (loanHasCustomInterestCheckbox) loanHasCustomInterestCheckbox.checked = !!row.has_custom_interest_rate;
+                if (loanCustomInterestWrap) loanCustomInterestWrap.hidden = !row.has_custom_interest_rate;
+                if (loanCustomInterestRateInput) loanCustomInterestRateInput.value = row.custom_interest_rate !== null && row.custom_interest_rate !== undefined ? String(row.custom_interest_rate) : '';
+                syncLoanCurrentInterestView();
+                syncLoanInstallmentCalculation(true);
+                var submitBtn = loanCreateForm.querySelector('button[type="submit"]');
+                if (submitBtn) submitBtn.textContent = 'ذخیره تغییرات';
                 loanCreateOverlay.hidden = false;
                 loanCreateOverlay.setAttribute('aria-hidden', 'false');
                 setTimeout(function () {
@@ -1829,6 +2147,15 @@
                     if (e.target === loanCreateOverlay) closeLoanCreateModal();
                 });
             }
+            document.addEventListener('click', function (e) {
+                var editLoanBtn = e.target.closest('[data-loan-edit-id]');
+                if (!editLoanBtn) return;
+                e.preventDefault();
+                var loanId = parseInt(String(editLoanBtn.getAttribute('data-loan-edit-id') || '0'), 10);
+                if (loanId > 0) {
+                    openLoanEditModal(loanId);
+                }
+            });
             if (loanIsSettledCheckbox && loanSettledWrap) {
                 loanIsSettledCheckbox.addEventListener('change', function () {
                     loanSettledWrap.hidden = !loanIsSettledCheckbox.checked;
@@ -1837,21 +2164,29 @@
             if (loanHasCustomInterestCheckbox && loanCustomInterestWrap) {
                 loanHasCustomInterestCheckbox.addEventListener('change', function () {
                     loanCustomInterestWrap.hidden = !loanHasCustomInterestCheckbox.checked;
+                    syncLoanInstallmentCalculation(true);
                 });
             }
             if (loanTypeIdSelect) {
                 loanTypeIdSelect.addEventListener('change', function () {
                     syncLoanCurrentInterestView();
+                    syncLoanInstallmentCalculation(true);
                 });
             }
             [loanAmountInput, loanInstallmentAmountInput, loanDownPaymentInput].forEach(function (el) {
                 if (!el) return;
                 el.addEventListener('input', function () {
+                    clearLoanFieldError(el);
                     el.value = formatThousandsInputValue(el.value);
                 });
                 el.addEventListener('blur', function () {
                     el.value = formatThousandsInputValue(el.value);
                 });
+            });
+            [loanStartJdateInput, loanDisbursementDueJdateInput, loanSettledJdateInput, loanTypeIdSelect, loanInstallmentsCountInput, loanInstallmentIntervalCountInput, loanInstallmentIntervalUnitSelect, loanCustomInterestRateInput].forEach(function (el) {
+                if (!el) return;
+                el.addEventListener('input', function () { clearLoanFieldError(el); });
+                el.addEventListener('change', function () { clearLoanFieldError(el); });
             });
             if (loanAmountInput) {
                 loanAmountInput.addEventListener('input', function () {
@@ -1869,10 +2204,16 @@
                     syncLoanInstallmentCalculation(false);
                 });
             }
+            if (loanCustomInterestRateInput) {
+                loanCustomInterestRateInput.addEventListener('input', function () {
+                    syncLoanInstallmentCalculation(true);
+                });
+            }
             if (loanCreateForm) {
                 loanCreateForm.addEventListener('submit', function (e) {
                     e.preventDefault();
                     if (!loanManageCurrentCustomerId || loanCreateSubmitting) return;
+                    clearAllLoanFieldErrors();
                     var submitBtn = loanCreateForm.querySelector('button[type="submit"]');
                     var payload = {
                         loan_start_jdate: String((loanStartJdateInput && loanStartJdateInput.value) || '').trim(),
@@ -1892,11 +2233,64 @@
                         custom_interest_rate: String((loanCustomInterestRateInput && loanCustomInterestRateInput.value) || '').trim()
                     };
                     if (!payload.loan_start_jdate || !payload.loan_type_id || payload.amount_toman <= 0 || payload.installments_count <= 0 || payload.installment_amount_toman <= 0 || payload.installment_interval_count <= 0) {
+                        if (!payload.loan_start_jdate) setLoanFieldError(loanStartJdateInput, 'تکمیل این فیلد ضروری است.');
+                        if (!payload.loan_type_id) setLoanFieldError(loanTypeIdSelect, 'انتخاب نوع وام ضروری است.');
+                        if (payload.amount_toman <= 0) setLoanFieldError(loanAmountInput, 'وارد کردن مبلغ معتبر ضروری است.');
+                        if (payload.installments_count <= 0) setLoanFieldError(loanInstallmentsCountInput, 'تعداد اقساط باید بیشتر از صفر باشد.');
+                        if (payload.installment_interval_count <= 0) setLoanFieldError(loanInstallmentIntervalCountInput, 'فاصله اقساط باید بیشتر از صفر باشد.');
+                        if (!payload.installment_interval_unit) setLoanFieldError(loanInstallmentIntervalUnitSelect, 'انتخاب محدوده زمانی ضروری است.');
+                        if (payload.installment_amount_toman <= 0) setLoanFieldError(loanInstallmentAmountInput, 'مبلغ هر قسط باید معتبر باشد.');
                         if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('لطفاً فیلدهای الزامی ثبت وام را کامل کنید.');
                         return;
                     }
-                    if ((payload.installment_amount_toman * payload.installments_count) > payload.amount_toman) {
-                        if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('جمع مبلغ اقساط نباید بیشتر از مبلغ وام باشد.');
+                    var selectedLoanType = selectedLoanTypeData();
+                    if (selectedLoanType) {
+                        if (selectedLoanType.installment_gap_unit && payload.installment_interval_unit !== String(selectedLoanType.installment_gap_unit)) {
+                            setLoanFieldError(loanInstallmentIntervalUnitSelect, 'بازه اقساط باید مطابق نوع وام باشد.');
+                            if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('بازه اقساط با نوع وام انتخابی سازگار نیست.');
+                            return;
+                        }
+                        var maxAmount = Number(selectedLoanType.max_loan_amount || 0);
+                        if (Number.isFinite(maxAmount) && maxAmount > 0 && payload.amount_toman > maxAmount) {
+                            setLoanFieldError(loanAmountInput, 'مبلغ از سقف نوع وام بیشتر است.');
+                            if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('مبلغ وام بیشتر از سقف نوع وام است.');
+                            return;
+                        }
+                        var maxGap = parseInt(String(selectedLoanType.max_installment_gap || '0'), 10);
+                        if (Number.isFinite(maxGap) && maxGap > 0 && payload.installment_interval_count > maxGap) {
+                            setLoanFieldError(loanInstallmentIntervalCountInput, 'فاصله اقساط از حداکثر مجاز نوع وام بیشتر است.');
+                            if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('فاصله اقساط از حد مجاز نوع وام بیشتر است.');
+                            return;
+                        }
+                        if (!isRepaymentAllowedByLoanType(selectedLoanType, payload.amount_toman, payload.installments_count, payload.installment_interval_count, payload.installment_interval_unit)) {
+                            setLoanFieldError(loanInstallmentsCountInput, 'دوره بازپرداخت با قوانین نوع وام سازگار نیست.');
+                            if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('دوره بازپرداخت انتخابی در نوع وام مجاز نیست.');
+                            return;
+                        }
+                    }
+                    if (payload.down_payment_toman > payload.amount_toman) {
+                        setLoanFieldError(loanDownPaymentInput, 'پیش‌پرداخت نمی‌تواند از مبلغ وام بیشتر باشد.');
+                        if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('مبلغ پیش‌پرداخت معتبر نیست.');
+                        return;
+                    }
+                    if (payload.is_settled && !payload.settled_jdate) {
+                        setLoanFieldError(loanSettledJdateInput, 'با فعال بودن تسویه، تاریخ تسویه ضروری است.');
+                        if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('تاریخ تسویه را تکمیل کنید.');
+                        return;
+                    }
+                    if (payload.has_custom_interest_rate && String(payload.custom_interest_rate || '').trim() === '') {
+                        setLoanFieldError(loanCustomInterestRateInput, 'با فعال بودن تغییر بهره، این فیلد ضروری است.');
+                        if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('درصد بهره جدید را تکمیل کنید.');
+                        return;
+                    }
+                    var selectedInterestRate = activeInterestRatePercent();
+                    var calculatedProfit = selectedLoanType
+                        ? loanProfitToman(payload.amount_toman, selectedInterestRate, String(selectedLoanType.profit_calculation_method || 'monthly'), payload.installments_count, payload.installment_interval_count, payload.installment_interval_unit)
+                        : 0;
+                    var payableCap = Math.max(0, (payload.amount_toman + calculatedProfit) - payload.down_payment_toman);
+                    if ((payload.installment_amount_toman * payload.installments_count) > payableCap) {
+                        setLoanFieldError(loanInstallmentAmountInput, 'مبلغ هر قسط زیاد است؛ جمع اقساط از مبلغ وام بیشتر شده.');
+                        if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('جمع مبلغ اقساط نباید از مبلغ قابل بازپرداخت (اصل + بهره - پیش‌پرداخت) بیشتر باشد.');
                         return;
                     }
 
@@ -1906,8 +2300,12 @@
                             submitBtn.disabled = true;
                             submitBtn.textContent = 'در حال ثبت...';
                         }
-                        fetch(customerLoanStoreUrl(loanManageCurrentCustomerId), {
-                            method: 'POST',
+                        var endpoint = loanFormMode === 'edit' && loanEditingFileId
+                            ? customerLoanUpdateUrl(loanManageCurrentCustomerId, loanEditingFileId)
+                            : customerLoanStoreUrl(loanManageCurrentCustomerId);
+                        var method = loanFormMode === 'edit' && loanEditingFileId ? 'PUT' : 'POST';
+                        fetch(endpoint, {
+                            method: method,
                             headers: {
                                 'Content-Type': 'application/json',
                                 'Accept': 'application/json',
@@ -1928,17 +2326,24 @@
                             if (!loanManageMap[key]) {
                                 loanManageMap[key] = { loan_files: [], loan_count: 0, loan_total_with_profit: 0, loan_remaining_installments: 0 };
                             }
-                            loanManageMap[key].loan_files = [res.json.loan_file].concat(loanManageMap[key].loan_files || []);
+                            if (loanFormMode === 'edit' && loanEditingFileId) {
+                                var currentRows = loanManageMap[key].loan_files || [];
+                                loanManageMap[key].loan_files = currentRows.map(function (x) {
+                                    return Number(x.id || 0) === Number(loanEditingFileId) ? res.json.loan_file : x;
+                                });
+                            } else {
+                                loanManageMap[key].loan_files = [res.json.loan_file].concat(loanManageMap[key].loan_files || []);
+                            }
                             renderLoanFilesForCustomer(loanManageCurrentCustomerId);
                             closeLoanCreateModal();
-                            if (window.AdminSwal && window.AdminSwal.success) AdminSwal.success(res.json.message || 'پرونده وام ثبت شد.');
+                            if (window.AdminSwal && window.AdminSwal.success) AdminSwal.success(res.json.message || (loanFormMode === 'edit' ? 'پرونده وام ویرایش شد.' : 'پرونده وام ثبت شد.'));
                         }).catch(function (err) {
                             if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error(err.message || 'ثبت پرونده وام ناموفق بود.');
                         }).finally(function () {
                             loanCreateSubmitting = false;
                             if (submitBtn) {
                                 submitBtn.disabled = false;
-                                submitBtn.textContent = 'ثبت وام';
+                                submitBtn.textContent = loanFormMode === 'edit' ? 'ذخیره تغییرات' : 'ثبت وام';
                             }
                         });
                     }
@@ -1951,8 +2356,8 @@
                     var amountText = formatToman(payload.amount_toman) + ' تومان';
                     var installmentText = formatToman(payload.installment_amount_toman) + ' تومان';
                     var defaultLoanSms =
-                        'سامانه\n' +
-                        'مشتری: ' + (loanManageCurrentCustomerName || '') + '\n' +
+                        'سامانه ' + (appDisplayName || '') + '\n' +
+                        'مشتری گرامی ' + (loanManageCurrentCustomerName || '') + '\n' +
                         'ثبت پرونده وام جدید انجام شد.\n' +
                         'مبلغ وام: ' + amountText + '\n' +
                         'مبلغ هر قسط: ' + installmentText;

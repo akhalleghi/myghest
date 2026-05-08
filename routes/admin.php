@@ -93,6 +93,10 @@ Route::middleware(['auth:admin'])->group(function (): void {
         ->middleware('throttle:20,1')
         ->name('customers.loan-files.store');
 
+    Route::put('/customers/{customer}/loan-files/{loanFile}', [CustomerController::class, 'updateLoan'])
+        ->middleware('throttle:20,1')
+        ->name('customers.loan-files.update');
+
     Route::get('/customers/{customer}/wallet', [CustomerWalletController::class, 'show'])
         ->middleware('throttle:60,1')
         ->name('customers.wallet.show');

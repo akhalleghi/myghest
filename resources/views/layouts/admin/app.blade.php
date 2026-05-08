@@ -62,6 +62,11 @@
 
         * { box-sizing: border-box; }
 
+        html[data-admin-font="small"] { font-size: 15px; }
+        html[data-admin-font="normal"] { font-size: 16px; }
+        html[data-admin-font="large"] { font-size: 18px; }
+        html[data-admin-font="xlarge"] { font-size: 20px; }
+
         body.admin-app {
             margin: 0;
             min-height: 100vh;
@@ -1161,6 +1166,7 @@
                                             <option value="small" @selected(old('font_size', $appFontSize) === 'small')>کوچک</option>
                                             <option value="normal" @selected(old('font_size', $appFontSize) === 'normal')>معمولی</option>
                                             <option value="large" @selected(old('font_size', $appFontSize) === 'large')>بزرگ</option>
+                                            <option value="xlarge" @selected(old('font_size', $appFontSize) === 'xlarge')>خیلی بزرگ</option>
                                         </select>
                                         @error('font_size')
                                             <div class="app-settings-error">{{ $message }}</div>

@@ -57,9 +57,10 @@ final class CustomerController extends Controller
         return view('admin.customers.index', [
             'customers' => $customers,
             'search' => $q,
+            'appDisplayName' => $this->appDisplayName(),
             'loanTypes' => LoanType::query()
                 ->latest('id')
-                ->get(['id', 'title', 'interest_rate', 'installment_gap_unit'])
+                ->get(['id', 'title', 'interest_rate', 'profit_calculation_method', 'max_loan_amount', 'max_installment_gap', 'installment_gap_unit', 'repayment_periods'])
                 ->values(),
             'loanManageMap' => $customers->getCollection()->mapWithKeys(function (Customer $customer): array {
                 $loanFiles = $customer->loanFiles->map(fn (CustomerLoanFile $file): array => $this->mapLoanFile($file))->values();
@@ -124,36 +125,35 @@ final class CustomerController extends Controller
             }
         }
 
-        $isSettled = (bool) ($validated['is_settled'] ?? false);
+        $isSettled = false;
         $settledAt = null;
-        if ($isSettled) {
-            if (($validated['settled_jdate'] ?? '') === '') {
-                return response()->json(['message' => 'تاریخ تسویه الزامی است.'], 422);
-            }
-            $settledAt = $this->parseJalaliDate((string) $validated['settled_jdate']);
-            if ($settledAt === null) {
-                return response()->json(['message' => 'تاریخ تسویه معتبر نیست.'], 422);
-            }
-            if ($settledAt->lt($startDate)) {
-                return response()->json(['message' => 'تاریخ تسویه نمی‌تواند قبل از تاریخ شروع وام باشد.'], 422);
-            }
-        }
 
         $amount = (int) $validated['amount_toman'];
         $installmentsCount = (int) $validated['installments_count'];
         $installmentAmount = (int) $validated['installment_amount_toman'];
-        $sumInstallments = $installmentAmount * $installmentsCount;
-        if ($sumInstallments > $amount) {
-            return response()->json(['message' => 'مجموع مبلغ اقساط نمی‌تواند بیشتر از مبلغ وام باشد.'], 422);
-        }
-
         $downPayment = (int) ($validated['down_payment_toman'] ?? 0);
         if ($downPayment > $amount) {
             return response()->json(['message' => 'مبلغ پیش‌پرداخت نمی‌تواند بیشتر از مبلغ وام باشد.'], 422);
         }
 
         $loanType = LoanType::query()->findOrFail((int) $validated['loan_type_id']);
+        $intervalCount = (int) $validated['installment_interval_count'];
+        $intervalUnit = (string) $validated['installment_interval_unit'];
+        if ($intervalUnit !== (string) $loanType->installment_gap_unit) {
+            return response()->json(['message' => 'محدوده زمانی اقساط باید مطابق تنظیمات نوع وام باشد.'], 422);
+        }
+        if ($loanType->max_loan_amount !== null && $amount > (int) $loanType->max_loan_amount) {
+            return response()->json(['message' => 'مبلغ وام از سقف مجاز نوع وام بیشتر است.'], 422);
+        }
+        if ($loanType->max_installment_gap !== null && $intervalCount > (int) $loanType->max_installment_gap) {
+            return response()->json(['message' => 'فاصله اقساط از مقدار مجاز نوع وام بیشتر است.'], 422);
+        }
+        if (! $this->isRepaymentPeriodAllowed($loanType, $installmentsCount, $intervalCount, $intervalUnit, $amount)) {
+            return response()->json(['message' => 'دوره بازپرداخت واردشده با محدودیت‌های نوع وام سازگار نیست.'], 422);
+        }
+
         $baseInterestRate = (float) $loanType->interest_rate;
+        $profitMethod = (string) $loanType->profit_calculation_method;
         $hasCustomInterestRate = (bool) ($validated['has_custom_interest_rate'] ?? false);
         $customInterestRate = null;
         if ($hasCustomInterestRate) {
@@ -163,6 +163,19 @@ final class CustomerController extends Controller
             $customInterestRate = round((float) $validated['custom_interest_rate'], 2);
         }
         $effectiveInterestRate = $hasCustomInterestRate ? (float) $customInterestRate : $baseInterestRate;
+        $calculatedProfit = $this->calculateLoanProfitToman(
+            $amount,
+            $effectiveInterestRate,
+            $profitMethod,
+            $installmentsCount,
+            $intervalCount,
+            $intervalUnit
+        );
+        $payableAfterDownPayment = max(0, ($amount + $calculatedProfit) - $downPayment);
+        $sumInstallments = $installmentAmount * $installmentsCount;
+        if ($sumInstallments > $payableAfterDownPayment) {
+            return response()->json(['message' => 'مجموع مبلغ اقساط از مبلغ قابل بازپرداخت (با احتساب بهره نوع وام) بیشتر است.'], 422);
+        }
 
         $loanFile = DB::transaction(function () use (
             $customer,
@@ -177,6 +190,7 @@ final class CustomerController extends Controller
             $isSettled,
             $settledAt,
             $baseInterestRate,
+            $profitMethod,
             $hasCustomInterestRate,
             $customInterestRate,
             $effectiveInterestRate
@@ -193,6 +207,7 @@ final class CustomerController extends Controller
                 'installment_interval_unit' => (string) $validated['installment_interval_unit'],
                 'installment_amount_toman' => $installmentAmount,
                 'down_payment_toman' => $downPayment,
+                'profit_calculation_method' => $profitMethod,
                 'sub_file_number' => trim((string) ($validated['sub_file_number'] ?? '')) ?: null,
                 'description' => trim((string) ($validated['description'] ?? '')) ?: null,
                 'is_settled' => $isSettled,
@@ -237,6 +252,135 @@ final class CustomerController extends Controller
 
         return response()->json([
             'message' => 'پرونده وام با موفقیت ثبت شد.'.$smsFeedback,
+            'loan_file' => $this->mapLoanFile($loanFile),
+        ]);
+    }
+
+    public function updateLoan(Request $request, Customer $customer, CustomerLoanFile $loanFile): JsonResponse
+    {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'loan_start_jdate' => ['required', 'string', 'max:20'],
+            'disbursement_due_jdate' => ['nullable', 'string', 'max:20'],
+            'loan_type_id' => ['required', 'integer', 'exists:loan_types,id'],
+            'amount_toman' => ['required', 'integer', 'min:1', 'max:999999999999'],
+            'installments_count' => ['required', 'integer', 'min:1', 'max:1200'],
+            'installment_interval_count' => ['required', 'integer', 'min:1', 'max:120'],
+            'installment_interval_unit' => ['required', Rule::in([LoanType::GAP_MONTHLY, LoanType::GAP_WEEKLY])],
+            'installment_amount_toman' => ['required', 'integer', 'min:1', 'max:999999999999'],
+            'down_payment_toman' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
+            'sub_file_number' => ['nullable', 'string', 'max:120'],
+            'description' => ['nullable', 'string', 'max:3000'],
+            'is_settled' => ['nullable', 'boolean'],
+            'settled_jdate' => ['nullable', 'string', 'max:20'],
+            'has_custom_interest_rate' => ['nullable', 'boolean'],
+            'custom_interest_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+        ]);
+
+        $startDate = $this->parseJalaliDate((string) $validated['loan_start_jdate']);
+        if ($startDate === null) {
+            return response()->json(['message' => 'تاریخ شروع وام معتبر نیست.'], 422);
+        }
+        $disbursementDueDate = null;
+        if (($validated['disbursement_due_jdate'] ?? '') !== '') {
+            $disbursementDueDate = $this->parseJalaliDate((string) $validated['disbursement_due_jdate']);
+            if ($disbursementDueDate === null) {
+                return response()->json(['message' => 'سررسید واریز معتبر نیست.'], 422);
+            }
+        }
+
+        $isSettled = (bool) ($validated['is_settled'] ?? false);
+        $settledAt = null;
+        if ($isSettled) {
+            if (($validated['settled_jdate'] ?? '') === '') {
+                return response()->json(['message' => 'تاریخ تسویه الزامی است.'], 422);
+            }
+            $settledAt = $this->parseJalaliDate((string) $validated['settled_jdate']);
+            if ($settledAt === null) {
+                return response()->json(['message' => 'تاریخ تسویه معتبر نیست.'], 422);
+            }
+            if ($settledAt->lt($startDate)) {
+                return response()->json(['message' => 'تاریخ تسویه نمی‌تواند قبل از تاریخ شروع وام باشد.'], 422);
+            }
+        }
+
+        $amount = (int) $validated['amount_toman'];
+        $installmentsCount = (int) $validated['installments_count'];
+        $installmentAmount = (int) $validated['installment_amount_toman'];
+        $downPayment = (int) ($validated['down_payment_toman'] ?? 0);
+        if ($downPayment > $amount) {
+            return response()->json(['message' => 'مبلغ پیش‌پرداخت نمی‌تواند بیشتر از مبلغ وام باشد.'], 422);
+        }
+
+        $loanType = LoanType::query()->findOrFail((int) $validated['loan_type_id']);
+        $intervalCount = (int) $validated['installment_interval_count'];
+        $intervalUnit = (string) $validated['installment_interval_unit'];
+        if ($intervalUnit !== (string) $loanType->installment_gap_unit) {
+            return response()->json(['message' => 'محدوده زمانی اقساط باید مطابق تنظیمات نوع وام باشد.'], 422);
+        }
+        if ($loanType->max_loan_amount !== null && $amount > (int) $loanType->max_loan_amount) {
+            return response()->json(['message' => 'مبلغ وام از سقف مجاز نوع وام بیشتر است.'], 422);
+        }
+        if ($loanType->max_installment_gap !== null && $intervalCount > (int) $loanType->max_installment_gap) {
+            return response()->json(['message' => 'فاصله اقساط از مقدار مجاز نوع وام بیشتر است.'], 422);
+        }
+        if (! $this->isRepaymentPeriodAllowed($loanType, $installmentsCount, $intervalCount, $intervalUnit, $amount)) {
+            return response()->json(['message' => 'دوره بازپرداخت واردشده با محدودیت‌های نوع وام سازگار نیست.'], 422);
+        }
+
+        $baseInterestRate = (float) $loanType->interest_rate;
+        $profitMethod = (string) $loanType->profit_calculation_method;
+        $hasCustomInterestRate = (bool) ($validated['has_custom_interest_rate'] ?? false);
+        $customInterestRate = null;
+        if ($hasCustomInterestRate) {
+            if (($validated['custom_interest_rate'] ?? null) === null || $validated['custom_interest_rate'] === '') {
+                return response()->json(['message' => 'درصد بهره جدید را وارد کنید.'], 422);
+            }
+            $customInterestRate = round((float) $validated['custom_interest_rate'], 2);
+        }
+        $effectiveInterestRate = $hasCustomInterestRate ? (float) $customInterestRate : $baseInterestRate;
+        $calculatedProfit = $this->calculateLoanProfitToman(
+            $amount,
+            $effectiveInterestRate,
+            $profitMethod,
+            $installmentsCount,
+            $intervalCount,
+            $intervalUnit
+        );
+        $payableAfterDownPayment = max(0, ($amount + $calculatedProfit) - $downPayment);
+        $sumInstallments = $installmentAmount * $installmentsCount;
+        if ($sumInstallments > $payableAfterDownPayment) {
+            return response()->json(['message' => 'مجموع مبلغ اقساط از مبلغ قابل بازپرداخت (با احتساب بهره نوع وام) بیشتر است.'], 422);
+        }
+
+        $loanFile->update([
+            'loan_type_id' => $loanType->id,
+            'loan_start_date' => $startDate,
+            'disbursement_due_date' => $disbursementDueDate,
+            'amount_toman' => $amount,
+            'installments_count' => $installmentsCount,
+            'installment_interval_count' => $intervalCount,
+            'installment_interval_unit' => $intervalUnit,
+            'installment_amount_toman' => $installmentAmount,
+            'down_payment_toman' => $downPayment,
+            'profit_calculation_method' => $profitMethod,
+            'sub_file_number' => trim((string) ($validated['sub_file_number'] ?? '')) ?: null,
+            'description' => trim((string) ($validated['description'] ?? '')) ?: null,
+            'is_settled' => $isSettled,
+            'settled_at' => $settledAt,
+            'base_interest_rate' => $baseInterestRate,
+            'has_custom_interest_rate' => $hasCustomInterestRate,
+            'custom_interest_rate' => $customInterestRate,
+            'effective_interest_rate' => $effectiveInterestRate,
+        ]);
+        $loanFile->refresh();
+        $loanFile->load('loanType');
+
+        return response()->json([
+            'message' => 'پرونده وام با موفقیت ویرایش شد.',
             'loan_file' => $this->mapLoanFile($loanFile),
         ]);
     }
@@ -852,8 +996,17 @@ final class CustomerController extends Controller
      */
     private function mapLoanFile(CustomerLoanFile $file): array
     {
-        $totalRepayable = (int) $file->installments_count * (int) $file->installment_amount_toman;
-        $remainingAmount = $file->is_settled ? 0 : max(0, $totalRepayable - (int) $file->down_payment_toman);
+        $profit = $this->calculateLoanProfitToman(
+            (int) $file->amount_toman,
+            (float) $file->effective_interest_rate,
+            (string) ($file->profit_calculation_method ?: LoanType::PROFIT_MONTHLY),
+            (int) $file->installments_count,
+            (int) $file->installment_interval_count,
+            (string) $file->installment_interval_unit
+        );
+        $totalRepayable = ((int) $file->amount_toman + $profit) - (int) $file->down_payment_toman;
+        $totalRepayable = max(0, $totalRepayable);
+        $remainingAmount = $file->is_settled ? 0 : $totalRepayable;
 
         return [
             'id' => $file->id,
@@ -868,6 +1021,7 @@ final class CustomerController extends Controller
             'installment_interval_unit' => (string) $file->installment_interval_unit,
             'installment_amount_toman' => (int) $file->installment_amount_toman,
             'down_payment_toman' => (int) $file->down_payment_toman,
+            'profit_calculation_method' => (string) ($file->profit_calculation_method ?: LoanType::PROFIT_MONTHLY),
             'sub_file_number' => (string) ($file->sub_file_number ?? ''),
             'description' => (string) ($file->description ?? ''),
             'is_settled' => (bool) $file->is_settled,
@@ -876,8 +1030,71 @@ final class CustomerController extends Controller
             'has_custom_interest_rate' => (bool) $file->has_custom_interest_rate,
             'custom_interest_rate' => $file->custom_interest_rate !== null ? (float) $file->custom_interest_rate : null,
             'effective_interest_rate' => (float) $file->effective_interest_rate,
+            'calculated_profit_toman' => $profit,
             'total_repayable_toman' => $totalRepayable,
             'remaining_amount_toman' => $remainingAmount,
         ];
+    }
+
+    private function calculateLoanProfitToman(
+        int $amountToman,
+        float $interestRatePercent,
+        string $profitMethod,
+        int $installmentsCount,
+        int $intervalCount,
+        string $intervalUnit
+    ): int {
+        if ($amountToman <= 0 || $interestRatePercent <= 0 || $installmentsCount <= 0 || $intervalCount <= 0) {
+            return 0;
+        }
+        $months = $this->repaymentDurationInMonths($installmentsCount, $intervalCount, $intervalUnit);
+        if ($months <= 0) {
+            return 0;
+        }
+        $rate = $interestRatePercent / 100;
+        $profit = $profitMethod === LoanType::PROFIT_BANK
+            ? ($amountToman * $rate * ($months / 12))
+            : ($amountToman * $rate * $months);
+
+        return max(0, (int) round($profit));
+    }
+
+    private function repaymentDurationInMonths(int $installmentsCount, int $intervalCount, string $intervalUnit): float
+    {
+        $multiplier = $intervalUnit === LoanType::GAP_WEEKLY ? (12 / 52) : 1.0;
+
+        return max(0, $installmentsCount * $intervalCount * $multiplier);
+    }
+
+    private function isRepaymentPeriodAllowed(LoanType $loanType, int $installmentsCount, int $intervalCount, string $intervalUnit, int $amount): bool
+    {
+        $periods = is_array($loanType->repayment_periods) ? $loanType->repayment_periods : [];
+        $type = (string) ($periods['type'] ?? LoanType::REPAY_UNLIMITED);
+        if ($type === LoanType::REPAY_UNLIMITED) {
+            return true;
+        }
+        $months = (int) ceil($this->repaymentDurationInMonths($installmentsCount, $intervalCount, $intervalUnit));
+        if ($type === LoanType::REPAY_MAX_UNTIL) {
+            $maxMonths = (int) ($periods['max_months'] ?? 0);
+
+            return $maxMonths < 1 || $months <= $maxMonths;
+        }
+        if ($type === LoanType::REPAY_ALLOWED_MONTHS) {
+            $rows = is_array($periods['allowed_rows'] ?? null) ? $periods['allowed_rows'] : [];
+            foreach ($rows as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $m = (int) ($row['months'] ?? 0);
+                $cap = (int) round((float) ($row['cap'] ?? 0));
+                if ($m === $months && ($cap < 1 || $amount <= $cap)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return true;
     }
 }

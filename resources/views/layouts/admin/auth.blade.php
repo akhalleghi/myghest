@@ -64,6 +64,11 @@
 
         * { box-sizing: border-box; }
 
+        html[data-admin-font="small"] { font-size: 15px; }
+        html[data-admin-font="normal"] { font-size: 16px; }
+        html[data-admin-font="large"] { font-size: 18px; }
+        html[data-admin-font="xlarge"] { font-size: 20px; }
+
         body {
             margin: 0;
             min-height: 100vh;
