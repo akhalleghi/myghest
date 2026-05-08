@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class CustomerLoanFile extends Model
 {
@@ -70,5 +71,10 @@ final class CustomerLoanFile extends Model
     public function createdByAdmin(): BelongsTo
     {
         return $this->belongsTo(Admin::class, 'created_by_admin_id');
+    }
+
+    public function guarantees(): HasMany
+    {
+        return $this->hasMany(CustomerLoanGuarantee::class, 'loan_file_id')->latest('id');
     }
 }

@@ -9,6 +9,7 @@ use App\Models\AppSetting;
 use App\Models\Customer;
 use App\Models\CustomerBankAccount;
 use App\Models\CustomerLoanFile;
+use App\Models\CustomerLoanGuarantee;
 use App\Models\CustomerReferrer;
 use App\Models\CustomerWallet;
 use App\Models\LoanType;
@@ -22,9 +23,12 @@ use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -230,21 +234,11 @@ final class CustomerController extends Controller
             if ($smsText === '' && isset($validated['sms_template_id'])) {
                 $template = SmsTemplate::query()->find((int) $validated['sms_template_id']);
                 if ($template !== null) {
-                    $smsText = $this->renderTemplate($template->body, [
-                        'store_name' => $this->appDisplayName(),
-                        'customer_name' => $customer->fullName(),
-                        'loan_code' => (string) $loanFile->loan_code,
-                        'loan_amount' => number_format((int) $loanFile->amount_toman, 0, '.', ',').' تومان',
-                        'installment_amount' => number_format((int) $loanFile->installment_amount_toman, 0, '.', ',').' تومان',
-                    ]);
+                    $smsText = $this->renderTemplate($template->body, $this->loanSmsTemplateVars($customer, $loanFile));
                 }
             }
             if ($smsText === '') {
-                $smsText = 'سامانه '.$this->appDisplayName()."\n"
-                    .'مشتری: '.$customer->fullName()."\n"
-                    .'پرونده وام: '.$loanFile->loan_code."\n"
-                    .'مبلغ وام: '.number_format((int) $loanFile->amount_toman, 0, '.', ',').' تومان'."\n"
-                    .'مبلغ هر قسط: '.number_format((int) $loanFile->installment_amount_toman, 0, '.', ',').' تومان';
+                $smsText = $this->defaultLoanCreatedSmsText($customer, $loanFile);
             }
             $smsResult = $this->sendRawSms($customer->mobile, $smsText, 'loan-file-created');
             $smsFeedback = ' '.$smsResult['message'];
@@ -383,6 +377,336 @@ final class CustomerController extends Controller
             'message' => 'پرونده وام با موفقیت ویرایش شد.',
             'loan_file' => $this->mapLoanFile($loanFile),
         ]);
+    }
+
+    public function destroyLoan(Customer $customer, CustomerLoanFile $loanFile): JsonResponse
+    {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+
+        $loanCode = (string) $loanFile->loan_code;
+        $loanFile->delete();
+
+        return response()->json([
+            'message' => 'پرونده وام '.$loanCode.' حذف شد.',
+        ]);
+    }
+
+    public function sendLoanFileSms(Request $request, Customer $customer, CustomerLoanFile $loanFile): JsonResponse
+    {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'sms_text' => ['nullable', 'string', 'max:1000'],
+            'sms_template_id' => ['nullable', 'integer', 'exists:sms_templates,id'],
+        ]);
+
+        $smsText = trim((string) ($validated['sms_text'] ?? ''));
+        if ($smsText === '' && isset($validated['sms_template_id'])) {
+            $template = SmsTemplate::query()->find((int) $validated['sms_template_id']);
+            if ($template !== null) {
+                $smsText = $this->renderTemplate($template->body, $this->loanSmsTemplateVars($customer, $loanFile));
+            }
+        }
+        if ($smsText === '') {
+            $smsText = $this->defaultLoanCreatedSmsText($customer, $loanFile);
+        }
+
+        $smsResult = $this->sendRawSms($customer->mobile, $smsText, 'loan-file-created');
+
+        return response()->json([
+            'ok' => $smsResult['ok'],
+            'message' => $smsResult['message'],
+        ], $smsResult['ok'] ? 200 : 422);
+    }
+
+    public function loanGuarantees(Customer $customer, CustomerLoanFile $loanFile): JsonResponse
+    {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+
+        $rows = CustomerLoanGuarantee::query()
+            ->where('loan_file_id', $loanFile->id)
+            ->latest('id')
+            ->get()
+            ->map(fn (CustomerLoanGuarantee $g): array => $this->mapLoanGuarantee($g))
+            ->values();
+
+        return response()->json([
+            'guarantees' => $rows,
+        ]);
+    }
+
+    public function storeLoanGuarantee(Request $request, Customer $customer, CustomerLoanFile $loanFile): JsonResponse
+    {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'type' => ['required', Rule::in([
+                CustomerLoanGuarantee::TYPE_ORG_SELF,
+                CustomerLoanGuarantee::TYPE_ORG_OTHER,
+                CustomerLoanGuarantee::TYPE_CHEQUE,
+                CustomerLoanGuarantee::TYPE_GOLD,
+                CustomerLoanGuarantee::TYPE_OTHER,
+            ])],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'org_name' => ['nullable', 'string', 'max:255'],
+            'employee_no' => ['nullable', 'string', 'max:120'],
+            'guarantor_name' => ['nullable', 'string', 'max:255'],
+            'guarantor_national_id' => ['nullable', 'string', 'max:20'],
+            'guarantor_phone' => ['nullable', 'string', 'max:20'],
+            'cheque_bank' => ['nullable', 'string', 'max:255'],
+            'cheque_serial' => ['nullable', 'string', 'max:120'],
+            'cheque_sayadi' => ['nullable', 'string', 'max:120'],
+            'cheque_due_jdate' => ['nullable', 'string', 'max:20'],
+            'gold_item_type' => ['nullable', 'string', 'max:255'],
+            'gold_weight_gram' => ['nullable', 'numeric', 'min:0'],
+            'gold_karat' => ['nullable', 'numeric', 'min:0'],
+            'amount_toman' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
+            'attachment' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp,pdf', 'max:5120'],
+        ]);
+
+        $type = (string) $validated['type'];
+        $description = trim((string) ($validated['description'] ?? ''));
+        $amountToman = (int) ($validated['amount_toman'] ?? 0);
+
+        $meta = [];
+        if ($type === CustomerLoanGuarantee::TYPE_ORG_SELF) {
+            if (trim((string) ($validated['org_name'] ?? '')) === '') {
+                return response()->json(['message' => 'نام سازمان الزامی است.'], 422);
+            }
+            $meta = [
+                'org_name' => trim((string) ($validated['org_name'] ?? '')),
+                'employee_no' => trim((string) ($validated['employee_no'] ?? '')),
+                'amount_toman' => $amountToman,
+            ];
+        } elseif ($type === CustomerLoanGuarantee::TYPE_ORG_OTHER) {
+            if (trim((string) ($validated['guarantor_name'] ?? '')) === '') {
+                return response()->json(['message' => 'نام ضامن الزامی است.'], 422);
+            }
+            $meta = [
+                'guarantor_name' => trim((string) ($validated['guarantor_name'] ?? '')),
+                'guarantor_national_id' => $this->toEnglishDigits(trim((string) ($validated['guarantor_national_id'] ?? ''))),
+                'guarantor_phone' => $this->toEnglishDigits(trim((string) ($validated['guarantor_phone'] ?? ''))),
+                'org_name' => trim((string) ($validated['org_name'] ?? '')),
+                'amount_toman' => $amountToman,
+            ];
+        } elseif ($type === CustomerLoanGuarantee::TYPE_CHEQUE) {
+            if (trim((string) ($validated['cheque_serial'] ?? '')) === '') {
+                return response()->json(['message' => 'شماره چک الزامی است.'], 422);
+            }
+            $chequeDueDate = null;
+            if (($validated['cheque_due_jdate'] ?? '') !== '') {
+                $chequeDueDate = $this->parseJalaliDate((string) $validated['cheque_due_jdate']);
+                if ($chequeDueDate === null) {
+                    return response()->json(['message' => 'تاریخ سررسید چک معتبر نیست.'], 422);
+                }
+            }
+            $meta = [
+                'cheque_bank' => trim((string) ($validated['cheque_bank'] ?? '')),
+                'cheque_serial' => trim((string) ($validated['cheque_serial'] ?? '')),
+                'cheque_sayadi' => trim((string) ($validated['cheque_sayadi'] ?? '')),
+                'cheque_due_jdate' => $chequeDueDate ? Jalali::instance($chequeDueDate)->format('Y/m/d') : '',
+                'amount_toman' => $amountToman,
+            ];
+        } elseif ($type === CustomerLoanGuarantee::TYPE_GOLD) {
+            $meta = [
+                'gold_item_type' => trim((string) ($validated['gold_item_type'] ?? '')),
+                'gold_weight_gram' => isset($validated['gold_weight_gram']) ? (float) $validated['gold_weight_gram'] : null,
+                'gold_karat' => isset($validated['gold_karat']) ? (float) $validated['gold_karat'] : null,
+                'amount_toman' => $amountToman,
+            ];
+        } else {
+            // سایر
+            if ($description === '') {
+                return response()->json(['message' => 'برای ضمانت نوع سایر، توضیحات الزامی است.'], 422);
+            }
+            $meta = [
+                'amount_toman' => $amountToman,
+            ];
+        }
+
+        $attachmentPath = null;
+        $attachment = $request->file('attachment');
+        if ($attachment instanceof UploadedFile && $attachment->isValid()) {
+            $attachmentPath = $this->storeGuaranteeAttachment($attachment);
+        }
+
+        $guarantee = CustomerLoanGuarantee::query()->create([
+            'customer_id' => $customer->id,
+            'loan_file_id' => $loanFile->id,
+            'type' => $type,
+            'description' => $description !== '' ? $description : null,
+            'meta' => $meta,
+            'attachment_path' => $attachmentPath,
+            'created_by_admin_id' => auth('admin')->id(),
+        ]);
+
+        return response()->json([
+            'message' => 'ضمانت با موفقیت ثبت شد.',
+            'guarantee' => $this->mapLoanGuarantee($guarantee),
+        ]);
+    }
+
+    public function updateLoanGuarantee(Request $request, Customer $customer, CustomerLoanFile $loanFile, CustomerLoanGuarantee $guarantee): JsonResponse
+    {
+        if ((int) $loanFile->customer_id !== (int) $customer->id || (int) $guarantee->loan_file_id !== (int) $loanFile->id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'type' => ['required', Rule::in([
+                CustomerLoanGuarantee::TYPE_ORG_SELF,
+                CustomerLoanGuarantee::TYPE_ORG_OTHER,
+                CustomerLoanGuarantee::TYPE_CHEQUE,
+                CustomerLoanGuarantee::TYPE_GOLD,
+                CustomerLoanGuarantee::TYPE_OTHER,
+            ])],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'org_name' => ['nullable', 'string', 'max:255'],
+            'employee_no' => ['nullable', 'string', 'max:120'],
+            'guarantor_name' => ['nullable', 'string', 'max:255'],
+            'guarantor_national_id' => ['nullable', 'string', 'max:20'],
+            'guarantor_phone' => ['nullable', 'string', 'max:20'],
+            'cheque_bank' => ['nullable', 'string', 'max:255'],
+            'cheque_serial' => ['nullable', 'string', 'max:120'],
+            'cheque_sayadi' => ['nullable', 'string', 'max:120'],
+            'cheque_due_jdate' => ['nullable', 'string', 'max:20'],
+            'gold_item_type' => ['nullable', 'string', 'max:255'],
+            'gold_weight_gram' => ['nullable', 'numeric', 'min:0'],
+            'gold_karat' => ['nullable', 'numeric', 'min:0'],
+            'amount_toman' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
+            'attachment' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp,pdf', 'max:5120'],
+            'remove_attachment' => ['nullable', 'boolean'],
+        ]);
+
+        $type = (string) $validated['type'];
+        $description = trim((string) ($validated['description'] ?? ''));
+        $amountToman = (int) ($validated['amount_toman'] ?? 0);
+        $meta = [];
+
+        if ($type === CustomerLoanGuarantee::TYPE_ORG_SELF) {
+            if (trim((string) ($validated['org_name'] ?? '')) === '') {
+                return response()->json(['message' => 'نام سازمان الزامی است.'], 422);
+            }
+            $meta = [
+                'org_name' => trim((string) ($validated['org_name'] ?? '')),
+                'employee_no' => trim((string) ($validated['employee_no'] ?? '')),
+                'amount_toman' => $amountToman,
+            ];
+        } elseif ($type === CustomerLoanGuarantee::TYPE_ORG_OTHER) {
+            if (trim((string) ($validated['guarantor_name'] ?? '')) === '') {
+                return response()->json(['message' => 'نام ضامن الزامی است.'], 422);
+            }
+            $meta = [
+                'guarantor_name' => trim((string) ($validated['guarantor_name'] ?? '')),
+                'guarantor_national_id' => $this->toEnglishDigits(trim((string) ($validated['guarantor_national_id'] ?? ''))),
+                'guarantor_phone' => $this->toEnglishDigits(trim((string) ($validated['guarantor_phone'] ?? ''))),
+                'org_name' => trim((string) ($validated['org_name'] ?? '')),
+                'amount_toman' => $amountToman,
+            ];
+        } elseif ($type === CustomerLoanGuarantee::TYPE_CHEQUE) {
+            if (trim((string) ($validated['cheque_serial'] ?? '')) === '') {
+                return response()->json(['message' => 'شماره چک الزامی است.'], 422);
+            }
+            $chequeDueDate = null;
+            if (($validated['cheque_due_jdate'] ?? '') !== '') {
+                $chequeDueDate = $this->parseJalaliDate((string) $validated['cheque_due_jdate']);
+                if ($chequeDueDate === null) {
+                    return response()->json(['message' => 'تاریخ سررسید چک معتبر نیست.'], 422);
+                }
+            }
+            $meta = [
+                'cheque_bank' => trim((string) ($validated['cheque_bank'] ?? '')),
+                'cheque_serial' => trim((string) ($validated['cheque_serial'] ?? '')),
+                'cheque_sayadi' => trim((string) ($validated['cheque_sayadi'] ?? '')),
+                'cheque_due_jdate' => $chequeDueDate ? Jalali::instance($chequeDueDate)->format('Y/m/d') : '',
+                'amount_toman' => $amountToman,
+            ];
+        } elseif ($type === CustomerLoanGuarantee::TYPE_GOLD) {
+            $meta = [
+                'gold_item_type' => trim((string) ($validated['gold_item_type'] ?? '')),
+                'gold_weight_gram' => isset($validated['gold_weight_gram']) ? (float) $validated['gold_weight_gram'] : null,
+                'gold_karat' => isset($validated['gold_karat']) ? (float) $validated['gold_karat'] : null,
+                'amount_toman' => $amountToman,
+            ];
+        } else {
+            if ($description === '') {
+                return response()->json(['message' => 'برای ضمانت نوع سایر، توضیحات الزامی است.'], 422);
+            }
+            $meta = [
+                'amount_toman' => $amountToman,
+            ];
+        }
+
+        $removeAttachment = (bool) ($validated['remove_attachment'] ?? false);
+        $newAttachment = $request->file('attachment');
+        $attachmentPath = $guarantee->attachment_path;
+        if ($removeAttachment && is_string($attachmentPath) && $attachmentPath !== '') {
+            Storage::disk('public')->delete($attachmentPath);
+            $attachmentPath = null;
+        }
+        if ($newAttachment instanceof UploadedFile && $newAttachment->isValid()) {
+            if (is_string($attachmentPath) && $attachmentPath !== '') {
+                Storage::disk('public')->delete($attachmentPath);
+            }
+            $attachmentPath = $this->storeGuaranteeAttachment($newAttachment);
+        }
+
+        $guarantee->update([
+            'type' => $type,
+            'description' => $description !== '' ? $description : null,
+            'meta' => $meta,
+            'attachment_path' => $attachmentPath,
+        ]);
+        $guarantee->refresh();
+
+        return response()->json([
+            'message' => 'ضمانت با موفقیت ویرایش شد.',
+            'guarantee' => $this->mapLoanGuarantee($guarantee),
+        ]);
+    }
+
+    public function destroyLoanGuarantee(Customer $customer, CustomerLoanFile $loanFile, CustomerLoanGuarantee $guarantee): JsonResponse
+    {
+        if ((int) $loanFile->customer_id !== (int) $customer->id || (int) $guarantee->loan_file_id !== (int) $loanFile->id) {
+            abort(404);
+        }
+
+        if (is_string($guarantee->attachment_path) && $guarantee->attachment_path !== '') {
+            Storage::disk('public')->delete($guarantee->attachment_path);
+        }
+        $guarantee->delete();
+
+        return response()->json([
+            'message' => 'ضمانت حذف شد.',
+        ]);
+    }
+
+    public function loanGuaranteeAttachment(Request $request, Customer $customer, CustomerLoanFile $loanFile, CustomerLoanGuarantee $guarantee)
+    {
+        if ((int) $loanFile->customer_id !== (int) $customer->id || (int) $guarantee->loan_file_id !== (int) $loanFile->id) {
+            abort(404);
+        }
+        $attachmentPath = is_string($guarantee->attachment_path) ? trim($guarantee->attachment_path) : '';
+        if ($attachmentPath === '' || ! Storage::disk('public')->exists($attachmentPath)) {
+            abort(404);
+        }
+
+        $download = $request->boolean('download');
+        $fileName = basename($attachmentPath);
+
+        if ($download) {
+            return Storage::disk('public')->download($attachmentPath, $fileName);
+        }
+
+        return Storage::disk('public')->response($attachmentPath, $fileName, [], 'inline');
     }
 
     public function sendQuickSms(Request $request, Customer $customer): JsonResponse
@@ -1096,5 +1420,77 @@ final class CustomerController extends Controller
         }
 
         return true;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function loanSmsTemplateVars(Customer $customer, CustomerLoanFile $loanFile): array
+    {
+        return [
+            'store_name' => $this->appDisplayName(),
+            'customer_name' => $customer->fullName(),
+            'loan_code' => (string) $loanFile->loan_code,
+            'loan_amount' => number_format((int) $loanFile->amount_toman, 0, '.', ',').' تومان',
+            'installment_amount' => number_format((int) $loanFile->installment_amount_toman, 0, '.', ',').' تومان',
+        ];
+    }
+
+    private function defaultLoanCreatedSmsText(Customer $customer, CustomerLoanFile $loanFile): string
+    {
+        return 'سامانه '.$this->appDisplayName()."\n"
+            .'مشتری گرامی '.$customer->fullName()."\n"
+            .'ثبت پرونده وام جدید انجام شد.'."\n"
+            .'پرونده وام: '.$loanFile->loan_code."\n"
+            .'مبلغ وام: '.number_format((int) $loanFile->amount_toman, 0, '.', ',').' تومان'."\n"
+            .'مبلغ هر قسط: '.number_format((int) $loanFile->installment_amount_toman, 0, '.', ',').' تومان';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mapLoanGuarantee(CustomerLoanGuarantee $g): array
+    {
+        $attachmentUrl = null;
+        $attachmentDownloadUrl = null;
+        $attachmentPreviewUrl = null;
+        if (is_string($g->attachment_path) && $g->attachment_path !== '') {
+            $routeParams = [
+                'customer' => (int) $g->customer_id,
+                'loanFile' => (int) $g->loan_file_id,
+                'guarantee' => (int) $g->id,
+            ];
+            $attachmentPreviewUrl = route('admin.customers.loan-files.guarantees.attachment', $routeParams);
+            $attachmentDownloadUrl = route('admin.customers.loan-files.guarantees.attachment', $routeParams + ['download' => 1]);
+            $attachmentUrl = $attachmentDownloadUrl;
+        }
+        $typeLabels = [
+            CustomerLoanGuarantee::TYPE_ORG_SELF => 'سازمانی - خودم',
+            CustomerLoanGuarantee::TYPE_ORG_OTHER => 'سازمانی - شخص دیگر',
+            CustomerLoanGuarantee::TYPE_CHEQUE => 'چک',
+            CustomerLoanGuarantee::TYPE_GOLD => 'طلا',
+            CustomerLoanGuarantee::TYPE_OTHER => 'سایر',
+        ];
+
+        return [
+            'id' => (int) $g->id,
+            'type' => (string) $g->type,
+            'type_label' => (string) ($typeLabels[$g->type] ?? $g->type),
+            'description' => (string) ($g->description ?? ''),
+            'meta' => is_array($g->meta) ? $g->meta : [],
+            'attachment_url' => $attachmentUrl,
+            'attachment_preview_url' => $attachmentPreviewUrl,
+            'attachment_download_url' => $attachmentDownloadUrl,
+            'attachment_name' => is_string($g->attachment_path) && $g->attachment_path !== '' ? basename($g->attachment_path) : '',
+            'created_at' => $g->created_at ? Jalali::instance($g->created_at)->format('Y/m/d H:i') : '',
+        ];
+    }
+
+    private function storeGuaranteeAttachment(UploadedFile $file): string
+    {
+        $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'bin');
+        $safeName = 'guarantee-'.Str::lower(Str::random(22)).'.'.$extension;
+
+        return $file->storeAs('loan-guarantees', $safeName, 'public');
     }
 }

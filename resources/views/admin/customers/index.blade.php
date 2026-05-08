@@ -193,7 +193,7 @@
             border: 1px solid var(--border);
             border-radius: 0.82rem;
             background: var(--bg-card);
-            padding: 0.75rem 0.8rem;
+            padding: 0.9rem;
             box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);
             position: relative;
         }
@@ -206,54 +206,92 @@
             background: linear-gradient(180deg, rgba(127, 29, 29, 0.16), rgba(30, 41, 59, 0.82));
             border-color: rgba(248, 113, 113, 0.45);
         }
-        .loan-file-badge-settled {
+        .loan-file-corner-ribbon {
             position: absolute;
-            top: 0.45rem;
-            left: 0.5rem;
-            padding: 0.2rem 0.5rem;
-            border-radius: 999px;
-            background: rgba(239, 68, 68, 0.12);
-            color: #b91c1c;
-            border: 1px solid rgba(239, 68, 68, 0.35);
-            font-size: 0.68rem;
+            top: 0;
+            left: 0;
+            width: 6.6rem;
+            height: 6.6rem;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 2;
+        }
+        .loan-file-corner-ribbon > span {
+            position: absolute;
+            top: 1rem;
+            left: -1.85rem;
+            width: 8.6rem;
+            text-align: center;
+            transform: rotate(-45deg);
+            background: linear-gradient(180deg, #ef4444, #dc2626);
+            color: #fff;
+            font-size: 0.7rem;
             font-weight: 900;
+            letter-spacing: 0.01em;
+            line-height: 1.45;
+            padding: 0.18rem 0;
+            box-shadow: 0 6px 14px rgba(220, 38, 38, 0.35);
+            text-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);
+        }
+        html[data-theme="dark"] .loan-file-corner-ribbon > span {
+            background: linear-gradient(180deg, #f87171, #ef4444);
         }
         .loan-file-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0.7rem;
+            gap: 0.85rem;
         }
-        .loan-file-col { min-width: 0; }
+        .loan-file-col {
+            min-width: 0;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 0.68rem;
+            padding: 0.62rem 0.65rem;
+            background: rgba(248, 250, 252, 0.38);
+        }
+        html[data-theme="dark"] .loan-file-col {
+            background: rgba(30, 41, 59, 0.32);
+            border-color: rgba(148, 163, 184, 0.22);
+        }
         .loan-file-col-title {
             margin: 0;
-            font-size: 0.9rem;
-            font-weight: 900;
+            font-size: 0.84rem;
+            font-weight: 800;
             color: var(--text);
         }
         .loan-file-col-sep {
-            margin: 0.28rem 0 0.45rem;
+            margin: 0.3rem 0 0.42rem;
             border: 0;
             border-top: 1px dashed rgba(148, 163, 184, 0.45);
         }
-        .loan-file-items { display: grid; gap: 0.24rem; }
-        .loan-file-item { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
-        .loan-file-k { font-size: 0.74rem; color: var(--muted); font-weight: 700; flex-shrink: 0; }
-        .loan-file-v { font-size: 0.77rem; color: var(--text); font-weight: 800; text-align: end; }
+        .loan-file-items { display: grid; gap: 0; }
+        .loan-file-item {
+            display: grid;
+            grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+            align-items: baseline;
+            gap: 0.5rem;
+            padding: 0.28rem 0;
+            border-bottom: 1px dashed rgba(148, 163, 184, 0.25);
+        }
+        .loan-file-items .loan-file-item:last-child { border-bottom: 0; }
+        .loan-file-k { font-size: 0.72rem; color: var(--muted); font-weight: 700; }
+        .loan-file-v { font-size: 0.76rem; color: var(--text); font-weight: 700; text-align: end; }
         .loan-file-v--danger { color: #b91c1c; }
         .loan-file-v--ok { color: #047857; }
         .loan-file-v--warn { color: #b45309; }
+        .loan-file-item--stack { grid-template-columns: 1fr; gap: 0.28rem; }
+        .loan-file-item--stack .loan-file-v { text-align: start; }
         .loan-file-desc {
             margin: 0;
-            font-size: 0.77rem;
-            line-height: 1.8;
+            font-size: 0.75rem;
+            line-height: 1.9;
             color: var(--text);
             white-space: pre-wrap;
             word-break: break-word;
         }
         .loan-file-desc--empty { color: var(--muted); font-style: italic; }
         .loan-file-foot {
-            margin-top: 0.72rem;
-            padding-top: 0.55rem;
+            margin-top: 0.8rem;
+            padding-top: 0.62rem;
             border-top: 1px solid rgba(148, 163, 184, 0.22);
             display: flex;
             align-items: center;
@@ -270,23 +308,143 @@
         .loan-file-btn {
             border: 1px solid var(--border);
             border-radius: 999px;
-            padding: 0.32rem 0.64rem;
+            padding: 0.28rem 0.58rem;
             background: var(--bg-card);
             color: var(--text);
-            font-size: 0.72rem;
-            font-weight: 800;
+            font-size: 0.7rem;
+            font-weight: 700;
             font-family: inherit;
             cursor: pointer;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            text-decoration: none;
         }
         .loan-file-btn:hover { background: var(--primary-soft); border-color: rgba(37, 99, 235, 0.35); }
         .loan-file-btn--mini {
-            width: 2rem; height: 2rem; border-radius: 50%; padding: 0;
+            width: 1.85rem; height: 1.85rem; border-radius: 50%; padding: 0;
             display: inline-flex; align-items: center; justify-content: center;
         }
         .loan-file-btn--danger { color: #b91c1c; border-color: rgba(239, 68, 68, 0.4); background: rgba(248, 113, 113, 0.1); }
         .loan-file-btn--disc { font-size: 0.68rem; padding: 0.22rem 0.52rem; }
+        .loan-guarantee-list { display: grid; gap: 0.55rem; margin-bottom: 0.72rem; }
+        .loan-guarantee-empty {
+            border: 1px dashed var(--border);
+            border-radius: 0.7rem;
+            padding: 0.72rem;
+            font-size: 0.75rem;
+            color: var(--muted);
+            text-align: center;
+        }
+        .loan-guarantee-card {
+            border: 1px solid var(--border);
+            border-radius: 0.72rem;
+            padding: 0.58rem 0.62rem;
+            background: rgba(248, 250, 252, 0.4);
+            display: flex;
+            justify-content: space-between;
+            gap: 0.55rem;
+            align-items: flex-start;
+        }
+        html[data-theme="dark"] .loan-guarantee-card { background: rgba(30, 41, 59, 0.34); }
+        .loan-guarantee-title { margin: 0 0 0.18rem; font-size: 0.8rem; font-weight: 900; color: var(--text); }
+        .loan-guarantee-meta { font-size: 0.72rem; color: var(--muted); line-height: 1.7; }
+        .loan-guarantee-actions { display: inline-flex; gap: 0.35rem; flex-wrap: wrap; }
+        .loan-guarantee-thumb-link { display: inline-flex; align-items: center; }
+        .loan-guarantee-thumb {
+            width: 130px;
+            height: 92px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid var(--line);
+            display: block;
+        }
+        .loan-guarantee-type-tabs {
+            display: inline-flex;
+            flex-wrap: wrap;
+            border: 1px solid var(--border);
+            border-radius: 0.65rem;
+            overflow: hidden;
+            margin-bottom: 0.72rem;
+        }
+        .loan-guarantee-type-btn {
+            border: 0;
+            border-inline-end: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--muted);
+            padding: 0.42rem 0.68rem;
+            font-size: 0.74rem;
+            font-weight: 800;
+            font-family: inherit;
+            cursor: pointer;
+        }
+        .loan-guarantee-type-btn:last-child { border-inline-end: 0; }
+        .loan-guarantee-type-btn.is-active { background: var(--primary-soft); color: var(--primary-dark); }
+        .loan-guarantee-section[hidden] { display: none !important; }
+        .loan-guarantee-attach {
+            border: 1px dashed var(--border);
+            border-radius: 0.72rem;
+            padding: 0.62rem;
+            display: grid;
+            grid-template-columns: 150px 1fr;
+            gap: 0.75rem;
+            align-items: start;
+        }
+        .loan-guarantee-attach-left { display: grid; gap: 0.28rem; justify-items: center; }
+        .loan-guarantee-preview {
+            width: 150px; height: 100px;
+            border: 1px dashed var(--border);
+            border-radius: 0.6rem;
+            background: rgba(248, 250, 252, 0.6);
+            display: grid;
+            place-items: center;
+            overflow: hidden;
+            color: var(--muted);
+            font-size: 0.72rem;
+        }
+        html[data-theme="dark"] .loan-guarantee-preview { background: rgba(30, 41, 59, 0.4); }
+        .loan-guarantee-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .loan-guarantee-preview-download {
+            font-size: 0.72rem;
+            color: #22c55e;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.22rem;
+            font-weight: 700;
+        }
+        .loan-guarantee-preview-download:hover { color: #16a34a; text-decoration: underline; }
+        .loan-guarantee-attach-actions { display: inline-flex; gap: 0.45rem; flex-wrap: wrap; margin-top: 0.5rem; }
+        .loan-guarantee-attach-actions .loan-file-btn--mini {
+            width: 2.35rem;
+            height: 2.35rem;
+            box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12);
+        }
+        .loan-guarantee-attach-actions #loan-guarantee-file-remove {
+            color: #fff;
+            border-color: #ef2a78;
+            background: linear-gradient(180deg, #ff3b8f, #ef2a78);
+        }
+        .loan-guarantee-attach-actions #loan-guarantee-file-upload {
+            color: #fff;
+            border-color: #1fae55;
+            background: linear-gradient(180deg, #39c56e, #1fae55);
+        }
+        .loan-guarantee-attach-actions #loan-guarantee-file-download {
+            color: #fff;
+            border-color: #8b2bd3;
+            background: linear-gradient(180deg, #b043ff, #8b2bd3);
+        }
+        @media (max-width: 720px) {
+            .loan-guarantee-attach { grid-template-columns: 1fr; }
+            .loan-guarantee-preview { width: 100%; height: 130px; }
+            .loan-guarantee-attach-left { justify-items: stretch; }
+        }
         @media (max-width: 980px) {
             .loan-file-grid { grid-template-columns: 1fr; }
+            .loan-file-item { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
         }
         .loan-interest-note { margin-top: 0.22rem; font-size: 0.7rem; color: var(--muted); }
         .loan-extra-box {
@@ -1080,6 +1238,145 @@
             </div>
         </div>
     </div>
+
+    <div class="cust-overlay" id="loan-sms-overlay" hidden aria-hidden="true">
+        <div class="cust-modal" style="width:min(560px,100%)" role="dialog" aria-modal="true" aria-labelledby="loan-sms-title">
+            <div class="cust-modal-head">
+                <div>
+                    <h2 id="loan-sms-title">ارسال پیامک ثبت پرونده وام</h2>
+                    <p id="loan-sms-subtitle">ارسال برای مشتری</p>
+                </div>
+                <button type="button" class="cust-modal-close" id="loan-sms-close" aria-label="بستن">&times;</button>
+            </div>
+            <div class="cust-modal-body">
+                <form id="loan-sms-form" class="wallet-form-grid" novalidate>
+                    <div class="cust-field">
+                        <label for="loan-sms-template">انتخاب قالب پیامک</label>
+                        <select id="loan-sms-template" name="sms_template_id">
+                            <option value="">بدون قالب (متن آزاد)</option>
+                            @foreach ($quickSmsTemplates as $tpl)
+                                <option value="{{ $tpl['id'] ?? '' }}">{{ ($tpl['title'] ?? '') . ' (' . ($tpl['category'] ?? '') . ')' }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="cust-field">
+                        <label for="loan-sms-text">متن پیامک</label>
+                        <textarea id="loan-sms-text" name="sms_text" maxlength="1000" placeholder="متن پیامک را بنویسید..."></textarea>
+                    </div>
+                    <div class="cust-actions" style="margin-top:0.2rem;">
+                        <button type="button" class="cust-cancel" id="loan-sms-cancel">انصراف</button>
+                        <button type="submit" class="cust-submit">ارسال پیامک ثبت پرونده جدید</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="cust-overlay" id="loan-guarantee-overlay" hidden aria-hidden="true">
+        <div class="cust-modal" style="width:min(920px,100%)" role="dialog" aria-modal="true" aria-labelledby="loan-guarantee-title">
+            <div class="cust-modal-head">
+                <div>
+                    <h2 id="loan-guarantee-title">تضامین</h2>
+                    <p id="loan-guarantee-subtitle">مدیریت تضامین پرونده وام</p>
+                </div>
+                <button type="button" class="cust-modal-close" id="loan-guarantee-close" aria-label="بستن">&times;</button>
+            </div>
+            <div class="cust-modal-body">
+                <div id="loan-guarantee-list" class="loan-guarantee-list">
+                    <div class="loan-guarantee-empty">در حال بارگذاری...</div>
+                </div>
+                <div class="cust-actions" style="justify-content:center; margin:0.35rem 0 0.75rem;">
+                    <button type="button" class="cust-submit" id="loan-guarantee-open-form">
+                        <i class="fa-solid fa-circle-plus" aria-hidden="true"></i>
+                        افزودن ضمانت برای این وام
+                    </button>
+                </div>
+
+                <div id="loan-guarantee-form-wrap" class="loan-extra-box" hidden>
+                    <form id="loan-guarantee-form" class="wallet-form-grid" novalidate>
+                        <div class="cust-field">
+                            <label>نوع ضمانت:</label>
+                            <div class="loan-guarantee-type-tabs" id="loan-guarantee-type-tabs">
+                                <button type="button" class="loan-guarantee-type-btn is-active" data-guarantee-type="org_self">سازمانی - خودم</button>
+                                <button type="button" class="loan-guarantee-type-btn" data-guarantee-type="org_other">سازمانی - شخص دیگر</button>
+                                <button type="button" class="loan-guarantee-type-btn" data-guarantee-type="cheque">چک</button>
+                                <button type="button" class="loan-guarantee-type-btn" data-guarantee-type="gold">طلا</button>
+                                <button type="button" class="loan-guarantee-type-btn" data-guarantee-type="other">سایر</button>
+                            </div>
+                        </div>
+                        <input type="hidden" id="loan-guarantee-type" name="type" value="org_self">
+
+                        <div class="loan-guarantee-section" data-guarantee-section="org_self">
+                            <div class="cust-form-grid">
+                                <div class="cust-field"><label>نام سازمان <span class="req">*</span></label><input name="org_name"></div>
+                                <div class="cust-field"><label>شماره پرسنلی</label><input name="employee_no"></div>
+                                <div class="cust-field"><label>مبلغ ضمانت (تومان)</label><input name="amount_toman" inputmode="numeric" data-guarantee-amount></div>
+                            </div>
+                        </div>
+                        <div class="loan-guarantee-section" data-guarantee-section="org_other" hidden>
+                            <div class="cust-form-grid">
+                                <div class="cust-field"><label>نام ضامن <span class="req">*</span></label><input name="guarantor_name"></div>
+                                <div class="cust-field"><label>کد ملی ضامن</label><input name="guarantor_national_id"></div>
+                                <div class="cust-field"><label>موبایل ضامن</label><input name="guarantor_phone"></div>
+                                <div class="cust-field"><label>نام سازمان</label><input name="org_name"></div>
+                                <div class="cust-field"><label>مبلغ ضمانت (تومان)</label><input name="amount_toman" inputmode="numeric" data-guarantee-amount></div>
+                            </div>
+                        </div>
+                        <div class="loan-guarantee-section" data-guarantee-section="cheque" hidden>
+                            <div class="cust-form-grid">
+                                <div class="cust-field"><label>بانک</label><input name="cheque_bank"></div>
+                                <div class="cust-field"><label>شماره چک <span class="req">*</span></label><input name="cheque_serial"></div>
+                                <div class="cust-field"><label>شناسه صیادی</label><input name="cheque_sayadi"></div>
+                                <div class="cust-field"><label>تاریخ سررسید چک</label><input name="cheque_due_jdate" id="loan-guarantee-cheque-due"></div>
+                                <div class="cust-field"><label>مبلغ ضمانت (تومان)</label><input name="amount_toman" inputmode="numeric" data-guarantee-amount></div>
+                            </div>
+                        </div>
+                        <div class="loan-guarantee-section" data-guarantee-section="gold" hidden>
+                            <div class="cust-form-grid">
+                                <div class="cust-field"><label>نوع طلای ضمانت</label><input name="gold_item_type"></div>
+                                <div class="cust-field"><label>وزن (گرم)</label><input type="number" name="gold_weight_gram" step="0.01" min="0"></div>
+                                <div class="cust-field"><label>عیار</label><input type="number" name="gold_karat" step="0.1" min="0"></div>
+                                <div class="cust-field"><label>ارزش تخمینی (تومان)</label><input name="amount_toman" inputmode="numeric" data-guarantee-amount></div>
+                            </div>
+                        </div>
+                        <div class="loan-guarantee-section" data-guarantee-section="other" hidden>
+                            <div class="cust-field">
+                                <label>در صورت لزوم توضیحات را وارد کنید: <span class="req">*</span></label>
+                                <textarea name="description" id="loan-guarantee-other-desc" maxlength="2000"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="cust-field">
+                            <label>فایل پیوست</label>
+                            <div class="loan-guarantee-attach">
+                                <div class="loan-guarantee-attach-left">
+                                    <div class="loan-guarantee-preview" id="loan-guarantee-preview">بدون فایل</div>
+                                    <a href="#" id="loan-guarantee-preview-download-link" class="loan-guarantee-preview-download" hidden>
+                                        <i class="fa-solid fa-download"></i>
+                                        دانلود
+                                    </a>
+                                </div>
+                                <div>
+                                    <input type="file" id="loan-guarantee-attachment" name="attachment" accept=".png,.jpg,.jpeg,.webp,.pdf" hidden>
+                                    <div class="loan-guarantee-meta" id="loan-guarantee-file-name">فایلی انتخاب نشده است.</div>
+                                    <div class="loan-guarantee-attach-actions">
+                                        <button type="button" class="loan-file-btn loan-file-btn--mini loan-file-btn--danger" id="loan-guarantee-file-remove" title="حذف فایل"><i class="fa-regular fa-trash-can"></i></button>
+                                        <button type="button" class="loan-file-btn loan-file-btn--mini" id="loan-guarantee-file-download" title="دانلود فایل" disabled><i class="fa-solid fa-download"></i></button>
+                                        <button type="button" class="loan-file-btn loan-file-btn--mini" id="loan-guarantee-file-upload" title="آپلود فایل"><i class="fa-solid fa-upload"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="cust-actions" style="margin-top:0.3rem;">
+                            <button type="button" class="cust-cancel" id="loan-guarantee-cancel">انصراف</button>
+                            <button type="submit" class="cust-submit" id="loan-guarantee-submit">ذخیره ضمانت</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
@@ -1144,6 +1441,21 @@
             }
             function customerLoanUpdateUrl(customerId, loanFileId) {
                 return custListBaseUrl + '/' + customerId + '/loan-files/' + loanFileId;
+            }
+            function customerLoanDeleteUrl(customerId, loanFileId) {
+                return custListBaseUrl + '/' + customerId + '/loan-files/' + loanFileId;
+            }
+            function customerLoanSendSmsUrl(customerId, loanFileId) {
+                return custListBaseUrl + '/' + customerId + '/loan-files/' + loanFileId + '/send-sms';
+            }
+            function customerLoanGuaranteesUrl(customerId, loanFileId) {
+                return custListBaseUrl + '/' + customerId + '/loan-files/' + loanFileId + '/guarantees';
+            }
+            function customerLoanGuaranteeDeleteUrl(customerId, loanFileId, guaranteeId) {
+                return custListBaseUrl + '/' + customerId + '/loan-files/' + loanFileId + '/guarantees/' + guaranteeId;
+            }
+            function customerLoanGuaranteeUpdateUrl(customerId, loanFileId, guaranteeId) {
+                return custListBaseUrl + '/' + customerId + '/loan-files/' + loanFileId + '/guarantees/' + guaranteeId;
             }
 
             var overlay = document.getElementById('cust-modal-overlay');
@@ -1251,6 +1563,40 @@
             var loanInstallmentAutoDirty = false;
             var loanFormMode = 'create';
             var loanEditingFileId = null;
+            var loanSmsOverlay = document.getElementById('loan-sms-overlay');
+            var loanSmsClose = document.getElementById('loan-sms-close');
+            var loanSmsCancel = document.getElementById('loan-sms-cancel');
+            var loanSmsSubtitle = document.getElementById('loan-sms-subtitle');
+            var loanSmsForm = document.getElementById('loan-sms-form');
+            var loanSmsTemplate = document.getElementById('loan-sms-template');
+            var loanSmsText = document.getElementById('loan-sms-text');
+            var loanSmsCurrentLoanId = null;
+            var loanSmsCurrentLoanData = null;
+            var loanSmsSubmitting = false;
+            var loanGuaranteeOverlay = document.getElementById('loan-guarantee-overlay');
+            var loanGuaranteeClose = document.getElementById('loan-guarantee-close');
+            var loanGuaranteeSubtitle = document.getElementById('loan-guarantee-subtitle');
+            var loanGuaranteeList = document.getElementById('loan-guarantee-list');
+            var loanGuaranteeOpenFormBtn = document.getElementById('loan-guarantee-open-form');
+            var loanGuaranteeFormWrap = document.getElementById('loan-guarantee-form-wrap');
+            var loanGuaranteeForm = document.getElementById('loan-guarantee-form');
+            var loanGuaranteeTypeTabs = Array.prototype.slice.call(document.querySelectorAll('[data-guarantee-type]'));
+            var loanGuaranteeTypeInput = document.getElementById('loan-guarantee-type');
+            var loanGuaranteeTypeSections = Array.prototype.slice.call(document.querySelectorAll('[data-guarantee-section]'));
+            var loanGuaranteeCancel = document.getElementById('loan-guarantee-cancel');
+            var loanGuaranteeAttachmentInput = document.getElementById('loan-guarantee-attachment');
+            var loanGuaranteePreview = document.getElementById('loan-guarantee-preview');
+            var loanGuaranteePreviewDownloadLink = document.getElementById('loan-guarantee-preview-download-link');
+            var loanGuaranteeFileName = document.getElementById('loan-guarantee-file-name');
+            var loanGuaranteeFileUploadBtn = document.getElementById('loan-guarantee-file-upload');
+            var loanGuaranteeFileRemoveBtn = document.getElementById('loan-guarantee-file-remove');
+            var loanGuaranteeFileDownloadBtn = document.getElementById('loan-guarantee-file-download');
+            var loanGuaranteeCurrentLoanId = null;
+            var loanGuaranteeSubmitting = false;
+            var loanGuaranteeCurrentDownloadUrl = '';
+            var loanGuaranteeFormMode = 'create';
+            var loanGuaranteeEditingId = null;
+            var loanGuaranteeRemoveExistingAttachment = false;
             var walletState = {
                 balance_toman: 0,
                 is_locked: false,
@@ -1781,9 +2127,16 @@
                     var accountStatus = remainingAmount > 0 ? 'بدهکار' : (remainingAmount < 0 ? 'بستانکار' : 'تراز');
                     var accountClass = remainingAmount > 0 ? 'loan-file-v--danger' : (remainingAmount < 0 ? 'loan-file-v--ok' : 'loan-file-v--warn');
                     var description = String(row.description || '').trim();
+                    var defaultLoanSmsText =
+                        'سامانه ' + (appDisplayName || '') + '\n' +
+                        'مشتری گرامی ' + (loanManageCurrentCustomerName || '') + '\n' +
+                        'ثبت پرونده وام جدید انجام شد.\n' +
+                        'پرونده وام: ' + (row.loan_code || '') + '\n' +
+                        'مبلغ وام: ' + formatToman(row.amount_toman || 0) + ' تومان\n' +
+                        'مبلغ هر قسط: ' + formatToman(row.installment_amount_toman || 0) + ' تومان';
 
                     return '<article class="loan-file-card' + (row.is_settled ? ' loan-file-card--settled' : '') + '">' +
-                        (row.is_settled ? '<span class="loan-file-badge-settled">تسویه شده</span>' : '') +
+                        (row.is_settled ? '<span class="loan-file-corner-ribbon"><span>تسویه شده</span></span>' : '') +
                         '<div class="loan-file-grid">' +
                             '<section class="loan-file-col">' +
                                 '<h3 class="loan-file-col-title">' + escapeHtmlText(row.loan_type_title || 'نوع وام') + '</h3>' +
@@ -1807,7 +2160,11 @@
                                     '<div class="loan-file-item"><span class="loan-file-k">تعداد اقساط پرداختی:</span><span class="loan-file-v">' + formatToman(paidInstallments) + '</span></div>' +
                                     '<div class="loan-file-item"><span class="loan-file-k">مجموع مبلغ اقساط پرداخت شده:</span><span class="loan-file-v">' + formatToman(paidAmount) + ' تومان</span></div>' +
                                     '<div class="loan-file-item"><span class="loan-file-k">دیرکرد / زودکرد:</span><span class="loan-file-v">—</span></div>' +
-                                    '<div class="loan-file-item"><span class="loan-file-k">تخفیف:</span><span class="loan-file-v">' + formatToman(discountAmount) + ' تومان <button type="button" class="loan-file-btn loan-file-btn--disc">ثبت تخفیف</button></span></div>' +
+                                    '<div class="loan-file-item loan-file-item--stack">' +
+                                        '<span class="loan-file-k">تخفیف:</span>' +
+                                        '<span class="loan-file-v">' + formatToman(discountAmount) + ' تومان</span>' +
+                                        '<span><button type="button" class="loan-file-btn loan-file-btn--disc">ثبت تخفیف</button></span>' +
+                                    '</div>' +
                                     '<div class="loan-file-item"><span class="loan-file-k">مبلغ باقیمانده:</span><span class="loan-file-v ' + accountClass + '">' + formatToman(remainingAmount) + ' تومان</span></div>' +
                                     '<div class="loan-file-item"><span class="loan-file-k">تسویه شده:</span><span class="loan-file-v">' + settlementText + '</span></div>' +
                                     '<div class="loan-file-item"><span class="loan-file-k">وضعیت حساب:</span><span class="loan-file-v ' + accountClass + '">' + accountStatus + '</span></div>' +
@@ -1822,13 +2179,13 @@
                         '<div class="loan-file-foot">' +
                             '<div class="loan-file-actions-left">' +
                                 '<button type="button" class="loan-file-btn loan-file-btn--mini" title="پرینت"><i class="fa-solid fa-print" aria-hidden="true"></i></button>' +
-                                '<button type="button" class="loan-file-btn loan-file-btn--mini" title="پیامک"><i class="fa-regular fa-message" aria-hidden="true"></i></button>' +
-                                '<button type="button" class="loan-file-btn loan-file-btn--mini loan-file-btn--danger" title="حذف"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>' +
+                                '<button type="button" class="loan-file-btn loan-file-btn--mini" title="پیامک" data-loan-sms-id="' + String(row.id || '') + '" data-loan-default-sms="' + escapeHtmlAttr(defaultLoanSmsText) + '"><i class="fa-regular fa-message" aria-hidden="true"></i></button>' +
+                                '<button type="button" class="loan-file-btn loan-file-btn--mini loan-file-btn--danger" title="حذف" data-loan-delete-id="' + String(row.id || '') + '" data-loan-delete-code="' + escapeHtmlAttr(row.loan_code || '') + '"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>' +
                                 '<button type="button" class="loan-file-btn loan-file-btn--mini" title="ویرایش" data-loan-edit-id="' + String(row.id || '') + '"><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i></button>' +
                             '</div>' +
                             '<div class="loan-file-actions-right">' +
                                 '<button type="button" class="loan-file-btn">مشاهده اقساط و پرداخت</button>' +
-                                '<button type="button" class="loan-file-btn">تضامین</button>' +
+                                '<button type="button" class="loan-file-btn" data-loan-guarantees-id="' + String(row.id || '') + '">تضامین</button>' +
                                 '<button type="button" class="loan-file-btn">مشاهده مبلغ تسویه آنی</button>' +
                                 '<button type="button" class="loan-file-btn">فسخ قرارداد</button>' +
                             '</div>' +
@@ -1953,6 +2310,247 @@
                 setTimeout(function () {
                     initLoanPickers();
                 }, 80);
+            }
+
+            function openLoanSmsModal(loanFileId, defaultText) {
+                if (!loanManageCurrentCustomerId || !loanSmsOverlay || !loanSmsForm) return;
+                var meta = loanManageMap ? loanManageMap[String(loanManageCurrentCustomerId || '')] : null;
+                var rows = (meta && Array.isArray(meta.loan_files)) ? meta.loan_files : [];
+                var row = rows.find(function (x) { return Number(x.id || 0) === Number(loanFileId || 0); });
+                if (!row) return;
+                loanSmsCurrentLoanId = Number(loanFileId || 0);
+                loanSmsCurrentLoanData = row;
+                loanSmsForm.reset();
+                if (loanSmsSubtitle) {
+                    loanSmsSubtitle.textContent = 'گیرنده: ' + (loanManageCurrentCustomerName || '') + ' - ' + (loanManageCurrentCustomerMobile || '') + ' | پرونده: ' + (row.loan_code || '—');
+                }
+                if (loanSmsText) {
+                    loanSmsText.value = String(defaultText || '').trim() !== '' ? String(defaultText || '') : (
+                        'سامانه ' + (appDisplayName || '') + '\n' +
+                        'مشتری گرامی ' + (loanManageCurrentCustomerName || '') + '\n' +
+                        'ثبت پرونده وام جدید انجام شد.\n' +
+                        'پرونده وام: ' + (row.loan_code || '') + '\n' +
+                        'مبلغ وام: ' + formatToman(row.amount_toman || 0) + ' تومان\n' +
+                        'مبلغ هر قسط: ' + formatToman(row.installment_amount_toman || 0) + ' تومان'
+                    );
+                }
+                loanSmsOverlay.hidden = false;
+                loanSmsOverlay.setAttribute('aria-hidden', 'false');
+            }
+
+            function closeLoanSmsModal() {
+                if (!loanSmsOverlay) return;
+                loanSmsOverlay.hidden = true;
+                loanSmsOverlay.setAttribute('aria-hidden', 'true');
+                loanSmsCurrentLoanId = null;
+                loanSmsCurrentLoanData = null;
+            }
+
+            function setGuaranteeType(type) {
+                var activeType = String(type || 'org_self');
+                if (loanGuaranteeTypeInput) {
+                    loanGuaranteeTypeInput.value = activeType;
+                }
+                loanGuaranteeTypeTabs.forEach(function (btn) {
+                    btn.classList.toggle('is-active', String(btn.getAttribute('data-guarantee-type') || '') === activeType);
+                });
+                loanGuaranteeTypeSections.forEach(function (sec) {
+                    var isActive = String(sec.getAttribute('data-guarantee-section') || '') === activeType;
+                    sec.hidden = !isActive;
+                    sec.querySelectorAll('input, textarea, select').forEach(function (field) {
+                        field.disabled = !isActive;
+                    });
+                });
+            }
+
+            function resetGuaranteeFilePreview() {
+                loanGuaranteeCurrentDownloadUrl = '';
+                if (loanGuaranteePreview) loanGuaranteePreview.innerHTML = 'بدون فایل';
+                if (loanGuaranteeFileName) loanGuaranteeFileName.textContent = 'فایلی انتخاب نشده است.';
+                if (loanGuaranteeFileDownloadBtn) loanGuaranteeFileDownloadBtn.disabled = true;
+                if (loanGuaranteePreviewDownloadLink) {
+                    loanGuaranteePreviewDownloadLink.hidden = true;
+                    loanGuaranteePreviewDownloadLink.setAttribute('href', '#');
+                }
+                loanGuaranteeRemoveExistingAttachment = false;
+            }
+
+            function setGuaranteeFilePreviewFromFile(file) {
+                if (!file) {
+                    resetGuaranteeFilePreview();
+                    return;
+                }
+                loanGuaranteeRemoveExistingAttachment = false;
+                if (loanGuaranteeFileName) loanGuaranteeFileName.textContent = file.name || 'فایل انتخاب شد';
+                if (loanGuaranteeFileDownloadBtn) loanGuaranteeFileDownloadBtn.disabled = true;
+                loanGuaranteeCurrentDownloadUrl = '';
+                if (loanGuaranteePreviewDownloadLink) {
+                    loanGuaranteePreviewDownloadLink.hidden = true;
+                    loanGuaranteePreviewDownloadLink.setAttribute('href', '#');
+                }
+                if (!loanGuaranteePreview) return;
+                var isImage = /^image\//.test(String(file.type || ''));
+                if (!isImage) {
+                    loanGuaranteePreview.innerHTML = '<i class="fa-regular fa-file-pdf" style="font-size:1.35rem;opacity:.78"></i>';
+                    return;
+                }
+                var reader = new FileReader();
+                reader.onload = function () {
+                    loanGuaranteePreview.innerHTML = '<img src="' + String(reader.result || '') + '" alt="preview">';
+                };
+                reader.readAsDataURL(file);
+            }
+
+            function setGuaranteeExistingAttachment(previewUrl, downloadUrl, name) {
+                var currentPreviewUrl = String(previewUrl || '');
+                loanGuaranteeCurrentDownloadUrl = String(downloadUrl || currentPreviewUrl || '');
+                if (loanGuaranteeFileName) loanGuaranteeFileName.textContent = name || 'فایل پیوست';
+                if (loanGuaranteeFileDownloadBtn) loanGuaranteeFileDownloadBtn.disabled = !loanGuaranteeCurrentDownloadUrl;
+                if (loanGuaranteePreviewDownloadLink) {
+                    loanGuaranteePreviewDownloadLink.hidden = !loanGuaranteeCurrentDownloadUrl;
+                    loanGuaranteePreviewDownloadLink.setAttribute('href', loanGuaranteeCurrentDownloadUrl || '#');
+                }
+                if (!loanGuaranteePreview) return;
+                if (!currentPreviewUrl) {
+                    loanGuaranteePreview.innerHTML = 'بدون فایل';
+                    return;
+                }
+                var fileName = String(name || '').trim();
+                var isImage = /\.(png|jpe?g|webp)$/i.test(fileName);
+                loanGuaranteePreview.innerHTML = isImage
+                    ? ('<img src="' + escapeHtmlAttr(currentPreviewUrl) + '" alt="preview">')
+                    : '<i class="fa-regular fa-file-pdf" style="font-size:1.35rem;opacity:.78"></i>';
+            }
+
+            function openGuaranteeFormForCreate() {
+                if (!loanGuaranteeFormWrap || !loanGuaranteeForm) return;
+                loanGuaranteeFormMode = 'create';
+                loanGuaranteeEditingId = null;
+                loanGuaranteeForm.reset();
+                setGuaranteeType('org_self');
+                resetGuaranteeFilePreview();
+                loanGuaranteeRemoveExistingAttachment = false;
+                var submitBtn = document.getElementById('loan-guarantee-submit');
+                if (submitBtn) submitBtn.textContent = 'ذخیره ضمانت';
+                loanGuaranteeFormWrap.hidden = false;
+            }
+
+            function openGuaranteeFormForEdit(guaranteeData) {
+                if (!loanGuaranteeFormWrap || !loanGuaranteeForm || !guaranteeData) return;
+                loanGuaranteeFormMode = 'edit';
+                loanGuaranteeEditingId = Number(guaranteeData.id || 0);
+                loanGuaranteeForm.reset();
+                setGuaranteeType(String(guaranteeData.type || 'other'));
+                resetGuaranteeFilePreview();
+                loanGuaranteeRemoveExistingAttachment = false;
+
+                var meta = guaranteeData.meta && typeof guaranteeData.meta === 'object' ? guaranteeData.meta : {};
+                if (loanGuaranteeTypeInput) loanGuaranteeTypeInput.value = String(guaranteeData.type || 'other');
+                if (loanGuaranteeForm.elements['description']) loanGuaranteeForm.elements['description'].value = guaranteeData.description || '';
+                if (loanGuaranteeForm.elements['org_name']) loanGuaranteeForm.elements['org_name'].value = meta.org_name || '';
+                if (loanGuaranteeForm.elements['employee_no']) loanGuaranteeForm.elements['employee_no'].value = meta.employee_no || '';
+                if (loanGuaranteeForm.elements['guarantor_name']) loanGuaranteeForm.elements['guarantor_name'].value = meta.guarantor_name || '';
+                if (loanGuaranteeForm.elements['guarantor_national_id']) loanGuaranteeForm.elements['guarantor_national_id'].value = meta.guarantor_national_id || '';
+                if (loanGuaranteeForm.elements['guarantor_phone']) loanGuaranteeForm.elements['guarantor_phone'].value = meta.guarantor_phone || '';
+                if (loanGuaranteeForm.elements['cheque_bank']) loanGuaranteeForm.elements['cheque_bank'].value = meta.cheque_bank || '';
+                if (loanGuaranteeForm.elements['cheque_serial']) loanGuaranteeForm.elements['cheque_serial'].value = meta.cheque_serial || '';
+                if (loanGuaranteeForm.elements['cheque_sayadi']) loanGuaranteeForm.elements['cheque_sayadi'].value = meta.cheque_sayadi || '';
+                if (loanGuaranteeForm.elements['cheque_due_jdate']) loanGuaranteeForm.elements['cheque_due_jdate'].value = meta.cheque_due_jdate || '';
+                if (loanGuaranteeForm.elements['gold_item_type']) loanGuaranteeForm.elements['gold_item_type'].value = meta.gold_item_type || '';
+                if (loanGuaranteeForm.elements['gold_weight_gram']) loanGuaranteeForm.elements['gold_weight_gram'].value = meta.gold_weight_gram || '';
+                if (loanGuaranteeForm.elements['gold_karat']) loanGuaranteeForm.elements['gold_karat'].value = meta.gold_karat || '';
+
+                var amountInputs = loanGuaranteeForm.querySelectorAll('[data-guarantee-amount]');
+                amountInputs.forEach(function (input) { input.value = ''; });
+                if (meta.amount_toman) {
+                    amountInputs.forEach(function (input) {
+                        input.value = formatThousandsInputValue(String(meta.amount_toman));
+                    });
+                }
+                setGuaranteeExistingAttachment(
+                    guaranteeData.attachment_preview_url || guaranteeData.attachment_url || '',
+                    guaranteeData.attachment_download_url || guaranteeData.attachment_url || '',
+                    guaranteeData.attachment_name || ''
+                );
+                var submitBtn = document.getElementById('loan-guarantee-submit');
+                if (submitBtn) submitBtn.textContent = 'ذخیره تغییرات ضمانت';
+                loanGuaranteeFormWrap.hidden = false;
+            }
+
+            function openLoanGuaranteeModal(loanFileId) {
+                if (!loanManageCurrentCustomerId || !loanGuaranteeOverlay) return;
+                loanGuaranteeCurrentLoanId = Number(loanFileId || 0);
+                loanGuaranteeFormMode = 'create';
+                loanGuaranteeEditingId = null;
+                loanGuaranteeFormWrap.hidden = true;
+                if (loanGuaranteeSubtitle) {
+                    loanGuaranteeSubtitle.textContent = 'پرونده: #' + String(loanFileId || '—') + ' | مشتری: ' + (loanManageCurrentCustomerName || '');
+                }
+                if (loanGuaranteeList) {
+                    loanGuaranteeList.innerHTML = '<div class="loan-guarantee-empty">در حال بارگذاری...</div>';
+                }
+                loanGuaranteeOverlay.hidden = false;
+                loanGuaranteeOverlay.setAttribute('aria-hidden', 'false');
+
+                fetch(customerLoanGuaranteesUrl(loanManageCurrentCustomerId, loanGuaranteeCurrentLoanId), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                }).then(function (r) {
+                    if (!r.ok) throw new Error('bad');
+                    return r.json();
+                }).then(function (data) {
+                    var rows = Array.isArray(data.guarantees) ? data.guarantees : [];
+                    if (!loanGuaranteeList) return;
+                    if (!rows.length) {
+                        loanGuaranteeList.innerHTML = '<div class="loan-guarantee-empty">هنوز ضمانتی ثبت نشده است.</div>';
+                        return;
+                    }
+                    loanGuaranteeList.innerHTML = rows.map(function (row) {
+                        var desc = String(row.description || '').trim();
+                        var metaText = [];
+                        if (row.meta && typeof row.meta === 'object') {
+                            if (row.meta.org_name) metaText.push('سازمان: ' + row.meta.org_name);
+                            if (row.meta.guarantor_name) metaText.push('ضامن: ' + row.meta.guarantor_name);
+                            if (row.meta.cheque_serial) metaText.push('شماره چک: ' + row.meta.cheque_serial);
+                            if (row.meta.gold_item_type) metaText.push('نوع طلا: ' + row.meta.gold_item_type);
+                            if (row.meta.amount_toman) metaText.push('مبلغ: ' + formatToman(row.meta.amount_toman) + ' تومان');
+                        }
+                        var attachmentName = String(row.attachment_name || '');
+                        var attachmentPreviewUrl = String(row.attachment_preview_url || row.attachment_url || '');
+                        var attachmentDownloadUrl = String(row.attachment_download_url || row.attachment_url || '');
+                        var hasAttachment = !!attachmentDownloadUrl;
+                        var isImageAttachment = /\.(png|jpe?g|webp)$/i.test(attachmentName);
+                        return '<div class="loan-guarantee-card">' +
+                            '<div>' +
+                                '<h4 class="loan-guarantee-title">' + escapeHtmlText(row.type_label || row.type || 'ضمانت') + '</h4>' +
+                                '<div class="loan-guarantee-meta">' +
+                                    (desc ? ('توضیح: ' + escapeHtmlText(desc) + '<br>') : '') +
+                                    (metaText.length ? escapeHtmlText(metaText.join(' | ')) + '<br>' : '') +
+                                    (row.created_at ? ('ثبت: ' + escapeHtmlText(row.created_at)) : '') +
+                                '</div>' +
+                            '</div>' +
+                            '<div class="loan-guarantee-actions">' +
+                                (hasAttachment && isImageAttachment ? '<a class="loan-guarantee-thumb-link" href="' + escapeHtmlAttr(attachmentPreviewUrl) + '" target="_blank" rel="noopener" title="پیش‌نمایش تصویر"><img class="loan-guarantee-thumb" src="' + escapeHtmlAttr(attachmentPreviewUrl) + '" alt="preview"></a>' : '') +
+                                (hasAttachment ? '<a class="loan-file-btn" href="' + escapeHtmlAttr(attachmentDownloadUrl) + '" target="_blank" rel="noopener">دانلود</a>' : '') +
+                                '<button type="button" class="loan-file-btn" data-guarantee-edit="' + escapeHtmlAttr(JSON.stringify(row)) + '">ویرایش</button>' +
+                                '<button type="button" class="loan-file-btn loan-file-btn--danger" data-guarantee-delete-id="' + String(row.id || '') + '">حذف</button>' +
+                            '</div>' +
+                        '</div>';
+                    }).join('');
+                }).catch(function () {
+                    if (loanGuaranteeList) {
+                        loanGuaranteeList.innerHTML = '<div class="loan-guarantee-empty">خطا در دریافت تضامین.</div>';
+                    }
+                });
+            }
+
+            function closeLoanGuaranteeModal() {
+                if (!loanGuaranteeOverlay) return;
+                loanGuaranteeOverlay.hidden = true;
+                loanGuaranteeOverlay.setAttribute('aria-hidden', 'true');
+                loanGuaranteeCurrentLoanId = null;
+                loanGuaranteeFormMode = 'create';
+                loanGuaranteeEditingId = null;
             }
 
             function closeLoanCreateModal() {
@@ -2156,6 +2754,325 @@
                     openLoanEditModal(loanId);
                 }
             });
+            document.addEventListener('click', function (e) {
+                var deleteLoanBtn = e.target.closest('[data-loan-delete-id]');
+                if (!deleteLoanBtn) return;
+                e.preventDefault();
+                if (!loanManageCurrentCustomerId) return;
+                var loanId = parseInt(String(deleteLoanBtn.getAttribute('data-loan-delete-id') || '0'), 10);
+                if (loanId <= 0) return;
+                var loanCode = String(deleteLoanBtn.getAttribute('data-loan-delete-code') || '');
+
+                var proceed = function () {
+                    fetch(customerLoanDeleteUrl(loanManageCurrentCustomerId, loanId), {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': @json(csrf_token())
+                        },
+                        credentials: 'same-origin'
+                    }).then(function (r) {
+                        return r.json().then(function (json) {
+                            return { ok: r.ok, json: json };
+                        });
+                    }).then(function (res) {
+                        if (!res.ok) {
+                            throw new Error((res.json && res.json.message) ? res.json.message : 'حذف پرونده ناموفق بود.');
+                        }
+                        var key = String(loanManageCurrentCustomerId);
+                        if (!loanManageMap[key]) return;
+                        var currentRows = Array.isArray(loanManageMap[key].loan_files) ? loanManageMap[key].loan_files : [];
+                        loanManageMap[key].loan_files = currentRows.filter(function (x) {
+                            return Number(x.id || 0) !== Number(loanId);
+                        });
+                        renderLoanFilesForCustomer(loanManageCurrentCustomerId);
+                        if (window.AdminSwal && window.AdminSwal.success) {
+                            AdminSwal.success((res.json && res.json.message) ? res.json.message : 'پرونده حذف شد.');
+                        }
+                    }).catch(function (err) {
+                        if (window.AdminSwal && window.AdminSwal.error) {
+                            AdminSwal.error(err.message || 'حذف پرونده ناموفق بود.');
+                        }
+                    });
+                };
+
+                if (window.AdminSwal && window.AdminSwal.confirm) {
+                    AdminSwal.confirm({
+                        title: 'حذف پرونده وام',
+                        text: 'پرونده ' + (loanCode || ('#' + loanId)) + ' حذف شود؟ این عمل قابل بازگشت نیست.',
+                        confirmButtonText: 'بله، حذف شود',
+                        cancelButtonText: 'انصراف',
+                    }).then(function (result) {
+                        if (result && result.isConfirmed) {
+                            proceed();
+                        }
+                    });
+                    return;
+                }
+                if (window.confirm('پرونده وام حذف شود؟')) {
+                    proceed();
+                }
+            });
+            document.addEventListener('click', function (e) {
+                var smsLoanBtn = e.target.closest('[data-loan-sms-id]');
+                if (!smsLoanBtn) return;
+                e.preventDefault();
+                var loanId = parseInt(String(smsLoanBtn.getAttribute('data-loan-sms-id') || '0'), 10);
+                if (loanId <= 0) return;
+                openLoanSmsModal(loanId, smsLoanBtn.getAttribute('data-loan-default-sms') || '');
+            });
+            if (loanSmsClose) loanSmsClose.addEventListener('click', closeLoanSmsModal);
+            if (loanSmsCancel) loanSmsCancel.addEventListener('click', closeLoanSmsModal);
+            if (loanSmsOverlay) {
+                loanSmsOverlay.addEventListener('click', function (e) {
+                    if (e.target === loanSmsOverlay) closeLoanSmsModal();
+                });
+            }
+            if (loanSmsTemplate && loanSmsText) {
+                loanSmsTemplate.addEventListener('change', function () {
+                    var tplId = parseInt(String(loanSmsTemplate.value || '0'), 10);
+                    if (!tplId || !loanSmsCurrentLoanData) return;
+                    var tpl = quickSmsTemplatesData.find(function (x) { return parseInt(String(x.id), 10) === tplId; });
+                    if (!tpl) return;
+                    loanSmsText.value = renderWalletTemplateText(tpl.body || '', {
+                        store_name: appDisplayName || (document.title || 'سامانه'),
+                        customer_name: loanManageCurrentCustomerName || '',
+                        loan_code: String(loanSmsCurrentLoanData.loan_code || ''),
+                        loan_amount: formatToman(loanSmsCurrentLoanData.amount_toman || 0) + ' تومان',
+                        installment_amount: formatToman(loanSmsCurrentLoanData.installment_amount_toman || 0) + ' تومان'
+                    });
+                });
+            }
+            if (loanSmsForm) {
+                loanSmsForm.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    if (!loanManageCurrentCustomerId || !loanSmsCurrentLoanId || loanSmsSubmitting) return;
+                    var submitBtn = loanSmsForm.querySelector('button[type="submit"]');
+                    var payload = {
+                        sms_text: String((loanSmsText && loanSmsText.value) || '').trim(),
+                        sms_template_id: String((loanSmsTemplate && loanSmsTemplate.value) || '')
+                    };
+                    loanSmsSubmitting = true;
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.textContent = 'در حال ارسال...';
+                    }
+                    fetch(customerLoanSendSmsUrl(loanManageCurrentCustomerId, loanSmsCurrentLoanId), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': @json(csrf_token())
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify(payload)
+                    }).then(function (r) {
+                        return r.json().then(function (json) { return { ok: r.ok, json: json }; });
+                    }).then(function (res) {
+                        if (!res.ok) {
+                            throw new Error((res.json && res.json.message) ? res.json.message : 'ارسال پیامک ناموفق بود.');
+                        }
+                        closeLoanSmsModal();
+                        if (window.AdminSwal && window.AdminSwal.success) {
+                            AdminSwal.success((res.json && res.json.message) ? res.json.message : 'پیامک ارسال شد.');
+                        }
+                    }).catch(function (err) {
+                        if (window.AdminSwal && window.AdminSwal.error) {
+                            AdminSwal.error(err.message || 'ارسال پیامک ناموفق بود.');
+                        }
+                    }).finally(function () {
+                        loanSmsSubmitting = false;
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = 'ارسال پیامک ثبت پرونده جدید';
+                        }
+                    });
+                });
+            }
+            document.addEventListener('click', function (e) {
+                var guaranteeBtn = e.target.closest('[data-loan-guarantees-id]');
+                if (!guaranteeBtn) return;
+                e.preventDefault();
+                var loanId = parseInt(String(guaranteeBtn.getAttribute('data-loan-guarantees-id') || '0'), 10);
+                if (loanId > 0) {
+                    openLoanGuaranteeModal(loanId);
+                }
+            });
+            if (loanGuaranteeClose) loanGuaranteeClose.addEventListener('click', closeLoanGuaranteeModal);
+            if (loanGuaranteeOverlay) {
+                loanGuaranteeOverlay.addEventListener('click', function (e) {
+                    if (e.target === loanGuaranteeOverlay) closeLoanGuaranteeModal();
+                });
+            }
+            if (loanGuaranteeOpenFormBtn && loanGuaranteeFormWrap) {
+                loanGuaranteeOpenFormBtn.addEventListener('click', function () {
+                    if (loanGuaranteeFormWrap.hidden) {
+                        openGuaranteeFormForCreate();
+                    } else {
+                        loanGuaranteeFormWrap.hidden = true;
+                    }
+                });
+            }
+            loanGuaranteeTypeTabs.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    setGuaranteeType(btn.getAttribute('data-guarantee-type') || 'org_self');
+                });
+            });
+            setGuaranteeType((loanGuaranteeTypeInput && loanGuaranteeTypeInput.value) || 'org_self');
+            if (loanGuaranteeCancel && loanGuaranteeFormWrap) {
+                loanGuaranteeCancel.addEventListener('click', function () {
+                    loanGuaranteeFormWrap.hidden = true;
+                });
+            }
+            if (loanGuaranteeFileUploadBtn && loanGuaranteeAttachmentInput) {
+                loanGuaranteeFileUploadBtn.addEventListener('click', function () {
+                    loanGuaranteeAttachmentInput.click();
+                });
+            }
+            if (loanGuaranteeAttachmentInput) {
+                loanGuaranteeAttachmentInput.addEventListener('change', function () {
+                    var file = loanGuaranteeAttachmentInput.files && loanGuaranteeAttachmentInput.files[0]
+                        ? loanGuaranteeAttachmentInput.files[0]
+                        : null;
+                    setGuaranteeFilePreviewFromFile(file);
+                });
+            }
+            if (loanGuaranteeFileRemoveBtn && loanGuaranteeAttachmentInput) {
+                loanGuaranteeFileRemoveBtn.addEventListener('click', function () {
+                    loanGuaranteeAttachmentInput.value = '';
+                    resetGuaranteeFilePreview();
+                    if (loanGuaranteeFormMode === 'edit') {
+                        loanGuaranteeRemoveExistingAttachment = true;
+                    }
+                });
+            }
+            if (loanGuaranteeFileDownloadBtn) {
+                loanGuaranteeFileDownloadBtn.addEventListener('click', function () {
+                    if (!loanGuaranteeCurrentDownloadUrl) return;
+                    window.open(loanGuaranteeCurrentDownloadUrl, '_blank');
+                });
+            }
+            document.addEventListener('click', function (e) {
+                var editBtn = e.target.closest('[data-guarantee-edit]');
+                if (editBtn) {
+                    e.preventDefault();
+                    try {
+                        var payload = JSON.parse(String(editBtn.getAttribute('data-guarantee-edit') || '{}'));
+                        openGuaranteeFormForEdit(payload);
+                    } catch (err) {
+                        if (window.AdminSwal && window.AdminSwal.error) {
+                            AdminSwal.error('داده ضمانت برای ویرایش نامعتبر است.');
+                        }
+                    }
+                    return;
+                }
+                var delBtn = e.target.closest('[data-guarantee-delete-id]');
+                if (!delBtn || !loanGuaranteeCurrentLoanId || !loanManageCurrentCustomerId) return;
+                e.preventDefault();
+                var guaranteeId = parseInt(String(delBtn.getAttribute('data-guarantee-delete-id') || '0'), 10);
+                if (guaranteeId <= 0) return;
+                var proceedDelete = function () {
+                    fetch(customerLoanGuaranteeDeleteUrl(loanManageCurrentCustomerId, loanGuaranteeCurrentLoanId, guaranteeId), {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': @json(csrf_token())
+                        },
+                        credentials: 'same-origin'
+                    }).then(function (r) {
+                        return r.json().then(function (json) { return { ok: r.ok, json: json }; });
+                    }).then(function (res) {
+                        if (!res.ok) throw new Error((res.json && res.json.message) ? res.json.message : 'حذف ضمانت ناموفق بود.');
+                        openLoanGuaranteeModal(loanGuaranteeCurrentLoanId);
+                        if (window.AdminSwal && window.AdminSwal.success) AdminSwal.success(res.json.message || 'ضمانت حذف شد.');
+                    }).catch(function (err) {
+                        if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error(err.message || 'حذف ضمانت ناموفق بود.');
+                    });
+                };
+                if (window.AdminSwal && window.AdminSwal.confirm) {
+                    AdminSwal.confirm({
+                        title: 'حذف ضمانت',
+                        text: 'این ضمانت حذف شود؟',
+                        confirmButtonText: 'بله، حذف شود',
+                        cancelButtonText: 'انصراف'
+                    }).then(function (result) {
+                        if (result && result.isConfirmed) proceedDelete();
+                    });
+                } else if (window.confirm('ضمانت حذف شود؟')) {
+                    proceedDelete();
+                }
+            });
+            if (loanGuaranteeForm) {
+                loanGuaranteeForm.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    if (!loanManageCurrentCustomerId || !loanGuaranteeCurrentLoanId || loanGuaranteeSubmitting) return;
+                    var type = String((loanGuaranteeTypeInput && loanGuaranteeTypeInput.value) || 'org_self');
+                    var fd = new FormData(loanGuaranteeForm);
+                    fd.set('type', type);
+                    if (loanGuaranteeFormMode === 'edit') {
+                        fd.append('_method', 'PUT');
+                    }
+                    fd.set('remove_attachment', loanGuaranteeRemoveExistingAttachment ? '1' : '0');
+                    // پاک‌سازی فیلد مبلغ تکراری
+                    var amountInputs = loanGuaranteeForm.querySelectorAll('[data-guarantee-amount]');
+                    var amountPicked = '';
+                    amountInputs.forEach(function (inp) {
+                        var v = parseThousandsInput(String(inp.value || ''));
+                        if (v > 0) amountPicked = String(v);
+                    });
+                    fd.delete('amount_toman');
+                    if (amountPicked !== '') fd.append('amount_toman', amountPicked);
+
+                    if (type === 'other') {
+                        var desc = String((document.getElementById('loan-guarantee-other-desc').value) || '').trim();
+                        if (!desc) {
+                            if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('برای نوع سایر، توضیحات الزامی است.');
+                            return;
+                        }
+                    }
+                    loanGuaranteeSubmitting = true;
+                    var submitBtn = document.getElementById('loan-guarantee-submit');
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.textContent = 'در حال ذخیره...';
+                    }
+                    var guaranteeEndpoint = loanGuaranteeFormMode === 'edit' && loanGuaranteeEditingId
+                        ? customerLoanGuaranteeUpdateUrl(loanManageCurrentCustomerId, loanGuaranteeCurrentLoanId, loanGuaranteeEditingId)
+                        : customerLoanGuaranteesUrl(loanManageCurrentCustomerId, loanGuaranteeCurrentLoanId);
+                    fetch(guaranteeEndpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': @json(csrf_token())
+                        },
+                        credentials: 'same-origin',
+                        body: fd
+                    }).then(function (r) {
+                        return r.json().then(function (json) { return { ok: r.ok, json: json }; });
+                    }).then(function (res) {
+                        if (!res.ok) throw new Error((res.json && res.json.message) ? res.json.message : 'ذخیره ضمانت ناموفق بود.');
+                        loanGuaranteeForm.reset();
+                        loanGuaranteeFormMode = 'create';
+                        loanGuaranteeEditingId = null;
+                        setGuaranteeType('org_self');
+                        resetGuaranteeFilePreview();
+                        openLoanGuaranteeModal(loanGuaranteeCurrentLoanId);
+                        if (window.AdminSwal && window.AdminSwal.success) AdminSwal.success(res.json.message || 'ضمانت ثبت شد.');
+                    }).catch(function (err) {
+                        if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error(err.message || 'ذخیره ضمانت ناموفق بود.');
+                    }).finally(function () {
+                        loanGuaranteeSubmitting = false;
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = loanGuaranteeFormMode === 'edit' ? 'ذخیره تغییرات ضمانت' : 'ذخیره ضمانت';
+                        }
+                    });
+                });
+            }
             if (loanIsSettledCheckbox && loanSettledWrap) {
                 loanIsSettledCheckbox.addEventListener('change', function () {
                     loanSettledWrap.hidden = !loanIsSettledCheckbox.checked;
@@ -2177,6 +3094,14 @@
                 if (!el) return;
                 el.addEventListener('input', function () {
                     clearLoanFieldError(el);
+                    el.value = formatThousandsInputValue(el.value);
+                });
+                el.addEventListener('blur', function () {
+                    el.value = formatThousandsInputValue(el.value);
+                });
+            });
+            document.querySelectorAll('[data-guarantee-amount]').forEach(function (el) {
+                el.addEventListener('input', function () {
                     el.value = formatThousandsInputValue(el.value);
                 });
                 el.addEventListener('blur', function () {
@@ -2798,7 +3723,7 @@
                 if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.pDatepicker) {
                     return;
                 }
-                window.jQuery('#loan-start-jdate, #loan-disbursement-due-jdate, #loan-settled-jdate').each(function () {
+                window.jQuery('#loan-start-jdate, #loan-disbursement-due-jdate, #loan-settled-jdate, #loan-guarantee-cheque-due').each(function () {
                     var $el = window.jQuery(this);
                     try {
                         if ($el.data('datepicker')) {

@@ -97,6 +97,34 @@ Route::middleware(['auth:admin'])->group(function (): void {
         ->middleware('throttle:20,1')
         ->name('customers.loan-files.update');
 
+    Route::delete('/customers/{customer}/loan-files/{loanFile}', [CustomerController::class, 'destroyLoan'])
+        ->middleware('throttle:20,1')
+        ->name('customers.loan-files.destroy');
+
+    Route::post('/customers/{customer}/loan-files/{loanFile}/send-sms', [CustomerController::class, 'sendLoanFileSms'])
+        ->middleware('throttle:20,1')
+        ->name('customers.loan-files.send-sms');
+
+    Route::get('/customers/{customer}/loan-files/{loanFile}/guarantees', [CustomerController::class, 'loanGuarantees'])
+        ->middleware('throttle:60,1')
+        ->name('customers.loan-files.guarantees.index');
+
+    Route::post('/customers/{customer}/loan-files/{loanFile}/guarantees', [CustomerController::class, 'storeLoanGuarantee'])
+        ->middleware('throttle:20,1')
+        ->name('customers.loan-files.guarantees.store');
+
+    Route::put('/customers/{customer}/loan-files/{loanFile}/guarantees/{guarantee}', [CustomerController::class, 'updateLoanGuarantee'])
+        ->middleware('throttle:20,1')
+        ->name('customers.loan-files.guarantees.update');
+
+    Route::delete('/customers/{customer}/loan-files/{loanFile}/guarantees/{guarantee}', [CustomerController::class, 'destroyLoanGuarantee'])
+        ->middleware('throttle:20,1')
+        ->name('customers.loan-files.guarantees.destroy');
+
+    Route::get('/customers/{customer}/loan-files/{loanFile}/guarantees/{guarantee}/attachment', [CustomerController::class, 'loanGuaranteeAttachment'])
+        ->middleware('throttle:60,1')
+        ->name('customers.loan-files.guarantees.attachment');
+
     Route::get('/customers/{customer}/wallet', [CustomerWalletController::class, 'show'])
         ->middleware('throttle:60,1')
         ->name('customers.wallet.show');
