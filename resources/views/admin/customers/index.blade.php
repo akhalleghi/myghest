@@ -4,6 +4,7 @@
 
 @push('head')
     <link rel="stylesheet" href="{{ asset('vendor/persian-datepicker/persian-datepicker.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('vendor/select2/css/select2.min.css') }}">
     <style>
         .cust-page { max-width: 100%; }
         .cust-head { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
@@ -345,12 +346,76 @@
             background: rgba(248, 250, 252, 0.4);
             display: flex;
             justify-content: space-between;
-            gap: 0.55rem;
             align-items: flex-start;
+            gap: 0.75rem;
+            /* جلوگیری از جمع‌شدن ستون کناری زیرِ متن طولانی */
+            min-width: 0;
         }
         html[data-theme="dark"] .loan-guarantee-card { background: rgba(30, 41, 59, 0.34); }
+        .loan-guarantee-card__main {
+            flex: 1 1 0%;
+            min-width: 0;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        .loan-guarantee-card__aside {
+            flex: 0 0 auto;
+            flex-shrink: 0;
+            width: 264px;
+            max-width: 264px;
+            min-width: 258px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .loan-guarantee-card__aside .loan-guarantee-thumb-link {
+            width: 100%;
+            max-width: 252px;
+            display: block;
+        }
+        .loan-guarantee-card__aside .loan-guarantee-thumb {
+            width: 100%;
+            max-width: 252px;
+            height: 112px;
+            object-fit: cover;
+        }
+        .loan-guarantee-card__aside .loan-guarantee-actions {
+            width: 100%;
+            max-width: 252px;
+            justify-content: center;
+            flex-wrap: nowrap;
+            gap: 0.32rem;
+        }
+        .loan-guarantee-card__aside .loan-guarantee-actions .loan-file-btn {
+            flex: 1 1 auto;
+            min-width: 0;
+            padding: 0.4rem 0.45rem;
+            font-size: 0.72rem;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+        @media (max-width: 520px) {
+            .loan-guarantee-card {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .loan-guarantee-card__aside {
+                flex-direction: row;
+                flex-wrap: wrap;
+                width: 100%;
+                max-width: none;
+                justify-content: center;
+                align-items: flex-start;
+            }
+            .loan-guarantee-card__aside .loan-guarantee-actions {
+                flex: 1 1 auto;
+                min-width: 0;
+                justify-content: center;
+            }
+        }
         .loan-guarantee-title { margin: 0 0 0.18rem; font-size: 0.8rem; font-weight: 900; color: var(--text); }
-        .loan-guarantee-meta { font-size: 0.72rem; color: var(--muted); line-height: 1.7; }
+        .loan-guarantee-meta { font-size: 0.72rem; color: var(--muted); line-height: 1.7; word-break: break-word; overflow-wrap: anywhere; }
         .loan-guarantee-actions { display: inline-flex; gap: 0.35rem; flex-wrap: wrap; }
         .loan-guarantee-thumb-link { display: inline-flex; align-items: center; }
         .loan-guarantee-thumb {
@@ -383,6 +448,61 @@
         .loan-guarantee-type-btn:last-child { border-inline-end: 0; }
         .loan-guarantee-type-btn.is-active { background: var(--primary-soft); color: var(--primary-dark); }
         .loan-guarantee-section[hidden] { display: none !important; }
+        .loan-guarantee-check-row {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text);
+            cursor: pointer;
+            margin: 0;
+            user-select: none;
+        }
+        .loan-guarantee-check-row input[type="checkbox"] { width: 1.05rem; height: 1.05rem; accent-color: var(--primary); cursor: pointer; }
+        .loan-guarantee-org-shared-block { margin-bottom: 0.35rem; }
+        .loan-guarantee-org-toolbar { margin-bottom: 0.15rem; }
+        .loan-guarantee-org-toolbar__row {
+            display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.5rem;
+            margin-top: 0.25rem;
+        }
+        .loan-guarantee-org-toolbar__row .loan-guarantee-org-select-wrap {
+            flex: 1 1 14rem;
+            min-width: 0;
+        }
+        .loan-guarantee-org-manage-btn {
+            flex: 0 0 auto;
+            white-space: nowrap;
+            border: none; border-radius: 0.62rem; padding: 0.48rem 0.75rem;
+            background: var(--primary-soft); color: var(--primary-dark);
+            font-size: 0.76rem; font-weight: 800; cursor: pointer; font-family: inherit;
+        }
+        .loan-guarantee-org-manage-btn:hover { filter: brightness(0.98); }
+        .loan-guarantee-guarantor-mobile-row {
+            display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center;
+            margin-top: 0.2rem;
+        }
+        .loan-guarantee-guarantor-mobile-row input { flex: 1 1 10rem; min-width: 0; }
+        .loan-guarantee-guarantor-otp-btn {
+            border: none; border-radius: 0.62rem; padding: 0.48rem 0.65rem;
+            background: linear-gradient(180deg, var(--primary), var(--primary-dark)); color: #fff;
+            font-size: 0.74rem; font-weight: 800; cursor: pointer; font-family: inherit;
+        }
+        .loan-guarantee-guarantor-otp-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .loan-guarantee-guarantor-otp-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.25rem; }
+        .loan-guarantee-guarantor-verify-msg { font-size: 0.72rem; font-weight: 700; margin-top: 0.35rem; min-height: 1.1rem; }
+        .loan-guarantee-guarantor-verify-msg.is-ok { color: #15803d; }
+        .loan-guarantee-guarantor-verify-msg.is-err { color: #b91c1c; }
+        .loan-org-manage-list { display: grid; gap: 0.45rem; margin-top: 0.6rem; max-height: min(52vh, 420px); overflow: auto; }
+        .loan-org-manage-item {
+            display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.45rem;
+            border: 1px solid var(--border); border-radius: 0.65rem; padding: 0.45rem 0.55rem; background: var(--bg-card);
+        }
+        .loan-org-manage-item span { font-size: 0.8rem; font-weight: 700; word-break: break-word; }
+        .loan-org-manage-item-actions { display: inline-flex; gap: 0.35rem; flex-shrink: 0; }
+        .loan-org-inline-form { margin-top: 0.55rem; padding: 0.55rem; border: 1px dashed var(--border); border-radius: 0.65rem; background: rgba(248, 250, 252, 0.5); }
+        html[data-theme="dark"] .loan-org-inline-form { background: rgba(30, 41, 59, 0.35); }
+        .select2-container { z-index: 1600; }
         .gold-item-options {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
@@ -1334,31 +1454,79 @@
                         </div>
                         <input type="hidden" id="loan-guarantee-type" name="type" value="org_self">
 
+                        <div id="loan-guarantee-org-shared" class="loan-guarantee-org-shared-block" hidden>
+                            <div class="cust-form-grid">
+                                <div class="cust-field loan-guarantee-org-toolbar" style="grid-column: 1 / -1;">
+                                    <label for="loan-guarantee-organization-id">سازمان <span class="req">*</span></label>
+                                    <div class="loan-guarantee-org-toolbar__row">
+                                        <div class="loan-guarantee-org-select-wrap">
+                                            <select id="loan-guarantee-organization-id" name="organization_id" class="loan-guarantee-org-select" data-placeholder="انتخاب سازمان...">
+                                                <option value="">انتخاب کنید...</option>
+                                            </select>
+                                        </div>
+                                        <button type="button" class="loan-guarantee-org-manage-btn" id="loan-guarantee-org-manage-open" title="مدیریت فهرست سازمان‌ها">مدیریت سازمان‌ها</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="loan-guarantee-section" data-guarantee-section="org_self">
                             <div class="cust-form-grid">
-                                <div class="cust-field"><label>نام سازمان <span class="req">*</span></label><input name="org_name"></div>
-                                <div class="cust-field"><label>شماره پرسنلی</label><input name="employee_no"></div>
-                                <div class="cust-field"><label>مبلغ ضمانت (تومان)</label><input name="amount_toman" inputmode="numeric" data-guarantee-amount></div>
+                                <div class="cust-field"><label for="loan-guarantee-self-employee-no">شماره پرسنلی</label><input name="employee_no" id="loan-guarantee-self-employee-no" maxlength="120" autocomplete="off"></div>
+                                <div class="cust-field" style="grid-column: 1 / -1;">
+                                    <label for="loan-guarantee-org-self-desc">در صورت لزوم توضیحات ضمانت را وارد کنید:</label>
+                                    <textarea name="description" id="loan-guarantee-org-self-desc" maxlength="2000" rows="3"></textarea>
+                                </div>
                             </div>
                         </div>
                         <div class="loan-guarantee-section" data-guarantee-section="org_other" hidden>
                             <div class="cust-form-grid">
-                                <div class="cust-field"><label>نام ضامن <span class="req">*</span></label><input name="guarantor_name"></div>
-                                <div class="cust-field"><label>کد ملی ضامن</label><input name="guarantor_national_id"></div>
-                                <div class="cust-field"><label>موبایل ضامن</label><input name="guarantor_phone"></div>
-                                <div class="cust-field"><label>نام سازمان</label><input name="org_name"></div>
-                                <div class="cust-field"><label>مبلغ ضمانت (تومان)</label><input name="amount_toman" inputmode="numeric" data-guarantee-amount></div>
+                                <div class="cust-field"><label>نام و نام خانوادگی ضامن <span class="req">*</span></label><input name="guarantor_name" id="loan-guarantee-guarantor-name" autocomplete="name"></div>
+                                <div class="cust-field"><label>کد ملی ضامن</label><input name="guarantor_national_id" id="loan-guarantee-guarantor-national-id" inputmode="numeric" maxlength="10" placeholder="اختیاری"></div>
+                                <div class="cust-field"><label>شماره پرسنلی</label><input name="guarantor_employee_no" id="loan-guarantee-guarantor-employee-no" maxlength="120"></div>
+                                <div class="cust-field" style="grid-column: 1 / -1;">
+                                    <label for="loan-guarantee-guarantor-phone">شماره موبایل ضامن</label>
+                                    <div class="loan-guarantee-guarantor-mobile-row">
+                                        <input name="guarantor_phone" id="loan-guarantee-guarantor-phone" inputmode="numeric" placeholder="مثلاً 09121234567" autocomplete="tel">
+                                        <button type="button" class="loan-guarantee-guarantor-otp-btn" id="loan-guarantee-guarantor-send-otp">احراز هویت موبایل</button>
+                                    </div>
+                                    <div id="loan-guarantee-guarantor-otp-panel" class="cust-field" style="margin-top:0.5rem;padding:0;border:0;" hidden>
+                                        <label for="loan-guarantee-guarantor-otp-code">کد پیامک‌شده</label>
+                                        <div class="loan-guarantee-guarantor-otp-actions">
+                                            <input id="loan-guarantee-guarantor-otp-code" type="text" inputmode="numeric" maxlength="8" placeholder="کد ۶ رقمی" style="max-width:11rem;">
+                                            <button type="button" class="loan-file-btn" id="loan-guarantee-guarantor-verify-otp">تایید کد</button>
+                                        </div>
+                                        <div id="loan-guarantee-guarantor-verify-msg" class="loan-guarantee-guarantor-verify-msg" aria-live="polite"></div>
+                                    </div>
+                                    <input type="hidden" name="guarantor_verification_token" id="loan-guarantee-guarantor-verification-token" value="" autocomplete="off">
+                                    <input type="hidden" id="loan-guarantee-guarantor-otp-session" value="" autocomplete="off">
+                                </div>
+                                <div class="cust-field" style="grid-column: 1 / -1;">
+                                    <label for="loan-guarantee-org-other-desc">در صورت لزوم توضیحات ضمانت را وارد کنید:</label>
+                                    <textarea name="description" id="loan-guarantee-org-other-desc" maxlength="2000" rows="3"></textarea>
+                                </div>
                             </div>
                         </div>
                         <div class="loan-guarantee-section" data-guarantee-section="cheque" hidden>
                             <div class="cust-form-grid">
                                 <div class="cust-field"><label>نام و نام خانوادگی صاحب چک <span class="req">*</span></label><input name="cheque_owner_name"></div>
                                 <div class="cust-field"><label>کد ملی صاحب چک <span class="req">*</span></label><input name="cheque_owner_national_id" inputmode="numeric"></div>
-                                <div class="cust-field"><label>شماره موبایل صاحب چک <span class="req">*</span></label><input name="cheque_owner_mobile" inputmode="numeric"></div>
-                                <div class="cust-field"><label>تاریخ چک <span class="req">*</span></label><input name="cheque_due_jdate" id="loan-guarantee-cheque-due"></div>
+                                <div class="cust-field"><label>شماره موبایل صاحب چک</label><input name="cheque_owner_mobile" inputmode="numeric" placeholder="اختیاری — مثلاً 09123456789"></div>
+                                <div class="cust-field"><label>تاریخ چک <span class="req">*</span></label><input type="text" name="cheque_due_jdate" id="loan-guarantee-cheque-due" autocomplete="off" placeholder="انتخاب از تقویم"></div>
                                 <div class="cust-field"><label>شماره چک <span class="req">*</span></label><input name="cheque_serial"></div>
                                 <div class="cust-field"><label>شماره صیادی <span class="req">*</span></label><input name="cheque_sayadi"></div>
-                                <div class="cust-field"><label>مبلغ ضمانت (تومان)</label><input name="amount_toman" inputmode="numeric" data-guarantee-amount></div>
+                                <div class="cust-field" style="grid-column: 1 / -1;">
+                                    <label class="loan-guarantee-check-row" for="loan-guarantee-cheque-collected">
+                                        <input type="checkbox" name="cheque_collected" value="1" id="loan-guarantee-cheque-collected">
+                                        وصول شده؟
+                                    </label>
+                                </div>
+                                <div class="cust-field" style="grid-column: 1 / -1;">
+                                    <label class="loan-guarantee-check-row" for="loan-guarantee-cheque-returned">
+                                        <input type="checkbox" name="cheque_returned" value="1" id="loan-guarantee-cheque-returned">
+                                        عودت شده؟
+                                    </label>
+                                </div>
                             </div>
                         </div>
                         <div class="loan-guarantee-section" data-guarantee-section="gold" hidden>
@@ -1444,12 +1612,42 @@
             </div>
         </div>
     </div>
+
+    <div class="cust-overlay" id="loan-org-manage-overlay" hidden aria-hidden="true">
+        <div class="cust-modal" style="width:min(560px,100%)" role="dialog" aria-modal="true" aria-labelledby="loan-org-manage-title">
+            <div class="cust-modal-head">
+                <div>
+                    <h2 id="loan-org-manage-title">مدیریت سازمان‌ها</h2>
+                    <p style="margin:0.25rem 0 0;font-size:0.75rem;color:var(--muted);">افزودن، ویرایش یا حذف نام سازمان‌ها</p>
+                </div>
+                <button type="button" class="cust-modal-close" id="loan-org-manage-close" aria-label="بستن">&times;</button>
+            </div>
+            <div class="cust-modal-body">
+                <button type="button" class="cust-submit" id="loan-org-add-toggle" style="width:100%; justify-content:center;">
+                    <i class="fa-solid fa-circle-plus" aria-hidden="true"></i> افزودن سازمان
+                </button>
+                <div id="loan-org-inline-form" class="loan-org-inline-form" hidden>
+                    <input type="hidden" id="loan-org-edit-id" value="">
+                    <div class="cust-field">
+                        <label for="loan-org-name-input">نام سازمان</label>
+                        <input id="loan-org-name-input" type="text" maxlength="255" placeholder="نام سازمان">
+                    </div>
+                    <div class="cust-actions" style="margin-top:0.45rem;">
+                        <button type="button" class="cust-cancel" id="loan-org-inline-cancel">انصراف</button>
+                        <button type="button" class="cust-submit" id="loan-org-inline-save">ذخیره</button>
+                    </div>
+                </div>
+                <div id="loan-org-manage-list" class="loan-org-manage-list"></div>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
     <script src="{{ asset('vendor/persian-datepicker/jquery.min.js') }}"></script>
     <script src="{{ asset('vendor/persian-datepicker/persian-date.min.js') }}"></script>
     <script src="{{ asset('vendor/persian-datepicker/persian-datepicker.min.js') }}"></script>
+    <script src="{{ asset('vendor/select2/js/select2.min.js') }}"></script>
     <script>
         (function () {
             function toEnglishDigits(s) {
@@ -1523,6 +1721,85 @@
             }
             function customerLoanGuaranteeUpdateUrl(customerId, loanFileId, guaranteeId) {
                 return custListBaseUrl + '/' + customerId + '/loan-files/' + loanFileId + '/guarantees/' + guaranteeId;
+            }
+
+            var organizationsListUrl = @json(route('admin.organizations.index'));
+            var guarantorOtpSendUrl = @json(route('admin.guarantor-otp.send'));
+            var guarantorOtpVerifyUrl = @json(route('admin.guarantor-otp.verify'));
+            var adminOrgBaseUrl = @json(url('/admin/organizations'));
+
+            function organizationRestUrl(id) {
+                return adminOrgBaseUrl.replace(/\/?$/, '') + '/' + encodeURIComponent(String(id || ''));
+            }
+
+            function destroyLoanOrgSelect2() {
+                if (!window.jQuery) return;
+                var $s = window.jQuery('#loan-guarantee-organization-id');
+                if ($s.length && $s.data && $s.data('select2')) {
+                    try {
+                        $s.select2('destroy');
+                    } catch (e2) { /* noop */ }
+                }
+            }
+
+            function populateOrgSelectOptions(rows, selectedId) {
+                var sel = document.getElementById('loan-guarantee-organization-id');
+                if (!sel) return;
+                var want = selectedId != null && selectedId !== '' ? String(selectedId) : '';
+                sel.innerHTML = '<option value="">انتخاب کنید...</option>';
+                (rows || []).forEach(function (o) {
+                    var opt = document.createElement('option');
+                    opt.value = String(o.id);
+                    opt.textContent = o.name;
+                    sel.appendChild(opt);
+                });
+                if (want) sel.value = want;
+            }
+
+            function loadOrganizationsIntoSelect(selectedId, done) {
+                fetch(organizationsListUrl, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                }).then(function (r) { return r.json(); }).then(function (data) {
+                    var rows = Array.isArray(data.organizations) ? data.organizations : [];
+                    populateOrgSelectOptions(rows, selectedId);
+                    if (typeof done === 'function') done();
+                }).catch(function () {
+                    populateOrgSelectOptions([], selectedId);
+                    if (typeof done === 'function') done();
+                });
+            }
+
+            function initLoanOrgSelect2() {
+                if (!window.jQuery || !window.jQuery.fn.select2) return;
+                var $s = window.jQuery('#loan-guarantee-organization-id');
+                if (!$s.length) return;
+                destroyLoanOrgSelect2();
+                $s.select2({
+                    dir: 'rtl',
+                    width: '100%',
+                    placeholder: 'انتخاب سازمان...',
+                    language: {
+                        noResults: function () { return 'موردی یافت نشد'; },
+                        searching: function () { return 'در حال جستجو...'; }
+                    }
+                });
+            }
+
+            function resetGuarantorOtpUi() {
+                var tokenEl = document.getElementById('loan-guarantee-guarantor-verification-token');
+                var sessEl = document.getElementById('loan-guarantee-guarantor-otp-session');
+                var codeEl = document.getElementById('loan-guarantee-guarantor-otp-code');
+                var panel = document.getElementById('loan-guarantee-guarantor-otp-panel');
+                var msg = document.getElementById('loan-guarantee-guarantor-verify-msg');
+                if (tokenEl) tokenEl.value = '';
+                if (sessEl) sessEl.value = '';
+                if (codeEl) codeEl.value = '';
+                if (panel) panel.hidden = true;
+                if (msg) {
+                    msg.textContent = '';
+                    msg.className = 'loan-guarantee-guarantor-verify-msg';
+                }
             }
 
             var overlay = document.getElementById('cust-modal-overlay');
@@ -2444,8 +2721,39 @@
                 setGoldOptionSelectionStyles();
             }
 
-            function setGuaranteeType(type) {
+            function destroyLoanGuaranteeChequeDatePicker() {
+                if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.pDatepicker) return;
+                var $el = window.jQuery('#loan-guarantee-cheque-due');
+                if (!$el.length) return;
+                try {
+                    if ($el.data('datepicker')) {
+                        $el.pDatepicker('destroy');
+                    }
+                } catch (err) { /* noop */ }
+            }
+
+            function initLoanGuaranteeChequeDatePicker() {
+                if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.pDatepicker) return;
+                var el = document.getElementById('loan-guarantee-cheque-due');
+                if (!el || el.disabled) return;
+                destroyLoanGuaranteeChequeDatePicker();
+                window.jQuery('#loan-guarantee-cheque-due').pDatepicker({
+                    format: 'YYYY/MM/DD',
+                    autoClose: true,
+                    initialValue: false,
+                    calendarType: 'persian',
+                    initialValueType: 'persian',
+                    toolbox: { calendarSwitch: false }
+                });
+            }
+
+            function setGuaranteeType(type, skipOrgHydrate) {
+                destroyLoanGuaranteeChequeDatePicker();
                 var activeType = String(type || 'org_self');
+                var isOrgTab = activeType === 'org_self' || activeType === 'org_other';
+                if (!isOrgTab) {
+                    destroyLoanOrgSelect2();
+                }
                 if (loanGuaranteeTypeInput) {
                     loanGuaranteeTypeInput.value = activeType;
                 }
@@ -2459,8 +2767,29 @@
                         field.disabled = !isActive;
                     });
                 });
+                var orgShared = document.getElementById('loan-guarantee-org-shared');
+                if (orgShared) {
+                    orgShared.hidden = !isOrgTab;
+                    orgShared.querySelectorAll('input, textarea, select, button').forEach(function (field) {
+                        field.disabled = !isOrgTab;
+                    });
+                }
                 if (activeType === 'gold') {
                     syncGoldFieldsByOption();
+                }
+                if (activeType === 'cheque') {
+                    setTimeout(function () { initLoanGuaranteeChequeDatePicker(); }, 0);
+                }
+                if (isOrgTab) {
+                    setTimeout(function () {
+                        if (!skipOrgHydrate) {
+                            loadOrganizationsIntoSelect(null, function () {
+                                initLoanOrgSelect2();
+                            });
+                        } else {
+                            initLoanOrgSelect2();
+                        }
+                    }, 0);
                 }
             }
 
@@ -2528,6 +2857,7 @@
                 loanGuaranteeFormMode = 'create';
                 loanGuaranteeEditingId = null;
                 loanGuaranteeForm.reset();
+                resetGuarantorOtpUi();
                 setGuaranteeType('org_self');
                 resetGuaranteeFilePreview();
                 loanGuaranteeRemoveExistingAttachment = false;
@@ -2541,28 +2871,38 @@
                 loanGuaranteeFormMode = 'edit';
                 loanGuaranteeEditingId = Number(guaranteeData.id || 0);
                 loanGuaranteeForm.reset();
-                setGuaranteeType(String(guaranteeData.type || 'other'));
+                resetGuarantorOtpUi();
+                var gtype = String(guaranteeData.type || 'other');
+                setGuaranteeType(gtype, gtype === 'org_other' || gtype === 'org_self');
                 resetGuaranteeFilePreview();
                 loanGuaranteeRemoveExistingAttachment = false;
 
                 var meta = guaranteeData.meta && typeof guaranteeData.meta === 'object' ? guaranteeData.meta : {};
-                if (loanGuaranteeTypeInput) loanGuaranteeTypeInput.value = String(guaranteeData.type || 'other');
+                if (loanGuaranteeTypeInput) loanGuaranteeTypeInput.value = gtype;
                 var sharedDescription = guaranteeData.description || '';
                 var goldDescEl = document.getElementById('loan-guarantee-gold-desc');
                 var otherDescEl = document.getElementById('loan-guarantee-other-desc');
+                var orgOtherDescEl = document.getElementById('loan-guarantee-org-other-desc');
+                var orgSelfDescEl = document.getElementById('loan-guarantee-org-self-desc');
                 if (goldDescEl) goldDescEl.value = sharedDescription;
                 if (otherDescEl) otherDescEl.value = sharedDescription;
-                if (loanGuaranteeForm.elements['org_name']) loanGuaranteeForm.elements['org_name'].value = meta.org_name || '';
+                if (orgOtherDescEl) orgOtherDescEl.value = sharedDescription;
+                if (orgSelfDescEl) orgSelfDescEl.value = sharedDescription;
                 if (loanGuaranteeForm.elements['employee_no']) loanGuaranteeForm.elements['employee_no'].value = meta.employee_no || '';
                 if (loanGuaranteeForm.elements['guarantor_name']) loanGuaranteeForm.elements['guarantor_name'].value = meta.guarantor_name || '';
                 if (loanGuaranteeForm.elements['guarantor_national_id']) loanGuaranteeForm.elements['guarantor_national_id'].value = meta.guarantor_national_id || '';
                 if (loanGuaranteeForm.elements['guarantor_phone']) loanGuaranteeForm.elements['guarantor_phone'].value = meta.guarantor_phone || '';
+                if (loanGuaranteeForm.elements['guarantor_employee_no']) loanGuaranteeForm.elements['guarantor_employee_no'].value = meta.guarantor_employee_no || '';
                 if (loanGuaranteeForm.elements['cheque_owner_name']) loanGuaranteeForm.elements['cheque_owner_name'].value = meta.cheque_owner_name || '';
                 if (loanGuaranteeForm.elements['cheque_owner_national_id']) loanGuaranteeForm.elements['cheque_owner_national_id'].value = meta.cheque_owner_national_id || '';
                 if (loanGuaranteeForm.elements['cheque_owner_mobile']) loanGuaranteeForm.elements['cheque_owner_mobile'].value = meta.cheque_owner_mobile || '';
                 if (loanGuaranteeForm.elements['cheque_serial']) loanGuaranteeForm.elements['cheque_serial'].value = meta.cheque_serial || '';
                 if (loanGuaranteeForm.elements['cheque_sayadi']) loanGuaranteeForm.elements['cheque_sayadi'].value = meta.cheque_sayadi || '';
                 if (loanGuaranteeForm.elements['cheque_due_jdate']) loanGuaranteeForm.elements['cheque_due_jdate'].value = meta.cheque_due_jdate || '';
+                var chequeCollectedCb = document.getElementById('loan-guarantee-cheque-collected');
+                var chequeReturnedCb = document.getElementById('loan-guarantee-cheque-returned');
+                if (chequeCollectedCb) chequeCollectedCb.checked = !!meta.cheque_collected;
+                if (chequeReturnedCb) chequeReturnedCb.checked = !!meta.cheque_returned;
                 var selectedGoldCode = String(meta.gold_item_code || '').trim();
                 if (!selectedGoldCode && meta.gold_item_type) {
                     selectedGoldCode = String(meta.gold_item_type).indexOf('شکن') !== -1 ? 'broken_gold' : 'full_coin';
@@ -2577,13 +2917,6 @@
                 if (loanGuaranteeForm.elements['gold_rate_toman']) loanGuaranteeForm.elements['gold_rate_toman'].value = formatThousandsInputValue(String(meta.gold_rate_toman || ''));
                 syncGoldFieldsByOption();
 
-                var amountInputs = loanGuaranteeForm.querySelectorAll('[data-guarantee-amount]');
-                amountInputs.forEach(function (input) { input.value = ''; });
-                if (meta.amount_toman) {
-                    amountInputs.forEach(function (input) {
-                        input.value = formatThousandsInputValue(String(meta.amount_toman));
-                    });
-                }
                 setGuaranteeExistingAttachment(
                     guaranteeData.attachment_preview_url || guaranteeData.attachment_url || '',
                     guaranteeData.attachment_download_url || guaranteeData.attachment_url || '',
@@ -2592,6 +2925,17 @@
                 var submitBtn = document.getElementById('loan-guarantee-submit');
                 if (submitBtn) submitBtn.textContent = 'ذخیره تغییرات ضمانت';
                 loanGuaranteeFormWrap.hidden = false;
+                if (gtype === 'org_other' || gtype === 'org_self') {
+                    var selId = meta.organization_id != null && meta.organization_id !== ''
+                        ? meta.organization_id
+                        : null;
+                    loadOrganizationsIntoSelect(selId, function () {
+                        initLoanOrgSelect2();
+                    });
+                }
+                if (gtype === 'cheque') {
+                    setTimeout(function () { initLoanGuaranteeChequeDatePicker(); }, 60);
+                }
             }
 
             function openLoanGuaranteeModal(loanFileId) {
@@ -2626,18 +2970,38 @@
                         var desc = String(row.description || '').trim();
                         var metaText = [];
                         if (row.meta && typeof row.meta === 'object') {
-                            if (row.meta.org_name) metaText.push('سازمان: ' + row.meta.org_name);
-                            if (row.meta.guarantor_name) metaText.push('ضامن: ' + row.meta.guarantor_name);
+                            if (String(row.type || '') === 'org_self') {
+                                var orgSelfLbl = row.meta.organization_name || row.meta.org_name || '';
+                                if (orgSelfLbl) metaText.push('سازمان: ' + orgSelfLbl);
+                                if (row.meta.employee_no) metaText.push('شماره پرسنلی: ' + row.meta.employee_no);
+                            }
+                            if (String(row.type || '') === 'org_other') {
+                                var orgLbl = row.meta.organization_name || row.meta.org_name || '';
+                                if (orgLbl) metaText.push('سازمان: ' + orgLbl);
+                                if (row.meta.guarantor_name) metaText.push('ضامن: ' + row.meta.guarantor_name);
+                                if (row.meta.guarantor_employee_no) metaText.push('شماره پرسنلی: ' + row.meta.guarantor_employee_no);
+                                if (row.meta.guarantor_phone) metaText.push('موبایل ضامن: ' + row.meta.guarantor_phone);
+                                metaText.push('موبایل ضامن احراز شده: ' + (row.meta.guarantor_mobile_verified ? 'بله' : 'خیر'));
+                            }
+                            if (row.meta.org_name && String(row.type || '') !== 'org_other' && String(row.type || '') !== 'org_self') metaText.push('سازمان: ' + row.meta.org_name);
+                            if (row.meta.guarantor_name && String(row.type || '') !== 'org_other') metaText.push('ضامن: ' + row.meta.guarantor_name);
                             if (row.meta.cheque_owner_name) metaText.push('صاحب چک: ' + row.meta.cheque_owner_name);
                             if (row.meta.cheque_owner_mobile) metaText.push('موبایل: ' + row.meta.cheque_owner_mobile);
                             if (row.meta.cheque_serial) metaText.push('شماره چک: ' + row.meta.cheque_serial);
                             if (row.meta.cheque_sayadi) metaText.push('صیادی: ' + row.meta.cheque_sayadi);
                             if (row.meta.cheque_due_jdate) metaText.push('تاریخ چک: ' + row.meta.cheque_due_jdate);
+                            if (String(row.type || '') === 'cheque') {
+                                metaText.push('وصول شده؟ ' + (row.meta.cheque_collected ? 'بله' : 'خیر'));
+                                metaText.push('عودت شده؟ ' + (row.meta.cheque_returned ? 'بله' : 'خیر'));
+                            }
                             if (row.meta.gold_item_label || row.meta.gold_item_type) metaText.push('نوع طلا: ' + (row.meta.gold_item_label || row.meta.gold_item_type));
                             if (row.meta.gold_weight_gram) metaText.push('وزن: ' + row.meta.gold_weight_gram + ' گرم');
                             if (row.meta.gold_quantity) metaText.push('تعداد: ' + row.meta.gold_quantity);
                             if (row.meta.gold_rate_toman) metaText.push('نرخ: ' + formatToman(row.meta.gold_rate_toman) + ' تومان');
-                            if (row.meta.amount_toman) metaText.push('مبلغ: ' + formatToman(row.meta.amount_toman) + ' تومان');
+                            var guaranteeAmtType = String(row.type || '');
+                            if (row.meta.amount_toman && (guaranteeAmtType === 'gold' || guaranteeAmtType === 'other')) {
+                                metaText.push('مبلغ: ' + formatToman(row.meta.amount_toman) + ' تومان');
+                            }
                         }
                         var attachmentName = String(row.attachment_name || '');
                         var attachmentPreviewUrl = String(row.attachment_preview_url || row.attachment_url || '');
@@ -2645,7 +3009,7 @@
                         var hasAttachment = !!attachmentDownloadUrl;
                         var isImageAttachment = /\.(png|jpe?g|webp)$/i.test(attachmentName);
                         return '<div class="loan-guarantee-card">' +
-                            '<div>' +
+                            '<div class="loan-guarantee-card__main">' +
                                 '<h4 class="loan-guarantee-title">' + escapeHtmlText(row.type_label || row.type || 'ضمانت') + '</h4>' +
                                 '<div class="loan-guarantee-meta">' +
                                     (desc ? ('توضیح: ' + escapeHtmlText(desc) + '<br>') : '') +
@@ -2653,11 +3017,13 @@
                                     (row.created_at ? ('ثبت: ' + escapeHtmlText(row.created_at)) : '') +
                                 '</div>' +
                             '</div>' +
-                            '<div class="loan-guarantee-actions">' +
+                            '<div class="loan-guarantee-card__aside">' +
                                 (hasAttachment && isImageAttachment ? '<a class="loan-guarantee-thumb-link" href="' + escapeHtmlAttr(attachmentPreviewUrl) + '" target="_blank" rel="noopener" title="پیش‌نمایش تصویر"><img class="loan-guarantee-thumb" src="' + escapeHtmlAttr(attachmentPreviewUrl) + '" alt="preview"></a>' : '') +
-                                (hasAttachment ? '<a class="loan-file-btn" href="' + escapeHtmlAttr(attachmentDownloadUrl) + '" target="_blank" rel="noopener">دانلود</a>' : '') +
-                                '<button type="button" class="loan-file-btn" data-guarantee-edit="' + escapeHtmlAttr(JSON.stringify(row)) + '">ویرایش</button>' +
-                                '<button type="button" class="loan-file-btn loan-file-btn--danger" data-guarantee-delete-id="' + String(row.id || '') + '">حذف</button>' +
+                                '<div class="loan-guarantee-actions">' +
+                                    (hasAttachment ? '<a class="loan-file-btn" href="' + escapeHtmlAttr(attachmentDownloadUrl) + '" target="_blank" rel="noopener">دانلود</a>' : '') +
+                                    '<button type="button" class="loan-file-btn" data-guarantee-edit="' + escapeHtmlAttr(JSON.stringify(row)) + '">ویرایش</button>' +
+                                    '<button type="button" class="loan-file-btn loan-file-btn--danger" data-guarantee-delete-id="' + String(row.id || '') + '">حذف</button>' +
+                                '</div>' +
                             '</div>' +
                         '</div>';
                     }).join('');
@@ -3041,10 +3407,280 @@
             }
             loanGuaranteeTypeTabs.forEach(function (btn) {
                 btn.addEventListener('click', function () {
-                    setGuaranteeType(btn.getAttribute('data-guarantee-type') || 'org_self');
+                    var next = btn.getAttribute('data-guarantee-type') || 'org_self';
+                    var prev = loanGuaranteeTypeInput ? String(loanGuaranteeTypeInput.value || '') : '';
+                    var bothOrg = (prev === 'org_self' || prev === 'org_other') && (next === 'org_self' || next === 'org_other');
+                    setGuaranteeType(next, bothOrg);
                 });
             });
-            setGuaranteeType((loanGuaranteeTypeInput && loanGuaranteeTypeInput.value) || 'org_self');
+            (function bindOrgManageAndGuarantorOtp() {
+                var loanOrgManageOverlay = document.getElementById('loan-org-manage-overlay');
+                var loanOrgManageClose = document.getElementById('loan-org-manage-close');
+                var loanOrgManageOpenBtn = document.getElementById('loan-guarantee-org-manage-open');
+                var loanOrgAddToggle = document.getElementById('loan-org-add-toggle');
+                var loanOrgInlineForm = document.getElementById('loan-org-inline-form');
+                var loanOrgInlineCancel = document.getElementById('loan-org-inline-cancel');
+                var loanOrgInlineSave = document.getElementById('loan-org-inline-save');
+                var loanOrgNameInput = document.getElementById('loan-org-name-input');
+                var loanOrgEditId = document.getElementById('loan-org-edit-id');
+                var loanOrgManageList = document.getElementById('loan-org-manage-list');
+                var orgListCache = [];
+
+                function closeOrgManageModal() {
+                    if (!loanOrgManageOverlay) return;
+                    loanOrgManageOverlay.hidden = true;
+                    loanOrgManageOverlay.setAttribute('aria-hidden', 'true');
+                    if (loanOrgInlineForm) loanOrgInlineForm.hidden = true;
+                }
+
+                function openOrgManageModal() {
+                    if (!loanOrgManageOverlay) return;
+                    loanOrgManageOverlay.hidden = false;
+                    loanOrgManageOverlay.setAttribute('aria-hidden', 'false');
+                    refreshOrgManageList();
+                }
+
+                function refreshOrgManageList() {
+                    if (!loanOrgManageList) return;
+                    loanOrgManageList.innerHTML = '<div class="loan-guarantee-empty" style="text-align:center">در حال بارگذاری...</div>';
+                    fetch(organizationsListUrl, {
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                        credentials: 'same-origin'
+                    }).then(function (r) { return r.json(); }).then(function (data) {
+                        orgListCache = Array.isArray(data.organizations) ? data.organizations : [];
+                        if (!orgListCache.length) {
+                            loanOrgManageList.innerHTML = '<div class="loan-guarantee-empty" style="text-align:center">سازمانی ثبت نشده است.</div>';
+                            return;
+                        }
+                        loanOrgManageList.innerHTML = orgListCache.map(function (o) {
+                            return '<div class="loan-org-manage-item" data-org-id="' + String(o.id) + '">' +
+                                '<span>' + escapeHtmlText(String(o.name || '')) + '</span>' +
+                                '<div class="loan-org-manage-item-actions">' +
+                                '<button type="button" class="loan-file-btn loan-file-btn--disc" data-org-edit="' + String(o.id) + '">ویرایش</button>' +
+                                '<button type="button" class="loan-file-btn loan-file-btn--disc loan-file-btn--danger" data-org-delete="' + String(o.id) + '">حذف</button>' +
+                                '</div></div>';
+                        }).join('');
+                    }).catch(function () {
+                        loanOrgManageList.innerHTML = '<div class="loan-guarantee-empty" style="color:#b91c1c">خطا در دریافت فهرست.</div>';
+                    });
+                }
+
+                function showInlineForm(editId, name) {
+                    if (!loanOrgInlineForm || !loanOrgNameInput || !loanOrgEditId) return;
+                    loanOrgInlineForm.hidden = false;
+                    loanOrgEditId.value = editId ? String(editId) : '';
+                    loanOrgNameInput.value = name ? String(name) : '';
+                    loanOrgNameInput.focus();
+                }
+
+                if (loanOrgManageOpenBtn) {
+                    loanOrgManageOpenBtn.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        openOrgManageModal();
+                    });
+                }
+                if (loanOrgManageClose) loanOrgManageClose.addEventListener('click', closeOrgManageModal);
+                if (loanOrgManageOverlay) {
+                    loanOrgManageOverlay.addEventListener('click', function (e) {
+                        if (e.target === loanOrgManageOverlay) closeOrgManageModal();
+                    });
+                }
+                if (loanOrgAddToggle) {
+                    loanOrgAddToggle.addEventListener('click', function () {
+                        showInlineForm(null, '');
+                    });
+                }
+                if (loanOrgInlineCancel) {
+                    loanOrgInlineCancel.addEventListener('click', function () {
+                        if (loanOrgInlineForm) loanOrgInlineForm.hidden = true;
+                    });
+                }
+                if (loanOrgInlineSave) {
+                    loanOrgInlineSave.addEventListener('click', function () {
+                        var nm = loanOrgNameInput ? String(loanOrgNameInput.value || '').trim() : '';
+                        if (!nm) {
+                            if (window.AdminSwal && AdminSwal.error) AdminSwal.error('نام سازمان را وارد کنید.');
+                            return;
+                        }
+                        var eid = loanOrgEditId && loanOrgEditId.value ? String(loanOrgEditId.value) : '';
+                        var url = eid ? organizationRestUrl(eid) : organizationsListUrl;
+                        var headers = {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': @json(csrf_token())
+                        };
+                        fetch(url, {
+                            method: eid ? 'PUT' : 'POST',
+                            headers: headers,
+                            credentials: 'same-origin',
+                            body: JSON.stringify({ name: nm })
+                        }).then(function (r) {
+                            return r.json().then(function (json) { return { ok: r.ok, json: json }; });
+                        }).then(function (res) {
+                            if (!res.ok) throw new Error((res.json && res.json.message) ? res.json.message : 'ذخیره نشد.');
+                            if (loanOrgInlineForm) loanOrgInlineForm.hidden = true;
+                            refreshOrgManageList();
+                            var activeType = loanGuaranteeTypeInput ? String(loanGuaranteeTypeInput.value || '') : '';
+                            if (activeType === 'org_other') {
+                                var cur = document.getElementById('loan-guarantee-organization-id');
+                                var keep = cur ? cur.value : '';
+                                loadOrganizationsIntoSelect(keep, function () { initLoanOrgSelect2(); });
+                            }
+                            if (window.AdminSwal && AdminSwal.success) AdminSwal.success(res.json.message || 'ثبت شد.');
+                        }).catch(function (err) {
+                            if (window.AdminSwal && AdminSwal.error) AdminSwal.error(err.message || 'خطا');
+                        });
+                    });
+                }
+                document.addEventListener('click', function (e) {
+                    var ed = e.target.closest('[data-org-edit]');
+                    if (ed && loanOrgManageOverlay && !loanOrgManageOverlay.hidden) {
+                        e.preventDefault();
+                        var oid = ed.getAttribute('data-org-edit');
+                        var row = orgListCache.find(function (x) { return String(x.id) === String(oid); });
+                        if (row) showInlineForm(row.id, row.name);
+                        return;
+                    }
+                    var del = e.target.closest('[data-org-delete]');
+                    if (del && loanOrgManageOverlay && !loanOrgManageOverlay.hidden) {
+                        e.preventDefault();
+                        var did = del.getAttribute('data-org-delete');
+                        var runDel = function () {
+                            fetch(organizationRestUrl(did), {
+                                method: 'DELETE',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'X-CSRF-TOKEN': @json(csrf_token())
+                                },
+                                credentials: 'same-origin'
+                            }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, json: j }; }); })
+                                .then(function (res) {
+                                    if (!res.ok) throw new Error((res.json && res.json.message) ? res.json.message : 'حذف نشد.');
+                                    refreshOrgManageList();
+                                    var cur = document.getElementById('loan-guarantee-organization-id');
+                                    var keep = cur ? cur.value : '';
+                                    if (String(keep) === String(did)) keep = '';
+                                    loadOrganizationsIntoSelect(keep, function () { initLoanOrgSelect2(); });
+                                    if (window.AdminSwal && AdminSwal.success) AdminSwal.success(res.json.message || 'حذف شد.');
+                                }).catch(function (err) {
+                                    if (window.AdminSwal && AdminSwal.error) AdminSwal.error(err.message || 'خطا');
+                                });
+                        };
+                        if (window.AdminSwal && AdminSwal.confirm) {
+                            AdminSwal.confirm({
+                                title: 'حذف سازمان',
+                                text: 'این سازمان از فهرست حذف شود؟',
+                                confirmButtonText: 'بله',
+                                cancelButtonText: 'انصراف'
+                            }).then(function (r) { if (r && r.isConfirmed) runDel(); });
+                        } else if (window.confirm('حذف شود؟')) runDel();
+                    }
+                });
+
+                var gPhone = document.getElementById('loan-guarantee-guarantor-phone');
+                if (gPhone) {
+                    gPhone.addEventListener('input', function () {
+                        resetGuarantorOtpUi();
+                    });
+                }
+                var sendOtpBtn = document.getElementById('loan-guarantee-guarantor-send-otp');
+                if (sendOtpBtn) {
+                    sendOtpBtn.addEventListener('click', function () {
+                        var mobEl = document.getElementById('loan-guarantee-guarantor-phone');
+                        var mobile = toEnglishDigits(String(mobEl && mobEl.value ? mobEl.value : '')).replace(/\D/g, '');
+                        if (mobile.length === 10 && mobile.charAt(0) === '9') mobile = '0' + mobile;
+                        if (!/^09\d{9}$/.test(mobile)) {
+                            if (window.AdminSwal && AdminSwal.error) AdminSwal.error('ابتدا شماره موبایل معتبر (۱۱ رقم با ۰۹) وارد کنید.');
+                            return;
+                        }
+                        resetGuarantorOtpUi();
+                        sendOtpBtn.disabled = true;
+                        var gNameEl = document.getElementById('loan-guarantee-guarantor-name');
+                        var guarantorName = gNameEl ? String(gNameEl.value || '').trim() : '';
+                        var borrowerName = typeof loanManageCurrentCustomerName !== 'undefined'
+                            ? String(loanManageCurrentCustomerName || '').trim()
+                            : '';
+                        fetch(guarantorOtpSendUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': @json(csrf_token())
+                            },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({
+                                mobile: mobile,
+                                guarantor_name: guarantorName,
+                                borrower_name: borrowerName
+                            })
+                        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, json: j }; }); })
+                            .then(function (res) {
+                                if (!res.ok) throw new Error((res.json && res.json.message) ? res.json.message : 'ارسال نشد.');
+                                var sid = res.json.otp_session || '';
+                                var sessEl = document.getElementById('loan-guarantee-guarantor-otp-session');
+                                if (sessEl) sessEl.value = sid;
+                                var panel = document.getElementById('loan-guarantee-guarantor-otp-panel');
+                                if (panel) panel.hidden = false;
+                                if (window.AdminSwal && AdminSwal.success) AdminSwal.success(res.json.message || 'کد ارسال شد.');
+                            }).catch(function (err) {
+                                if (window.AdminSwal && AdminSwal.error) AdminSwal.error(err.message || 'خطا');
+                            }).finally(function () {
+                                sendOtpBtn.disabled = false;
+                            });
+                    });
+                }
+                var verifyOtpBtn = document.getElementById('loan-guarantee-guarantor-verify-otp');
+                if (verifyOtpBtn) {
+                    verifyOtpBtn.addEventListener('click', function () {
+                        var mobEl = document.getElementById('loan-guarantee-guarantor-phone');
+                        var mobile = toEnglishDigits(String(mobEl && mobEl.value ? mobEl.value : '')).replace(/\D/g, '');
+                        if (mobile.length === 10 && mobile.charAt(0) === '9') mobile = '0' + mobile;
+                        var sessEl = document.getElementById('loan-guarantee-guarantor-otp-session');
+                        var codeEl = document.getElementById('loan-guarantee-guarantor-otp-code');
+                        var sid = sessEl ? String(sessEl.value || '') : '';
+                        var code = codeEl ? toEnglishDigits(String(codeEl.value || '')).replace(/\D/g, '') : '';
+                        if (!sid || !code) {
+                            if (window.AdminSwal && AdminSwal.error) AdminSwal.error('کد پیامک را وارد کنید.');
+                            return;
+                        }
+                        verifyOtpBtn.disabled = true;
+                        fetch(guarantorOtpVerifyUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': @json(csrf_token())
+                            },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({ otp_session: sid, code: code, mobile: mobile })
+                        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, json: j }; }); })
+                            .then(function (res) {
+                                if (!res.ok) throw new Error((res.json && res.json.message) ? res.json.message : 'تایید نشد.');
+                                var tok = document.getElementById('loan-guarantee-guarantor-verification-token');
+                                if (tok) tok.value = String(res.json.verification_token || '');
+                                var msg = document.getElementById('loan-guarantee-guarantor-verify-msg');
+                                if (msg) {
+                                    msg.textContent = res.json.message || 'احراز با موفقیت انجام شد.';
+                                    msg.className = 'loan-guarantee-guarantor-verify-msg is-ok';
+                                }
+                            }).catch(function (err) {
+                                var msg = document.getElementById('loan-guarantee-guarantor-verify-msg');
+                                if (msg) {
+                                    msg.textContent = err.message || 'خطا';
+                                    msg.className = 'loan-guarantee-guarantor-verify-msg is-err';
+                                }
+                                if (window.AdminSwal && AdminSwal.error) AdminSwal.error(err.message || 'خطا');
+                            }).finally(function () {
+                                verifyOtpBtn.disabled = false;
+                            });
+                    });
+                }
+            })();
+            setGuaranteeType((loanGuaranteeTypeInput && loanGuaranteeTypeInput.value) || 'org_self', true);
             if (loanGuaranteeCancel && loanGuaranteeFormWrap) {
                 loanGuaranteeCancel.addEventListener('click', function () {
                     loanGuaranteeFormWrap.hidden = true;
@@ -3140,17 +3776,17 @@
                         fd.append('_method', 'PUT');
                     }
                     fd.set('remove_attachment', loanGuaranteeRemoveExistingAttachment ? '1' : '0');
-                    // پاک‌سازی فیلد مبلغ تکراری
-                    var amountInputs = loanGuaranteeForm.querySelectorAll('[data-guarantee-amount]');
-                    var amountPicked = '';
-                    amountInputs.forEach(function (inp) {
-                        var v = parseThousandsInput(String(inp.value || ''));
-                        if (v > 0) amountPicked = String(v);
-                    });
                     fd.delete('amount_toman');
-                    if (amountPicked !== '') fd.append('amount_toman', amountPicked);
-                    var goldRateInputValue = parseThousandsInput(String(fd.get('gold_rate_toman') || ''));
-                    fd.set('gold_rate_toman', String(goldRateInputValue));
+
+                    // فقط برای نوع «طلا» نرخ/فیلدهای طلا را ارسال کن؛ در غیر این صورت
+                    // مقدار ۰ باعث اعتبارسنجی min:1 روی سرور می‌شد (تب‌های دیگر فرم جدا هستند).
+                    var goldRateInputValue = 0;
+                    if (type === 'gold') {
+                        goldRateInputValue = parseThousandsInput(String(fd.get('gold_rate_toman') || ''));
+                        fd.set('gold_rate_toman', String(goldRateInputValue));
+                    } else {
+                        fd.delete('gold_rate_toman');
+                    }
 
                     if (type === 'other') {
                         var desc = String((document.getElementById('loan-guarantee-other-desc').value) || '').trim();
@@ -3242,14 +3878,6 @@
                 if (!el) return;
                 el.addEventListener('input', function () {
                     clearLoanFieldError(el);
-                    el.value = formatThousandsInputValue(el.value);
-                });
-                el.addEventListener('blur', function () {
-                    el.value = formatThousandsInputValue(el.value);
-                });
-            });
-            document.querySelectorAll('[data-guarantee-amount]').forEach(function (el) {
-                el.addEventListener('input', function () {
                     el.value = formatThousandsInputValue(el.value);
                 });
                 el.addEventListener('blur', function () {
@@ -3884,7 +4512,7 @@
                 if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.pDatepicker) {
                     return;
                 }
-                window.jQuery('#loan-start-jdate, #loan-disbursement-due-jdate, #loan-settled-jdate, #loan-guarantee-cheque-due').each(function () {
+                window.jQuery('#loan-start-jdate, #loan-disbursement-due-jdate, #loan-settled-jdate').each(function () {
                     var $el = window.jQuery(this);
                     try {
                         if ($el.data('datepicker')) {

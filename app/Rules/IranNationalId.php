@@ -9,6 +9,19 @@ use Illuminate\Contracts\Validation\ValidationRule;
 
 final class IranNationalId implements ValidationRule
 {
+    /**
+     * تبدیل ارقام فارسی/عربی به انگلیسی و حذف هر کاراکتر غیررقم (فاصله، خط تیره، کاراکترهای نامرئی یونیکد).
+     */
+    public static function normalizeToDigits(string $value): string
+    {
+        $fa = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+        $ar = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+        $en = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+        $ascii = str_replace($ar, $en, str_replace($fa, $en, $value));
+
+        return preg_replace('/\D/', '', $ascii) ?? '';
+    }
+
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         if (! is_string($value)) {
@@ -17,7 +30,7 @@ final class IranNationalId implements ValidationRule
             return;
         }
 
-        $digits = preg_replace('/\D/', '', $value) ?? '';
+        $digits = self::normalizeToDigits($value);
         if (strlen($digits) !== 10) {
             $fail('کد ملی باید ۱۰ رقم باشد.');
 

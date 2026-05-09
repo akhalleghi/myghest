@@ -13,10 +13,10 @@ use App\Models\CustomerLoanGuarantee;
 use App\Models\CustomerReferrer;
 use App\Models\CustomerWallet;
 use App\Models\LoanType;
-use App\Models\SmsLog;
-use App\Models\SmsPanelSetting;
+use App\Models\Organization;
 use App\Models\SmsTemplate;
 use App\Rules\IranNationalId;
+use App\Services\Admin\RawSmsDispatcher;
 use App\Services\Sms\SmsPanelManager;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
@@ -24,7 +24,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -37,6 +37,7 @@ final class CustomerController extends Controller
 {
     public function __construct(
         private readonly SmsPanelManager $panelManager,
+        private readonly RawSmsDispatcher $rawSms,
     ) {}
 
     public function index(Request $request): View
@@ -240,7 +241,7 @@ final class CustomerController extends Controller
             if ($smsText === '') {
                 $smsText = $this->defaultLoanCreatedSmsText($customer, $loanFile);
             }
-            $smsResult = $this->sendRawSms($customer->mobile, $smsText, 'loan-file-created');
+            $smsResult = $this->rawSms->send($customer->mobile, $smsText, 'loan-file-created');
             $smsFeedback = ' '.$smsResult['message'];
         }
 
@@ -415,7 +416,7 @@ final class CustomerController extends Controller
             $smsText = $this->defaultLoanCreatedSmsText($customer, $loanFile);
         }
 
-        $smsResult = $this->sendRawSms($customer->mobile, $smsText, 'loan-file-created');
+        $smsResult = $this->rawSms->send($customer->mobile, $smsText, 'loan-file-created');
 
         return response()->json([
             'ok' => $smsResult['ok'],
@@ -441,13 +442,15 @@ final class CustomerController extends Controller
         ]);
     }
 
-    public function storeLoanGuarantee(Request $request, Customer $customer, CustomerLoanFile $loanFile): JsonResponse
+    /**
+     * قوانین اعتبارسنجی ضمانت؛ فیلدهای مخصوص طلا فقط وقتی نوع «طلا» است اعمال می‌شوند
+     * تا مقادیر ارسالی/پیش‌فرض از تب‌های دیگر باعث خطا نشود.
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    private function loanGuaranteeValidationRules(Request $request, bool $forUpdate): array
     {
-        if ((int) $loanFile->customer_id !== (int) $customer->id) {
-            abort(404);
-        }
-
-        $validated = $request->validate([
+        $rules = [
             'type' => ['required', Rule::in([
                 CustomerLoanGuarantee::TYPE_ORG_SELF,
                 CustomerLoanGuarantee::TYPE_ORG_OTHER,
@@ -467,13 +470,44 @@ final class CustomerController extends Controller
             'cheque_serial' => ['nullable', 'string', 'max:120'],
             'cheque_sayadi' => ['nullable', 'string', 'max:120'],
             'cheque_due_jdate' => ['nullable', 'string', 'max:20'],
-            'gold_item_code' => ['nullable', Rule::in(CustomerLoanGuarantee::goldItemCodes())],
-            'gold_weight_gram' => ['nullable', 'numeric', 'gt:0'],
-            'gold_quantity' => ['nullable', 'integer', 'min:1'],
-            'gold_rate_toman' => ['nullable', 'integer', 'min:1', 'max:999999999999'],
+            'cheque_collected' => ['nullable', 'boolean'],
+            'cheque_returned' => ['nullable', 'boolean'],
             'amount_toman' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
             'attachment' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp,pdf', 'max:5120'],
-        ]);
+        ];
+
+        if ($forUpdate) {
+            $rules['remove_attachment'] = ['nullable', 'boolean'];
+        }
+
+        if ((string) $request->input('type', '') === CustomerLoanGuarantee::TYPE_GOLD) {
+            $rules['gold_item_code'] = ['required', Rule::in(CustomerLoanGuarantee::goldItemCodes())];
+            $rules['gold_weight_gram'] = ['nullable', 'numeric', 'gt:0'];
+            $rules['gold_quantity'] = ['nullable', 'integer', 'min:1'];
+            $rules['gold_rate_toman'] = ['required', 'integer', 'min:1', 'max:999999999999'];
+        }
+
+        if ((string) $request->input('type', '') === CustomerLoanGuarantee::TYPE_ORG_SELF) {
+            $rules['organization_id'] = ['required', 'integer', 'exists:organizations,id'];
+        }
+
+        if ((string) $request->input('type', '') === CustomerLoanGuarantee::TYPE_ORG_OTHER) {
+            $rules['organization_id'] = ['required', 'integer', 'exists:organizations,id'];
+            $rules['guarantor_name'] = ['required', 'string', 'max:255'];
+            $rules['guarantor_employee_no'] = ['nullable', 'string', 'max:120'];
+            $rules['guarantor_verification_token'] = ['nullable', 'string', 'max:128'];
+        }
+
+        return $rules;
+    }
+
+    public function storeLoanGuarantee(Request $request, Customer $customer, CustomerLoanFile $loanFile): JsonResponse
+    {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+
+        $validated = $request->validate($this->loanGuaranteeValidationRules($request, false));
 
         $type = (string) $validated['type'];
         $description = trim((string) ($validated['description'] ?? ''));
@@ -481,25 +515,17 @@ final class CustomerController extends Controller
 
         $meta = [];
         if ($type === CustomerLoanGuarantee::TYPE_ORG_SELF) {
-            if (trim((string) ($validated['org_name'] ?? '')) === '') {
-                return response()->json(['message' => 'نام سازمان الزامی است.'], 422);
+            $built = $this->buildOrgSelfGuaranteeMeta($validated);
+            if ($built instanceof JsonResponse) {
+                return $built;
             }
-            $meta = [
-                'org_name' => trim((string) ($validated['org_name'] ?? '')),
-                'employee_no' => trim((string) ($validated['employee_no'] ?? '')),
-                'amount_toman' => $amountToman,
-            ];
+            $meta = $built;
         } elseif ($type === CustomerLoanGuarantee::TYPE_ORG_OTHER) {
-            if (trim((string) ($validated['guarantor_name'] ?? '')) === '') {
-                return response()->json(['message' => 'نام ضامن الزامی است.'], 422);
+            $built = $this->buildOrgOtherGuaranteeMeta($request, $validated);
+            if ($built instanceof JsonResponse) {
+                return $built;
             }
-            $meta = [
-                'guarantor_name' => trim((string) ($validated['guarantor_name'] ?? '')),
-                'guarantor_national_id' => $this->toEnglishDigits(trim((string) ($validated['guarantor_national_id'] ?? ''))),
-                'guarantor_phone' => $this->toEnglishDigits(trim((string) ($validated['guarantor_phone'] ?? ''))),
-                'org_name' => trim((string) ($validated['org_name'] ?? '')),
-                'amount_toman' => $amountToman,
-            ];
+            $meta = $built;
         } elseif ($type === CustomerLoanGuarantee::TYPE_CHEQUE) {
             $chequeOwnerName = trim((string) ($validated['cheque_owner_name'] ?? ''));
             $chequeOwnerNationalId = $this->toEnglishDigits(trim((string) ($validated['cheque_owner_national_id'] ?? '')));
@@ -512,7 +538,7 @@ final class CustomerController extends Controller
             if (! preg_match('/^\d{10}$/', $chequeOwnerNationalId)) {
                 return response()->json(['message' => 'کد ملی صاحب چک باید ۱۰ رقم باشد.'], 422);
             }
-            if (! preg_match('/^09\d{9}$/', $chequeOwnerMobile)) {
+            if ($chequeOwnerMobile !== '' && ! preg_match('/^09\d{9}$/', $chequeOwnerMobile)) {
                 return response()->json(['message' => 'شماره موبایل صاحب چک معتبر نیست.'], 422);
             }
             if ($chequeSerial === '') {
@@ -529,9 +555,8 @@ final class CustomerController extends Controller
             if ($chequeDueDate === null) {
                 return response()->json(['message' => 'تاریخ چک معتبر نیست.'], 422);
             }
-            if ($amountToman < 1) {
-                return response()->json(['message' => 'مبلغ چک را به‌صورت معتبر وارد کنید.'], 422);
-            }
+            $chequeCollected = $request->boolean('cheque_collected');
+            $chequeReturned = $request->boolean('cheque_returned');
             $meta = [
                 'cheque_owner_name' => $chequeOwnerName,
                 'cheque_owner_national_id' => $chequeOwnerNationalId,
@@ -539,7 +564,8 @@ final class CustomerController extends Controller
                 'cheque_serial' => $chequeSerial,
                 'cheque_sayadi' => $chequeSayadi,
                 'cheque_due_jdate' => $chequeDueDate ? Jalali::instance($chequeDueDate)->format('Y/m/d') : '',
-                'amount_toman' => $amountToman,
+                'cheque_collected' => $chequeCollected,
+                'cheque_returned' => $chequeReturned,
             ];
         } elseif ($type === CustomerLoanGuarantee::TYPE_GOLD) {
             $meta = $this->buildGoldGuaranteeMeta($validated);
@@ -581,34 +607,7 @@ final class CustomerController extends Controller
             abort(404);
         }
 
-        $validated = $request->validate([
-            'type' => ['required', Rule::in([
-                CustomerLoanGuarantee::TYPE_ORG_SELF,
-                CustomerLoanGuarantee::TYPE_ORG_OTHER,
-                CustomerLoanGuarantee::TYPE_CHEQUE,
-                CustomerLoanGuarantee::TYPE_GOLD,
-                CustomerLoanGuarantee::TYPE_OTHER,
-            ])],
-            'description' => ['nullable', 'string', 'max:2000'],
-            'org_name' => ['nullable', 'string', 'max:255'],
-            'employee_no' => ['nullable', 'string', 'max:120'],
-            'guarantor_name' => ['nullable', 'string', 'max:255'],
-            'guarantor_national_id' => ['nullable', 'string', 'max:20'],
-            'guarantor_phone' => ['nullable', 'string', 'max:20'],
-            'cheque_owner_name' => ['nullable', 'string', 'max:255'],
-            'cheque_owner_national_id' => ['nullable', 'string', 'max:20'],
-            'cheque_owner_mobile' => ['nullable', 'string', 'max:20'],
-            'cheque_serial' => ['nullable', 'string', 'max:120'],
-            'cheque_sayadi' => ['nullable', 'string', 'max:120'],
-            'cheque_due_jdate' => ['nullable', 'string', 'max:20'],
-            'gold_item_code' => ['nullable', Rule::in(CustomerLoanGuarantee::goldItemCodes())],
-            'gold_weight_gram' => ['nullable', 'numeric', 'gt:0'],
-            'gold_quantity' => ['nullable', 'integer', 'min:1'],
-            'gold_rate_toman' => ['nullable', 'integer', 'min:1', 'max:999999999999'],
-            'amount_toman' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
-            'attachment' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp,pdf', 'max:5120'],
-            'remove_attachment' => ['nullable', 'boolean'],
-        ]);
+        $validated = $request->validate($this->loanGuaranteeValidationRules($request, true));
 
         $type = (string) $validated['type'];
         $description = trim((string) ($validated['description'] ?? ''));
@@ -616,25 +615,17 @@ final class CustomerController extends Controller
         $meta = [];
 
         if ($type === CustomerLoanGuarantee::TYPE_ORG_SELF) {
-            if (trim((string) ($validated['org_name'] ?? '')) === '') {
-                return response()->json(['message' => 'نام سازمان الزامی است.'], 422);
+            $built = $this->buildOrgSelfGuaranteeMeta($validated);
+            if ($built instanceof JsonResponse) {
+                return $built;
             }
-            $meta = [
-                'org_name' => trim((string) ($validated['org_name'] ?? '')),
-                'employee_no' => trim((string) ($validated['employee_no'] ?? '')),
-                'amount_toman' => $amountToman,
-            ];
+            $meta = $built;
         } elseif ($type === CustomerLoanGuarantee::TYPE_ORG_OTHER) {
-            if (trim((string) ($validated['guarantor_name'] ?? '')) === '') {
-                return response()->json(['message' => 'نام ضامن الزامی است.'], 422);
+            $built = $this->buildOrgOtherGuaranteeMeta($request, $validated);
+            if ($built instanceof JsonResponse) {
+                return $built;
             }
-            $meta = [
-                'guarantor_name' => trim((string) ($validated['guarantor_name'] ?? '')),
-                'guarantor_national_id' => $this->toEnglishDigits(trim((string) ($validated['guarantor_national_id'] ?? ''))),
-                'guarantor_phone' => $this->toEnglishDigits(trim((string) ($validated['guarantor_phone'] ?? ''))),
-                'org_name' => trim((string) ($validated['org_name'] ?? '')),
-                'amount_toman' => $amountToman,
-            ];
+            $meta = $built;
         } elseif ($type === CustomerLoanGuarantee::TYPE_CHEQUE) {
             $chequeOwnerName = trim((string) ($validated['cheque_owner_name'] ?? ''));
             $chequeOwnerNationalId = $this->toEnglishDigits(trim((string) ($validated['cheque_owner_national_id'] ?? '')));
@@ -647,7 +638,7 @@ final class CustomerController extends Controller
             if (! preg_match('/^\d{10}$/', $chequeOwnerNationalId)) {
                 return response()->json(['message' => 'کد ملی صاحب چک باید ۱۰ رقم باشد.'], 422);
             }
-            if (! preg_match('/^09\d{9}$/', $chequeOwnerMobile)) {
+            if ($chequeOwnerMobile !== '' && ! preg_match('/^09\d{9}$/', $chequeOwnerMobile)) {
                 return response()->json(['message' => 'شماره موبایل صاحب چک معتبر نیست.'], 422);
             }
             if ($chequeSerial === '') {
@@ -664,9 +655,8 @@ final class CustomerController extends Controller
             if ($chequeDueDate === null) {
                 return response()->json(['message' => 'تاریخ چک معتبر نیست.'], 422);
             }
-            if ($amountToman < 1) {
-                return response()->json(['message' => 'مبلغ چک را به‌صورت معتبر وارد کنید.'], 422);
-            }
+            $chequeCollected = $request->boolean('cheque_collected');
+            $chequeReturned = $request->boolean('cheque_returned');
             $meta = [
                 'cheque_owner_name' => $chequeOwnerName,
                 'cheque_owner_national_id' => $chequeOwnerNationalId,
@@ -674,7 +664,8 @@ final class CustomerController extends Controller
                 'cheque_serial' => $chequeSerial,
                 'cheque_sayadi' => $chequeSayadi,
                 'cheque_due_jdate' => $chequeDueDate ? Jalali::instance($chequeDueDate)->format('Y/m/d') : '',
-                'amount_toman' => $amountToman,
+                'cheque_collected' => $chequeCollected,
+                'cheque_returned' => $chequeReturned,
             ];
         } elseif ($type === CustomerLoanGuarantee::TYPE_GOLD) {
             $meta = $this->buildGoldGuaranteeMeta($validated);
@@ -779,7 +770,7 @@ final class CustomerController extends Controller
                 : 'سلام '.$customer->fullName().'، به سامانه '.$this->appDisplayName().' خوش آمدید.';
         }
 
-        $result = $this->sendRawSms($customer->mobile, $messageText, $smsType === 'wallet_link' ? 'wallet-charge-link' : 'welcome-message');
+        $result = $this->rawSms->send($customer->mobile, $messageText, $smsType === 'wallet_link' ? 'wallet-charge-link' : 'welcome-message');
 
         return response()->json([
             'ok' => $result['ok'],
@@ -794,7 +785,7 @@ final class CustomerController extends Controller
         }
 
         $request->merge([
-            'national_id' => $this->toEnglishDigits(trim((string) $request->input('national_id', ''))),
+            'national_id' => IranNationalId::normalizeToDigits(trim((string) $request->input('national_id', ''))),
             'mobile' => $this->toEnglishDigits(trim((string) $request->input('mobile', ''))),
             'postal_code' => $this->toEnglishDigits(trim((string) $request->input('postal_code', ''))),
         ]);
@@ -920,7 +911,7 @@ final class CustomerController extends Controller
             $msg = 'سامانه '.$this->appDisplayName().chr(10)
                 .'نام کاربری: '.$customer->username.chr(10)
                 .'رمز عبور: '.$plainPassword;
-            $smsResult = $this->sendRawSms($customer->mobile, $msg);
+            $smsResult = $this->rawSms->send($customer->mobile, $msg);
             $smsMessage = $smsResult['message'];
             if ($smsResult['ok']) {
                 $customer->credentials_sms_sent_at = now();
@@ -992,7 +983,7 @@ final class CustomerController extends Controller
         }
 
         $request->merge([
-            'national_id' => $this->toEnglishDigits(trim((string) $request->input('national_id', ''))),
+            'national_id' => IranNationalId::normalizeToDigits(trim((string) $request->input('national_id', ''))),
             'mobile' => $this->toEnglishDigits(trim((string) $request->input('mobile', ''))),
             'postal_code' => $this->toEnglishDigits(trim((string) $request->input('postal_code', ''))),
         ]);
@@ -1130,7 +1121,7 @@ final class CustomerController extends Controller
             } else {
                 $msg .= 'رمز عبور تغییر نکرده است.';
             }
-            $smsResult = $this->sendRawSms($customer->mobile, $msg);
+            $smsResult = $this->rawSms->send($customer->mobile, $msg);
             $smsMessage = $smsResult['message'];
             if ($smsResult['ok']) {
                 $customer->credentials_sms_sent_at = now();
@@ -1222,65 +1213,6 @@ final class CustomerController extends Controller
         return $out;
     }
 
-    /**
-     * @return array{ok: bool, message: string}
-     */
-    private function sendRawSms(string $recipient, string $messageText, string $type = 'customer-credentials'): array
-    {
-        $active = SmsPanelSetting::query()->where('is_active', true)->first();
-        if ($active === null) {
-            return ['ok' => false, 'message' => 'پیامک ارسال نشد (پنل پیامک فعال نیست).'];
-        }
-
-        $providerOptions = $this->panelManager->providerOptions();
-        $providerKey = $active->provider;
-        if (! isset($providerOptions[$providerKey])) {
-            return ['ok' => false, 'message' => 'پیامک ارسال نشد (پنل پیامک پیکربندی نشده).'];
-        }
-
-        $password = $this->decryptPasswordOrEmpty((string) $active->password);
-        if ($password === '') {
-            return ['ok' => false, 'message' => 'پیامک ارسال نشد (رمز پنل ذخیره نشده).'];
-        }
-
-        $gateway = $this->panelManager->gateway($providerKey);
-        $result = $gateway->sendTestMessage(
-            (string) $active->username,
-            $password,
-            $recipient,
-            $messageText,
-            [
-                'domain_name' => (string) ($active->domain_name ?: 'sepahansms'),
-                'sender_number' => (string) ($active->sender_number ?: '50003300'),
-            ]
-        );
-
-        SmsLog::query()->create([
-            'sms_panel' => (string) ($providerOptions[$providerKey] ?? $providerKey),
-            'status' => $result->ok ? SmsLog::STATUS_DELIVERED : SmsLog::STATUS_UNDELIVERED,
-            'sent_at' => now(),
-            'message_text' => $messageText,
-            'recipient' => $recipient,
-            'type' => $type,
-            'cost' => 0,
-            'meta' => [
-                'provider' => $providerKey,
-                'response_code' => $result->code,
-                'result_message' => $result->message,
-            ],
-        ]);
-
-        // Do not mutate panel connection health here.
-        // Operational SMS failures must not flip panel status in settings.
-
-        return [
-            'ok' => $result->ok,
-            'message' => $result->ok
-                ? 'پیام برای مشتری ارسال شد.'
-                : 'عملیات انجام شد اما ارسال پیامک ناموفق بود: '.$result->message,
-        ];
-    }
-
     private function renderTemplate(string $body, array $vars): string
     {
         $out = $body;
@@ -1296,19 +1228,6 @@ final class CustomerController extends Controller
         $v = AppSetting::query()->where('key', 'app_display_name')->value('value');
 
         return is_string($v) && $v !== '' ? $v : (string) config('app.name');
-    }
-
-    private function decryptPasswordOrEmpty(string $value): string
-    {
-        if ($value === '') {
-            return '';
-        }
-
-        try {
-            return Crypt::decryptString($value);
-        } catch (\Throwable) {
-            return '';
-        }
     }
 
     private function usernameFromMobile(string $mobile): string
@@ -1586,6 +1505,81 @@ final class CustomerController extends Controller
             'attachment_name' => is_string($g->attachment_path) && $g->attachment_path !== '' ? basename($g->attachment_path) : '',
             'created_at' => $g->created_at ? Jalali::instance($g->created_at)->format('Y/m/d H:i') : '',
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>|JsonResponse
+     */
+    private function buildOrgSelfGuaranteeMeta(array $validated): array|JsonResponse
+    {
+        $orgId = (int) ($validated['organization_id'] ?? 0);
+        $organization = Organization::query()->find($orgId);
+        if ($organization === null) {
+            return response()->json(['message' => 'سازمان معتبر را انتخاب کنید.'], 422);
+        }
+
+        return [
+            'organization_id' => (int) $organization->id,
+            'organization_name' => (string) $organization->name,
+            'employee_no' => trim((string) ($validated['employee_no'] ?? '')),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>|JsonResponse
+     */
+    private function buildOrgOtherGuaranteeMeta(Request $request, array $validated): array|JsonResponse
+    {
+        $orgId = (int) ($validated['organization_id'] ?? 0);
+        $organization = Organization::query()->find($orgId);
+        if ($organization === null) {
+            return response()->json(['message' => 'سازمان معتبر را انتخاب کنید.'], 422);
+        }
+
+        $nationalId = IranNationalId::normalizeToDigits(trim((string) ($validated['guarantor_national_id'] ?? '')));
+        if ($nationalId !== '') {
+            $natValidator = Validator::make(
+                ['guarantor_national_id' => $nationalId],
+                ['guarantor_national_id' => [new IranNationalId()]]
+            );
+            if ($natValidator->fails()) {
+                return response()->json(['message' => (string) $natValidator->errors()->first('guarantor_national_id')], 422);
+            }
+        }
+
+        $phone = $this->toEnglishDigits(trim((string) ($validated['guarantor_phone'] ?? '')));
+        if ($phone !== '' && ! preg_match('/^09\d{9}$/', $phone)) {
+            return response()->json(['message' => 'شماره موبایل ضامن معتبر نیست.'], 422);
+        }
+
+        $verified = false;
+        if ($phone !== '') {
+            $verified = $this->consumeGuarantorVerificationToken($request, $phone);
+        }
+
+        return [
+            'organization_id' => (int) $organization->id,
+            'organization_name' => (string) $organization->name,
+            'guarantor_name' => trim((string) ($validated['guarantor_name'] ?? '')),
+            'guarantor_national_id' => $nationalId,
+            'guarantor_employee_no' => trim((string) ($validated['guarantor_employee_no'] ?? '')),
+            'guarantor_phone' => $phone,
+            'guarantor_mobile_verified' => $verified,
+        ];
+    }
+
+    private function consumeGuarantorVerificationToken(Request $request, string $normalizedMobile): bool
+    {
+        $token = trim((string) $request->input('guarantor_verification_token', ''));
+        if ($token === '') {
+            return false;
+        }
+
+        $payload = Cache::pull('guarantor_verified:'.$token);
+
+        return is_array($payload) && (string) ($payload['mobile'] ?? '') === $normalizedMobile;
     }
 
     private function storeGuaranteeAttachment(UploadedFile $file): string

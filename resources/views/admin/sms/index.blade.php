@@ -280,7 +280,7 @@
 
         <section class="sms-tab-panel" data-sms-panel="templates" hidden>
             <div class="sms-template-toolbar">
-                <p class="sms-template-toolbar-note">قالب‌های آماده و سفارشی را مدیریت کنید. پترن‌ها در زمان ارسال با داده واقعی جایگزین می‌شوند.</p>
+                <p class="sms-template-toolbar-note">قالب‌های آماده و سفارشی را مدیریت کنید. پترن‌ها در زمان ارسال با داده واقعی جایگزین می‌شوند. قالب سیستمی «احراز هویت موبایل ضامن (سازمانی)» برای پیامک کد تأیید ضمانت در پرونده وام استفاده می‌شود و از همین تب قابل ویرایش است.</p>
                 <button type="button" class="sms-template-add-btn" id="sms-template-open-modal">
                     <i class="fa-solid fa-plus" aria-hidden="true"></i>
                     افزودن الگو جدید

@@ -608,6 +608,7 @@ final class SmsManagementController extends Controller
             'contract_link' => 'لینک قرارداد',
             'contract_verification_code' => 'کد تایدییه قرارداد',
             'contract_registered_notice' => 'اطلاعیه ثبت موفق قرارداد',
+            'guarantor_otp' => 'احراز هویت ضامن',
         ];
     }
 
@@ -628,6 +629,10 @@ final class SmsManagementController extends Controller
             'payment_link' => ['label' => 'لینک پرداخت', 'sample' => 'https://pay.example.com/i/452'],
             'payment_link_variable' => ['label' => 'بخش متغیر لینک پرداخت', 'sample' => 'i/452'],
             'transaction_tracking_code' => ['label' => 'شماره پیگیری تراکنش', 'sample' => 'TRX-904521'],
+            'guarantor_name' => ['label' => 'نام و نام خانوادگی ضامن', 'sample' => 'محمد احمدی'],
+            'borrower_name' => ['label' => 'نام مشتری وام‌گیرنده', 'sample' => 'زهرا کریمی'],
+            'app_name' => ['label' => 'نام نمایشی سامانه', 'sample' => 'سامانه میهمان'],
+            'code' => ['label' => 'کد تأیید پیامکی', 'sample' => '847392'],
         ];
     }
 

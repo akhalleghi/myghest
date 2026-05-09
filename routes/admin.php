@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Admin\AppSettingsController;
+use App\Http\Controllers\Admin\GuarantorOtpController;
+use App\Http\Controllers\Admin\OrganizationController;
 use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
 use App\Http\Controllers\Admin\Auth\AdminDashboardController;
 use App\Http\Controllers\Admin\Auth\AdminLoginController;
@@ -64,6 +66,30 @@ Route::middleware(['auth:admin'])->group(function (): void {
     | داشبورد موقت؛ ساخت صفحه‌های واقعی سیستم اقساط در گام بعدی خواهد بود.
     */
     Route::get('/', AdminDashboardController::class)->name('dashboard');
+
+    Route::get('/organizations', [OrganizationController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('organizations.index');
+
+    Route::post('/organizations', [OrganizationController::class, 'store'])
+        ->middleware('throttle:30,1')
+        ->name('organizations.store');
+
+    Route::put('/organizations/{organization}', [OrganizationController::class, 'update'])
+        ->middleware('throttle:30,1')
+        ->name('organizations.update');
+
+    Route::delete('/organizations/{organization}', [OrganizationController::class, 'destroy'])
+        ->middleware('throttle:30,1')
+        ->name('organizations.destroy');
+
+    Route::post('/guarantor-otp/send', [GuarantorOtpController::class, 'send'])
+        ->middleware('throttle:10,1')
+        ->name('guarantor-otp.send');
+
+    Route::post('/guarantor-otp/verify', [GuarantorOtpController::class, 'verify'])
+        ->middleware('throttle:30,1')
+        ->name('guarantor-otp.verify');
 
     Route::get('/customers', [CustomerController::class, 'index'])
         ->middleware('throttle:60,1')

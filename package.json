@@ -19,6 +19,7 @@
     "dependencies": {
         "jquery": "^4.0.0",
         "persian-date": "^1.1.0",
-        "persian-datepicker": "^1.2.0"
+        "persian-datepicker": "^1.2.0",
+        "select2": "^4.1.0-rc.0"
     }
 }
