@@ -461,13 +461,16 @@ final class CustomerController extends Controller
             'guarantor_name' => ['nullable', 'string', 'max:255'],
             'guarantor_national_id' => ['nullable', 'string', 'max:20'],
             'guarantor_phone' => ['nullable', 'string', 'max:20'],
-            'cheque_bank' => ['nullable', 'string', 'max:255'],
+            'cheque_owner_name' => ['nullable', 'string', 'max:255'],
+            'cheque_owner_national_id' => ['nullable', 'string', 'max:20'],
+            'cheque_owner_mobile' => ['nullable', 'string', 'max:20'],
             'cheque_serial' => ['nullable', 'string', 'max:120'],
             'cheque_sayadi' => ['nullable', 'string', 'max:120'],
             'cheque_due_jdate' => ['nullable', 'string', 'max:20'],
-            'gold_item_type' => ['nullable', 'string', 'max:255'],
-            'gold_weight_gram' => ['nullable', 'numeric', 'min:0'],
-            'gold_karat' => ['nullable', 'numeric', 'min:0'],
+            'gold_item_code' => ['nullable', Rule::in(CustomerLoanGuarantee::goldItemCodes())],
+            'gold_weight_gram' => ['nullable', 'numeric', 'gt:0'],
+            'gold_quantity' => ['nullable', 'integer', 'min:1'],
+            'gold_rate_toman' => ['nullable', 'integer', 'min:1', 'max:999999999999'],
             'amount_toman' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
             'attachment' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp,pdf', 'max:5120'],
         ]);
@@ -498,30 +501,48 @@ final class CustomerController extends Controller
                 'amount_toman' => $amountToman,
             ];
         } elseif ($type === CustomerLoanGuarantee::TYPE_CHEQUE) {
-            if (trim((string) ($validated['cheque_serial'] ?? '')) === '') {
+            $chequeOwnerName = trim((string) ($validated['cheque_owner_name'] ?? ''));
+            $chequeOwnerNationalId = $this->toEnglishDigits(trim((string) ($validated['cheque_owner_national_id'] ?? '')));
+            $chequeOwnerMobile = $this->toEnglishDigits(trim((string) ($validated['cheque_owner_mobile'] ?? '')));
+            $chequeSerial = trim((string) ($validated['cheque_serial'] ?? ''));
+            $chequeSayadi = trim((string) ($validated['cheque_sayadi'] ?? ''));
+            if ($chequeOwnerName === '') {
+                return response()->json(['message' => 'نام و نام خانوادگی صاحب چک الزامی است.'], 422);
+            }
+            if (! preg_match('/^\d{10}$/', $chequeOwnerNationalId)) {
+                return response()->json(['message' => 'کد ملی صاحب چک باید ۱۰ رقم باشد.'], 422);
+            }
+            if (! preg_match('/^09\d{9}$/', $chequeOwnerMobile)) {
+                return response()->json(['message' => 'شماره موبایل صاحب چک معتبر نیست.'], 422);
+            }
+            if ($chequeSerial === '') {
                 return response()->json(['message' => 'شماره چک الزامی است.'], 422);
             }
+            if ($chequeSayadi === '') {
+                return response()->json(['message' => 'شماره صیادی الزامی است.'], 422);
+            }
             $chequeDueDate = null;
-            if (($validated['cheque_due_jdate'] ?? '') !== '') {
-                $chequeDueDate = $this->parseJalaliDate((string) $validated['cheque_due_jdate']);
-                if ($chequeDueDate === null) {
-                    return response()->json(['message' => 'تاریخ سررسید چک معتبر نیست.'], 422);
-                }
+            if (($validated['cheque_due_jdate'] ?? '') === '') {
+                return response()->json(['message' => 'تاریخ چک الزامی است.'], 422);
+            }
+            $chequeDueDate = $this->parseJalaliDate((string) $validated['cheque_due_jdate']);
+            if ($chequeDueDate === null) {
+                return response()->json(['message' => 'تاریخ چک معتبر نیست.'], 422);
+            }
+            if ($amountToman < 1) {
+                return response()->json(['message' => 'مبلغ چک را به‌صورت معتبر وارد کنید.'], 422);
             }
             $meta = [
-                'cheque_bank' => trim((string) ($validated['cheque_bank'] ?? '')),
-                'cheque_serial' => trim((string) ($validated['cheque_serial'] ?? '')),
-                'cheque_sayadi' => trim((string) ($validated['cheque_sayadi'] ?? '')),
+                'cheque_owner_name' => $chequeOwnerName,
+                'cheque_owner_national_id' => $chequeOwnerNationalId,
+                'cheque_owner_mobile' => $chequeOwnerMobile,
+                'cheque_serial' => $chequeSerial,
+                'cheque_sayadi' => $chequeSayadi,
                 'cheque_due_jdate' => $chequeDueDate ? Jalali::instance($chequeDueDate)->format('Y/m/d') : '',
                 'amount_toman' => $amountToman,
             ];
         } elseif ($type === CustomerLoanGuarantee::TYPE_GOLD) {
-            $meta = [
-                'gold_item_type' => trim((string) ($validated['gold_item_type'] ?? '')),
-                'gold_weight_gram' => isset($validated['gold_weight_gram']) ? (float) $validated['gold_weight_gram'] : null,
-                'gold_karat' => isset($validated['gold_karat']) ? (float) $validated['gold_karat'] : null,
-                'amount_toman' => $amountToman,
-            ];
+            $meta = $this->buildGoldGuaranteeMeta($validated);
         } else {
             // سایر
             if ($description === '') {
@@ -574,13 +595,16 @@ final class CustomerController extends Controller
             'guarantor_name' => ['nullable', 'string', 'max:255'],
             'guarantor_national_id' => ['nullable', 'string', 'max:20'],
             'guarantor_phone' => ['nullable', 'string', 'max:20'],
-            'cheque_bank' => ['nullable', 'string', 'max:255'],
+            'cheque_owner_name' => ['nullable', 'string', 'max:255'],
+            'cheque_owner_national_id' => ['nullable', 'string', 'max:20'],
+            'cheque_owner_mobile' => ['nullable', 'string', 'max:20'],
             'cheque_serial' => ['nullable', 'string', 'max:120'],
             'cheque_sayadi' => ['nullable', 'string', 'max:120'],
             'cheque_due_jdate' => ['nullable', 'string', 'max:20'],
-            'gold_item_type' => ['nullable', 'string', 'max:255'],
-            'gold_weight_gram' => ['nullable', 'numeric', 'min:0'],
-            'gold_karat' => ['nullable', 'numeric', 'min:0'],
+            'gold_item_code' => ['nullable', Rule::in(CustomerLoanGuarantee::goldItemCodes())],
+            'gold_weight_gram' => ['nullable', 'numeric', 'gt:0'],
+            'gold_quantity' => ['nullable', 'integer', 'min:1'],
+            'gold_rate_toman' => ['nullable', 'integer', 'min:1', 'max:999999999999'],
             'amount_toman' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
             'attachment' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp,pdf', 'max:5120'],
             'remove_attachment' => ['nullable', 'boolean'],
@@ -612,30 +636,48 @@ final class CustomerController extends Controller
                 'amount_toman' => $amountToman,
             ];
         } elseif ($type === CustomerLoanGuarantee::TYPE_CHEQUE) {
-            if (trim((string) ($validated['cheque_serial'] ?? '')) === '') {
+            $chequeOwnerName = trim((string) ($validated['cheque_owner_name'] ?? ''));
+            $chequeOwnerNationalId = $this->toEnglishDigits(trim((string) ($validated['cheque_owner_national_id'] ?? '')));
+            $chequeOwnerMobile = $this->toEnglishDigits(trim((string) ($validated['cheque_owner_mobile'] ?? '')));
+            $chequeSerial = trim((string) ($validated['cheque_serial'] ?? ''));
+            $chequeSayadi = trim((string) ($validated['cheque_sayadi'] ?? ''));
+            if ($chequeOwnerName === '') {
+                return response()->json(['message' => 'نام و نام خانوادگی صاحب چک الزامی است.'], 422);
+            }
+            if (! preg_match('/^\d{10}$/', $chequeOwnerNationalId)) {
+                return response()->json(['message' => 'کد ملی صاحب چک باید ۱۰ رقم باشد.'], 422);
+            }
+            if (! preg_match('/^09\d{9}$/', $chequeOwnerMobile)) {
+                return response()->json(['message' => 'شماره موبایل صاحب چک معتبر نیست.'], 422);
+            }
+            if ($chequeSerial === '') {
                 return response()->json(['message' => 'شماره چک الزامی است.'], 422);
             }
+            if ($chequeSayadi === '') {
+                return response()->json(['message' => 'شماره صیادی الزامی است.'], 422);
+            }
             $chequeDueDate = null;
-            if (($validated['cheque_due_jdate'] ?? '') !== '') {
-                $chequeDueDate = $this->parseJalaliDate((string) $validated['cheque_due_jdate']);
-                if ($chequeDueDate === null) {
-                    return response()->json(['message' => 'تاریخ سررسید چک معتبر نیست.'], 422);
-                }
+            if (($validated['cheque_due_jdate'] ?? '') === '') {
+                return response()->json(['message' => 'تاریخ چک الزامی است.'], 422);
+            }
+            $chequeDueDate = $this->parseJalaliDate((string) $validated['cheque_due_jdate']);
+            if ($chequeDueDate === null) {
+                return response()->json(['message' => 'تاریخ چک معتبر نیست.'], 422);
+            }
+            if ($amountToman < 1) {
+                return response()->json(['message' => 'مبلغ چک را به‌صورت معتبر وارد کنید.'], 422);
             }
             $meta = [
-                'cheque_bank' => trim((string) ($validated['cheque_bank'] ?? '')),
-                'cheque_serial' => trim((string) ($validated['cheque_serial'] ?? '')),
-                'cheque_sayadi' => trim((string) ($validated['cheque_sayadi'] ?? '')),
+                'cheque_owner_name' => $chequeOwnerName,
+                'cheque_owner_national_id' => $chequeOwnerNationalId,
+                'cheque_owner_mobile' => $chequeOwnerMobile,
+                'cheque_serial' => $chequeSerial,
+                'cheque_sayadi' => $chequeSayadi,
                 'cheque_due_jdate' => $chequeDueDate ? Jalali::instance($chequeDueDate)->format('Y/m/d') : '',
                 'amount_toman' => $amountToman,
             ];
         } elseif ($type === CustomerLoanGuarantee::TYPE_GOLD) {
-            $meta = [
-                'gold_item_type' => trim((string) ($validated['gold_item_type'] ?? '')),
-                'gold_weight_gram' => isset($validated['gold_weight_gram']) ? (float) $validated['gold_weight_gram'] : null,
-                'gold_karat' => isset($validated['gold_karat']) ? (float) $validated['gold_karat'] : null,
-                'amount_toman' => $amountToman,
-            ];
+            $meta = $this->buildGoldGuaranteeMeta($validated);
         } else {
             if ($description === '') {
                 return response()->json(['message' => 'برای ضمانت نوع سایر، توضیحات الزامی است.'], 422);
@@ -1444,6 +1486,66 @@ final class CustomerController extends Controller
             .'پرونده وام: '.$loanFile->loan_code."\n"
             .'مبلغ وام: '.number_format((int) $loanFile->amount_toman, 0, '.', ',').' تومان'."\n"
             .'مبلغ هر قسط: '.number_format((int) $loanFile->installment_amount_toman, 0, '.', ',').' تومان';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildGoldGuaranteeMeta(array $validated): array
+    {
+        $itemCode = (string) ($validated['gold_item_code'] ?? '');
+        if ($itemCode === '') {
+            throw ValidationException::withMessages([
+                'gold_item_code' => 'نوع طلا را انتخاب کنید.',
+            ]);
+        }
+
+        $labels = CustomerLoanGuarantee::goldItemLabels();
+        if (! isset($labels[$itemCode])) {
+            throw ValidationException::withMessages([
+                'gold_item_code' => 'نوع طلای انتخاب‌شده معتبر نیست.',
+            ]);
+        }
+
+        $rateToman = (int) ($validated['gold_rate_toman'] ?? 0);
+        if ($rateToman < 1) {
+            throw ValidationException::withMessages([
+                'gold_rate_toman' => 'نرخ طلا الزامی است.',
+            ]);
+        }
+
+        $weight = null;
+        $quantity = null;
+        if ($itemCode === CustomerLoanGuarantee::GOLD_ITEM_BROKEN_GOLD) {
+            $weight = isset($validated['gold_weight_gram']) ? round((float) $validated['gold_weight_gram'], 3) : null;
+            if ($weight === null || $weight <= 0) {
+                throw ValidationException::withMessages([
+                    'gold_weight_gram' => 'برای طلای شکن، وزن طلا الزامی است.',
+                ]);
+            }
+        } else {
+            $quantity = isset($validated['gold_quantity']) ? (int) $validated['gold_quantity'] : 0;
+            if ($quantity < 1) {
+                throw ValidationException::withMessages([
+                    'gold_quantity' => 'برای این نوع طلا، تعداد الزامی است.',
+                ]);
+            }
+        }
+
+        $estimatedAmount = $itemCode === CustomerLoanGuarantee::GOLD_ITEM_BROKEN_GOLD
+            ? (int) round($rateToman * (float) ($weight ?? 0))
+            : (int) ($rateToman * (int) ($quantity ?? 0));
+
+        return [
+            'gold_item_code' => $itemCode,
+            'gold_item_label' => (string) $labels[$itemCode],
+            // backward compatibility with older UI consumers
+            'gold_item_type' => (string) $labels[$itemCode],
+            'gold_weight_gram' => $weight,
+            'gold_quantity' => $quantity,
+            'gold_rate_toman' => $rateToman,
+            'amount_toman' => max(0, $estimatedAmount),
+        ];
     }
 
     /**

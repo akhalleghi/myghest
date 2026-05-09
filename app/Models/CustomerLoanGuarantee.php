@@ -20,6 +20,44 @@ final class CustomerLoanGuarantee extends Model
 
     public const TYPE_OTHER = 'other';
 
+    public const GOLD_ITEM_BROKEN_GOLD = 'broken_gold';
+
+    public const GOLD_ITEM_QUARTER_COIN = 'quarter_coin';
+
+    public const GOLD_ITEM_HALF_COIN = 'half_coin';
+
+    public const GOLD_ITEM_FULL_COIN = 'full_coin';
+
+    public const GOLD_ITEM_PARSIAN_GRAM = 'parsian_gram';
+
+    /**
+     * @return array<int, string>
+     */
+    public static function goldItemCodes(): array
+    {
+        return [
+            self::GOLD_ITEM_BROKEN_GOLD,
+            self::GOLD_ITEM_QUARTER_COIN,
+            self::GOLD_ITEM_HALF_COIN,
+            self::GOLD_ITEM_FULL_COIN,
+            self::GOLD_ITEM_PARSIAN_GRAM,
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function goldItemLabels(): array
+    {
+        return [
+            self::GOLD_ITEM_BROKEN_GOLD => 'طلای شکن',
+            self::GOLD_ITEM_QUARTER_COIN => 'ربع سکه',
+            self::GOLD_ITEM_HALF_COIN => 'نیم سکه',
+            self::GOLD_ITEM_FULL_COIN => 'تمام بهار',
+            self::GOLD_ITEM_PARSIAN_GRAM => 'گرمی پارسیان',
+        ];
+    }
+
     protected $fillable = [
         'customer_id',
         'loan_file_id',

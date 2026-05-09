@@ -383,6 +383,34 @@
         .loan-guarantee-type-btn:last-child { border-inline-end: 0; }
         .loan-guarantee-type-btn.is-active { background: var(--primary-soft); color: var(--primary-dark); }
         .loan-guarantee-section[hidden] { display: none !important; }
+        .gold-item-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 0.45rem;
+            margin-bottom: 0.45rem;
+        }
+        .gold-item-option {
+            border: 1px solid var(--border);
+            border-radius: 0.62rem;
+            padding: 0.45rem 0.5rem;
+            background: var(--bg-card);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 0.74rem;
+            font-weight: 700;
+            color: var(--text);
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+        .gold-item-option input { display: none; }
+        .gold-item-option.is-active {
+            background: var(--primary-soft);
+            border-color: rgba(37, 99, 235, 0.35);
+            color: var(--primary-dark);
+        }
         .loan-guarantee-attach {
             border: 1px dashed var(--border);
             border-radius: 0.72rem;
@@ -1324,19 +1352,58 @@
                         </div>
                         <div class="loan-guarantee-section" data-guarantee-section="cheque" hidden>
                             <div class="cust-form-grid">
-                                <div class="cust-field"><label>بانک</label><input name="cheque_bank"></div>
+                                <div class="cust-field"><label>نام و نام خانوادگی صاحب چک <span class="req">*</span></label><input name="cheque_owner_name"></div>
+                                <div class="cust-field"><label>کد ملی صاحب چک <span class="req">*</span></label><input name="cheque_owner_national_id" inputmode="numeric"></div>
+                                <div class="cust-field"><label>شماره موبایل صاحب چک <span class="req">*</span></label><input name="cheque_owner_mobile" inputmode="numeric"></div>
+                                <div class="cust-field"><label>تاریخ چک <span class="req">*</span></label><input name="cheque_due_jdate" id="loan-guarantee-cheque-due"></div>
                                 <div class="cust-field"><label>شماره چک <span class="req">*</span></label><input name="cheque_serial"></div>
-                                <div class="cust-field"><label>شناسه صیادی</label><input name="cheque_sayadi"></div>
-                                <div class="cust-field"><label>تاریخ سررسید چک</label><input name="cheque_due_jdate" id="loan-guarantee-cheque-due"></div>
+                                <div class="cust-field"><label>شماره صیادی <span class="req">*</span></label><input name="cheque_sayadi"></div>
                                 <div class="cust-field"><label>مبلغ ضمانت (تومان)</label><input name="amount_toman" inputmode="numeric" data-guarantee-amount></div>
                             </div>
                         </div>
                         <div class="loan-guarantee-section" data-guarantee-section="gold" hidden>
                             <div class="cust-form-grid">
-                                <div class="cust-field"><label>نوع طلای ضمانت</label><input name="gold_item_type"></div>
-                                <div class="cust-field"><label>وزن (گرم)</label><input type="number" name="gold_weight_gram" step="0.01" min="0"></div>
-                                <div class="cust-field"><label>عیار</label><input type="number" name="gold_karat" step="0.1" min="0"></div>
-                                <div class="cust-field"><label>ارزش تخمینی (تومان)</label><input name="amount_toman" inputmode="numeric" data-guarantee-amount></div>
+                                <div class="cust-field" style="grid-column: 1 / -1;">
+                                    <label>نوع طلا <span class="req">*</span></label>
+                                    <div class="gold-item-options" id="gold-item-options">
+                                        <label class="gold-item-option is-active" data-gold-option>
+                                            <input type="radio" name="gold_item_code" value="broken_gold" checked>
+                                            طلای شکن
+                                        </label>
+                                        <label class="gold-item-option" data-gold-option>
+                                            <input type="radio" name="gold_item_code" value="quarter_coin">
+                                            ربع سکه
+                                        </label>
+                                        <label class="gold-item-option" data-gold-option>
+                                            <input type="radio" name="gold_item_code" value="half_coin">
+                                            نیم سکه
+                                        </label>
+                                        <label class="gold-item-option" data-gold-option>
+                                            <input type="radio" name="gold_item_code" value="full_coin">
+                                            تمام بهار
+                                        </label>
+                                        <label class="gold-item-option" data-gold-option>
+                                            <input type="radio" name="gold_item_code" value="parsian_gram">
+                                            گرمی پارسیان
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="cust-field" id="gold-weight-wrap">
+                                    <label>وزن طلا (گرم) <span class="req">*</span></label>
+                                    <input type="number" name="gold_weight_gram" step="0.01" min="0">
+                                </div>
+                                <div class="cust-field" id="gold-quantity-wrap" hidden>
+                                    <label>تعداد <span class="req">*</span></label>
+                                    <input type="number" name="gold_quantity" step="1" min="1">
+                                </div>
+                                <div class="cust-field">
+                                    <label>نرخ طلا (تومان) <span class="req">*</span></label>
+                                    <input name="gold_rate_toman" inputmode="numeric" data-gold-rate>
+                                </div>
+                                <div class="cust-field" style="grid-column: 1 / -1;">
+                                    <label>در صورت لزوم توضیحات ضمانت را وارد کنید:</label>
+                                    <textarea name="description" id="loan-guarantee-gold-desc" maxlength="2000"></textarea>
+                                </div>
                             </div>
                         </div>
                         <div class="loan-guarantee-section" data-guarantee-section="other" hidden>
@@ -1597,6 +1664,9 @@
             var loanGuaranteeFormMode = 'create';
             var loanGuaranteeEditingId = null;
             var loanGuaranteeRemoveExistingAttachment = false;
+            var goldItemOptions = Array.prototype.slice.call(document.querySelectorAll('[data-gold-option]'));
+            var goldWeightWrap = document.getElementById('gold-weight-wrap');
+            var goldQuantityWrap = document.getElementById('gold-quantity-wrap');
             var walletState = {
                 balance_toman: 0,
                 is_locked: false,
@@ -2346,6 +2416,34 @@
                 loanSmsCurrentLoanData = null;
             }
 
+            function setGoldOptionSelectionStyles() {
+                goldItemOptions.forEach(function (label) {
+                    var input = label.querySelector('input[name="gold_item_code"]');
+                    var checked = !!(input && input.checked);
+                    label.classList.toggle('is-active', checked);
+                });
+            }
+
+            function syncGoldFieldsByOption() {
+                var selectedInput = loanGuaranteeForm ? loanGuaranteeForm.querySelector('input[name="gold_item_code"]:checked') : null;
+                var selectedCode = String((selectedInput && selectedInput.value) || 'broken_gold');
+                var isBrokenGold = selectedCode === 'broken_gold';
+                var weightInput = loanGuaranteeForm ? loanGuaranteeForm.elements['gold_weight_gram'] : null;
+                var quantityInput = loanGuaranteeForm ? loanGuaranteeForm.elements['gold_quantity'] : null;
+
+                if (goldWeightWrap) goldWeightWrap.hidden = !isBrokenGold;
+                if (goldQuantityWrap) goldQuantityWrap.hidden = isBrokenGold;
+                if (weightInput) {
+                    weightInput.disabled = !isBrokenGold;
+                    if (!isBrokenGold) weightInput.value = '';
+                }
+                if (quantityInput) {
+                    quantityInput.disabled = isBrokenGold;
+                    if (isBrokenGold) quantityInput.value = '';
+                }
+                setGoldOptionSelectionStyles();
+            }
+
             function setGuaranteeType(type) {
                 var activeType = String(type || 'org_self');
                 if (loanGuaranteeTypeInput) {
@@ -2361,6 +2459,9 @@
                         field.disabled = !isActive;
                     });
                 });
+                if (activeType === 'gold') {
+                    syncGoldFieldsByOption();
+                }
             }
 
             function resetGuaranteeFilePreview() {
@@ -2446,19 +2547,35 @@
 
                 var meta = guaranteeData.meta && typeof guaranteeData.meta === 'object' ? guaranteeData.meta : {};
                 if (loanGuaranteeTypeInput) loanGuaranteeTypeInput.value = String(guaranteeData.type || 'other');
-                if (loanGuaranteeForm.elements['description']) loanGuaranteeForm.elements['description'].value = guaranteeData.description || '';
+                var sharedDescription = guaranteeData.description || '';
+                var goldDescEl = document.getElementById('loan-guarantee-gold-desc');
+                var otherDescEl = document.getElementById('loan-guarantee-other-desc');
+                if (goldDescEl) goldDescEl.value = sharedDescription;
+                if (otherDescEl) otherDescEl.value = sharedDescription;
                 if (loanGuaranteeForm.elements['org_name']) loanGuaranteeForm.elements['org_name'].value = meta.org_name || '';
                 if (loanGuaranteeForm.elements['employee_no']) loanGuaranteeForm.elements['employee_no'].value = meta.employee_no || '';
                 if (loanGuaranteeForm.elements['guarantor_name']) loanGuaranteeForm.elements['guarantor_name'].value = meta.guarantor_name || '';
                 if (loanGuaranteeForm.elements['guarantor_national_id']) loanGuaranteeForm.elements['guarantor_national_id'].value = meta.guarantor_national_id || '';
                 if (loanGuaranteeForm.elements['guarantor_phone']) loanGuaranteeForm.elements['guarantor_phone'].value = meta.guarantor_phone || '';
-                if (loanGuaranteeForm.elements['cheque_bank']) loanGuaranteeForm.elements['cheque_bank'].value = meta.cheque_bank || '';
+                if (loanGuaranteeForm.elements['cheque_owner_name']) loanGuaranteeForm.elements['cheque_owner_name'].value = meta.cheque_owner_name || '';
+                if (loanGuaranteeForm.elements['cheque_owner_national_id']) loanGuaranteeForm.elements['cheque_owner_national_id'].value = meta.cheque_owner_national_id || '';
+                if (loanGuaranteeForm.elements['cheque_owner_mobile']) loanGuaranteeForm.elements['cheque_owner_mobile'].value = meta.cheque_owner_mobile || '';
                 if (loanGuaranteeForm.elements['cheque_serial']) loanGuaranteeForm.elements['cheque_serial'].value = meta.cheque_serial || '';
                 if (loanGuaranteeForm.elements['cheque_sayadi']) loanGuaranteeForm.elements['cheque_sayadi'].value = meta.cheque_sayadi || '';
                 if (loanGuaranteeForm.elements['cheque_due_jdate']) loanGuaranteeForm.elements['cheque_due_jdate'].value = meta.cheque_due_jdate || '';
-                if (loanGuaranteeForm.elements['gold_item_type']) loanGuaranteeForm.elements['gold_item_type'].value = meta.gold_item_type || '';
+                var selectedGoldCode = String(meta.gold_item_code || '').trim();
+                if (!selectedGoldCode && meta.gold_item_type) {
+                    selectedGoldCode = String(meta.gold_item_type).indexOf('شکن') !== -1 ? 'broken_gold' : 'full_coin';
+                }
+                if (!selectedGoldCode) selectedGoldCode = 'broken_gold';
+                var selectedGoldInput = loanGuaranteeForm.querySelector('input[name="gold_item_code"][value="' + selectedGoldCode + '"]');
+                if (selectedGoldInput) {
+                    selectedGoldInput.checked = true;
+                }
                 if (loanGuaranteeForm.elements['gold_weight_gram']) loanGuaranteeForm.elements['gold_weight_gram'].value = meta.gold_weight_gram || '';
-                if (loanGuaranteeForm.elements['gold_karat']) loanGuaranteeForm.elements['gold_karat'].value = meta.gold_karat || '';
+                if (loanGuaranteeForm.elements['gold_quantity']) loanGuaranteeForm.elements['gold_quantity'].value = meta.gold_quantity || '';
+                if (loanGuaranteeForm.elements['gold_rate_toman']) loanGuaranteeForm.elements['gold_rate_toman'].value = formatThousandsInputValue(String(meta.gold_rate_toman || ''));
+                syncGoldFieldsByOption();
 
                 var amountInputs = loanGuaranteeForm.querySelectorAll('[data-guarantee-amount]');
                 amountInputs.forEach(function (input) { input.value = ''; });
@@ -2511,8 +2628,15 @@
                         if (row.meta && typeof row.meta === 'object') {
                             if (row.meta.org_name) metaText.push('سازمان: ' + row.meta.org_name);
                             if (row.meta.guarantor_name) metaText.push('ضامن: ' + row.meta.guarantor_name);
+                            if (row.meta.cheque_owner_name) metaText.push('صاحب چک: ' + row.meta.cheque_owner_name);
+                            if (row.meta.cheque_owner_mobile) metaText.push('موبایل: ' + row.meta.cheque_owner_mobile);
                             if (row.meta.cheque_serial) metaText.push('شماره چک: ' + row.meta.cheque_serial);
-                            if (row.meta.gold_item_type) metaText.push('نوع طلا: ' + row.meta.gold_item_type);
+                            if (row.meta.cheque_sayadi) metaText.push('صیادی: ' + row.meta.cheque_sayadi);
+                            if (row.meta.cheque_due_jdate) metaText.push('تاریخ چک: ' + row.meta.cheque_due_jdate);
+                            if (row.meta.gold_item_label || row.meta.gold_item_type) metaText.push('نوع طلا: ' + (row.meta.gold_item_label || row.meta.gold_item_type));
+                            if (row.meta.gold_weight_gram) metaText.push('وزن: ' + row.meta.gold_weight_gram + ' گرم');
+                            if (row.meta.gold_quantity) metaText.push('تعداد: ' + row.meta.gold_quantity);
+                            if (row.meta.gold_rate_toman) metaText.push('نرخ: ' + formatToman(row.meta.gold_rate_toman) + ' تومان');
                             if (row.meta.amount_toman) metaText.push('مبلغ: ' + formatToman(row.meta.amount_toman) + ' تومان');
                         }
                         var attachmentName = String(row.attachment_name || '');
@@ -3025,11 +3149,35 @@
                     });
                     fd.delete('amount_toman');
                     if (amountPicked !== '') fd.append('amount_toman', amountPicked);
+                    var goldRateInputValue = parseThousandsInput(String(fd.get('gold_rate_toman') || ''));
+                    fd.set('gold_rate_toman', String(goldRateInputValue));
 
                     if (type === 'other') {
                         var desc = String((document.getElementById('loan-guarantee-other-desc').value) || '').trim();
                         if (!desc) {
                             if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('برای نوع سایر، توضیحات الزامی است.');
+                            return;
+                        }
+                    }
+                    if (type === 'gold') {
+                        var selectedGoldInput = loanGuaranteeForm.querySelector('input[name="gold_item_code"]:checked');
+                        var selectedGoldCode = String((selectedGoldInput && selectedGoldInput.value) || '').trim();
+                        if (!selectedGoldCode) {
+                            if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('نوع طلا را انتخاب کنید.');
+                            return;
+                        }
+                        if (goldRateInputValue <= 0) {
+                            if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('نرخ طلا را به‌صورت معتبر وارد کنید.');
+                            return;
+                        }
+                        var weightVal = Number(loanGuaranteeForm.elements['gold_weight_gram'] ? loanGuaranteeForm.elements['gold_weight_gram'].value : 0);
+                        var qtyVal = Number(loanGuaranteeForm.elements['gold_quantity'] ? loanGuaranteeForm.elements['gold_quantity'].value : 0);
+                        if (selectedGoldCode === 'broken_gold' && (!(weightVal > 0))) {
+                            if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('برای طلای شکن، وزن طلا را وارد کنید.');
+                            return;
+                        }
+                        if (selectedGoldCode !== 'broken_gold' && (!(qtyVal > 0))) {
+                            if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('برای این نوع طلا، تعداد را وارد کنید.');
                             return;
                         }
                     }
@@ -3107,6 +3255,19 @@
                 el.addEventListener('blur', function () {
                     el.value = formatThousandsInputValue(el.value);
                 });
+            });
+            document.querySelectorAll('[data-gold-rate]').forEach(function (el) {
+                el.addEventListener('input', function () {
+                    el.value = formatThousandsInputValue(el.value);
+                });
+                el.addEventListener('blur', function () {
+                    el.value = formatThousandsInputValue(el.value);
+                });
+            });
+            goldItemOptions.forEach(function (label) {
+                var input = label.querySelector('input[name="gold_item_code"]');
+                if (!input) return;
+                input.addEventListener('change', syncGoldFieldsByOption);
             });
             [loanStartJdateInput, loanDisbursementDueJdateInput, loanSettledJdateInput, loanTypeIdSelect, loanInstallmentsCountInput, loanInstallmentIntervalCountInput, loanInstallmentIntervalUnitSelect, loanCustomInterestRateInput].forEach(function (el) {
                 if (!el) return;
