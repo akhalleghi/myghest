@@ -11,6 +11,7 @@ use App\Models\CustomerBankAccount;
 use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanGuarantee;
 use App\Models\CustomerLoanInstallment;
+use App\Models\CustomerLoanInstallmentPayment;
 use App\Models\CustomerReferrer;
 use App\Models\CustomerWallet;
 use App\Models\LoanType;
@@ -498,6 +499,9 @@ final class CustomerController extends Controller
                         ? Jalali::enToFaNumbers(Jalali::instance(Carbon::parse($loanFile->loan_start_date))->format('Y/m/d'))
                         : '',
                     'installment_amount_toman' => (int) $loanFile->installment_amount_toman,
+                    'installments_count' => (int) $loanFile->installments_count,
+                    'is_settled' => (bool) $loanFile->is_settled,
+                    'schedule_remaining_toman' => 0,
                     'is_revoked' => true,
                     'revoked_notice' => 'این قرارداد فسخ شده است؛ اقساطی برای نمایش وجود ندارد.',
                 ],
@@ -507,6 +511,17 @@ final class CustomerController extends Controller
 
         $this->ensureLoanInstallmentSchedule($loanFile);
         $loanFile->load(['installments.recordedByAdmin']);
+
+        $profit = $this->calculateLoanProfitToman(
+            (int) $loanFile->amount_toman,
+            (float) $loanFile->effective_interest_rate,
+            (string) ($loanFile->profit_calculation_method ?: LoanType::PROFIT_MONTHLY),
+            (int) $loanFile->installments_count,
+            (int) $loanFile->installment_interval_count,
+            (string) $loanFile->installment_interval_unit
+        );
+        $totalRepayable = max(0, ((int) $loanFile->amount_toman + $profit) - (int) $loanFile->down_payment_toman);
+        $snap = $this->loanInstallmentFinancialSnapshot($loanFile, $totalRepayable);
 
         $rows = $loanFile->installments->map(
             fn (CustomerLoanInstallment $i): array => $this->mapLoanInstallmentRow($i, $customer, $loanFile)
@@ -525,8 +540,227 @@ final class CustomerController extends Controller
                     ? Jalali::enToFaNumbers(Jalali::instance(Carbon::parse($loanFile->loan_start_date))->format('Y/m/d'))
                     : '',
                 'installment_amount_toman' => (int) $loanFile->installment_amount_toman,
+                'installments_count' => (int) $loanFile->installments_count,
+                'is_settled' => (bool) $loanFile->is_settled,
+                'schedule_remaining_toman' => (int) $snap['schedule_remaining_toman'],
             ],
             'installments' => $rows,
+        ]);
+    }
+
+    public function updateLoanInstallment(
+        Request $request,
+        Customer $customer,
+        CustomerLoanFile $loanFile,
+        CustomerLoanInstallment $installment,
+    ): JsonResponse {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+        if ((int) $installment->customer_loan_file_id !== (int) $loanFile->id) {
+            abort(404);
+        }
+        if ($loanFile->revoked_at !== null) {
+            return response()->json(['message' => 'قرارداد فسخ شده است؛ ویرایش قسط ممکن نیست.'], 422);
+        }
+        if ($loanFile->is_settled) {
+            return response()->json(['message' => 'پرونده تسویه‌شده است؛ ویرایش قسط مجاز نیست.'], 422);
+        }
+
+        $validated = $request->validate([
+            'amount_toman' => ['required', 'integer', 'min:1', 'max:999999999999'],
+            'due_jdate' => ['required', 'string', 'max:20'],
+        ], [], [
+            'amount_toman' => 'مبلغ قسط',
+            'due_jdate' => 'تاریخ سررسید',
+        ]);
+
+        $amount = (int) $validated['amount_toman'];
+        $paid = (int) $installment->paid_amount_toman;
+        if ($amount < $paid) {
+            return response()->json([
+                'message' => 'مبلغ قسط نمی‌تواند از مجموع پرداخت‌های ثبت‌شده ('.number_format($paid, 0, '.', ',').' تومان) کمتر باشد.',
+            ], 422);
+        }
+
+        $dueCarbon = $this->parseJalaliDate(trim((string) $validated['due_jdate']));
+        if ($dueCarbon === null) {
+            return response()->json(['message' => 'تاریخ سررسید معتبر نیست. فرمت صحیح: ۱۴۰۳/۰۶/۱۵'], 422);
+        }
+
+        $installment->amount_toman = $amount;
+        $installment->due_date = $dueCarbon->startOfDay()->format('Y-m-d');
+        $installment->recorded_by_label = 'مدیر صندوق';
+        $installment->save();
+
+        $installment->refresh();
+        $installment->load('recordedByAdmin');
+
+        return response()->json([
+            'message' => 'قسط با موفقیت به‌روزرسانی شد.',
+            'installment' => $this->mapLoanInstallmentRow($installment, $customer, $loanFile),
+        ]);
+    }
+
+    public function loanInstallmentPayments(
+        Customer $customer,
+        CustomerLoanFile $loanFile,
+        CustomerLoanInstallment $installment,
+    ): JsonResponse {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+        if ((int) $installment->customer_loan_file_id !== (int) $loanFile->id) {
+            abort(404);
+        }
+        if ($loanFile->revoked_at !== null) {
+            return response()->json(['message' => 'قرارداد فسخ شده است.'], 422);
+        }
+
+        $loanFile->load('loanType');
+        $this->ensureLoanInstallmentSchedule($loanFile);
+        $installment->refresh();
+        $this->maybeBackfillLegacyInstallmentPayments($installment);
+        $installment->load(['payments.recordedByAdmin']);
+
+        $profit = $this->calculateLoanProfitToman(
+            (int) $loanFile->amount_toman,
+            (float) $loanFile->effective_interest_rate,
+            (string) ($loanFile->profit_calculation_method ?: LoanType::PROFIT_MONTHLY),
+            (int) $loanFile->installments_count,
+            (int) $loanFile->installment_interval_count,
+            (string) $loanFile->installment_interval_unit
+        );
+        $totalRepayable = max(0, ((int) $loanFile->amount_toman + $profit) - (int) $loanFile->down_payment_toman);
+        $loanFile->load('installments');
+        $snap = $this->loanInstallmentFinancialSnapshot($loanFile, $totalRepayable);
+
+        $labels = CustomerLoanInstallmentPayment::methodLabels();
+        $options = [];
+        foreach (CustomerLoanInstallmentPayment::creatablePaymentMethodKeys() as $key) {
+            $options[] = ['value' => (string) $key, 'label' => $labels[$key]];
+        }
+
+        return response()->json([
+            'loan' => [
+                'id' => (int) $loanFile->id,
+                'loan_code' => (string) $loanFile->loan_code,
+                'loan_type_title' => (string) ($loanFile->loanType?->title ?? '—'),
+                'amount_toman' => (int) $loanFile->amount_toman,
+                'loan_start_jdate' => $loanFile->loan_start_date
+                    ? Jalali::instance(Carbon::parse($loanFile->loan_start_date))->format('Y/m/d')
+                    : '',
+                'loan_start_jdate_fa' => $loanFile->loan_start_date
+                    ? Jalali::enToFaNumbers(Jalali::instance(Carbon::parse($loanFile->loan_start_date))->format('Y/m/d'))
+                    : '',
+                'installment_amount_toman' => (int) $loanFile->installment_amount_toman,
+                'installments_count' => (int) $loanFile->installments_count,
+                'is_settled' => (bool) $loanFile->is_settled,
+                'schedule_remaining_toman' => (int) $snap['schedule_remaining_toman'],
+            ],
+            'installment' => $this->mapLoanInstallmentPayContext($installment, $customer, $loanFile),
+            'payment_method_options' => $options,
+            'payments' => $installment->payments
+                ->map(fn (CustomerLoanInstallmentPayment $p): array => $this->mapInstallmentPaymentRow($p))
+                ->values(),
+        ]);
+    }
+
+    public function storeLoanInstallmentPayment(
+        Request $request,
+        Customer $customer,
+        CustomerLoanFile $loanFile,
+        CustomerLoanInstallment $installment,
+    ): JsonResponse {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+        if ((int) $installment->customer_loan_file_id !== (int) $loanFile->id) {
+            abort(404);
+        }
+        if ($loanFile->revoked_at !== null) {
+            return response()->json(['message' => 'قرارداد فسخ شده است؛ ثبت پرداخت ممکن نیست.'], 422);
+        }
+        if ($loanFile->is_settled) {
+            return response()->json(['message' => 'پرونده تسویه‌شده است؛ ثبت پرداخت مجاز نیست.'], 422);
+        }
+
+        $adminId = auth('admin')->id();
+        if ($adminId === null) {
+            return response()->json(['message' => 'احراز هویت مدیر الزامی است.'], 401);
+        }
+
+        $validated = $request->validate([
+            'payment_method' => ['required', 'string', Rule::in(CustomerLoanInstallmentPayment::creatablePaymentMethodKeys())],
+            'amount_toman' => ['required', 'integer', 'min:1', 'max:999999999999'],
+            'reference_due_jdate' => ['nullable', 'string', 'max:20'],
+            'deposited_jdate' => ['required', 'string', 'max:20'],
+            'note' => ['nullable', 'string', 'max:5000'],
+        ], [], [
+            'payment_method' => 'نحوه پرداخت',
+            'amount_toman' => 'مبلغ پرداختی',
+            'reference_due_jdate' => 'تاریخ سررسید',
+            'deposited_jdate' => 'تاریخ واریز',
+            'note' => 'توضیحات',
+        ]);
+
+        $amountNew = (int) $validated['amount_toman'];
+        $alreadyPaid = (int) CustomerLoanInstallmentPayment::query()
+            ->where('customer_loan_installment_id', $installment->id)
+            ->sum('amount_toman');
+        $ceiling = max(0, (int) $installment->amount_toman - $alreadyPaid);
+        if ($amountNew > $ceiling) {
+            return response()->json([
+                'message' => $ceiling <= 0
+                    ? 'این قسط قبلاً به‌طور کامل پرداخت شده است.'
+                    : ('جمع پرداخت‌های این قسط نمی‌تواند از مبلغ قسط بیشتر شود؛ حداکثر قابل ثبت: '.number_format($ceiling, 0, '.', ',').' تومان.'),
+            ], 422);
+        }
+
+        $refDueCarbon = null;
+        $rawRefDue = isset($validated['reference_due_jdate']) ? trim((string) $validated['reference_due_jdate']) : '';
+        if ($rawRefDue !== '') {
+            $refDueCarbon = $this->parseJalaliDate($rawRefDue);
+            if ($refDueCarbon === null) {
+                return response()->json(['message' => 'تاریخ سررسید معتبر نیست. فرمت: ۱۴۰۳/۰۶/۱۵'], 422);
+            }
+        }
+
+        $depCarbon = $this->parseJalaliDate(trim((string) $validated['deposited_jdate']));
+        if ($depCarbon === null) {
+            return response()->json(['message' => 'تاریخ واریز معتبر نیست. فرمت: ۱۴۰۳/۰۶/۱۵'], 422);
+        }
+
+        $noteTrim = isset($validated['note']) ? trim((string) $validated['note']) : '';
+        $noteStored = $noteTrim !== '' ? $noteTrim : null;
+
+        $payment = DB::transaction(function () use ($installment, $validated, $refDueCarbon, $depCarbon, $adminId, $noteStored): CustomerLoanInstallmentPayment {
+            $row = CustomerLoanInstallmentPayment::query()->create([
+                'customer_loan_installment_id' => (int) $installment->id,
+                'payment_method' => (string) $validated['payment_method'],
+                'amount_toman' => (int) $validated['amount_toman'],
+                'reference_due_date' => $refDueCarbon?->startOfDay()->format('Y-m-d'),
+                'deposited_at' => $depCarbon->startOfDay()->format('Y-m-d'),
+                'note' => $noteStored,
+                'recorded_by_admin_id' => (int) $adminId,
+            ]);
+            $installment->refresh();
+            $this->resyncInstallmentPaidTotalsFromPayments($installment);
+
+            return $row->fresh(['recordedByAdmin']);
+        });
+
+        return response()->json([
+            'message' => 'پرداخت با موفقیت ثبت شد.',
+            'payment' => $this->mapInstallmentPaymentRow($payment),
+            'installment' => $this->mapLoanInstallmentRow($installment->fresh(['recordedByAdmin']), $customer, $loanFile),
+            'payments' => CustomerLoanInstallmentPayment::query()
+                ->where('customer_loan_installment_id', (int) $installment->id)
+                ->with('recordedByAdmin')
+                ->orderBy('id')
+                ->get()
+                ->map(fn (CustomerLoanInstallmentPayment $p): array => $this->mapInstallmentPaymentRow($p))
+                ->values(),
         ]);
     }
 
@@ -1161,7 +1395,7 @@ final class CustomerController extends Controller
             $meta = $built;
         } elseif ($type === CustomerLoanGuarantee::TYPE_CHEQUE) {
             $chequeOwnerName = trim((string) ($validated['cheque_owner_name'] ?? ''));
-            $chequeOwnerNationalId = $this->toEnglishDigits(trim((string) ($validated['cheque_owner_national_id'] ?? '')));
+            $chequeOwnerNationalId = IranNationalId::normalizeToDigits(trim((string) ($validated['cheque_owner_national_id'] ?? '')));
             $chequeOwnerMobile = $this->toEnglishDigits(trim((string) ($validated['cheque_owner_mobile'] ?? '')));
             $chequeSerial = trim((string) ($validated['cheque_serial'] ?? ''));
             $chequeSayadi = trim((string) ($validated['cheque_sayadi'] ?? ''));
@@ -1261,7 +1495,7 @@ final class CustomerController extends Controller
             $meta = $built;
         } elseif ($type === CustomerLoanGuarantee::TYPE_CHEQUE) {
             $chequeOwnerName = trim((string) ($validated['cheque_owner_name'] ?? ''));
-            $chequeOwnerNationalId = $this->toEnglishDigits(trim((string) ($validated['cheque_owner_national_id'] ?? '')));
+            $chequeOwnerNationalId = IranNationalId::normalizeToDigits(trim((string) ($validated['cheque_owner_national_id'] ?? '')));
             $chequeOwnerMobile = $this->toEnglishDigits(trim((string) ($validated['cheque_owner_mobile'] ?? '')));
             $chequeSerial = trim((string) ($validated['cheque_serial'] ?? ''));
             $chequeSayadi = trim((string) ($validated['cheque_sayadi'] ?? ''));
@@ -2381,14 +2615,14 @@ final class CustomerController extends Controller
             return response()->json(['message' => 'سازمان معتبر را انتخاب کنید.'], 422);
         }
 
-        $nationalId = IranNationalId::normalizeToDigits(trim((string) ($validated['guarantor_national_id'] ?? '')));
+        // کد ملی ضامن اختیاری است؛ کنترل‌رقم استاندارد اغلب برای نسخهٔ قدیمی/کپیِ نادرست خطا می‌دهد؛
+        // تنها ده رقم انگلیسی (با حذف جداکننده) و غیر ده‌تایی تکراری پذیرفته می‌شود.
+        $nationalId = IranNationalId::normalizeNationalInput($validated['guarantor_national_id'] ?? '');
         if ($nationalId !== '') {
-            $natValidator = Validator::make(
-                ['guarantor_national_id' => $nationalId],
-                ['guarantor_national_id' => [new IranNationalId()]]
-            );
-            if ($natValidator->fails()) {
-                return response()->json(['message' => (string) $natValidator->errors()->first('guarantor_national_id')], 422);
+            if (! IranNationalId::isTenDigitNationalBody($nationalId)) {
+                return response()->json([
+                    'message' => 'کد ملی ضامن را دقیقا با ده رقم (فارسی یا انگلیسی) و بدون ده رقم تکراری وارد کنید.',
+                ], 422);
             }
         }
 
@@ -2483,6 +2717,121 @@ final class CustomerController extends Controller
         });
     }
 
+    private function resyncInstallmentPaidTotalsFromPayments(CustomerLoanInstallment $installment): void
+    {
+        $sum = (int) CustomerLoanInstallmentPayment::query()
+            ->where('customer_loan_installment_id', (int) $installment->id)
+            ->sum('amount_toman');
+        $installment->paid_amount_toman = $sum;
+        $maxDep = CustomerLoanInstallmentPayment::query()
+            ->where('customer_loan_installment_id', (int) $installment->id)
+            ->max('deposited_at');
+        if ($sum > 0 && $maxDep !== null) {
+            $installment->paid_at = Carbon::parse((string) $maxDep)->startOfDay()->format('Y-m-d');
+        } else {
+            $installment->paid_at = null;
+        }
+
+        $installment->save();
+    }
+
+    /** اگر قبل از وجود ردیف پرداخت جزئی، مبلغی روی خود قسط مانده باشد یک ردیف واحد برای سازگاری با گزارش‌ها می‌سازد. */
+    private function maybeBackfillLegacyInstallmentPayments(CustomerLoanInstallment $installment): void
+    {
+        DB::transaction(function () use ($installment): void {
+            $fresh = CustomerLoanInstallment::query()->whereKey($installment->id)->lockForUpdate()->first();
+            if ($fresh === null) {
+                return;
+            }
+            $hasRows = CustomerLoanInstallmentPayment::query()
+                ->where('customer_loan_installment_id', $fresh->id)
+                ->exists();
+            if ($hasRows) {
+                return;
+            }
+
+            $paid = (int) $fresh->paid_amount_toman;
+            if ($paid <= 0) {
+                return;
+            }
+
+            $deposit = $fresh->paid_at !== null
+                ? Carbon::parse($fresh->paid_at)->startOfDay()
+                : Carbon::now()->startOfDay();
+
+            CustomerLoanInstallmentPayment::query()->create([
+                'customer_loan_installment_id' => (int) $fresh->id,
+                'payment_method' => CustomerLoanInstallmentPayment::METHOD_LEGACY_IMPORTED,
+                'amount_toman' => $paid,
+                'reference_due_date' => null,
+                'deposited_at' => $deposit->format('Y-m-d'),
+                'note' => 'ثبت خودکار؛ پیش‌تر تنها مجموعِ پرداخت روی این قسط ذخیره شده بود.',
+                'recorded_by_admin_id' => null,
+            ]);
+            $fresh->refresh();
+            $this->resyncInstallmentPaidTotalsFromPayments($fresh);
+        });
+        $installment->refresh();
+    }
+
+    /**
+     * خلاصه قسط به‌اضافهٔ ماندهٔ قابل پرداخت برای مدال ثبت پرداخت.
+     *
+     * @return array<string, mixed>
+     */
+    private function mapLoanInstallmentPayContext(CustomerLoanInstallment $i, Customer $customer, CustomerLoanFile $file): array
+    {
+        $base = $this->mapLoanInstallmentRow($i, $customer, $file);
+        $base['remaining_toman'] = max(0, (int) $i->amount_toman - (int) $i->paid_amount_toman);
+        $base['can_add_payment'] = ! $file->is_settled && $base['remaining_toman'] > 0;
+
+        return $base;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mapInstallmentPaymentRow(CustomerLoanInstallmentPayment $p): array
+    {
+        $refDue = $p->reference_due_date !== null
+            ? Carbon::parse($p->reference_due_date)->startOfDay()
+            : null;
+        $dep = Carbon::parse($p->deposited_at)->startOfDay();
+
+        $labels = CustomerLoanInstallmentPayment::methodLabels();
+        $methodKey = (string) $p->payment_method;
+
+        $rec = $p->recordedByAdmin;
+        $by = '—';
+        if ($rec !== null) {
+            $nm = trim((string) ($rec->name ?? ''));
+            $by = $nm !== '' ? $nm : trim((string) ($rec->username ?? ''));
+            if ($by === '') {
+                $by = '—';
+            }
+        }
+
+        $refJ = $refDue !== null ? Jalali::instance($refDue)->format('Y/m/d') : '';
+        $refJfa = $refJ !== '' ? Jalali::enToFaNumbers($refJ) : '';
+        $depJ = Jalali::instance($dep)->format('Y/m/d');
+        $depJfa = Jalali::enToFaNumbers($depJ);
+
+        return [
+            'id' => (int) $p->id,
+            'payment_method' => $methodKey,
+            'payment_method_label' => $labels[$methodKey] ?? $methodKey,
+            'amount_toman' => (int) $p->amount_toman,
+            'reference_due_date' => $refDue !== null ? $refDue->format('Y-m-d') : null,
+            'reference_due_jdate' => $refJ,
+            'reference_due_jdate_fa' => $refJfa,
+            'deposited_at' => $dep->format('Y-m-d'),
+            'deposited_jdate' => $depJ,
+            'deposited_jdate_fa' => $depJfa,
+            'note' => (string) ($p->note ?? ''),
+            'recorded_by' => $by,
+        ];
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -2506,13 +2855,17 @@ final class CustomerController extends Controller
             }
         }
 
-        $rec = $i->recordedByAdmin;
-        $recLabel = '—';
-        if ($rec !== null) {
-            $nm = trim((string) ($rec->name ?? ''));
-            $recLabel = $nm !== '' ? $nm : trim((string) ($rec->username ?? ''));
-            if ($recLabel === '') {
-                $recLabel = '—';
+        $storedLabel = trim((string) ($i->recorded_by_label ?? ''));
+        $recLabel = $storedLabel !== '' ? $storedLabel : null;
+        if ($recLabel === null) {
+            $rec = $i->recordedByAdmin;
+            $recLabel = '—';
+            if ($rec !== null) {
+                $nm = trim((string) ($rec->name ?? ''));
+                $recLabel = $nm !== '' ? $nm : trim((string) ($rec->username ?? ''));
+                if ($recLabel === '') {
+                    $recLabel = '—';
+                }
             }
         }
 

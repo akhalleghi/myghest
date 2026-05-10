@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class CustomerLoanInstallment extends Model
 {
@@ -17,6 +18,7 @@ final class CustomerLoanInstallment extends Model
         'paid_amount_toman',
         'paid_at',
         'recorded_by_admin_id',
+        'recorded_by_label',
     ];
 
     /**
@@ -43,5 +45,13 @@ final class CustomerLoanInstallment extends Model
     public function recordedByAdmin(): BelongsTo
     {
         return $this->belongsTo(Admin::class, 'recorded_by_admin_id');
+    }
+
+    /**
+     * @return HasMany<CustomerLoanInstallmentPayment, $this>
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(CustomerLoanInstallmentPayment::class, 'customer_loan_installment_id')->orderBy('id');
     }
 }

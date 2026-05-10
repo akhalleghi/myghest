@@ -84,11 +84,11 @@ Route::middleware(['auth:admin'])->group(function (): void {
         ->name('organizations.destroy');
 
     Route::post('/guarantor-otp/send', [GuarantorOtpController::class, 'send'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:60,1')
         ->name('guarantor-otp.send');
 
     Route::post('/guarantor-otp/verify', [GuarantorOtpController::class, 'verify'])
-        ->middleware('throttle:30,1')
+        ->middleware('throttle:120,1')
         ->name('guarantor-otp.verify');
 
     Route::get('/customers', [CustomerController::class, 'index'])
@@ -142,6 +142,18 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::get('/customers/{customer}/loan-files/{loanFile}/installments', [CustomerController::class, 'loanInstallments'])
         ->middleware('throttle:60,1')
         ->name('customers.loan-files.installments.index');
+
+    Route::put('/customers/{customer}/loan-files/{loanFile}/installments/{installment}', [CustomerController::class, 'updateLoanInstallment'])
+        ->middleware('throttle:30,1')
+        ->name('customers.loan-files.installments.update');
+
+    Route::get('/customers/{customer}/loan-files/{loanFile}/installments/{installment}/payments', [CustomerController::class, 'loanInstallmentPayments'])
+        ->middleware('throttle:60,1')
+        ->name('customers.loan-files.installments.payments.index');
+
+    Route::post('/customers/{customer}/loan-files/{loanFile}/installments/{installment}/payments', [CustomerController::class, 'storeLoanInstallmentPayment'])
+        ->middleware('throttle:40,1')
+        ->name('customers.loan-files.installments.payments.store');
 
     Route::get('/customers/{customer}/loan-files/{loanFile}/instant-settlement-preview', [CustomerController::class, 'loanInstantSettlementPreview'])
         ->middleware('throttle:60,1')
