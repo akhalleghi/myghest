@@ -2242,10 +2242,11 @@
                                 <th>واریز</th>
                                 <th>ثبت توسط</th>
                                 <th>توضیح</th>
+                                <th style="white-space:nowrap;">عملیات</th>
                             </tr>
                         </thead>
                         <tbody id="loan-inst-pay-tbody">
-                            <tr><td colspan="6" class="loan-inst-empty" style="padding:0.75rem;">در حال بارگذاری...</td></tr>
+                            <tr><td colspan="7" class="loan-inst-empty" style="padding:0.75rem;">در حال بارگذاری...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -2558,6 +2559,10 @@
                 return custListBaseUrl + '/' + id + '/edit-data';
             }
 
+            function custLoanBoardSummaryUrl(id) {
+                return custListBaseUrl + '/' + encodeURIComponent(String(id || '')) + '/loan-board-summary';
+            }
+
             function custUpdateUrl(id) {
                 return custListBaseUrl + '/' + id;
             }
@@ -2620,6 +2625,9 @@
             }
             function customerLoanInstallmentPaymentsUrl(customerId, loanFileId, installmentId) {
                 return custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/loan-files/' + encodeURIComponent(String(loanFileId || '')) + '/installments/' + encodeURIComponent(String(installmentId || '')) + '/payments';
+            }
+            function customerLoanInstallmentPaymentItemUrl(customerId, loanFileId, installmentId, paymentId) {
+                return customerLoanInstallmentPaymentsUrl(customerId, loanFileId, installmentId) + '/' + encodeURIComponent(String(paymentId || ''));
             }
             function customerLoanInstantSettlementUrl(customerId, loanFileId) {
                 return custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/loan-files/' + encodeURIComponent(String(loanFileId || '')) + '/instant-settlement-preview';
@@ -2974,6 +2982,8 @@
             var loanInstPayFormVisible = false;
             var loanInstPayCurrentInstallmentId = null;
             var loanInstPayLastServerPayload = null;
+            var loanInstPayEditingPaymentId = null;
+            var loanInstPayEditingOriginalAmount = 0;
             var loanGuaranteeClose = document.getElementById('loan-guarantee-close');
             var loanGuaranteeSubtitle = document.getElementById('loan-guarantee-subtitle');
             var loanGuaranteeList = document.getElementById('loan-guarantee-list');
@@ -3705,19 +3715,79 @@
                 }
             }
 
+            function fillLoanInstPayMethodSelectFromList(optList) {
+                if (!loanInstPayMethodSelect) return;
+                var list = Array.isArray(optList) ? optList : [];
+                loanInstPayMethodSelect.innerHTML =
+                    '<option value="">— انتخاب نحوه پرداخت —</option>' +
+                    list.map(function (op) {
+                        return '<option value="' +
+                            escapeHtmlAttr(String(op.value || '')) + '">' +
+                            escapeHtmlText(String(op.label || '')) +
+                            '</option>';
+                    }).join('');
+            }
+
+            function fillLoanInstPayMethodSelectAdd() {
+                var optPx = loanInstPayLastServerPayload && Array.isArray(loanInstPayLastServerPayload.payment_method_options)
+                    ? loanInstPayLastServerPayload.payment_method_options
+                    : [];
+                fillLoanInstPayMethodSelectFromList(optPx);
+            }
+
+            function loanInstPayResetEditMode() {
+                loanInstPayEditingPaymentId = null;
+                loanInstPayEditingOriginalAmount = 0;
+                if (loanInstPaySaveBtn) loanInstPaySaveBtn.textContent = 'ثبت پرداخت';
+            }
+
+            function loanInstPayRefreshAfterMutation(cidPay, lfPay, insPay, successMsg) {
+                return fetch(customerLoanInstallmentPaymentsUrl(cidPay, lfPay, insPay), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                }).then(function (rfresh) {
+                    if (!rfresh.ok) throw new Error('خطا در بروزرسانی جزئیات پرداخت.');
+                    return rfresh.json();
+                }).then(function (payPayload) {
+                    applyLoanInstPayServerPayload(payPayload);
+                    return fetch(customerLoanInstallmentsUrl(cidPay, lfPay), {
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                        credentials: 'same-origin'
+                    }).then(function (rInstl) {
+                        if (!rInstl.ok) throw new Error('خطا در بروزرسانی لیست اقساط.');
+                        return rInstl.json().then(function (dInstl) {
+                            loanInstCachedPayload = dInstl;
+                            renderLoanInstallmentsPayload(dInstl);
+                            if (window.AdminSwal && AdminSwal.success) AdminSwal.success(successMsg);
+                        });
+                    });
+                });
+            }
+
             function renderLoanInstPayTable(payments) {
                 var plist = Array.isArray(payments) ? payments : [];
                 if (!loanInstPayTbody) return;
+                var lx = loanInstPayLastServerPayload && loanInstPayLastServerPayload.loan
+                    ? loanInstPayLastServerPayload.loan
+                    : {};
+                var lockedActs = !!(lx.is_settled === true || lx.is_settled === 1);
                 if (!plist.length) {
                     loanInstPayTbody.innerHTML =
-                        '<tr><td colspan="6" class="loan-inst-empty" style="padding:0.65rem;text-align:center;">پرداخت جزئی ثبت نشده است.</td></tr>';
+                        '<tr><td colspan="7" class="loan-inst-empty" style="padding:0.65rem;text-align:center;">پرداخت جزئی ثبت نشده است.</td></tr>';
                     return;
                 }
                 loanInstPayTbody.innerHTML = plist.map(function (pp) {
+                    var pid = Number(pp.id || 0);
                     var refSx = String(pp.reference_due_jdate_fa || pp.reference_due_jdate || '').trim() || '—';
                     var depSx = String(pp.deposited_jdate_fa || pp.deposited_jdate || '').trim() || '—';
                     var noteS = String(pp.note || '').trim();
                     var noteSx = noteS ? escapeHtmlText(noteS.length > 52 ? noteS.slice(0, 50) + '…' : noteS) : '—';
+                    var ops = lockedActs || pid <= 0
+                        ? '—'
+                        : ('<button type="button" class="cust-submit" style="font-size:0.62rem;padding:0.12rem 0.38rem;margin-inline-end:0.25rem;" data-loan-inst-pay-edit-id="' +
+                            pid + '">ویرایش</button>' +
+                            '<button type="button" class="cust-cancel" style="font-size:0.62rem;padding:0.12rem 0.38rem;" data-loan-inst-pay-delete-id="' +
+                            pid + '">حذف</button>');
                     return '<tr>' +
                         '<td>' + escapeHtmlText(String(pp.payment_method_label || '—')) + '</td>' +
                         '<td>' + escapeHtmlText(formatToman(pp.amount_toman || 0) + ' تومان') + '</td>' +
@@ -3725,8 +3795,49 @@
                         '<td>' + escapeHtmlText(depSx) + '</td>' +
                         '<td>' + escapeHtmlText(String(pp.recorded_by || '—')) + '</td>' +
                         '<td style="white-space:normal;max-width:8rem;font-size:0.65rem;">' + noteSx + '</td>' +
+                        '<td style="white-space:nowrap;">' + ops + '</td>' +
                         '</tr>';
                 }).join('');
+            }
+
+            function openLoanInstPayEditForm(pp) {
+                if (!pp || !loanInstPayFormWrap || !loanInstPayLastServerPayload) return;
+                var pid = Number(pp.id || 0);
+                if (pid <= 0) return;
+                if (loanInstPaySubmitting) return;
+                var lax = loanInstPayLastServerPayload.loan || {};
+                if (lax.is_settled === true || lax.is_settled === 1) {
+                    if (window.AdminSwal && AdminSwal.error) AdminSwal.error('پرونده تسویه‌شده است؛ ویرایش پرداخت مجاز نیست.');
+                    return;
+                }
+                loanInstPayEditingPaymentId = pid;
+                loanInstPayEditingOriginalAmount = Number(pp.amount_toman || 0);
+                if (loanInstPaySaveBtn) loanInstPaySaveBtn.textContent = 'ذخیرهٔ تغییرات';
+                loanInstPayFormVisible = true;
+                loanInstPayFormWrap.hidden = false;
+                destroyLoanInstPayDatePickers();
+                var editOpts = Array.isArray(loanInstPayLastServerPayload.payment_method_edit_options)
+                    ? loanInstPayLastServerPayload.payment_method_edit_options
+                    : (loanInstPayLastServerPayload.payment_method_options || []);
+                fillLoanInstPayMethodSelectFromList(editOpts);
+                if (loanInstPayMethodSelect) {
+                    loanInstPayMethodSelect.value = String(pp.payment_method || '').trim();
+                }
+                if (loanInstPayAmountInput) {
+                    loanInstPayAmountInput.value = formatThousandsInputValue(String(pp.amount_toman || ''));
+                }
+                if (loanInstPayRefDueInput) {
+                    loanInstPayRefDueInput.value = String(pp.reference_due_jdate || '').trim();
+                }
+                if (loanInstPayDepInput) {
+                    loanInstPayDepInput.value = String(pp.deposited_jdate || '').trim();
+                }
+                if (loanInstPayNoteInput) {
+                    loanInstPayNoteInput.value = String(pp.note || '');
+                }
+                setTimeout(function () {
+                    initLoanInstPayBothPickers();
+                }, 0);
             }
 
             function setLoanInstPayStripFromInstallment(insP) {
@@ -3734,19 +3845,24 @@
                 var amta = Number(insP.amount_toman || 0);
                 var defp = Number(insP.paid_amount_toman || 0);
                 var remInst = Number(insP.remaining_toman != null ? insP.remaining_toman : Math.max(0, amta - defp));
+                var maxPayStep = Number(
+                    insP.max_payment_toman != null
+                        ? insP.max_payment_toman
+                        : remInst
+                );
                 loanInstPayStrip.innerHTML =
                     '<span style="font-weight:800;color:var(--text);">قسط ' +
                     escapeHtmlText(formatToman(insP.sequence || 0)) +
                     '</span> · مبلغ قسط <strong>' + escapeHtmlText(formatToman(amta) + ' تومان') + '</strong> · پرداخت‌شده <strong>' +
-                    escapeHtmlText(formatToman(defp) + ' تومان') + '</strong> · ماندهٔ این قسط <strong>' +
-                    escapeHtmlText(formatToman(remInst) + ' تومان') + '</strong>';
+                    escapeHtmlText(formatToman(defp) + ' تومان') + '</strong> · ماندهٔ سهم نامی این قسط <strong>' +
+                    escapeHtmlText(formatToman(remInst) + ' تومان') + '</strong> · سقف ثبت این واریزی (بر اساس ماندهٔ کل وام) <strong>' +
+                    escapeHtmlText(formatToman(maxPayStep) + ' تومان') + '</strong>';
             }
 
             function applyLoanInstPayServerPayload(payload) {
                 loanInstPayLastServerPayload = payload || null;
                 var loanPx = payload && payload.loan ? payload.loan : {};
                 var insPx = payload && payload.installment ? payload.installment : {};
-                var optPx = payload && Array.isArray(payload.payment_method_options) ? payload.payment_method_options : [];
                 var payPx = payload && Array.isArray(payload.payments) ? payload.payments : [];
                 fillLoanInstPayBannerFromLoan(loanPx);
                 if (loanInstPaySubtitle) {
@@ -3755,16 +3871,8 @@
                         ' از ' + formatToman(loanPx.installments_count || 0);
                 }
                 setLoanInstPayStripFromInstallment(insPx);
-                if (loanInstPayMethodSelect) {
-                    loanInstPayMethodSelect.innerHTML =
-                        '<option value="">— انتخاب نحوه پرداخت —</option>' +
-                        optPx.map(function (op) {
-                            return '<option value="' +
-                                escapeHtmlAttr(String(op.value || '')) + '">' +
-                                escapeHtmlText(String(op.label || '')) +
-                                '</option>';
-                        }).join('');
-                }
+                loanInstPayResetEditMode();
+                fillLoanInstPayMethodSelectAdd();
                 renderLoanInstPayTable(payPx);
                 var canMore = insPx.can_add_payment === true || insPx.can_add_payment === 1;
                 if (loanInstPayAddBtn) loanInstPayAddBtn.disabled = !canMore;
@@ -3789,12 +3897,15 @@
                 destroyLoanInstPayDatePickers();
                 if (!loanInstPayFormVisible) {
                     resetLoanInstPayFormFields(false);
+                    loanInstPayResetEditMode();
                     return;
                 }
+                loanInstPayResetEditMode();
                 var insOpen = loanInstPayLastServerPayload && loanInstPayLastServerPayload.installment
                     ? loanInstPayLastServerPayload.installment
                     : {};
                 resetLoanInstPayFormFields(true);
+                fillLoanInstPayMethodSelectAdd();
                 if (loanInstPayRefDueInput) {
                     loanInstPayRefDueInput.value = String(insOpen.due_jdate || '').trim();
                 }
@@ -3814,6 +3925,7 @@
                 loanInstPayCurrentInstallmentId = null;
                 loanInstPayLastServerPayload = null;
                 loanInstPaySubmitting = false;
+                loanInstPayResetEditMode();
                 if (loanInstPaySaveBtn) loanInstPaySaveBtn.disabled = false;
                 if (loanInstPayAddBtn) loanInstPayAddBtn.disabled = false;
             }
@@ -3827,8 +3939,9 @@
                 if (loanInstPayStrip) loanInstPayStrip.textContent = '…';
                 if (loanInstPayTbody) {
                     loanInstPayTbody.innerHTML =
-                        '<tr><td colspan="6" class="loan-inst-empty" style="padding:0.65rem;text-align:center;">در حال بارگذاری...</td></tr>';
+                        '<tr><td colspan="7" class="loan-inst-empty" style="padding:0.65rem;text-align:center;">در حال بارگذاری...</td></tr>';
                 }
+                loanInstPayResetEditMode();
                 if (loanInstPayMethodSelect) loanInstPayMethodSelect.innerHTML = '';
                 loanInstPayFormVisible = false;
                 if (loanInstPayFormWrap) loanInstPayFormWrap.hidden = true;
@@ -3852,12 +3965,43 @@
                 });
             }
 
+            function refreshLoanManageMapFromServer(customerId) {
+                var cid = customerId != null ? String(customerId) : '';
+                if (!cid) return Promise.resolve();
+                return fetch(custLoanBoardSummaryUrl(cid), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                }).then(function (rBoard) {
+                    return rBoard.json().then(function (jBoard) {
+                        return { ok: rBoard.ok, json: jBoard };
+                    });
+                }).then(function (resBoard) {
+                    if (!resBoard.ok) {
+                        return;
+                    }
+                    var jb = resBoard.json || {};
+                    if (!loanManageMap[cid]) {
+                        loanManageMap[cid] = { loan_files: [], loan_count: 0, loan_total_with_profit: 0, loan_remaining_installments: 0 };
+                    }
+                    loanManageMap[cid].loan_files = Array.isArray(jb.loan_files) ? jb.loan_files : [];
+                    loanManageMap[cid].loan_count = Number(jb.loan_count != null ? jb.loan_count : loanManageMap[cid].loan_files.length);
+                    loanManageMap[cid].loan_total_with_profit = Number(jb.loan_total_with_profit != null ? jb.loan_total_with_profit : 0);
+                    loanManageMap[cid].loan_remaining_installments = Number(jb.loan_remaining_installments != null ? jb.loan_remaining_installments : 0);
+                    if (loanManageCurrentCustomerId && String(loanManageCurrentCustomerId) === cid) {
+                        renderLoanFilesForCustomer(customerId);
+                    }
+                }).catch(function () { /* بستن مدال؛ خطای شبکه نادیده */ });
+            }
+
             function closeLoanInstallmentsModal() {
                 closeLoanInstallmentPayModal();
                 closeLoanInstallmentEditModal();
                 if (!loanInstallmentsOverlay) return;
                 loanInstallmentsOverlay.hidden = true;
                 loanInstallmentsOverlay.setAttribute('aria-hidden', 'true');
+                if (loanManageCurrentCustomerId) {
+                    refreshLoanManageMapFromServer(loanManageCurrentCustomerId);
+                }
             }
 
             function closeLoanInstantSettlementModal() {
@@ -4467,7 +4611,9 @@
                     var paidAmount = Number(row.paid_installments_amount_toman || 0);
                     var remainingAmount = Number(row.remaining_amount_toman || 0);
                     var discountAmount = Number(row.discount_amount_toman || 0);
-                    var settlementText = row.is_settled ? 'بلی' : 'خیر';
+                    /** تسویهٔ رسمی یا ماندهٔ محاسبه‌شده صفر (مثلاً بعد از پرداخت‌های ثبت‌شده روی اقساط) */
+                    var settledForUi = !!(row.is_settled || (!row.is_revoked && remainingAmount <= 0));
+                    var settlementText = settledForUi ? 'بلی' : 'خیر';
                     var accountStatus = remainingAmount > 0 ? 'بدهکار' : (remainingAmount < 0 ? 'بستانکار' : 'تراز');
                     var accountClass = remainingAmount > 0 ? 'loan-file-v--danger' : (remainingAmount < 0 ? 'loan-file-v--ok' : 'loan-file-v--warn');
                     var description = String(row.description || '').trim();
@@ -4484,7 +4630,7 @@
                     if (row.is_revoked) {
                         cardModClass = ' loan-file-card--revoked';
                         ribbonHtml = '<span class="loan-file-corner-ribbon loan-file-corner-ribbon--revoked"><span>فسخ شده</span></span>';
-                    } else if (row.is_settled) {
+                    } else if (settledForUi) {
                         cardModClass = ' loan-file-card--settled';
                         ribbonHtml = '<span class="loan-file-corner-ribbon"><span>تسویه شده</span></span>';
                     }
@@ -4511,14 +4657,23 @@
                                 '<h3 class="loan-file-col-title">بازپرداخت ها</h3>' +
                                 '<hr class="loan-file-col-sep">' +
                                 '<div class="loan-file-items">' +
-                                    '<div class="loan-file-item"><span class="loan-file-k">تعداد اقساط پرداختی:</span><span class="loan-file-v">' + formatToman(paidInstallments) + '</span></div>' +
+                                    (function () {
+                                        var icRow = Number(row.installments_count || 0);
+                                        var slotNom = row.paid_installments_slot_count != null ? Number(row.paid_installments_slot_count) : null;
+                                        var showSlotNote = remainingAmount <= 0 && icRow > 0 && slotNom !== null && slotNom < icRow;
+                                        return '<div class="loan-file-item"><span class="loan-file-k">تعداد دورهٔ تحت پوشش تعهد:</span><span class="loan-file-v">' + formatToman(paidInstallments) +
+                                            '<span style="font-size:0.65rem;color:var(--muted);"> از ' + formatToman(icRow) + '</span></span></div>' +
+                                            (showSlotNote ? '<div class="loan-file-item" style="font-size:0.68rem;line-height:1.45;"><span class="loan-file-k">رسید هر قسط به مبلغ نامی:</span><span class="loan-file-v">' +
+                                                formatToman(slotNom) + '<span style="color:var(--muted);"> از ' + formatToman(icRow) +
+                                                ' — ماندهٔ نامی بعضی دوره‌ها صفر نشده؛ ولی تعهد کل تسویه است.</span></span></div>' : '');
+                                    })() +
                                     '<div class="loan-file-item"><span class="loan-file-k">مجموع مبلغ اقساط پرداخت شده:</span><span class="loan-file-v">' + formatToman(paidAmount) + ' تومان</span></div>' +
                                     '<div class="loan-file-item"><span class="loan-file-k">دیرکرد / زودکرد:</span><span class="loan-file-v">—</span></div>' +
                                     '<div class="loan-file-item loan-file-item--stack">' +
                                         '<span class="loan-file-k">تخفیف:</span>' +
                                         '<span class="loan-file-v">' + formatToman(discountAmount) + ' تومان</span>' +
                                         '<span>' +
-                                        (row.is_revoked || row.is_settled
+                                        (row.is_revoked || settledForUi
                                             ? '<button type="button" class="loan-file-btn loan-file-btn--disc" disabled>ثبت تخفیف</button>'
                                             : '<button type="button" class="loan-file-btn loan-file-btn--disc" data-loan-discount-open data-loan-id="' + String(row.id || '') + '">ثبت تخفیف</button>') +
                                         '</span>' +
@@ -5794,17 +5949,21 @@
                     var snapIns = loanInstPayLastServerPayload && loanInstPayLastServerPayload.installment
                         ? loanInstPayLastServerPayload.installment
                         : {};
+                    var editPaymentId = loanInstPayEditingPaymentId ? Number(loanInstPayEditingPaymentId) : 0;
+                    var headroomEdit = editPaymentId > 0 ? Number(loanInstPayEditingOriginalAmount || 0) : 0;
                     var maxRemain = Number(
-                        snapIns.remaining_toman != null
-                            ? snapIns.remaining_toman
-                            : Math.max(0, Number(snapIns.amount_toman || 0) - Number(snapIns.paid_amount_toman || 0))
-                    );
+                        snapIns.max_payment_toman != null
+                            ? snapIns.max_payment_toman
+                            : (snapIns.remaining_toman != null
+                                ? snapIns.remaining_toman
+                                : Math.max(0, Number(snapIns.amount_toman || 0) - Number(snapIns.paid_amount_toman || 0)))
+                    ) + headroomEdit;
                     if (amtPay > maxRemain) {
                         if (window.AdminSwal && AdminSwal.error) {
                             AdminSwal.error(
                                 maxRemain <= 0
-                                    ? 'این قسط قبلاً تسویه شده است؛ مبلغ اضافی قابل ثبت نیست.'
-                                    : ('حداکثر مبلغ قابل ثبت برای این قسط: ' + formatToman(maxRemain) + ' تومان')
+                                    ? 'طبق ماندهٔ وام، مبلغ دیگری قابل ثبت نیست.'
+                                    : ('حداکثر مبلغ قابل ثبت با احتساب ماندهٔ کل وام: ' + formatToman(maxRemain) + ' تومان')
                             );
                         }
                         return;
@@ -5819,10 +5978,14 @@
                     var notePay = String((loanInstPayNoteInput && loanInstPayNoteInput.value) || '').trim();
                     if (notePay) postBody.note = notePay;
 
+                    var payUrl = editPaymentId > 0
+                        ? customerLoanInstallmentPaymentItemUrl(cidPay, lfPay, insPay, editPaymentId)
+                        : customerLoanInstallmentPaymentsUrl(cidPay, lfPay, insPay);
+                    var payMethodHttp = editPaymentId > 0 ? 'PUT' : 'POST';
                     loanInstPaySubmitting = true;
                     loanInstPaySaveBtn.disabled = true;
-                    fetch(customerLoanInstallmentPaymentsUrl(cidPay, lfPay, insPay), {
-                        method: 'POST',
+                    fetch(payUrl, {
+                        method: payMethodHttp,
                         headers: {
                             'Content-Type': 'application/json',
                             'Accept': 'application/json',
@@ -5848,39 +6011,95 @@
                                     }
                                 }
                             } catch (ePv) {}
-                            throw new Error(msgPayErr || 'ثبت پرداخت ناموفق بود.');
+                            throw new Error(msgPayErr || (editPaymentId > 0 ? 'به‌روزرسانی پرداخت ناموفق بود.' : 'ثبت پرداخت ناموفق بود.'));
                         }
-                        var okPayMsg = resPay.json && resPay.json.message ? resPay.json.message : 'پرداخت ثبت شد.';
-                        return fetch(customerLoanInstallmentPaymentsUrl(cidPay, lfPay, insPay), {
-                            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                            credentials: 'same-origin'
-                        }).then(function (rfresh) {
-                            if (!rfresh.ok) throw new Error('خطا در بروزرسانی جزئیات پرداخت.');
-                            return rfresh.json().then(function (dfresh) {
-                                return { payPayload: dfresh, msg: okPayMsg };
-                            });
-                        }).then(function (pk) {
-                            applyLoanInstPayServerPayload(pk.payPayload);
-                            return fetch(customerLoanInstallmentsUrl(cidPay, lfPay), {
-                                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                                credentials: 'same-origin'
-                            }).then(function (rInstl) {
-                                if (!rInstl.ok) throw new Error('خطا در بروزرسانی لیست اقساط.');
-                                return rInstl.json().then(function (dInstl) {
-                                    return { listData: dInstl, doneMsg: pk.msg };
-                                });
-                            });
-                        }).then(function (fin) {
-                            loanInstCachedPayload = fin.listData;
-                            renderLoanInstallmentsPayload(fin.listData);
-                            if (window.AdminSwal && AdminSwal.success) AdminSwal.success(fin.doneMsg);
-                        });
+                        var okPayMsg = resPay.json && resPay.json.message
+                            ? resPay.json.message
+                            : (editPaymentId > 0 ? 'پرداخت به‌روزرسانی شد.' : 'پرداخت ثبت شد.');
+                        return loanInstPayRefreshAfterMutation(cidPay, lfPay, insPay, okPayMsg);
                     }).catch(function (exPay) {
-                        if (window.AdminSwal && AdminSwal.error) AdminSwal.error(exPay.message || 'ثبت پرداخت ناموفق بود.');
+                        if (window.AdminSwal && AdminSwal.error) {
+                            AdminSwal.error(exPay.message || 'عملیات پرداخت ناموفق بود.');
+                        }
                     }).finally(function () {
                         loanInstPaySubmitting = false;
                         if (loanInstPaySaveBtn) loanInstPaySaveBtn.disabled = false;
                     });
+                });
+            }
+            if (loanInstPayTbody) {
+                loanInstPayTbody.addEventListener('click', function (evPayRow) {
+                    var editTrig = evPayRow.target.closest('[data-loan-inst-pay-edit-id]');
+                    if (editTrig) {
+                        evPayRow.preventDefault();
+                        var pidE = Number(editTrig.getAttribute('data-loan-inst-pay-edit-id') || 0);
+                        if (pidE <= 0 || !loanInstPayLastServerPayload) return;
+                        var arrE = Array.isArray(loanInstPayLastServerPayload.payments) ? loanInstPayLastServerPayload.payments : [];
+                        var ppE = null;
+                        for (var ie = 0; ie < arrE.length; ie++) {
+                            if (Number(arrE[ie].id || 0) === pidE) {
+                                ppE = arrE[ie];
+                                break;
+                            }
+                        }
+                        if (ppE) openLoanInstPayEditForm(ppE);
+                        return;
+                    }
+                    var delTrig = evPayRow.target.closest('[data-loan-inst-pay-delete-id]');
+                    if (!delTrig) return;
+                    evPayRow.preventDefault();
+                    var pidDel = Number(delTrig.getAttribute('data-loan-inst-pay-delete-id') || 0);
+                    if (pidDel <= 0 || loanInstPaySubmitting) return;
+                    var cidDel = loanManageCurrentCustomerId;
+                    var lfDel = loanInstActiveLoanFileId;
+                    var insDel = loanInstPayCurrentInstallmentId;
+                    if (!cidDel || !lfDel || !insDel) return;
+                    if (loanInstPayLastServerPayload && loanInstPayLastServerPayload.loan) {
+                        var lDel = loanInstPayLastServerPayload.loan;
+                        if (lDel.is_settled === true || lDel.is_settled === 1) {
+                            if (window.AdminSwal && AdminSwal.error) AdminSwal.error('پرونده تسویه‌شده است؛ حذف پرداخت مجاز نیست.');
+                            return;
+                        }
+                    }
+                    var runDelete = function () {
+                        loanInstPaySubmitting = true;
+                        fetch(customerLoanInstallmentPaymentItemUrl(cidDel, lfDel, insDel, pidDel), {
+                            method: 'DELETE',
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': @json(csrf_token())
+                            },
+                            credentials: 'same-origin'
+                        }).then(function (rDel) {
+                            return rDel.json().then(function (jDel) {
+                                return { ok: rDel.ok, json: jDel };
+                            });
+                        }).then(function (resDel) {
+                            if (!resDel.ok) {
+                                var mDel = resDel.json && resDel.json.message ? String(resDel.json.message) : 'حذف پرداخت ناموفق بود.';
+                                throw new Error(mDel);
+                            }
+                            var okDel = resDel.json && resDel.json.message ? String(resDel.json.message) : 'پرداخت حذف شد.';
+                            return loanInstPayRefreshAfterMutation(cidDel, lfDel, insDel, okDel);
+                        }).catch(function (eDel) {
+                            if (window.AdminSwal && AdminSwal.error) AdminSwal.error(eDel.message || 'حذف پرداخت ناموفق بود.');
+                        }).finally(function () {
+                            loanInstPaySubmitting = false;
+                        });
+                    };
+                    if (window.AdminSwal && AdminSwal.confirm) {
+                        AdminSwal.confirm({
+                            title: 'حذف واریزی',
+                            text: 'این ردیف پرداخت حذف شود؟ ماندهٔ قسط و پرونده دوباره محاسبه می‌شود.',
+                            confirmButtonText: 'بله، حذف شود',
+                            cancelButtonText: 'انصراف'
+                        }).then(function (rConf) {
+                            if (rConf && rConf.isConfirmed) runDelete();
+                        });
+                        return;
+                    }
+                    if (window.confirm('این ردیف پرداخت حذف شود؟')) runDelete();
                 });
             }
             if (loanIsClose) loanIsClose.addEventListener('click', closeLoanInstantSettlementModal);

@@ -640,6 +640,10 @@ final class CustomerController extends Controller
         foreach (CustomerLoanInstallmentPayment::creatablePaymentMethodKeys() as $key) {
             $options[] = ['value' => (string) $key, 'label' => $labels[$key]];
         }
+        $editMethodOptions = [];
+        foreach (CustomerLoanInstallmentPayment::methodKeys() as $key) {
+            $editMethodOptions[] = ['value' => (string) $key, 'label' => $labels[$key]];
+        }
 
         return response()->json([
             'loan' => [
@@ -660,6 +664,8 @@ final class CustomerController extends Controller
             ],
             'installment' => $this->mapLoanInstallmentPayContext($installment, $customer, $loanFile),
             'payment_method_options' => $options,
+            /** همهٔ کلیدها شامل «ثبت قبلی» برای ویرایش ردیف‌های مهاجرت‌یافته */
+            'payment_method_edit_options' => $editMethodOptions,
             'payments' => $installment->payments
                 ->map(fn (CustomerLoanInstallmentPayment $p): array => $this->mapInstallmentPaymentRow($p))
                 ->values(),
@@ -705,15 +711,14 @@ final class CustomerController extends Controller
         ]);
 
         $amountNew = (int) $validated['amount_toman'];
-        $alreadyPaid = (int) CustomerLoanInstallmentPayment::query()
-            ->where('customer_loan_installment_id', $installment->id)
-            ->sum('amount_toman');
-        $ceiling = max(0, (int) $installment->amount_toman - $alreadyPaid);
-        if ($amountNew > $ceiling) {
+        $loanFile->loadMissing('loanType');
+        $paymentCeiling = $this->loanInstallmentPaymentCeilingToman($loanFile);
+        if ($amountNew > $paymentCeiling) {
             return response()->json([
-                'message' => $ceiling <= 0
-                    ? 'این قسط قبلاً به‌طور کامل پرداخت شده است.'
-                    : ('جمع پرداخت‌های این قسط نمی‌تواند از مبلغ قسط بیشتر شود؛ حداکثر قابل ثبت: '.number_format($ceiling, 0, '.', ',').' تومان.'),
+                'message' => $paymentCeiling <= 0
+                    ? 'طبق ماندهٔ وام و تخفیف ثبت‌شده، مبلغ دیگری قابل ثبت نیست.'
+                    : ('جمع پرداخت‌ها نمی‌تواند از ماندهٔ وام بیشتر شود؛ حداکثر قابل ثبت در این مرحله: '
+                        .number_format($paymentCeiling, 0, '.', ',').' تومان.'),
             ], 422);
         }
 
@@ -753,6 +758,140 @@ final class CustomerController extends Controller
         return response()->json([
             'message' => 'پرداخت با موفقیت ثبت شد.',
             'payment' => $this->mapInstallmentPaymentRow($payment),
+            'installment' => $this->mapLoanInstallmentRow($installment->fresh(['recordedByAdmin']), $customer, $loanFile),
+            'payments' => CustomerLoanInstallmentPayment::query()
+                ->where('customer_loan_installment_id', (int) $installment->id)
+                ->with('recordedByAdmin')
+                ->orderBy('id')
+                ->get()
+                ->map(fn (CustomerLoanInstallmentPayment $p): array => $this->mapInstallmentPaymentRow($p))
+                ->values(),
+        ]);
+    }
+
+    public function updateLoanInstallmentPayment(
+        Request $request,
+        Customer $customer,
+        CustomerLoanFile $loanFile,
+        CustomerLoanInstallment $installment,
+        CustomerLoanInstallmentPayment $payment,
+    ): JsonResponse {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+        if ((int) $installment->customer_loan_file_id !== (int) $loanFile->id) {
+            abort(404);
+        }
+        if ((int) $payment->customer_loan_installment_id !== (int) $installment->id) {
+            abort(404);
+        }
+        if ($loanFile->revoked_at !== null) {
+            return response()->json(['message' => 'قرارداد فسخ شده است؛ ویرایش پرداخت ممکن نیست.'], 422);
+        }
+        if ($loanFile->is_settled) {
+            return response()->json(['message' => 'پرونده تسویه‌شده است؛ ویرایش پرداخت مجاز نیست.'], 422);
+        }
+
+        $validated = $request->validate([
+            'payment_method' => ['required', 'string', Rule::in(CustomerLoanInstallmentPayment::methodKeys())],
+            'amount_toman' => ['required', 'integer', 'min:1', 'max:999999999999'],
+            'reference_due_jdate' => ['nullable', 'string', 'max:20'],
+            'deposited_jdate' => ['required', 'string', 'max:20'],
+            'note' => ['nullable', 'string', 'max:5000'],
+        ], [], [
+            'payment_method' => 'نحوه پرداخت',
+            'amount_toman' => 'مبلغ پرداختی',
+            'reference_due_jdate' => 'تاریخ سررسید',
+            'deposited_jdate' => 'تاریخ واریز',
+            'note' => 'توضیحات',
+        ]);
+
+        $amountNew = (int) $validated['amount_toman'];
+        $loanFile->loadMissing('loanType');
+        $paymentCeiling = $this->loanInstallmentPaymentCeilingToman($loanFile) + (int) $payment->amount_toman;
+        if ($amountNew > $paymentCeiling) {
+            return response()->json([
+                'message' => $paymentCeiling <= 0
+                    ? 'طبق ماندهٔ وام و تخفیف ثبت‌شده، مبلغ مجاز نیست.'
+                    : ('جمع پرداخت‌ها نمی‌تواند از ماندهٔ وام بیشتر شود؛ حداکثر قابل ثبت برای این ردیف: '
+                        .number_format($paymentCeiling, 0, '.', ',').' تومان.'),
+            ], 422);
+        }
+
+        $refDueCarbon = null;
+        $rawRefDue = isset($validated['reference_due_jdate']) ? trim((string) $validated['reference_due_jdate']) : '';
+        if ($rawRefDue !== '') {
+            $refDueCarbon = $this->parseJalaliDate($rawRefDue);
+            if ($refDueCarbon === null) {
+                return response()->json(['message' => 'تاریخ سررسید معتبر نیست. فرمت: ۱۴۰۳/۰۶/۱۵'], 422);
+            }
+        }
+
+        $depCarbon = $this->parseJalaliDate(trim((string) $validated['deposited_jdate']));
+        if ($depCarbon === null) {
+            return response()->json(['message' => 'تاریخ واریز معتبر نیست. فرمت: ۱۴۰۳/۰۶/۱۵'], 422);
+        }
+
+        $noteTrim = isset($validated['note']) ? trim((string) $validated['note']) : '';
+        $noteStored = $noteTrim !== '' ? $noteTrim : null;
+
+        DB::transaction(function () use ($payment, $validated, $refDueCarbon, $depCarbon, $noteStored, $installment): void {
+            $payment->payment_method = (string) $validated['payment_method'];
+            $payment->amount_toman = (int) $validated['amount_toman'];
+            $payment->reference_due_date = $refDueCarbon?->startOfDay()->format('Y-m-d');
+            $payment->deposited_at = $depCarbon->startOfDay()->format('Y-m-d');
+            $payment->note = $noteStored;
+            $payment->save();
+            $installment->refresh();
+            $this->resyncInstallmentPaidTotalsFromPayments($installment);
+        });
+
+        $payment->refresh(['recordedByAdmin']);
+
+        return response()->json([
+            'message' => 'پرداخت با موفقیت به‌روزرسانی شد.',
+            'payment' => $this->mapInstallmentPaymentRow($payment),
+            'installment' => $this->mapLoanInstallmentRow($installment->fresh(['recordedByAdmin']), $customer, $loanFile),
+            'payments' => CustomerLoanInstallmentPayment::query()
+                ->where('customer_loan_installment_id', (int) $installment->id)
+                ->with('recordedByAdmin')
+                ->orderBy('id')
+                ->get()
+                ->map(fn (CustomerLoanInstallmentPayment $p): array => $this->mapInstallmentPaymentRow($p))
+                ->values(),
+        ]);
+    }
+
+    public function destroyLoanInstallmentPayment(
+        Customer $customer,
+        CustomerLoanFile $loanFile,
+        CustomerLoanInstallment $installment,
+        CustomerLoanInstallmentPayment $payment,
+    ): JsonResponse {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+        if ((int) $installment->customer_loan_file_id !== (int) $loanFile->id) {
+            abort(404);
+        }
+        if ((int) $payment->customer_loan_installment_id !== (int) $installment->id) {
+            abort(404);
+        }
+        if ($loanFile->revoked_at !== null) {
+            return response()->json(['message' => 'قرارداد فسخ شده است؛ حذف پرداخت ممکن نیست.'], 422);
+        }
+        if ($loanFile->is_settled) {
+            return response()->json(['message' => 'پرونده تسویه‌شده است؛ حذف پرداخت مجاز نیست.'], 422);
+        }
+
+        DB::transaction(function () use ($payment, $installment): void {
+            $payment->delete();
+            $installment->refresh();
+            $this->resyncInstallmentPaidTotalsFromPayments($installment);
+        });
+
+        return response()->json([
+            'message' => 'پرداخت حذف شد.',
             'installment' => $this->mapLoanInstallmentRow($installment->fresh(['recordedByAdmin']), $customer, $loanFile),
             'payments' => CustomerLoanInstallmentPayment::query()
                 ->where('customer_loan_installment_id', (int) $installment->id)
@@ -1931,6 +2070,24 @@ final class CustomerController extends Controller
         ]);
     }
 
+    /**
+     * همان شکل آرایٔهٔ پرونده‌های نقشهٔ مدیریت وام در صفحهٔ لیست مشتریان؛ برای به‌روز کردن کارت‌ها بدون رفرش کامل صفحه.
+     */
+    public function loanBoardSummary(Customer $customer): JsonResponse
+    {
+        $customer->load(['loanFiles.loanType', 'loanFiles.installments']);
+        $loanFiles = $customer->loanFiles->map(fn (CustomerLoanFile $file): array => $this->mapLoanFile($file))->values();
+        $loanTotalWithProfit = (int) $loanFiles->sum(static fn (array $row): int => (int) ($row['total_repayable_toman'] ?? 0));
+        $remainingInstallments = (int) $loanFiles->sum(static fn (array $row): int => (int) ($row['remaining_amount_toman'] ?? 0));
+
+        return response()->json([
+            'loan_files' => $loanFiles->all(),
+            'loan_count' => $loanFiles->count(),
+            'loan_total_with_profit' => $loanTotalWithProfit,
+            'loan_remaining_installments' => $remainingInstallments,
+        ]);
+    }
+
     public function update(Request $request, Customer $customer): RedirectResponse
     {
         if (trim((string) $request->input('email', '')) === '') {
@@ -2283,6 +2440,7 @@ final class CustomerController extends Controller
                 'total_repayable_toman' => $totalRepayable,
                 'remaining_amount_toman' => 0,
                 'paid_installments_count' => 0,
+                'paid_installments_slot_count' => 0,
                 'paid_installments_amount_toman' => 0,
                 'discount_amount_toman' => 0,
                 'late_fee_so_far_toman' => 0,
@@ -2325,6 +2483,7 @@ final class CustomerController extends Controller
             'total_repayable_toman' => $totalRepayable,
             'remaining_amount_toman' => $remainingAmount,
             'paid_installments_count' => $snap['paid_installments_count'],
+            'paid_installments_slot_count' => $snap['paid_installments_slot_count'],
             'paid_installments_amount_toman' => $snap['total_paid_toman'],
             'discount_amount_toman' => $discount,
             'late_fee_so_far_toman' => $snap['late_fee_so_far_toman'],
@@ -2333,46 +2492,79 @@ final class CustomerController extends Controller
     }
 
     /**
-     * مانده قسطی، پرداخت‌ها و برآورد دیرکرد تا امروز بر اساس ضریب دیرکرد روزانه نوع وام.
+     * حداکثر مبلغی که هنوز می‌توان به‌صورت مجموع پرداخت‌های اقساط ثبت کرد (پس از کسر تخفیف)، بدون توجه به سهم نامی هر قسط.
+     */
+    private function loanInstallmentPaymentCeilingToman(CustomerLoanFile $file): int
+    {
+        $profit = $this->calculateLoanProfitToman(
+            (int) $file->amount_toman,
+            (float) $file->effective_interest_rate,
+            (string) ($file->profit_calculation_method ?: LoanType::PROFIT_MONTHLY),
+            (int) $file->installments_count,
+            (int) $file->installment_interval_count,
+            (string) $file->installment_interval_unit
+        );
+        $totalRepayable = max(0, ((int) $file->amount_toman + $profit) - (int) $file->down_payment_toman);
+        $totalPaid = (int) CustomerLoanInstallment::query()
+            ->where('customer_loan_file_id', (int) $file->id)
+            ->sum('paid_amount_toman');
+        $discount = (int) ($file->discount_amount_toman ?? 0);
+
+        return max(0, $totalRepayable - $discount - $totalPaid);
+    }
+
+    /**
+     * ماندهٔ بازپرداخت قرارداد، پرداخت‌ها و برآورد دیرکرد تا امروز بر اساس ضریب دیرکرد روزانه نوع وام.
+     * «مانده قسطی» بر مبنای مبلغ قابل بازپرداخت کل منهای جمع پرداخت‌ها است (پرداخت اضافه در یک قسط، ماندهٔ کل را کاهش می‌دهد).
      *
-     * @return array{schedule_remaining_toman: int, total_paid_toman: int, paid_installments_count: int, late_fee_so_far_toman: int}
+     * @return array{schedule_remaining_toman: int, total_paid_toman: int, paid_installments_count: int, paid_installments_slot_count: int, late_fee_so_far_toman: int}
      */
     private function loanInstallmentFinancialSnapshot(CustomerLoanFile $file, int $totalRepayableContract): array
     {
         $installments = $file->installments;
         $lateCoef = (float) ($file->loanType?->daily_late_coefficient ?? 0);
+        $discount = (int) ($file->discount_amount_toman ?? 0);
 
         if ($installments->isEmpty()) {
             return [
                 'schedule_remaining_toman' => $totalRepayableContract,
                 'total_paid_toman' => 0,
                 'paid_installments_count' => 0,
+                'paid_installments_slot_count' => 0,
                 'late_fee_so_far_toman' => 0,
             ];
         }
 
-        $scheduleRemaining = (int) $installments->sum(static function (CustomerLoanInstallment $i): int {
-            return max(0, (int) $i->amount_toman - (int) $i->paid_amount_toman);
-        });
         $totalPaid = (int) $installments->sum(static fn (CustomerLoanInstallment $i): int => (int) $i->paid_amount_toman);
-        $paidInstallmentsCount = (int) $installments->filter(static function (CustomerLoanInstallment $i): bool {
+        $scheduleRemaining = max(0, $totalRepayableContract - $totalPaid);
+        $remainingAfterDiscount = $file->is_settled
+            ? 0
+            : max(0, $scheduleRemaining - $discount);
+        $slotFullyPaidCount = (int) $installments->filter(static function (CustomerLoanInstallment $i): bool {
             return (int) $i->amount_toman > 0 && (int) $i->paid_amount_toman >= (int) $i->amount_toman;
         })->count();
+        $periodCount = $installments->count();
+        /**
+         * برای کارت پرونده و گزارش‌ها: اگر ماندهٔ واقعی تعهد (با تخفیف) صفر است، همهٔ دوره‌های قرارداد از نظر تعهد پوشش داده شده‌اند
+         * حتی اگر مبلغ نامی بعضی اقساط هنوز کمتر پرداخت شده باشد (جابه‌جایی پرداخت بین اقساط).
+         */
+        $paidInstallmentsCountReport = $remainingAfterDiscount <= 0 && $periodCount > 0 ? $periodCount : $slotFullyPaidCount;
 
         return [
             'schedule_remaining_toman' => $scheduleRemaining,
             'total_paid_toman' => $totalPaid,
-            'paid_installments_count' => $paidInstallmentsCount,
-            'late_fee_so_far_toman' => $this->estimateLateFeeSoFarToman($installments, $lateCoef),
+            'paid_installments_count' => $paidInstallmentsCountReport,
+            'paid_installments_slot_count' => $slotFullyPaidCount,
+            'late_fee_so_far_toman' => $this->estimateLateFeeSoFarToman($installments, $lateCoef, $remainingAfterDiscount),
         ];
     }
 
     /**
      * @param Collection<int, CustomerLoanInstallment> $installments
      */
-    private function estimateLateFeeSoFarToman(Collection $installments, float $dailyLateCoef): int
+    private function estimateLateFeeSoFarToman(Collection $installments, float $dailyLateCoef, int $contractDebtRemainingAfterDiscount): int
     {
-        if ($dailyLateCoef <= 0) {
+        if ($dailyLateCoef <= 0 || $contractDebtRemainingAfterDiscount <= 0) {
             return 0;
         }
 
@@ -2783,7 +2975,11 @@ final class CustomerController extends Controller
     {
         $base = $this->mapLoanInstallmentRow($i, $customer, $file);
         $base['remaining_toman'] = max(0, (int) $i->amount_toman - (int) $i->paid_amount_toman);
-        $base['can_add_payment'] = ! $file->is_settled && $base['remaining_toman'] > 0;
+        $file->loadMissing('loanType');
+        $maxPay = $this->loanInstallmentPaymentCeilingToman($file);
+        $base['max_payment_toman'] = $maxPay;
+        $base['loan_remaining_payable_toman'] = $maxPay;
+        $base['can_add_payment'] = ! $file->is_settled && $maxPay > 0;
 
         return $base;
     }
@@ -3051,27 +3247,30 @@ final class CustomerController extends Controller
         $mapped = $this->mapLoanFile($file);
         $totalRepayable = (int) $mapped['total_repayable_toman'];
         $totalProfit = (int) $mapped['calculated_profit_toman'];
+        $discountRegistered = (int) ($mapped['discount_amount_toman'] ?? 0);
+        $remainingAfterDiscount = (int) $mapped['remaining_amount_toman'];
         $profitMethod = (string) ($file->profit_calculation_method ?: LoanType::PROFIT_MONTHLY);
 
         $instColl = $file->installments->sortBy('sequence')->values();
         $totalPaid = (int) $instColl->sum(static fn (CustomerLoanInstallment $i): int => (int) $i->paid_amount_toman);
-        $scheduleRemaining = (int) $instColl->sum(static function (CustomerLoanInstallment $i): int {
+        $scheduleRemainingContract = max(0, $totalRepayable - $totalPaid);
+
+        /** جمع ماندهٔ نامی هر ردیف قسط (برای تشخیص جابه‌جایی پرداخت بین سررسیدها؛ نه به‌عنوان ماندهٔ تعهد) */
+        $nominalRemainSum = (int) $instColl->sum(static function (CustomerLoanInstallment $i): int {
             return max(0, (int) $i->amount_toman - (int) $i->paid_amount_toman);
         });
 
-        $paidInstallmentsCount = (int) $instColl->filter(static function (CustomerLoanInstallment $i): bool {
-            return (int) $i->paid_amount_toman >= (int) $i->amount_toman && (int) $i->amount_toman > 0;
-        })->count();
+        $paidInstallmentsCount = (int) ($mapped['paid_installments_count'] ?? 0);
+        $paidInstallmentsSlotCount = (int) ($mapped['paid_installments_slot_count'] ?? 0);
 
         $unpaidInstallmentsCount = (int) $instColl->filter(static function (CustomerLoanInstallment $i): bool {
             return (int) $i->paid_amount_toman < (int) $i->amount_toman;
         })->count();
 
-        $aggregateRemaining = max(0, $totalRepayable - $totalPaid);
         $profitRemaining = $totalRepayable > 0
-            ? (int) round($totalProfit * ($scheduleRemaining / $totalRepayable))
+            ? (int) round($totalProfit * ($scheduleRemainingContract / $totalRepayable))
             : 0;
-        $profitRemaining = max(0, min($profitRemaining, $scheduleRemaining));
+        $profitRemaining = max(0, min($profitRemaining, $scheduleRemainingContract));
 
         $lt = $file->loanType;
         $earlyCoef = $lt !== null ? (float) $lt->daily_early_coefficient : 0.0;
@@ -3091,7 +3290,8 @@ final class CustomerController extends Controller
         $earlyFactor = min(0.5, $earlyCoef * min(max($daysUntilContractEnd, 0), 365));
         $earlyRebate = (int) round($profitRemaining * $earlyFactor);
         $earlyRebate = max(0, min($earlyRebate, $profitRemaining));
-        $amountWithEarly = max(0, $scheduleRemaining - $earlyRebate);
+        $amountWithEarlyRaw = max(0, $scheduleRemainingContract - $earlyRebate);
+        $amountWithEarly = min($remainingAfterDiscount, $amountWithEarlyRaw);
 
         // کسر معادل یک سهم سود از هر قسط معوق (تقریب «بهره ماهانه» برای روش ماهانه؛ برای بانکی یک قسط از سهم سود)
         $periodProfitSlice = $unpaidInstallmentsCount > 0
@@ -3102,7 +3302,8 @@ final class CustomerController extends Controller
             ? (int) round($periodProfitSlice / max(1, (int) $file->installments_count))
             : 0;
         $monthlyStyleCut = min($profitRemaining, $periodProfitSlice + $bankExtraSlice);
-        $amountWithMonthlyStyle = max(0, $scheduleRemaining - $monthlyStyleCut);
+        $amountWithMonthlyStyleRaw = max(0, $scheduleRemainingContract - $monthlyStyleCut);
+        $amountWithMonthlyStyle = min($remainingAfterDiscount, $amountWithMonthlyStyleRaw);
 
         $loanStartFa = $file->loan_start_date
             ? Jalali::enToFaNumbers(Jalali::instance(Carbon::parse($file->loan_start_date))->format('Y/m/d'))
@@ -3114,19 +3315,22 @@ final class CustomerController extends Controller
         $profitMethodLabel = $profitMethod === LoanType::PROFIT_BANK ? 'بانکی (روز شمار)' : 'ماهانه (روز شمار)';
 
         if ($file->is_settled) {
-            $creditor = max(0, $totalPaid - $totalRepayable);
+            $netObligationAfterDiscount = max(0, $totalRepayable - $discountRegistered);
+            $creditor = max(0, $totalPaid - $netObligationAfterDiscount);
             if ($creditor > 0) {
                 return [
                     'scenario' => 'settled_creditor',
                     'headline' => 'تسویه شده — بستانکار',
-                    'summary' => 'پرونده در سیستم به‌عنوان تسویه‌شده ثبت شده و مجموع واریزی‌ها از مانده قراردادی بیشتر است.',
+                    'summary' => 'پرونده در سیستم به‌عنوان تسویه‌شده ثبت شده و مجموع واریزی‌ها از تعهد خالص قرارداد (با احتساب تخفیف) بیشتر است.',
                     'primary_label' => 'مبلغ بستانکاری (تقریبی)',
                     'primary_amount_toman' => $creditor,
-                    'rows' => [
+                    'rows' => array_values(array_filter([
                         ['label' => 'کل بازپرداخت قراردادی', 'amount_toman' => $totalRepayable],
+                        $discountRegistered > 0 ? ['label' => 'تخفیف ثبت‌شده', 'amount_toman' => $discountRegistered] : null,
+                        ['label' => 'تعهد خالص (کل − تخفیف)', 'amount_toman' => $netObligationAfterDiscount],
                         ['label' => 'مجموع دریافت‌شده از اقساط', 'amount_toman' => $totalPaid],
                         ['label' => 'اختلاف (بستانکار)', 'amount_toman' => $creditor],
-                    ],
+                    ])),
                     'notes' => [
                         'این مبلغ بر اساس جمع «مبلغ پرداختی» ثبت‌شده روی اقساط است؛ در صورت نیاز با اسناد مالی تطبیق دهید.',
                     ],
@@ -3135,6 +3339,7 @@ final class CustomerController extends Controller
                         'loan_start_jdate_fa' => $loanStartFa,
                         'last_due_jdate_fa' => $lastDueFa,
                         'paid_installments' => $paidInstallmentsCount,
+                        'paid_installments_slot' => $paidInstallmentsSlotCount,
                         'unpaid_installments' => $unpaidInstallmentsCount,
                         'profit_method_label' => $profitMethodLabel,
                     ],
@@ -3147,10 +3352,11 @@ final class CustomerController extends Controller
                 'summary' => 'این پرونده در سیستم به‌عنوان تسویه‌شده ثبت شده است.',
                 'primary_label' => 'مانده قابل تسویه آنی',
                 'primary_amount_toman' => 0,
-                'rows' => [
+                'rows' => array_values(array_filter([
                     ['label' => 'کل بازپرداخت قراردادی', 'amount_toman' => $totalRepayable],
+                    $discountRegistered > 0 ? ['label' => 'تخفیف ثبت‌شده', 'amount_toman' => $discountRegistered] : null,
                     ['label' => 'مجموع دریافت‌شده از اقساط', 'amount_toman' => $totalPaid],
-                ],
+                ])),
                 'notes' => [
                     'در صورت نیاز به تسویه واقعی در حساب‌ها، با مانده بانکی یا صندوق مقایسه کنید.',
                 ],
@@ -3161,64 +3367,85 @@ final class CustomerController extends Controller
                         ? Jalali::enToFaNumbers(Jalali::instance(Carbon::parse($file->settled_at))->format('Y/m/d'))
                         : '—',
                     'profit_method_label' => $profitMethodLabel,
+                    'paid_installments' => $paidInstallmentsCount,
+                    'paid_installments_slot' => $paidInstallmentsSlotCount,
                 ],
             ];
         }
 
-        if ($scheduleRemaining <= 0 && $aggregateRemaining <= 0) {
-            $creditor = max(0, $totalPaid - $totalRepayable);
+        if ($remainingAfterDiscount <= 0) {
+            $netObligationAfterDiscount = max(0, $totalRepayable - $discountRegistered);
+            $creditor = max(0, $totalPaid - $netObligationAfterDiscount);
+            $crossPayNote = $nominalRemainSum > 0 && $creditor <= 0;
 
             return [
                 'scenario' => 'closed_no_debt',
-                'headline' => $creditor > 0 ? 'مانده قراردادی صفر — بستانکار' : 'مانده قراردادی صفر',
+                'headline' => $creditor > 0 ? 'تعهد صفر — بستانکار' : 'تعهد بازپرداخت تسویه است',
                 'summary' => $creditor > 0
-                    ? 'جمع پرداخت اقساط از کل تعهد قراردادی بیشتر است؛ پیشنهاد می‌شود وضعیت تسویه پرونده بازبینی شود.'
-                    : 'بر اساس اقساط، ماندهای قسطی تسویه شده‌اند؛ در صورت نیاز پرونده را به‌عنوان تسویه‌شده علامت بزنید.',
+                    ? 'جمع پرداخت‌های ثبت‌شده از تعهد خالص قرارداد (پس از تخفیف) بیشتر است؛ در صورت تمایل پرونده را رسماً تسویه‌شده علامت بزنید.'
+                    : ($crossPayNote
+                        ? 'تعهد قرارداد با جمع واریزی‌ها تسویه است. ممکن است روی برخی سررسیدها مبلغ کمتر و روی برخی بیشتر ثبت شده باشد؛ ماندهٔ هر ردیف تنها «سهم نامی» است نه ماندهٔ واقعی تعهد.'
+                        : 'بر اساس مجموع پرداخت‌ها، ماندهٔ بازپرداخت قراردادی (با احتساب تخفیف) صفر است؛ در صورت تمایل از ویرایش پرونده، وضعیت تسویه رسمی را هم ثبت کنید.'),
                 'primary_label' => $creditor > 0 ? 'مبلغ بستانکاری (تقریبی)' : 'مانده قابل تسویه آنی',
                 'primary_amount_toman' => $creditor > 0 ? $creditor : 0,
-                'rows' => [
+                'rows' => array_values(array_filter([
                     ['label' => 'کل بازپرداخت قراردادی', 'amount_toman' => $totalRepayable],
-                    ['label' => 'مجموع دریافت‌شده از اقساط', 'amount_toman' => $totalPaid],
-                ],
-                'notes' => [
-                    'اگر هنوز پرونده را تسویه نکرده‌اید، از ویرایش پرونده برای ثبت تسویه استفاده کنید.',
-                ],
+                    $discountRegistered > 0 ? ['label' => 'تخفیف ثبت‌شده', 'amount_toman' => $discountRegistered] : null,
+                    ['label' => 'تعهد خالص (کل − تخفیف)', 'amount_toman' => $netObligationAfterDiscount],
+                    ['label' => 'مجموع پرداخت‌شده (ثبت شده روی اقساط)', 'amount_toman' => $totalPaid],
+                    $crossPayNote && $nominalRemainSum > 0
+                        ? ['label' => 'جمع ماندهٔ نامی هر ردیف قسط (اطلاعی؛ نه ماندهٔ تعهد)', 'amount_toman' => $nominalRemainSum, 'hint' => 'فقط برای دیدن این‌که کدام ردیف هنوز کمتر از مبلغ نامی دارد']
+                        : null,
+                ])),
+                'notes' => array_values(array_filter([
+                    'اگر هنوز پرونده را در سیستم تسویه نکرده‌اید، از ویرایش پرونده برای ثبت تسویه استفاده کنید.',
+                    $crossPayNote ? 'در تسویه متقابل بین اقساط، به «مانده قابل تسویه آنی» که بر اساس تعهد کل است تکیه کنید نه به جمع ماندهٔ نامی ردیف‌ها.' : null,
+                ])),
                 'meta' => [
                     'loan_code' => (string) $file->loan_code,
                     'loan_start_jdate_fa' => $loanStartFa,
                     'profit_method_label' => $profitMethodLabel,
+                    'paid_installments' => $paidInstallmentsCount,
+                    'paid_installments_slot' => $paidInstallmentsSlotCount,
+                    'unpaid_installments' => $unpaidInstallmentsCount,
                 ],
             ];
         }
 
-        $diffWarning = abs($scheduleRemaining - $aggregateRemaining) > 1000;
+        $diffWarning = $remainingAfterDiscount > 0 && abs($nominalRemainSum - $scheduleRemainingContract) > 1000;
 
         return [
             'scenario' => 'active',
             'headline' => 'مبلغ قابل تسویه آنی (پیشنهاد سیستم)',
-            'summary' => 'بر اساس اقساط ثبت‌شده، مانده قراردادی و تخمین سهم سود باقیمانده؛ ضریب زودکرد از تنظیمات نوع وام و روزهای باقیمانده تا آخرین سررسید قرارداد استفاده شده است.',
-            'primary_label' => 'مانده بر اساس اقساط (پایه)',
-            'primary_amount_toman' => $scheduleRemaining,
-            'rows' => [
-                ['label' => 'مانده قسطی (جمع مانده هر قسط)', 'amount_toman' => $scheduleRemaining, 'hint' => 'جمع (مبلغ قسط − پرداختی) برای همه اقساط'],
+            'summary' => 'ماندهٔ واقعی بر پایهٔ تعهد کل قرارداد (و تخفیف) است؛ پیشنهادهای با کسر بهره، روی همین مانده و با تخمین سود باقیمانده محاسبه شده‌اند.',
+            'primary_label' => 'مانده واقعی (هم‌ارز کارت پرونده ، پس از تخفیف)',
+            'primary_amount_toman' => $remainingAfterDiscount,
+            'rows' => array_values(array_filter([
                 ['label' => 'کل بازپرداخت قراردادی', 'amount_toman' => $totalRepayable],
+                ['label' => 'ماندهٔ تعهد قبل از تخفیف (کل − پرداخت‌ها)', 'amount_toman' => $scheduleRemainingContract],
+                $discountRegistered > 0 ? ['label' => 'تخفیف ثبت‌شده', 'amount_toman' => $discountRegistered] : null,
+                ['label' => 'مانده بعد از تخفیف (خط پایهٔ تسویه)', 'amount_toman' => $remainingAfterDiscount, 'emphasis' => true],
+                $nominalRemainSum !== $scheduleRemainingContract
+                    ? ['label' => 'جمع ماندهٔ نامی هر ردیف قسط (اطلاعی)', 'amount_toman' => $nominalRemainSum, 'hint' => 'اگر با خط بالا متفاوت است، پرداخت بین اقساط جابه‌جا شده است.']
+                    : null,
                 ['label' => 'مجموع پرداخت‌شده از اقساط', 'amount_toman' => $totalPaid],
-                ['label' => 'سهم تخمینی سود باقیمانده', 'amount_toman' => $profitRemaining, 'hint' => 'متناسب با مانده از کل بهره محاسبه‌شده'],
+                ['label' => 'سهم تخمینی سود باقیمانده (بر اساس ماندهٔ تعهد)', 'amount_toman' => $profitRemaining, 'hint' => 'به‌ازای ماندهٔ '.number_format((float) $scheduleRemainingContract, 0, '.', ',').' تومان از '.number_format((float) $totalRepayable, 0, '.', ',').' تومان کل تعهد'],
                 ['label' => 'تخفیف زودکرد تخمینی (ضریب نوع وام)', 'amount_toman' => $earlyRebate, 'hint' => 'حداکثر '.round($earlyFactor * 100, 2).'٪ از سهم سود باقیمانده در این مدل'],
-                ['label' => 'مبلغ قابل تسویه با کسر ضریب زودکرد', 'amount_toman' => $amountWithEarly, 'emphasis' => true],
-                ['label' => 'کسر معادل یک دور سود از اقساط معوق («بهره ماهانه» تقریبی)', 'amount_toman' => $monthlyStyleCut],
-                ['label' => 'مبلغ قابل تسویه با کسر بهره دوره‌ای (تقریب)', 'amount_toman' => $amountWithMonthlyStyle, 'emphasis' => true],
-            ],
+                ['label' => 'پیشنهاد تسویه با کسر ضریب زودکرد (سقف: ماندهٔ واقعی)', 'amount_toman' => $amountWithEarly, 'emphasis' => true],
+                ['label' => 'کسر معادل یک دور سود از اقساط با ماندهٔ نامی («بهره ماهانه» تقریبی)', 'amount_toman' => $monthlyStyleCut],
+                ['label' => 'پیشنهاد تسویه با کسر بهره دوره‌ای — سقف ماندهٔ واقعی', 'amount_toman' => $amountWithMonthlyStyle, 'emphasis' => true],
+            ])),
             'notes' => array_values(array_filter([
                 'روش بهره در پرونده: '.$profitMethodLabel.'.',
                 'روزهای باقیمانده تا آخرین سررسید قرارداد: '.Jalali::enToFaNumbers((string) max(0, $daysUntilContractEnd)).' روز؛ طول تقریبی قرارداد: '.Jalali::enToFaNumbers((string) $totalContractDays).' روز.',
-                $diffWarning ? 'اختلاف جزئی بین مانده اقساط و (کل تعهد − مجموع پرداختی) مشاهده شد؛ در صورت نیاز پرداخت‌ها را بازبینی کنید.' : null,
+                $diffWarning ? 'جمع ماندهٔ نامی ردیف‌ها با ماندهٔ تعهد کل اختلاف دارد؛ معمولاً به‌خاطر انتقال پرداخت بین سررسیدهای مختلف است.' : null,
             ])),
             'meta' => [
                 'loan_code' => (string) $file->loan_code,
                 'loan_start_jdate_fa' => $loanStartFa,
                 'last_due_jdate_fa' => $lastDueFa,
                 'paid_installments' => $paidInstallmentsCount,
+                'paid_installments_slot' => $paidInstallmentsSlotCount,
                 'unpaid_installments' => $unpaidInstallmentsCount,
                 'days_until_contract_end' => $daysUntilContractEnd,
                 'total_contract_days' => $totalContractDays,

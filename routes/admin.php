@@ -103,6 +103,10 @@ Route::middleware(['auth:admin'])->group(function (): void {
         ->middleware('throttle:60,1')
         ->name('customers.edit-data');
 
+    Route::get('/customers/{customer}/loan-board-summary', [CustomerController::class, 'loanBoardSummary'])
+        ->middleware('throttle:60,1')
+        ->name('customers.loan-board-summary');
+
     Route::put('/customers/{customer}', [CustomerController::class, 'update'])
         ->middleware('throttle:20,1')
         ->name('customers.update');
@@ -154,6 +158,14 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::post('/customers/{customer}/loan-files/{loanFile}/installments/{installment}/payments', [CustomerController::class, 'storeLoanInstallmentPayment'])
         ->middleware('throttle:40,1')
         ->name('customers.loan-files.installments.payments.store');
+
+    Route::put('/customers/{customer}/loan-files/{loanFile}/installments/{installment}/payments/{payment}', [CustomerController::class, 'updateLoanInstallmentPayment'])
+        ->middleware('throttle:40,1')
+        ->name('customers.loan-files.installments.payments.update');
+
+    Route::delete('/customers/{customer}/loan-files/{loanFile}/installments/{installment}/payments/{payment}', [CustomerController::class, 'destroyLoanInstallmentPayment'])
+        ->middleware('throttle:40,1')
+        ->name('customers.loan-files.installments.payments.destroy');
 
     Route::get('/customers/{customer}/loan-files/{loanFile}/instant-settlement-preview', [CustomerController::class, 'loanInstantSettlementPreview'])
         ->middleware('throttle:60,1')
