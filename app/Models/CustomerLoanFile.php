@@ -27,6 +27,11 @@ final class CustomerLoanFile extends Model
         'description',
         'is_settled',
         'settled_at',
+        'revoked_at',
+        'revoked_by_admin_id',
+        'discount_amount_toman',
+        'discount_updated_at',
+        'discount_updated_by_admin_id',
         'base_interest_rate',
         'has_custom_interest_rate',
         'custom_interest_rate',
@@ -50,6 +55,11 @@ final class CustomerLoanFile extends Model
             'profit_calculation_method' => 'string',
             'is_settled' => 'boolean',
             'settled_at' => 'date',
+            'revoked_at' => 'datetime',
+            'revoked_by_admin_id' => 'integer',
+            'discount_amount_toman' => 'integer',
+            'discount_updated_at' => 'datetime',
+            'discount_updated_by_admin_id' => 'integer',
             'base_interest_rate' => 'decimal:2',
             'has_custom_interest_rate' => 'boolean',
             'custom_interest_rate' => 'decimal:2',
@@ -76,5 +86,10 @@ final class CustomerLoanFile extends Model
     public function guarantees(): HasMany
     {
         return $this->hasMany(CustomerLoanGuarantee::class, 'loan_file_id')->latest('id');
+    }
+
+    public function installments(): HasMany
+    {
+        return $this->hasMany(CustomerLoanInstallment::class, 'customer_loan_file_id')->orderBy('sequence');
     }
 }

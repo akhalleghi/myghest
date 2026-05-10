@@ -115,6 +115,10 @@ Route::middleware(['auth:admin'])->group(function (): void {
         ->middleware('throttle:20,1')
         ->name('customers.quick-sms');
 
+    Route::get('/customers/{customer}/sms-modal-preview', [CustomerController::class, 'quickSmsModalPreview'])
+        ->middleware('throttle:60,1')
+        ->name('customers.sms-modal-preview');
+
     Route::post('/customers/{customer}/loan-files', [CustomerController::class, 'storeLoan'])
         ->middleware('throttle:20,1')
         ->name('customers.loan-files.store');
@@ -127,9 +131,45 @@ Route::middleware(['auth:admin'])->group(function (): void {
         ->middleware('throttle:20,1')
         ->name('customers.loan-files.destroy');
 
+    Route::post('/customers/{customer}/loan-files/{loanFile}/revoke-contract', [CustomerController::class, 'revokeLoanContract'])
+        ->middleware('throttle:10,1')
+        ->name('customers.loan-files.revoke-contract');
+
     Route::post('/customers/{customer}/loan-files/{loanFile}/send-sms', [CustomerController::class, 'sendLoanFileSms'])
         ->middleware('throttle:20,1')
         ->name('customers.loan-files.send-sms');
+
+    Route::get('/customers/{customer}/loan-files/{loanFile}/installments', [CustomerController::class, 'loanInstallments'])
+        ->middleware('throttle:60,1')
+        ->name('customers.loan-files.installments.index');
+
+    Route::get('/customers/{customer}/loan-files/{loanFile}/instant-settlement-preview', [CustomerController::class, 'loanInstantSettlementPreview'])
+        ->middleware('throttle:60,1')
+        ->name('customers.loan-files.instant-settlement-preview');
+
+    Route::get('/customers/{customer}/loan-files/{loanFile}/discount-preview', [CustomerController::class, 'loanDiscountPreview'])
+        ->middleware('throttle:60,1')
+        ->name('customers.loan-files.discount-preview');
+
+    Route::post('/customers/{customer}/loan-files/{loanFile}/discount', [CustomerController::class, 'storeLoanDiscount'])
+        ->middleware('throttle:30,1')
+        ->name('customers.loan-files.discount.store');
+
+    Route::get('/customers/{customer}/guarantees-report', [CustomerController::class, 'loanGuaranteesReport'])
+        ->middleware('throttle:60,1')
+        ->name('customers.guarantees-report');
+
+    Route::get('/customers/{customer}/guarantees-report/export-excel', [CustomerController::class, 'exportLoanGuaranteesReportExcel'])
+        ->middleware('throttle:30,1')
+        ->name('customers.guarantees-report.export-excel');
+
+    Route::get('/customers/{customer}/sms-logs', [CustomerController::class, 'customerSmsLogs'])
+        ->middleware('throttle:60,1')
+        ->name('customers.sms-logs');
+
+    Route::get('/customers/{customer}/sms-logs/export-excel', [CustomerController::class, 'exportCustomerSmsLogsExcel'])
+        ->middleware('throttle:30,1')
+        ->name('customers.sms-logs.export-excel');
 
     Route::get('/customers/{customer}/loan-files/{loanFile}/guarantees', [CustomerController::class, 'loanGuarantees'])
         ->middleware('throttle:60,1')

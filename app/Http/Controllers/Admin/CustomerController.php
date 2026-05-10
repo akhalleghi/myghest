@@ -10,14 +10,17 @@ use App\Models\Customer;
 use App\Models\CustomerBankAccount;
 use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanGuarantee;
+use App\Models\CustomerLoanInstallment;
 use App\Models\CustomerReferrer;
 use App\Models\CustomerWallet;
 use App\Models\LoanType;
 use App\Models\Organization;
+use App\Models\SmsLog;
 use App\Models\SmsTemplate;
 use App\Rules\IranNationalId;
 use App\Services\Admin\RawSmsDispatcher;
 use App\Services\Sms\SmsPanelManager;
+use App\Services\Sms\SmsSettingsService;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Http\JsonResponse;
@@ -32,6 +35,8 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Illuminate\Support\Collection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class CustomerController extends Controller
 {
@@ -45,7 +50,7 @@ final class CustomerController extends Controller
         $q = trim((string) $request->query('q', ''));
 
         $customers = Customer::query()
-            ->with(['loanFiles.loanType:id,title,interest_rate'])
+            ->with(['loanFiles.loanType', 'loanFiles.installments'])
             ->when($q !== '', function ($query) use ($q): void {
                 $query->where(function ($w) use ($q): void {
                     $w->where('customer_code', 'like', '%'.$q.'%')
@@ -257,6 +262,10 @@ final class CustomerController extends Controller
             abort(404);
         }
 
+        if ($loanFile->revoked_at !== null) {
+            return response()->json(['message' => 'این قرارداد فسخ شده است و قابل ویرایش نیست.'], 422);
+        }
+
         $validated = $request->validate([
             'loan_start_jdate' => ['required', 'string', 'max:20'],
             'disbursement_due_jdate' => ['nullable', 'string', 'max:20'],
@@ -394,10 +403,53 @@ final class CustomerController extends Controller
         ]);
     }
 
+    public function revokeLoanContract(Customer $customer, CustomerLoanFile $loanFile): JsonResponse
+    {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+
+        if ($loanFile->revoked_at !== null) {
+            return response()->json(['message' => 'این قرارداد قبلاً فسخ شده است.'], 422);
+        }
+
+        $adminId = auth('admin')->id();
+        if ($adminId === null) {
+            return response()->json(['message' => 'احراز هویت مدیر الزامی است.'], 401);
+        }
+
+        DB::transaction(function () use ($loanFile, $adminId): void {
+            CustomerLoanInstallment::query()->where('customer_loan_file_id', $loanFile->id)->delete();
+            $loanFile->update([
+                'revoked_at' => now(),
+                'revoked_by_admin_id' => (int) $adminId,
+                'installments_count' => 0,
+                'installment_amount_toman' => 0,
+                'is_settled' => false,
+                'settled_at' => null,
+                'discount_amount_toman' => 0,
+                'discount_updated_at' => null,
+                'discount_updated_by_admin_id' => null,
+            ]);
+        });
+
+        $loanFile->refresh();
+        $loanFile->load('loanType');
+
+        return response()->json([
+            'message' => 'قرارداد با موفقیت فسخ شد. تمام اقساط این پرونده حذف شدند.',
+            'loan_file' => $this->mapLoanFile($loanFile),
+        ]);
+    }
+
     public function sendLoanFileSms(Request $request, Customer $customer, CustomerLoanFile $loanFile): JsonResponse
     {
         if ((int) $loanFile->customer_id !== (int) $customer->id) {
             abort(404);
+        }
+
+        if ($loanFile->revoked_at !== null) {
+            return response()->json(['message' => 'این قرارداد فسخ شده است؛ ارسال پیامک برای این پرونده مجاز نیست.'], 422);
         }
 
         $validated = $request->validate([
@@ -424,6 +476,189 @@ final class CustomerController extends Controller
         ], $smsResult['ok'] ? 200 : 422);
     }
 
+    public function loanInstallments(Customer $customer, CustomerLoanFile $loanFile): JsonResponse
+    {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+
+        $loanFile->load('loanType');
+
+        if ($loanFile->revoked_at !== null) {
+            return response()->json([
+                'loan' => [
+                    'id' => (int) $loanFile->id,
+                    'loan_code' => (string) $loanFile->loan_code,
+                    'loan_type_title' => (string) ($loanFile->loanType?->title ?? '—'),
+                    'amount_toman' => (int) $loanFile->amount_toman,
+                    'loan_start_jdate' => $loanFile->loan_start_date
+                        ? Jalali::instance(Carbon::parse($loanFile->loan_start_date))->format('Y/m/d')
+                        : '',
+                    'loan_start_jdate_fa' => $loanFile->loan_start_date
+                        ? Jalali::enToFaNumbers(Jalali::instance(Carbon::parse($loanFile->loan_start_date))->format('Y/m/d'))
+                        : '',
+                    'installment_amount_toman' => (int) $loanFile->installment_amount_toman,
+                    'is_revoked' => true,
+                    'revoked_notice' => 'این قرارداد فسخ شده است؛ اقساطی برای نمایش وجود ندارد.',
+                ],
+                'installments' => [],
+            ]);
+        }
+
+        $this->ensureLoanInstallmentSchedule($loanFile);
+        $loanFile->load(['installments.recordedByAdmin']);
+
+        $rows = $loanFile->installments->map(
+            fn (CustomerLoanInstallment $i): array => $this->mapLoanInstallmentRow($i, $customer, $loanFile)
+        )->values();
+
+        return response()->json([
+            'loan' => [
+                'id' => (int) $loanFile->id,
+                'loan_code' => (string) $loanFile->loan_code,
+                'loan_type_title' => (string) ($loanFile->loanType?->title ?? '—'),
+                'amount_toman' => (int) $loanFile->amount_toman,
+                'loan_start_jdate' => $loanFile->loan_start_date
+                    ? Jalali::instance(Carbon::parse($loanFile->loan_start_date))->format('Y/m/d')
+                    : '',
+                'loan_start_jdate_fa' => $loanFile->loan_start_date
+                    ? Jalali::enToFaNumbers(Jalali::instance(Carbon::parse($loanFile->loan_start_date))->format('Y/m/d'))
+                    : '',
+                'installment_amount_toman' => (int) $loanFile->installment_amount_toman,
+            ],
+            'installments' => $rows,
+        ]);
+    }
+
+    /**
+     * پیش‌نمایش «تسویه آنی» بر اساس مانده اقساط، پرداخت‌ها، ضرایب نوع وام و روش محاسبه بهره.
+     */
+    public function loanInstantSettlementPreview(Customer $customer, CustomerLoanFile $loanFile): JsonResponse
+    {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+
+        $loanFile->load('loanType');
+
+        return response()->json($this->buildInstantSettlementPreview($loanFile));
+    }
+
+    public function loanDiscountPreview(Customer $customer, CustomerLoanFile $loanFile): JsonResponse
+    {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+
+        if ($loanFile->revoked_at !== null) {
+            return response()->json(['message' => 'قرارداد فسخ شده است؛ ثبت تخفیف ممکن نیست.'], 422);
+        }
+
+        if ($loanFile->is_settled) {
+            return response()->json(['message' => 'پرونده تسویه‌شده است؛ ثبت تخفیف مجاز نیست.'], 422);
+        }
+
+        $loanFile->load('loanType');
+        $this->ensureLoanInstallmentSchedule($loanFile);
+        $loanFile->load('installments');
+
+        $profit = $this->calculateLoanProfitToman(
+            (int) $loanFile->amount_toman,
+            (float) $loanFile->effective_interest_rate,
+            (string) ($loanFile->profit_calculation_method ?: LoanType::PROFIT_MONTHLY),
+            (int) $loanFile->installments_count,
+            (int) $loanFile->installment_interval_count,
+            (string) $loanFile->installment_interval_unit
+        );
+        $totalRepayable = max(0, ((int) $loanFile->amount_toman + $profit) - (int) $loanFile->down_payment_toman);
+        $snap = $this->loanInstallmentFinancialSnapshot($loanFile, $totalRepayable);
+        $discount = (int) ($loanFile->discount_amount_toman ?? 0);
+        $scheduleRemaining = $snap['schedule_remaining_toman'];
+
+        return response()->json([
+            'late_fee_so_far_toman' => $snap['late_fee_so_far_toman'],
+            'schedule_remaining_toman' => $scheduleRemaining,
+            'discount_registered_toman' => $discount,
+            'remaining_after_discount_toman' => max(0, $scheduleRemaining - $discount),
+            /** سقف مبلغ کل تخفیف قابل ثبت = مانده قسطی (قبل از اعمال تخفیف). */
+            'max_discount_toman' => $scheduleRemaining,
+            'loan_code' => (string) $loanFile->loan_code,
+            'borrower_name' => $customer->fullName(),
+        ]);
+    }
+
+    public function storeLoanDiscount(Request $request, Customer $customer, CustomerLoanFile $loanFile): JsonResponse
+    {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+
+        if ($loanFile->revoked_at !== null) {
+            return response()->json(['message' => 'قرارداد فسخ شده است.'], 422);
+        }
+
+        if ($loanFile->is_settled) {
+            return response()->json(['message' => 'پرونده تسویه‌شده است.'], 422);
+        }
+
+        $validated = $request->validate([
+            'discount_toman' => ['required', 'integer', 'min:0', 'max:999999999999'],
+        ]);
+
+        $newTotalDiscount = (int) $validated['discount_toman'];
+        $adminId = auth('admin')->id();
+        if ($adminId === null) {
+            return response()->json(['message' => 'احراز هویت مدیر الزامی است.'], 401);
+        }
+
+        try {
+            DB::transaction(function () use ($loanFile, $newTotalDiscount, $adminId): void {
+                $loanFile->refresh();
+                $loanFile->load('loanType');
+                $this->ensureLoanInstallmentSchedule($loanFile);
+                $loanFile->load('installments');
+
+                $profit = $this->calculateLoanProfitToman(
+                    (int) $loanFile->amount_toman,
+                    (float) $loanFile->effective_interest_rate,
+                    (string) ($loanFile->profit_calculation_method ?: LoanType::PROFIT_MONTHLY),
+                    (int) $loanFile->installments_count,
+                    (int) $loanFile->installment_interval_count,
+                    (string) $loanFile->installment_interval_unit
+                );
+                $totalRepayable = max(0, ((int) $loanFile->amount_toman + $profit) - (int) $loanFile->down_payment_toman);
+                $snap = $this->loanInstallmentFinancialSnapshot($loanFile, $totalRepayable);
+                $scheduleRemaining = $snap['schedule_remaining_toman'];
+
+                if ($newTotalDiscount > $scheduleRemaining) {
+                    throw ValidationException::withMessages([
+                        'discount_toman' => [
+                            'مبلغ کل تخفیف نمی‌تواند از مانده قسطی بیشتر باشد. حداکثر: '.number_format($scheduleRemaining, 0, '.', ',').' تومان',
+                        ],
+                    ]);
+                }
+
+                $loanFile->update([
+                    'discount_amount_toman' => $newTotalDiscount,
+                    'discount_updated_at' => now(),
+                    'discount_updated_by_admin_id' => (int) $adminId,
+                ]);
+            });
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => (string) (collect($e->errors())->flatten()->first() ?? 'اعتبارسنجی ناموفق بود.'),
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        $loanFile->refresh()->load(['loanType', 'installments']);
+
+        return response()->json([
+            'message' => 'مبلغ تخفیف با موفقیت ذخیره شد.',
+            'loan_file' => $this->mapLoanFile($loanFile),
+        ]);
+    }
+
     public function loanGuarantees(Customer $customer, CustomerLoanFile $loanFile): JsonResponse
     {
         if ((int) $loanFile->customer_id !== (int) $customer->id) {
@@ -440,6 +675,404 @@ final class CustomerController extends Controller
         return response()->json([
             'guarantees' => $rows,
         ]);
+    }
+
+    public function loanGuaranteesReport(Customer $customer): JsonResponse
+    {
+        $customer->load([
+            'loanFiles' => function ($q): void {
+                $q->with(['loanType', 'guarantees' => function ($gq): void {
+                    $gq->latest('id');
+                }])->latest('id');
+            },
+        ]);
+
+        $summary = [
+            'total' => 0,
+            'org_self' => 0,
+            'org_other' => 0,
+            'cheque' => 0,
+            'gold' => 0,
+            'other' => 0,
+            'cheque_returned' => 0,
+            'cheque_collected' => 0,
+        ];
+
+        $rows = [];
+        foreach ($customer->loanFiles as $file) {
+            foreach ($file->guarantees as $g) {
+                $summary['total']++;
+                $type = (string) $g->type;
+                match ($type) {
+                    CustomerLoanGuarantee::TYPE_ORG_SELF => $summary['org_self']++,
+                    CustomerLoanGuarantee::TYPE_ORG_OTHER => $summary['org_other']++,
+                    CustomerLoanGuarantee::TYPE_CHEQUE => $summary['cheque']++,
+                    CustomerLoanGuarantee::TYPE_GOLD => $summary['gold']++,
+                    CustomerLoanGuarantee::TYPE_OTHER => $summary['other']++,
+                    default => null,
+                };
+                if ($type === CustomerLoanGuarantee::TYPE_CHEQUE) {
+                    $meta = is_array($g->meta) ? $g->meta : [];
+                    if (! empty($meta['cheque_returned'])) {
+                        $summary['cheque_returned']++;
+                    }
+                    if (! empty($meta['cheque_collected'])) {
+                        $summary['cheque_collected']++;
+                    }
+                }
+
+                $mapped = $this->mapLoanGuarantee($g);
+                $rows[] = [
+                    'loan_file_id' => (int) $file->id,
+                    'loan_code' => (string) $file->loan_code,
+                    'loan_type_title' => (string) ($file->loanType?->title ?? '—'),
+                    'customer_full_name' => $customer->fullName(),
+                    'customer_national_id' => trim((string) ($customer->national_id ?? '')),
+                    'customer_mobile' => trim((string) ($customer->mobile ?? '')),
+                    'amount_toman' => (int) $file->amount_toman,
+                    'installment_amount_toman' => (int) $file->installment_amount_toman,
+                    'guarantee_type' => $type,
+                    'guarantee_type_label' => (string) ($mapped['type_label'] ?? $g->type),
+                    'guarantee_detail_lines' => $this->guaranteeReportMetaLines($g),
+                ];
+            }
+        }
+
+        return response()->json([
+            'rows' => $rows,
+            'summary' => $summary,
+        ]);
+    }
+
+    public function exportLoanGuaranteesReportExcel(Customer $customer): StreamedResponse
+    {
+        $customer->load([
+            'loanFiles' => function ($q): void {
+                $q->with(['loanType', 'guarantees' => function ($gq): void {
+                    $gq->latest('id');
+                }])->latest('id');
+            },
+        ]);
+
+        $filename = 'guarantees-customer-'.$customer->id.'-'.now()->format('Ymd-His').'.xls';
+        $headers = [
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-16LE',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ];
+
+        return response()->streamDownload(function () use ($customer): void {
+            $out = fopen('php://output', 'wb');
+            if (! is_resource($out)) {
+                return;
+            }
+            fwrite($out, "\xFF\xFE");
+            $this->writeExcelUnicodeRow($out, [
+                'شماره وام و نوع وام',
+                'نام و نام خانوادگی',
+                'کد ملی',
+                'موبایل',
+                'مبلغ وام (تومان)',
+                'مبلغ قسط (تومان)',
+                'نوع ضمانت',
+                'اطلاعات ضمانت',
+            ]);
+            foreach ($customer->loanFiles as $file) {
+                foreach ($file->guarantees as $g) {
+                    $mapped = $this->mapLoanGuarantee($g);
+                    $loanInfo = (string) $file->loan_code.' — '.($file->loanType?->title ?? '—');
+                    $detail = implode(' | ', $this->guaranteeReportMetaLines($g));
+                    $this->writeExcelUnicodeRow($out, [
+                        $loanInfo,
+                        $customer->fullName(),
+                        trim((string) ($customer->national_id ?? '')),
+                        trim((string) ($customer->mobile ?? '')),
+                        number_format((int) $file->amount_toman, 0, '.', ''),
+                        number_format((int) $file->installment_amount_toman, 0, '.', ''),
+                        (string) ($mapped['type_label'] ?? $g->type),
+                        $detail,
+                    ]);
+                }
+            }
+            fclose($out);
+        }, $filename, $headers);
+    }
+
+    public function exportCustomerSmsLogsExcel(Request $request, Customer $customer): StreamedResponse
+    {
+        $rawDate = (string) $request->query('date', Carbon::today()->format('Y-m-d'));
+        $parsed = Carbon::createFromFormat('Y-m-d', $rawDate);
+        $selectedDate = $parsed !== false ? $parsed->startOfDay() : Carbon::today()->startOfDay();
+
+        $filename = 'sms-customer-'.$customer->id.'-'.$selectedDate->format('Y-m-d').'.xls';
+        $headers = [
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-16LE',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ];
+
+        return response()->streamDownload(function () use ($customer, $selectedDate): void {
+            $out = fopen('php://output', 'wb');
+            if (! is_resource($out)) {
+                return;
+            }
+            fwrite($out, "\xFF\xFE");
+            $this->writeExcelUnicodeRow($out, [
+                'پنل پیامک',
+                'وضعیت',
+                'زمان ارسال',
+                'متن پیام',
+                'دریافت کننده',
+                'نوع پیامک',
+                'هزینه',
+            ]);
+            $rows = $this->customerSmsLogsCollection($customer, $selectedDate);
+            foreach ($rows as $log) {
+                $sentAt = $log->sent_at ? Jalali::instance($log->sent_at)->format('Y/m/d H:i') : '';
+                $sentAtFa = $sentAt !== '' ? Jalali::enToFaNumbers($sentAt) : '—';
+                $this->writeExcelUnicodeRow($out, [
+                    (string) ($log->sms_panel ?? ''),
+                    $log->statusLabel(),
+                    $sentAtFa,
+                    (string) ($log->message_text ?? ''),
+                    Jalali::enToFaNumbers((string) ($log->recipient ?? '')),
+                    $this->smsTypeLabelFa((string) ($log->type ?? '')),
+                    number_format((float) $log->cost, 0, '.', ''),
+                ]);
+            }
+            fclose($out);
+        }, $filename, $headers);
+    }
+
+    public function customerSmsLogs(Request $request, Customer $customer): JsonResponse
+    {
+        $rawDate = (string) $request->query('date', Carbon::today()->format('Y-m-d'));
+        $parsed = Carbon::createFromFormat('Y-m-d', $rawDate);
+        $selectedDate = $parsed !== false ? $parsed->startOfDay() : Carbon::today()->startOfDay();
+
+        $canonicalMobile = $this->normalizeCustomerMobileForSmsFilter((string) ($customer->mobile ?? ''));
+        if ($canonicalMobile === '') {
+            return response()->json([
+                'date' => $selectedDate->format('Y-m-d'),
+                'date_jalali' => Jalali::instance($selectedDate)->format('Y/m/d'),
+                'date_jalali_fa' => Jalali::enToFaNumbers(Jalali::instance($selectedDate)->format('Y/m/d')),
+                'prev_date' => $selectedDate->copy()->subDay()->format('Y-m-d'),
+                'next_date' => $selectedDate->copy()->addDay()->format('Y-m-d'),
+                'has_mobile' => false,
+                'logs' => [],
+            ]);
+        }
+
+        $logs = $this->customerSmsLogsCollection($customer, $selectedDate)
+            ->map(fn (SmsLog $log): array => $this->mapSmsLogRow($log))
+            ->values();
+
+        return response()->json([
+            'date' => $selectedDate->format('Y-m-d'),
+            'date_jalali' => Jalali::instance($selectedDate)->format('Y/m/d'),
+            'date_jalali_fa' => Jalali::enToFaNumbers(Jalali::instance($selectedDate)->format('Y/m/d')),
+            'prev_date' => $selectedDate->copy()->subDay()->format('Y-m-d'),
+            'next_date' => $selectedDate->copy()->addDay()->format('Y-m-d'),
+            'has_mobile' => true,
+            'logs' => $logs->all(),
+        ]);
+    }
+
+    /**
+     * @return Collection<int, SmsLog>
+     */
+    private function customerSmsLogsCollection(Customer $customer, Carbon $day): Collection
+    {
+        $canonicalMobile = $this->normalizeCustomerMobileForSmsFilter((string) ($customer->mobile ?? ''));
+        if ($canonicalMobile === '') {
+            return collect();
+        }
+        $from = $day->copy()->startOfDay();
+        $to = $day->copy()->endOfDay();
+        $variants = $this->smsRecipientFilterVariants($canonicalMobile);
+
+        return SmsLog::query()
+            ->whereBetween('sent_at', [$from, $to])
+            ->whereIn('recipient', $variants)
+            ->latest('sent_at')
+            ->get();
+    }
+
+    private function smsTypeLabelFa(string $type): string
+    {
+        return match ($type) {
+            'customer-credentials' => 'ارسال نام کاربری و رمز عبور',
+            'loan-file-created' => 'ثبت پرونده وام',
+            'wallet-charge-link' => 'لینک شارژ کیف پول',
+            'welcome-message' => 'پیام خوش‌آمدگویی',
+            'guarantor-otp' => 'کد تأیید ضامن',
+            'panel-test' => 'تست پنل پیامک',
+            'wallet-transaction' => 'ارتباط با تراکنش کیف پول',
+            default => $type !== '' ? $type : 'نامشخص',
+        };
+    }
+
+    /**
+     * @param  resource  $out
+     * @param  array<int, string>  $cells
+     */
+    private function writeExcelUnicodeRow($out, array $cells): void
+    {
+        $cleanCells = array_map(static function (string $value): string {
+            return str_replace(["\t", "\r", "\n"], [' ', ' ', ' '], $value);
+        }, $cells);
+
+        $line = implode("\t", $cleanCells)."\r\n";
+        fwrite($out, mb_convert_encoding($line, 'UTF-16LE', 'UTF-8'));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mapSmsLogRow(SmsLog $log): array
+    {
+        $sentAt = $log->sent_at ? Jalali::instance($log->sent_at)->format('Y/m/d H:i') : '';
+
+        $typeRaw = (string) ($log->type ?? '');
+
+        return [
+            'id' => (int) $log->id,
+            'sms_panel' => (string) ($log->sms_panel ?? ''),
+            'status' => (string) $log->status,
+            'status_label' => $log->statusLabel(),
+            'sent_at_jalali_fa' => $sentAt !== '' ? Jalali::enToFaNumbers($sentAt) : '—',
+            'message_text' => (string) ($log->message_text ?? ''),
+            'recipient_fa' => Jalali::enToFaNumbers((string) ($log->recipient ?? '')),
+            'type' => $typeRaw,
+            'type_label_fa' => $this->smsTypeLabelFa($typeRaw),
+            'cost_fa' => Jalali::enToFaNumbers(number_format((float) $log->cost, 0, '.', '')),
+        ];
+    }
+
+    private function normalizeCustomerMobileForSmsFilter(string $raw): string
+    {
+        $digits = preg_replace('/\D/', '', $this->toEnglishDigits(trim($raw))) ?? '';
+        if ($digits === '') {
+            return '';
+        }
+        if (strlen($digits) === 10 && str_starts_with($digits, '9')) {
+            $digits = '0'.$digits;
+        }
+        if (! preg_match('/^09\d{9}$/', $digits)) {
+            return '';
+        }
+
+        return $digits;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function smsRecipientFilterVariants(string $canonical11): array
+    {
+        if (! preg_match('/^09\d{9}$/', $canonical11)) {
+            return [];
+        }
+        $wo = substr($canonical11, 1);
+
+        return array_values(array_unique([
+            $canonical11,
+            $wo,
+            '98'.$wo,
+            '+98'.$wo,
+        ]));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function guaranteeReportMetaLines(CustomerLoanGuarantee $g): array
+    {
+        $meta = is_array($g->meta) ? $g->meta : [];
+        $type = (string) $g->type;
+        $lines = [];
+
+        $desc = trim((string) ($g->description ?? ''));
+        if ($desc !== '') {
+            $lines[] = 'توضیح: '.$desc;
+        }
+
+        if ($type === CustomerLoanGuarantee::TYPE_ORG_SELF) {
+            $orgSelfLbl = (string) ($meta['organization_name'] ?? $meta['org_name'] ?? '');
+            if ($orgSelfLbl !== '') {
+                $lines[] = 'سازمان: '.$orgSelfLbl;
+            }
+            if (! empty($meta['employee_no'])) {
+                $lines[] = 'شماره پرسنلی: '.trim((string) $meta['employee_no']);
+            }
+        }
+
+        if ($type === CustomerLoanGuarantee::TYPE_ORG_OTHER) {
+            $orgLbl = (string) ($meta['organization_name'] ?? $meta['org_name'] ?? '');
+            if ($orgLbl !== '') {
+                $lines[] = 'سازمان: '.$orgLbl;
+            }
+            if (! empty($meta['guarantor_name'])) {
+                $lines[] = 'ضامن: '.trim((string) $meta['guarantor_name']);
+            }
+            if (! empty($meta['guarantor_employee_no'])) {
+                $lines[] = 'شماره پرسنلی: '.trim((string) $meta['guarantor_employee_no']);
+            }
+            if (! empty($meta['guarantor_phone'])) {
+                $lines[] = 'موبایل ضامن: '.trim((string) $meta['guarantor_phone']);
+            }
+            $lines[] = 'موبایل ضامن احراز شده: '.((bool) ($meta['guarantor_mobile_verified'] ?? false) ? 'بله' : 'خیر');
+        }
+
+        if (! empty($meta['org_name']) && $type !== CustomerLoanGuarantee::TYPE_ORG_OTHER && $type !== CustomerLoanGuarantee::TYPE_ORG_SELF) {
+            $lines[] = 'سازمان: '.trim((string) $meta['org_name']);
+        }
+        if (! empty($meta['guarantor_name']) && $type !== CustomerLoanGuarantee::TYPE_ORG_OTHER) {
+            $lines[] = 'ضامن: '.trim((string) $meta['guarantor_name']);
+        }
+
+        if (! empty($meta['cheque_owner_name'])) {
+            $lines[] = 'صاحب چک: '.trim((string) $meta['cheque_owner_name']);
+        }
+        if (! empty($meta['cheque_owner_mobile'])) {
+            $lines[] = 'موبایل: '.trim((string) $meta['cheque_owner_mobile']);
+        }
+        if (! empty($meta['cheque_serial'])) {
+            $lines[] = 'شماره چک: '.trim((string) $meta['cheque_serial']);
+        }
+        if (! empty($meta['cheque_sayadi'])) {
+            $lines[] = 'صیادی: '.trim((string) $meta['cheque_sayadi']);
+        }
+        if (! empty($meta['cheque_due_jdate'])) {
+            $lines[] = 'تاریخ چک: '.trim((string) $meta['cheque_due_jdate']);
+        }
+        if ($type === CustomerLoanGuarantee::TYPE_CHEQUE) {
+            $lines[] = 'وصول شده؟ '.(! empty($meta['cheque_collected']) ? 'بله' : 'خیر');
+            $lines[] = 'عودت شده؟ '.(! empty($meta['cheque_returned']) ? 'بله' : 'خیر');
+        }
+
+        $goldLabel = (string) ($meta['gold_item_label'] ?? $meta['gold_item_type'] ?? '');
+        if ($goldLabel !== '') {
+            $lines[] = 'نوع طلا: '.$goldLabel;
+        }
+        if (isset($meta['gold_weight_gram']) && $meta['gold_weight_gram'] !== '' && $meta['gold_weight_gram'] !== null) {
+            $lines[] = 'وزن: '.trim((string) $meta['gold_weight_gram']).' گرم';
+        }
+        if (isset($meta['gold_quantity']) && $meta['gold_quantity'] !== '' && $meta['gold_quantity'] !== null) {
+            $lines[] = 'تعداد: '.trim((string) $meta['gold_quantity']);
+        }
+        if (! empty($meta['gold_rate_toman'])) {
+            $lines[] = 'نرخ: '.number_format((int) $meta['gold_rate_toman'], 0, '.', ',').' تومان';
+        }
+
+        $amt = isset($meta['amount_toman']) ? (int) $meta['amount_toman'] : 0;
+        if ($amt > 0 && ($type === CustomerLoanGuarantee::TYPE_GOLD || $type === CustomerLoanGuarantee::TYPE_OTHER)) {
+            $lines[] = 'مبلغ: '.number_format($amt, 0, '.', ',').' تومان';
+        }
+
+        return $lines;
     }
 
     /**
@@ -621,7 +1254,7 @@ final class CustomerController extends Controller
             }
             $meta = $built;
         } elseif ($type === CustomerLoanGuarantee::TYPE_ORG_OTHER) {
-            $built = $this->buildOrgOtherGuaranteeMeta($request, $validated);
+            $built = $this->buildOrgOtherGuaranteeMeta($request, $validated, $guarantee);
             if ($built instanceof JsonResponse) {
                 return $built;
             }
@@ -745,37 +1378,125 @@ final class CustomerController extends Controller
     public function sendQuickSms(Request $request, Customer $customer): JsonResponse
     {
         $validated = $request->validate([
-            'sms_type' => ['required', 'in:wallet_link,welcome'],
+            'sms_type' => ['required', 'in:wallet_link,welcome,installment_pre_due,installment_due,installment_overdue,installment_thanks'],
             'sms_text' => ['nullable', 'string', 'max:1000'],
             'sms_template_id' => ['nullable', 'integer', 'exists:sms_templates,id'],
+            'installment_id' => ['nullable', 'integer'],
         ]);
 
         $smsType = (string) $validated['sms_type'];
         $messageText = trim((string) ($validated['sms_text'] ?? ''));
         $templateId = $validated['sms_template_id'] ?? null;
+
+        $installment = null;
+        $loanFile = null;
+        if (in_array($smsType, ['installment_pre_due', 'installment_due', 'installment_overdue', 'installment_thanks'], true)) {
+            $iid = (int) ($validated['installment_id'] ?? 0);
+            if ($iid < 1) {
+                return response()->json(['message' => 'قسط معتبر را مشخص کنید.'], 422);
+            }
+            $installment = CustomerLoanInstallment::query()
+                ->whereKey($iid)
+                ->whereHas('loanFile', static fn ($q) => $q->where('customer_id', $customer->id))
+                ->with('loanFile.loanType')
+                ->first();
+            if ($installment === null) {
+                return response()->json(['message' => 'قسط یافت نشد.'], 422);
+            }
+            $loanFile = $installment->loanFile;
+            if ($loanFile === null || (int) $loanFile->customer_id !== (int) $customer->id) {
+                return response()->json(['message' => 'پرونده وام معتبر نیست.'], 422);
+            }
+        }
+
         if ($messageText === '' && $templateId !== null) {
             $tpl = SmsTemplate::query()->find((int) $templateId);
             if ($tpl !== null) {
-                $messageText = $this->renderTemplate($tpl->body, [
-                    'store_name' => $this->appDisplayName(),
-                    'customer_name' => $customer->fullName(),
-                    'payment_link' => '—',
-                    'payment_link_variable' => '—',
-                ]);
+                $vars = $installment !== null && $loanFile !== null
+                    ? $this->installmentSmsTemplateVarsExtended($customer, $loanFile, $installment)
+                    : [
+                        'store_name' => $this->appDisplayName(),
+                        'customer_name' => $customer->fullName(),
+                        'payment_link' => '—',
+                        'payment_link_variable' => '—',
+                    ];
+                $messageText = $this->renderTemplate($tpl->body, $vars);
             }
         }
         if ($messageText === '') {
-            $messageText = $smsType === 'wallet_link'
-                ? 'سلام '.$customer->fullName().'، لینک شارژ کیف پول شما: —'
-                : 'سلام '.$customer->fullName().'، به سامانه '.$this->appDisplayName().' خوش آمدید.';
+            if ($installment !== null && $loanFile !== null) {
+                $messageText = $this->defaultInstallmentSmsBody($smsType, $customer, $loanFile, $installment);
+            } elseif ($smsType === 'wallet_link') {
+                $messageText = 'سلام '.$customer->fullName().'، لینک شارژ کیف پول شما: —';
+            } else {
+                $messageText = 'سلام '.$customer->fullName().'، به سامانه '.$this->appDisplayName().' خوش آمدید.';
+            }
         }
 
-        $result = $this->rawSms->send($customer->mobile, $messageText, $smsType === 'wallet_link' ? 'wallet-charge-link' : 'welcome-message');
+        $logType = match ($smsType) {
+            'wallet_link' => 'wallet-charge-link',
+            'welcome' => 'welcome-message',
+            'installment_pre_due' => 'installment-pre-due',
+            'installment_due' => 'installment-due',
+            'installment_overdue' => 'installment-overdue',
+            'installment_thanks' => 'installment-thanks',
+            default => 'welcome-message',
+        };
+
+        $result = $this->rawSms->send($customer->mobile, $messageText, $logType);
 
         return response()->json([
             'ok' => $result['ok'],
             'message' => $result['message'],
         ], $result['ok'] ? 200 : 422);
+    }
+
+    /**
+     * متن پیش‌فرض مدال ارسال سریع پیامک از قالب‌های انتخاب‌شده در «مدیریت پیامک» و قالب‌های سیستمی اقساط.
+     *
+     * Query: sms_type (اجباری)، installment_id برای انواع installment_*.
+     *
+     * @return JsonResponse
+     */
+    public function quickSmsModalPreview(Request $request, Customer $customer): JsonResponse
+    {
+        $smsType = (string) $request->query('sms_type', '');
+        $allowed = [
+            'wallet_link',
+            'welcome',
+            'installment_pre_due',
+            'installment_due',
+            'installment_overdue',
+            'installment_thanks',
+        ];
+        if (! in_array($smsType, $allowed, true)) {
+            return response()->json(['message' => 'نوع پیامک نامعتبر است.'], 422);
+        }
+
+        $installment = null;
+        $loanFile = null;
+        if (in_array($smsType, ['installment_pre_due', 'installment_due', 'installment_overdue', 'installment_thanks'], true)) {
+            $iid = (int) $request->query('installment_id', 0);
+            if ($iid < 1) {
+                return response()->json(['message' => 'شناسه قسط الزامی است.'], 422);
+            }
+            $installment = CustomerLoanInstallment::query()
+                ->whereKey($iid)
+                ->whereHas('loanFile', static fn ($q) => $q->where('customer_id', $customer->id))
+                ->with(['loanFile.loanType'])
+                ->first();
+            if ($installment === null) {
+                return response()->json(['message' => 'قسط یافت نشد.'], 404);
+            }
+            $loanFile = $installment->loanFile;
+            if ($loanFile === null) {
+                abort(404);
+            }
+        }
+
+        $payload = $this->composeQuickSmsModalContent($customer, $smsType, $installment, $loanFile);
+
+        return response()->json($payload);
     }
 
     public function store(Request $request): RedirectResponse
@@ -1281,6 +2002,8 @@ final class CustomerController extends Controller
      */
     private function mapLoanFile(CustomerLoanFile $file): array
     {
+        $file->loadMissing(['loanType', 'installments']);
+
         $profit = $this->calculateLoanProfitToman(
             (int) $file->amount_toman,
             (float) $file->effective_interest_rate,
@@ -1291,7 +2014,53 @@ final class CustomerController extends Controller
         );
         $totalRepayable = ((int) $file->amount_toman + $profit) - (int) $file->down_payment_toman;
         $totalRepayable = max(0, $totalRepayable);
-        $remainingAmount = $file->is_settled ? 0 : $totalRepayable;
+        $isRevoked = $file->revoked_at !== null;
+        $discount = (int) ($file->discount_amount_toman ?? 0);
+
+        if ($isRevoked) {
+            return [
+                'id' => $file->id,
+                'loan_code' => (string) $file->loan_code,
+                'loan_type_id' => (int) $file->loan_type_id,
+                'loan_type_title' => (string) ($file->loanType?->title ?? '—'),
+                'loan_start_jdate' => $file->loan_start_date ? Jalali::instance(Carbon::parse($file->loan_start_date))->format('Y/m/d') : '',
+                'disbursement_due_jdate' => $file->disbursement_due_date ? Jalali::instance(Carbon::parse($file->disbursement_due_date))->format('Y/m/d') : '',
+                'amount_toman' => (int) $file->amount_toman,
+                'installments_count' => (int) $file->installments_count,
+                'installment_interval_count' => (int) $file->installment_interval_count,
+                'installment_interval_unit' => (string) $file->installment_interval_unit,
+                'installment_amount_toman' => (int) $file->installment_amount_toman,
+                'down_payment_toman' => (int) $file->down_payment_toman,
+                'profit_calculation_method' => (string) ($file->profit_calculation_method ?: LoanType::PROFIT_MONTHLY),
+                'sub_file_number' => (string) ($file->sub_file_number ?? ''),
+                'description' => (string) ($file->description ?? ''),
+                'is_settled' => (bool) $file->is_settled,
+                'settled_jdate' => $file->settled_at ? Jalali::instance(Carbon::parse($file->settled_at))->format('Y/m/d') : '',
+                'is_revoked' => true,
+                'revoked_jdate' => $file->revoked_at
+                    ? Jalali::instance(Carbon::parse($file->revoked_at))->format('Y/m/d')
+                    : '',
+                'revoked_by_admin_id' => $file->revoked_by_admin_id !== null ? (int) $file->revoked_by_admin_id : null,
+                'base_interest_rate' => (float) $file->base_interest_rate,
+                'has_custom_interest_rate' => (bool) $file->has_custom_interest_rate,
+                'custom_interest_rate' => $file->custom_interest_rate !== null ? (float) $file->custom_interest_rate : null,
+                'effective_interest_rate' => (float) $file->effective_interest_rate,
+                'calculated_profit_toman' => $profit,
+                'total_repayable_toman' => $totalRepayable,
+                'remaining_amount_toman' => 0,
+                'paid_installments_count' => 0,
+                'paid_installments_amount_toman' => 0,
+                'discount_amount_toman' => 0,
+                'late_fee_so_far_toman' => 0,
+                'schedule_remaining_before_discount_toman' => 0,
+            ];
+        }
+
+        $snap = $this->loanInstallmentFinancialSnapshot($file, $totalRepayable);
+        $scheduleRemaining = $snap['schedule_remaining_toman'];
+        $remainingAmount = $file->is_settled
+            ? 0
+            : max(0, $scheduleRemaining - $discount);
 
         return [
             'id' => $file->id,
@@ -1311,6 +2080,9 @@ final class CustomerController extends Controller
             'description' => (string) ($file->description ?? ''),
             'is_settled' => (bool) $file->is_settled,
             'settled_jdate' => $file->settled_at ? Jalali::instance(Carbon::parse($file->settled_at))->format('Y/m/d') : '',
+            'is_revoked' => false,
+            'revoked_jdate' => '',
+            'revoked_by_admin_id' => null,
             'base_interest_rate' => (float) $file->base_interest_rate,
             'has_custom_interest_rate' => (bool) $file->has_custom_interest_rate,
             'custom_interest_rate' => $file->custom_interest_rate !== null ? (float) $file->custom_interest_rate : null,
@@ -1318,7 +2090,78 @@ final class CustomerController extends Controller
             'calculated_profit_toman' => $profit,
             'total_repayable_toman' => $totalRepayable,
             'remaining_amount_toman' => $remainingAmount,
+            'paid_installments_count' => $snap['paid_installments_count'],
+            'paid_installments_amount_toman' => $snap['total_paid_toman'],
+            'discount_amount_toman' => $discount,
+            'late_fee_so_far_toman' => $snap['late_fee_so_far_toman'],
+            'schedule_remaining_before_discount_toman' => $scheduleRemaining,
         ];
+    }
+
+    /**
+     * مانده قسطی، پرداخت‌ها و برآورد دیرکرد تا امروز بر اساس ضریب دیرکرد روزانه نوع وام.
+     *
+     * @return array{schedule_remaining_toman: int, total_paid_toman: int, paid_installments_count: int, late_fee_so_far_toman: int}
+     */
+    private function loanInstallmentFinancialSnapshot(CustomerLoanFile $file, int $totalRepayableContract): array
+    {
+        $installments = $file->installments;
+        $lateCoef = (float) ($file->loanType?->daily_late_coefficient ?? 0);
+
+        if ($installments->isEmpty()) {
+            return [
+                'schedule_remaining_toman' => $totalRepayableContract,
+                'total_paid_toman' => 0,
+                'paid_installments_count' => 0,
+                'late_fee_so_far_toman' => 0,
+            ];
+        }
+
+        $scheduleRemaining = (int) $installments->sum(static function (CustomerLoanInstallment $i): int {
+            return max(0, (int) $i->amount_toman - (int) $i->paid_amount_toman);
+        });
+        $totalPaid = (int) $installments->sum(static fn (CustomerLoanInstallment $i): int => (int) $i->paid_amount_toman);
+        $paidInstallmentsCount = (int) $installments->filter(static function (CustomerLoanInstallment $i): bool {
+            return (int) $i->amount_toman > 0 && (int) $i->paid_amount_toman >= (int) $i->amount_toman;
+        })->count();
+
+        return [
+            'schedule_remaining_toman' => $scheduleRemaining,
+            'total_paid_toman' => $totalPaid,
+            'paid_installments_count' => $paidInstallmentsCount,
+            'late_fee_so_far_toman' => $this->estimateLateFeeSoFarToman($installments, $lateCoef),
+        ];
+    }
+
+    /**
+     * @param Collection<int, CustomerLoanInstallment> $installments
+     */
+    private function estimateLateFeeSoFarToman(Collection $installments, float $dailyLateCoef): int
+    {
+        if ($dailyLateCoef <= 0) {
+            return 0;
+        }
+
+        $now = Carbon::now()->startOfDay();
+        $sum = 0;
+
+        foreach ($installments as $i) {
+            $unpaid = max(0, (int) $i->amount_toman - (int) $i->paid_amount_toman);
+            if ($unpaid <= 0) {
+                continue;
+            }
+            $due = Carbon::parse($i->due_date)->startOfDay();
+            if ($due->gte($now)) {
+                continue;
+            }
+            $days = (int) $due->diffInDays($now);
+            if ($days < 1) {
+                continue;
+            }
+            $sum += (int) round($unpaid * $dailyLateCoef * $days);
+        }
+
+        return max(0, $sum);
     }
 
     private function calculateLoanProfitToman(
@@ -1530,7 +2373,7 @@ final class CustomerController extends Controller
      * @param  array<string, mixed>  $validated
      * @return array<string, mixed>|JsonResponse
      */
-    private function buildOrgOtherGuaranteeMeta(Request $request, array $validated): array|JsonResponse
+    private function buildOrgOtherGuaranteeMeta(Request $request, array $validated, ?CustomerLoanGuarantee $existing = null): array|JsonResponse
     {
         $orgId = (int) ($validated['organization_id'] ?? 0);
         $organization = Organization::query()->find($orgId);
@@ -1557,6 +2400,15 @@ final class CustomerController extends Controller
         $verified = false;
         if ($phone !== '') {
             $verified = $this->consumeGuarantorVerificationToken($request, $phone);
+        }
+
+        if (! $verified && $existing !== null && (string) $existing->type === CustomerLoanGuarantee::TYPE_ORG_OTHER) {
+            $prevMeta = is_array($existing->meta) ? $existing->meta : [];
+            $oldPhone = $this->toEnglishDigits(trim((string) ($prevMeta['guarantor_phone'] ?? '')));
+            $wasVerified = (bool) ($prevMeta['guarantor_mobile_verified'] ?? false);
+            if ($wasVerified && $oldPhone !== '' && $oldPhone === $phone) {
+                $verified = true;
+            }
         }
 
         return [
@@ -1588,5 +2440,464 @@ final class CustomerController extends Controller
         $safeName = 'guarantee-'.Str::lower(Str::random(22)).'.'.$extension;
 
         return $file->storeAs('loan-guarantees', $safeName, 'public');
+    }
+
+    private function ensureLoanInstallmentSchedule(CustomerLoanFile $file): void
+    {
+        if ($file->revoked_at !== null) {
+            return;
+        }
+
+        if ($file->installments()->exists()) {
+            return;
+        }
+
+        $n = (int) $file->installments_count;
+        if ($n < 1) {
+            return;
+        }
+
+        $start = Carbon::parse($file->loan_start_date)->startOfDay();
+        $intervalCount = max(1, (int) $file->installment_interval_count);
+        $unit = (string) $file->installment_interval_unit;
+        $amount = (int) $file->installment_amount_toman;
+
+        DB::transaction(function () use ($file, $n, $start, $intervalCount, $unit, $amount): void {
+            for ($i = 1; $i <= $n; $i++) {
+                $due = $start->copy();
+                if ($unit === LoanType::GAP_WEEKLY) {
+                    $due->addWeeks($i * $intervalCount);
+                } else {
+                    $due->addMonths($i * $intervalCount);
+                }
+                CustomerLoanInstallment::query()->create([
+                    'customer_loan_file_id' => $file->id,
+                    'sequence' => $i,
+                    'amount_toman' => $amount,
+                    'due_date' => $due->toDateString(),
+                    'paid_amount_toman' => 0,
+                    'paid_at' => null,
+                    'recorded_by_admin_id' => null,
+                ]);
+            }
+        });
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mapLoanInstallmentRow(CustomerLoanInstallment $i, Customer $customer, CustomerLoanFile $file): array
+    {
+        $due = Carbon::parse($i->due_date)->startOfDay();
+        $dueJalali = Jalali::instance($due)->format('Y/m/d');
+        $dueJalaliFa = Jalali::enToFaNumbers($dueJalali);
+        $paidAt = $i->paid_at ? Carbon::parse($i->paid_at)->startOfDay() : null;
+        $paidJalali = $paidAt ? Jalali::instance($paidAt)->format('Y/m/d') : '';
+        $paidJalaliFa = $paidJalali !== '' ? Jalali::enToFaNumbers($paidJalali) : '';
+        $paidAmount = (int) $i->paid_amount_toman;
+        $earlyLate = '—';
+        if ($paidAt !== null && $paidAmount > 0) {
+            if ($paidAt->lt($due)) {
+                $earlyLate = 'زودکرد '.(string) (int) $due->diffInDays($paidAt).' روز';
+            } elseif ($paidAt->gt($due)) {
+                $earlyLate = 'دیرکرد '.(string) (int) $paidAt->diffInDays($due).' روز';
+            } else {
+                $earlyLate = 'به‌موقع';
+            }
+        }
+
+        $rec = $i->recordedByAdmin;
+        $recLabel = '—';
+        if ($rec !== null) {
+            $nm = trim((string) ($rec->name ?? ''));
+            $recLabel = $nm !== '' ? $nm : trim((string) ($rec->username ?? ''));
+            if ($recLabel === '') {
+                $recLabel = '—';
+            }
+        }
+
+        return [
+            'id' => (int) $i->id,
+            'sequence' => (int) $i->sequence,
+            'amount_toman' => (int) $i->amount_toman,
+            'due_date' => $due->format('Y-m-d'),
+            'due_jdate' => $dueJalali,
+            'due_jdate_fa' => $dueJalaliFa,
+            'paid_amount_toman' => $paidAmount,
+            'paid_at' => $paidAt ? $paidAt->format('Y-m-d') : null,
+            'paid_jdate' => $paidJalali,
+            'paid_jdate_fa' => $paidJalaliFa,
+            'early_late_label' => $earlyLate,
+            'recorded_by' => $recLabel,
+            'customer_id' => (int) $customer->id,
+            'customer_name' => $customer->fullName(),
+            'customer_mobile' => trim((string) ($customer->mobile ?? '')),
+            'loan_file_id' => (int) $file->id,
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function installmentSmsTemplateVars(Customer $customer, CustomerLoanFile $loanFile, CustomerLoanInstallment $inst): array
+    {
+        $due = Carbon::parse($inst->due_date)->startOfDay();
+        $now = Carbon::now()->startOfDay();
+        $daysUntil = $due->gt($now) ? (string) (int) $now->diffInDays($due) : '0';
+
+        return [
+            'store_name' => $this->appDisplayName(),
+            'customer_name' => $customer->fullName(),
+            'loan_code' => (string) $loanFile->loan_code,
+            'installment_number' => (string) $inst->sequence,
+            'installment_amount' => number_format((int) $inst->amount_toman, 0, '.', ',').' تومان',
+            'days_until_due' => $daysUntil,
+        ];
+    }
+
+    /**
+     * متغیرهای قالب اقساط شامل مانده وام و مبلغ پرداختی برای قالب‌های «تشکر» و مشابه.
+     *
+     * @return array<string, string>
+     */
+    private function installmentSmsTemplateVarsExtended(Customer $customer, CustomerLoanFile $loanFile, CustomerLoanInstallment $inst): array
+    {
+        $vars = $this->installmentSmsTemplateVars($customer, $loanFile, $inst);
+        $paid = (int) $inst->paid_amount_toman;
+        $vars['paid_amount'] = number_format($paid, 0, '.', ',').' تومان';
+        $loanFile->loadMissing('loanType');
+        $mapped = $this->mapLoanFile($loanFile);
+        $vars['remaining_loan'] = number_format((int) ($mapped['remaining_amount_toman'] ?? 0), 0, '.', ',').' تومان';
+
+        return $vars;
+    }
+
+    /**
+     * @return array{body: string, template_id: int|null}
+     */
+    private function composeQuickSmsModalContent(Customer $customer, string $smsType, ?CustomerLoanInstallment $installment, ?CustomerLoanFile $loanFile): array
+    {
+        if (in_array($smsType, ['installment_pre_due', 'installment_due', 'installment_overdue', 'installment_thanks'], true)) {
+            if ($installment === null || $loanFile === null) {
+                return ['body' => '', 'template_id' => null];
+            }
+            $loanFile->loadMissing('loanType');
+
+            $prefId = $this->resolveInstallmentScenarioTemplateId($smsType);
+            if ($prefId !== null) {
+                $tpl = SmsTemplate::query()->find($prefId);
+                if ($tpl !== null) {
+                    $vars = $this->installmentSmsTemplateVarsExtended($customer, $loanFile, $installment);
+
+                    return [
+                        'body' => trim($this->renderTemplate($tpl->body, $vars)),
+                        'template_id' => (int) $tpl->id,
+                    ];
+                }
+            }
+
+            $body = $this->defaultInstallmentSmsBody($smsType, $customer, $loanFile, $installment);
+            $key = match ($smsType) {
+                'installment_pre_due' => 'default_installment_pre_due_reminder',
+                'installment_due' => 'default_installment_due_reminder',
+                'installment_overdue' => 'default_installment_overdue_reminder',
+                'installment_thanks' => 'default_installment_payment_thanks',
+                default => null,
+            };
+            $tpl = $key !== null ? SmsTemplate::query()->where('template_key', $key)->first() : null;
+
+            return [
+                'body' => $body,
+                'template_id' => $tpl !== null ? (int) $tpl->id : null,
+            ];
+        }
+
+        if ($smsType === 'welcome') {
+            $ids = app(SmsSettingsService::class)->scenarioTemplateIds();
+            $tid = $this->parsePositiveIntOrNull($ids['tpl_register_welcome_id'] ?? '');
+            if ($tid !== null) {
+                $tpl = SmsTemplate::query()->find($tid);
+                if ($tpl !== null) {
+                    $vars = [
+                        'store_name' => $this->appDisplayName(),
+                        'customer_name' => $customer->fullName(),
+                    ];
+
+                    return [
+                        'body' => trim($this->renderTemplate($tpl->body, $vars)),
+                        'template_id' => (int) $tpl->id,
+                    ];
+                }
+            }
+
+            return [
+                'body' => 'سلام '.$customer->fullName().'، به سامانه '.$this->appDisplayName().' خوش آمدید.',
+                'template_id' => null,
+            ];
+        }
+
+        return [
+            'body' => 'سلام '.$customer->fullName().'، لینک شارژ کیف پول شما: —',
+            'template_id' => null,
+        ];
+    }
+
+    private function resolveInstallmentScenarioTemplateId(string $smsType): ?int
+    {
+        $rem = app(SmsSettingsService::class)->reminderSettings();
+        $scen = app(SmsSettingsService::class)->scenarioTemplateIds();
+
+        return match ($smsType) {
+            'installment_pre_due' => $this->parsePositiveIntOrNull($rem['before_due_template_id'] ?? ''),
+            'installment_due' => $this->parsePositiveIntOrNull($rem['due_day_template_id'] ?? ''),
+            'installment_overdue' => $this->parsePositiveIntOrNull($rem['overdue_template_id'] ?? ''),
+            'installment_thanks' => $this->parsePositiveIntOrNull($scen['tpl_installment_thanks_id'] ?? ''),
+            default => null,
+        };
+    }
+
+    private function parsePositiveIntOrNull(null|string|int $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $i = (int) $value;
+
+        return $i > 0 ? $i : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildInstantSettlementPreview(CustomerLoanFile $file): array
+    {
+        $file->load('loanType');
+        if ($file->revoked_at !== null) {
+            return [
+                'scenario' => 'revoked',
+                'headline' => 'قرارداد فسخ شده',
+                'summary' => 'این پرونده فسخ شده است؛ محاسبه تسویه آنی برای آن معنا ندارد.',
+                'primary_label' => 'مانده قابل تسویه',
+                'primary_amount_toman' => 0,
+                'rows' => [],
+                'notes' => [
+                    'طبق گزارش سیستم، کلیه اقساط این پرونده در زمان فسخ حذف شده‌اند.',
+                ],
+                'meta' => [
+                    'loan_code' => (string) $file->loan_code,
+                    'revoked_jdate_fa' => $file->revoked_at
+                        ? Jalali::enToFaNumbers(Jalali::instance(Carbon::parse($file->revoked_at))->format('Y/m/d'))
+                        : '—',
+                ],
+            ];
+        }
+
+        $this->ensureLoanInstallmentSchedule($file);
+        $file->load(['loanType', 'installments']);
+
+        $mapped = $this->mapLoanFile($file);
+        $totalRepayable = (int) $mapped['total_repayable_toman'];
+        $totalProfit = (int) $mapped['calculated_profit_toman'];
+        $profitMethod = (string) ($file->profit_calculation_method ?: LoanType::PROFIT_MONTHLY);
+
+        $instColl = $file->installments->sortBy('sequence')->values();
+        $totalPaid = (int) $instColl->sum(static fn (CustomerLoanInstallment $i): int => (int) $i->paid_amount_toman);
+        $scheduleRemaining = (int) $instColl->sum(static function (CustomerLoanInstallment $i): int {
+            return max(0, (int) $i->amount_toman - (int) $i->paid_amount_toman);
+        });
+
+        $paidInstallmentsCount = (int) $instColl->filter(static function (CustomerLoanInstallment $i): bool {
+            return (int) $i->paid_amount_toman >= (int) $i->amount_toman && (int) $i->amount_toman > 0;
+        })->count();
+
+        $unpaidInstallmentsCount = (int) $instColl->filter(static function (CustomerLoanInstallment $i): bool {
+            return (int) $i->paid_amount_toman < (int) $i->amount_toman;
+        })->count();
+
+        $aggregateRemaining = max(0, $totalRepayable - $totalPaid);
+        $profitRemaining = $totalRepayable > 0
+            ? (int) round($totalProfit * ($scheduleRemaining / $totalRepayable))
+            : 0;
+        $profitRemaining = max(0, min($profitRemaining, $scheduleRemaining));
+
+        $lt = $file->loanType;
+        $earlyCoef = $lt !== null ? (float) $lt->daily_early_coefficient : 0.0;
+
+        $now = Carbon::now()->startOfDay();
+        $lastDueRaw = $instColl->max('due_date');
+        $lastDue = $lastDueRaw !== null ? Carbon::parse($lastDueRaw)->startOfDay() : null;
+        $daysUntilContractEnd = ($lastDue !== null && $now->lte($lastDue))
+            ? (int) $now->diffInDays($lastDue)
+            : 0;
+
+        $contractStart = $file->loan_start_date ? Carbon::parse($file->loan_start_date)->startOfDay() : $now;
+        $contractEnd = $lastDue ?? $now;
+        $totalContractDays = max(1, (int) $contractStart->diffInDays($contractEnd));
+
+        // تخفیف زودکرد: سهم تخمینی سود باقیمانده × حداکثر ۵۰٪ × (ضریب روزانه × روزهای مانده تا آخر قرارداد، سقف منطقی)
+        $earlyFactor = min(0.5, $earlyCoef * min(max($daysUntilContractEnd, 0), 365));
+        $earlyRebate = (int) round($profitRemaining * $earlyFactor);
+        $earlyRebate = max(0, min($earlyRebate, $profitRemaining));
+        $amountWithEarly = max(0, $scheduleRemaining - $earlyRebate);
+
+        // کسر معادل یک سهم سود از هر قسط معوق (تقریب «بهره ماهانه» برای روش ماهانه؛ برای بانکی یک قسط از سهم سود)
+        $periodProfitSlice = $unpaidInstallmentsCount > 0
+            ? (int) round($profitRemaining / $unpaidInstallmentsCount)
+            : 0;
+        $periodProfitSlice = min($periodProfitSlice, $profitRemaining);
+        $bankExtraSlice = ($profitMethod === LoanType::PROFIT_BANK && $unpaidInstallmentsCount > 0)
+            ? (int) round($periodProfitSlice / max(1, (int) $file->installments_count))
+            : 0;
+        $monthlyStyleCut = min($profitRemaining, $periodProfitSlice + $bankExtraSlice);
+        $amountWithMonthlyStyle = max(0, $scheduleRemaining - $monthlyStyleCut);
+
+        $loanStartFa = $file->loan_start_date
+            ? Jalali::enToFaNumbers(Jalali::instance(Carbon::parse($file->loan_start_date))->format('Y/m/d'))
+            : '—';
+        $lastDueFa = $lastDue !== null
+            ? Jalali::enToFaNumbers(Jalali::instance($lastDue)->format('Y/m/d'))
+            : '—';
+
+        $profitMethodLabel = $profitMethod === LoanType::PROFIT_BANK ? 'بانکی (روز شمار)' : 'ماهانه (روز شمار)';
+
+        if ($file->is_settled) {
+            $creditor = max(0, $totalPaid - $totalRepayable);
+            if ($creditor > 0) {
+                return [
+                    'scenario' => 'settled_creditor',
+                    'headline' => 'تسویه شده — بستانکار',
+                    'summary' => 'پرونده در سیستم به‌عنوان تسویه‌شده ثبت شده و مجموع واریزی‌ها از مانده قراردادی بیشتر است.',
+                    'primary_label' => 'مبلغ بستانکاری (تقریبی)',
+                    'primary_amount_toman' => $creditor,
+                    'rows' => [
+                        ['label' => 'کل بازپرداخت قراردادی', 'amount_toman' => $totalRepayable],
+                        ['label' => 'مجموع دریافت‌شده از اقساط', 'amount_toman' => $totalPaid],
+                        ['label' => 'اختلاف (بستانکار)', 'amount_toman' => $creditor],
+                    ],
+                    'notes' => [
+                        'این مبلغ بر اساس جمع «مبلغ پرداختی» ثبت‌شده روی اقساط است؛ در صورت نیاز با اسناد مالی تطبیق دهید.',
+                    ],
+                    'meta' => [
+                        'loan_code' => (string) $file->loan_code,
+                        'loan_start_jdate_fa' => $loanStartFa,
+                        'last_due_jdate_fa' => $lastDueFa,
+                        'paid_installments' => $paidInstallmentsCount,
+                        'unpaid_installments' => $unpaidInstallmentsCount,
+                        'profit_method_label' => $profitMethodLabel,
+                    ],
+                ];
+            }
+
+            return [
+                'scenario' => 'settled_ok',
+                'headline' => 'پرونده تسویه‌شده',
+                'summary' => 'این پرونده در سیستم به‌عنوان تسویه‌شده ثبت شده است.',
+                'primary_label' => 'مانده قابل تسویه آنی',
+                'primary_amount_toman' => 0,
+                'rows' => [
+                    ['label' => 'کل بازپرداخت قراردادی', 'amount_toman' => $totalRepayable],
+                    ['label' => 'مجموع دریافت‌شده از اقساط', 'amount_toman' => $totalPaid],
+                ],
+                'notes' => [
+                    'در صورت نیاز به تسویه واقعی در حساب‌ها، با مانده بانکی یا صندوق مقایسه کنید.',
+                ],
+                'meta' => [
+                    'loan_code' => (string) $file->loan_code,
+                    'loan_start_jdate_fa' => $loanStartFa,
+                    'settled_jdate_fa' => $file->settled_at
+                        ? Jalali::enToFaNumbers(Jalali::instance(Carbon::parse($file->settled_at))->format('Y/m/d'))
+                        : '—',
+                    'profit_method_label' => $profitMethodLabel,
+                ],
+            ];
+        }
+
+        if ($scheduleRemaining <= 0 && $aggregateRemaining <= 0) {
+            $creditor = max(0, $totalPaid - $totalRepayable);
+
+            return [
+                'scenario' => 'closed_no_debt',
+                'headline' => $creditor > 0 ? 'مانده قراردادی صفر — بستانکار' : 'مانده قراردادی صفر',
+                'summary' => $creditor > 0
+                    ? 'جمع پرداخت اقساط از کل تعهد قراردادی بیشتر است؛ پیشنهاد می‌شود وضعیت تسویه پرونده بازبینی شود.'
+                    : 'بر اساس اقساط، ماندهای قسطی تسویه شده‌اند؛ در صورت نیاز پرونده را به‌عنوان تسویه‌شده علامت بزنید.',
+                'primary_label' => $creditor > 0 ? 'مبلغ بستانکاری (تقریبی)' : 'مانده قابل تسویه آنی',
+                'primary_amount_toman' => $creditor > 0 ? $creditor : 0,
+                'rows' => [
+                    ['label' => 'کل بازپرداخت قراردادی', 'amount_toman' => $totalRepayable],
+                    ['label' => 'مجموع دریافت‌شده از اقساط', 'amount_toman' => $totalPaid],
+                ],
+                'notes' => [
+                    'اگر هنوز پرونده را تسویه نکرده‌اید، از ویرایش پرونده برای ثبت تسویه استفاده کنید.',
+                ],
+                'meta' => [
+                    'loan_code' => (string) $file->loan_code,
+                    'loan_start_jdate_fa' => $loanStartFa,
+                    'profit_method_label' => $profitMethodLabel,
+                ],
+            ];
+        }
+
+        $diffWarning = abs($scheduleRemaining - $aggregateRemaining) > 1000;
+
+        return [
+            'scenario' => 'active',
+            'headline' => 'مبلغ قابل تسویه آنی (پیشنهاد سیستم)',
+            'summary' => 'بر اساس اقساط ثبت‌شده، مانده قراردادی و تخمین سهم سود باقیمانده؛ ضریب زودکرد از تنظیمات نوع وام و روزهای باقیمانده تا آخرین سررسید قرارداد استفاده شده است.',
+            'primary_label' => 'مانده بر اساس اقساط (پایه)',
+            'primary_amount_toman' => $scheduleRemaining,
+            'rows' => [
+                ['label' => 'مانده قسطی (جمع مانده هر قسط)', 'amount_toman' => $scheduleRemaining, 'hint' => 'جمع (مبلغ قسط − پرداختی) برای همه اقساط'],
+                ['label' => 'کل بازپرداخت قراردادی', 'amount_toman' => $totalRepayable],
+                ['label' => 'مجموع پرداخت‌شده از اقساط', 'amount_toman' => $totalPaid],
+                ['label' => 'سهم تخمینی سود باقیمانده', 'amount_toman' => $profitRemaining, 'hint' => 'متناسب با مانده از کل بهره محاسبه‌شده'],
+                ['label' => 'تخفیف زودکرد تخمینی (ضریب نوع وام)', 'amount_toman' => $earlyRebate, 'hint' => 'حداکثر '.round($earlyFactor * 100, 2).'٪ از سهم سود باقیمانده در این مدل'],
+                ['label' => 'مبلغ قابل تسویه با کسر ضریب زودکرد', 'amount_toman' => $amountWithEarly, 'emphasis' => true],
+                ['label' => 'کسر معادل یک دور سود از اقساط معوق («بهره ماهانه» تقریبی)', 'amount_toman' => $monthlyStyleCut],
+                ['label' => 'مبلغ قابل تسویه با کسر بهره دوره‌ای (تقریب)', 'amount_toman' => $amountWithMonthlyStyle, 'emphasis' => true],
+            ],
+            'notes' => array_values(array_filter([
+                'روش بهره در پرونده: '.$profitMethodLabel.'.',
+                'روزهای باقیمانده تا آخرین سررسید قرارداد: '.Jalali::enToFaNumbers((string) max(0, $daysUntilContractEnd)).' روز؛ طول تقریبی قرارداد: '.Jalali::enToFaNumbers((string) $totalContractDays).' روز.',
+                $diffWarning ? 'اختلاف جزئی بین مانده اقساط و (کل تعهد − مجموع پرداختی) مشاهده شد؛ در صورت نیاز پرداخت‌ها را بازبینی کنید.' : null,
+            ])),
+            'meta' => [
+                'loan_code' => (string) $file->loan_code,
+                'loan_start_jdate_fa' => $loanStartFa,
+                'last_due_jdate_fa' => $lastDueFa,
+                'paid_installments' => $paidInstallmentsCount,
+                'unpaid_installments' => $unpaidInstallmentsCount,
+                'days_until_contract_end' => $daysUntilContractEnd,
+                'total_contract_days' => $totalContractDays,
+                'profit_method_label' => $profitMethodLabel,
+                'daily_early_coefficient' => $earlyCoef,
+            ],
+        ];
+    }
+
+    private function defaultInstallmentSmsBody(string $smsType, Customer $customer, CustomerLoanFile $loanFile, CustomerLoanInstallment $inst): string
+    {
+        $key = match ($smsType) {
+            'installment_pre_due' => 'default_installment_pre_due_reminder',
+            'installment_due' => 'default_installment_due_reminder',
+            'installment_overdue' => 'default_installment_overdue_reminder',
+            'installment_thanks' => 'default_installment_payment_thanks',
+            default => null,
+        };
+        if ($key !== null) {
+            $tpl = SmsTemplate::query()->where('template_key', $key)->first();
+            if ($tpl !== null) {
+                return trim($this->renderTemplate($tpl->body, $this->installmentSmsTemplateVarsExtended($customer, $loanFile, $inst)));
+            }
+        }
+        $amt = number_format((int) $inst->amount_toman, 0, '.', ',').' تومان';
+
+        return match ($smsType) {
+            'installment_pre_due' => 'مشتری گرامی '.$customer->fullName().'؛ سررسید قسط شماره '.(string) $inst->sequence.' به مبلغ '.$amt.' نزدیک است.',
+            'installment_due' => 'مشتری گرامی '.$customer->fullName().'؛ امروز سررسید قسط شماره '.(string) $inst->sequence.' به مبلغ '.$amt.' است.',
+            'installment_overdue' => 'مشتری گرامی '.$customer->fullName().'؛ قسط شماره '.(string) $inst->sequence.' به مبلغ '.$amt.' معوق شده است.',
+            'installment_thanks' => 'مشتری گرامی '.$customer->fullName().'؛ از پرداخت قسط شماره '.(string) $inst->sequence.' سپاسگزاریم.',
+            default => 'سلام '.$customer->fullName().'، '.$this->appDisplayName(),
+        };
     }
 }
