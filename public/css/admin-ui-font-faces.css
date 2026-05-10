@@ -1,6 +1,6 @@
 /**
  * فقط @font-face برای فونت‌های انتخابی پنل ادمین.
- * ایران‌یکان: نسخه‌های fanum. انجمن: فایل‌های موجود در public/fonts/Anjoman/
+ * ایران‌یکان: نسخه‌های fanum. انجمن و استعداد: فایل‌های محلی در public/fonts/
  */
 
 @font-face {
@@ -51,4 +51,36 @@
     src:
         url("/fonts/Anjoman/woff2/Anjoman-Bold.woff2") format("woff2"),
         url("/fonts/Anjoman/woff/Anjoman-Bold.woff") format("woff");
+}
+
+@font-face {
+    font-family: Estedad;
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/fonts/Estedad/webfonts/Estedad-Regular.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: Estedad;
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url("/fonts/Estedad/webfonts/Estedad-Medium.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: Estedad;
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url("/fonts/Estedad/webfonts/Estedad-SemiBold.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: Estedad;
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("/fonts/Estedad/webfonts/Estedad-Bold.woff2") format("woff2");
 }

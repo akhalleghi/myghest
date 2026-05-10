@@ -1147,7 +1147,7 @@
                             <input type="hidden" name="remove_favicon" value="0">
                             <div class="app-settings-card">
                                 <h4>تنظیمات نمای رابط</h4>
-                                <p class="app-settings-card-desc">فونت و اندازهٔ متن روی تمام صفحات پنل ادمین اعمال می‌شود. برای ایران‌یکان و ایران‌سانس از نسخهٔ FaNum استفاده می‌شود.</p>
+                                <p class="app-settings-card-desc">فونت و اندازهٔ متن روی تمام صفحات پنل ادمین اعمال می‌شود. برای ایران‌یکان و ایران‌سانس از نسخهٔ FaNum استفاده می‌شود؛ استعداد به‌صورت محلی از پوشهٔ ‎fonts/Estedad‎ بارگذاری می‌شود.</p>
                                 <div class="app-settings-row">
                                     <div class="app-settings-field">
                                         <label for="app-ui-font">فونت رابط</label>
@@ -1155,6 +1155,7 @@
                                             <option value="iransans" @selected(old('ui_font', $appUiFont) === 'iransans')>ایران‌سنس (FaNum)</option>
                                             <option value="iranyekan" @selected(old('ui_font', $appUiFont) === 'iranyekan')>ایران‌یکان (FaNum)</option>
                                             <option value="anjoman" @selected(old('ui_font', $appUiFont) === 'anjoman')>انجمن</option>
+                                            <option value="estedad" @selected(old('ui_font', $appUiFont) === 'estedad')>استعداد</option>
                                         </select>
                                         @error('ui_font')
                                             <div class="app-settings-error">{{ $message }}</div>

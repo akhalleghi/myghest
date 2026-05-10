@@ -100,6 +100,685 @@ final class CustomerController extends Controller
         ]);
     }
 
+    public function exportCustomersListExcel(Request $request): StreamedResponse
+    {
+        $queryText = trim((string) $request->query('q', ''));
+
+        $filename = 'customers-list-'.now()->format('Ymd-His').'.xls';
+        $headers = [
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-16LE',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ];
+
+        return response()->streamDownload(function () use ($queryText): void {
+            $out = fopen('php://output', 'wb');
+            if (! is_resource($out)) {
+                return;
+            }
+
+            fwrite($out, "\xFF\xFE");
+
+            $this->writeExcelUnicodeRow($out, [
+                'نام',
+                'نام خانوادگی',
+                'کد ملی',
+                'موبایل',
+                'تعداد وام',
+                'مجموع مبلغ وام‌های دریافتی با بهره',
+                'مانده اقساط',
+                'مبلغ قسط هر وام (با کاما)',
+                'کد وام‌ها',
+                'کد مشتری',
+                'تاریخ عضویت',
+            ]);
+
+            Customer::query()
+                ->with(['loanFiles.loanType', 'loanFiles.installments'])
+                ->when($queryText !== '', function ($query) use ($queryText): void {
+                    $query->where(function ($w) use ($queryText): void {
+                        $w->where('customer_code', 'like', '%'.$queryText.'%')
+                            ->orWhere('first_name', 'like', '%'.$queryText.'%')
+                            ->orWhere('last_name', 'like', '%'.$queryText.'%')
+                            ->orWhere('mobile', 'like', '%'.$queryText.'%')
+                            ->orWhere('national_id', 'like', '%'.$queryText.'%');
+                    });
+                })
+                ->latest('id')
+                ->chunkById(150, function ($chunk) use ($out): void {
+                    foreach ($chunk as $customer) {
+                        if ($customer instanceof Customer) {
+                            $this->writeExcelUnicodeRow($out, $this->buildCustomerListExportCells($customer));
+                        }
+                    }
+                });
+
+            fclose($out);
+        }, $filename, $headers);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function buildCustomerListExportCells(Customer $customer): array
+    {
+        /** @var \Illuminate\Support\Collection<int, array<string, mixed>> $loanRows */
+        $loanRows = $customer->loanFiles->map(fn (CustomerLoanFile $file): array => $this->mapLoanFile($file))->values();
+        $loanCount = $loanRows->count();
+        $loanTotalWithProfit = (int) $loanRows->sum(static fn (array $row): int => (int) ($row['total_repayable_toman'] ?? 0));
+        $remainingInstallments = (int) $loanRows->sum(static fn (array $row): int => (int) ($row['remaining_amount_toman'] ?? 0));
+
+        $instParts = $loanRows->map(function (array $row): string {
+            return Jalali::enToFaNumbers(number_format((int) ($row['installment_amount_toman'] ?? 0), 0, '.', ','));
+        })->all();
+        $instJoined = $instParts !== [] ? implode(', ', $instParts) : '—';
+
+        $codeParts = $loanRows->map(static function (array $row): string {
+            return (string) ($row['loan_code'] ?? '');
+        })->all();
+        $codesJoined = $codeParts !== [] ? implode(', ', $codeParts) : '—';
+
+        $nid = trim((string) ($customer->national_id ?? ''));
+        $mobile = trim((string) ($customer->mobile ?? ''));
+
+        $membershipFa = '—';
+        if ($customer->membership_at !== null) {
+            $membershipFa = Jalali::enToFaNumbers(
+                Jalali::instance(Carbon::parse($customer->membership_at))->format('Y/m/d')
+            );
+        }
+
+        return [
+            trim((string) ($customer->first_name ?? '')),
+            trim((string) ($customer->last_name ?? '')),
+            $nid !== '' ? Jalali::enToFaNumbers($nid) : '—',
+            $mobile !== '' ? Jalali::enToFaNumbers($mobile) : '—',
+            Jalali::enToFaNumbers((string) $loanCount),
+            Jalali::enToFaNumbers(number_format(max(0, $loanTotalWithProfit), 0, '.', ',')),
+            Jalali::enToFaNumbers(number_format(max(0, $remainingInstallments), 0, '.', ',')),
+            $instJoined,
+            $codesJoined,
+            trim((string) ($customer->customer_code ?? '')),
+            $membershipFa,
+        ];
+    }
+
+    public function downloadCustomersImportSampleExcel(): StreamedResponse
+    {
+        $sampleNid = $this->generateSampleNationalIdDigits();
+        $todayJ = Jalali::instance(Carbon::now())->format('Y/m/d');
+
+        $filename = 'customers-import-sample.xls';
+        $headers = [
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-16LE',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ];
+
+        return response()->streamDownload(function () use ($sampleNid, $todayJ): void {
+            $out = fopen('php://output', 'wb');
+            if (! is_resource($out)) {
+                return;
+            }
+            fwrite($out, "\xFF\xFE");
+            $this->writeExcelUnicodeRow($out, [
+                'کد مشتری',
+                'نام',
+                'نام خانوادگی',
+                'نام پدر',
+                'کد ملی',
+                'موبایل',
+                'رمز عبور',
+                'شهر',
+                'آدرس',
+                'کد پستی',
+                'تلفن ثابت',
+                'تاریخ عضویت',
+                'تاریخ تولد',
+                'ایمیل',
+            ]);
+            $this->writeExcelUnicodeRow($out, [
+                '',
+                'علی',
+                'نمونه‌زاده',
+                'محمد',
+                $sampleNid,
+                '09120000007',
+                'SamplePass123',
+                'تهران',
+                'خیابان نمونه، پلاک ۱۰، واحد ۲، کد پستی ده رقمی در ستون کناری را واقعی کنید',
+                '1234567890',
+                '',
+                $todayJ,
+                '',
+                '',
+            ]);
+            fclose($out);
+        }, $filename, $headers);
+    }
+
+    public function importCustomersFromExcel(Request $request): JsonResponse
+    {
+        try {
+            $request->validate([
+                'excel_file' => ['required', 'file', 'max:5120'],
+            ], [], [
+                'excel_file' => 'فایل اکسل',
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => collect($e->errors())->flatten()->first() ?? 'بارگذاری فایل معتبر نیست.',
+                'created_count' => 0,
+                'failures' => [],
+            ], 422);
+        }
+
+        $uploaded = $request->file('excel_file');
+        if ($uploaded === null || ! $uploaded->isValid()) {
+            return response()->json([
+                'message' => 'فایل بارگذاری‌شده نامعتبر است.',
+                'created_count' => 0,
+                'failures' => [],
+            ], 422);
+        }
+
+        $binary = (string) file_get_contents($uploaded->getRealPath() ?: '');
+        $utf8 = $this->customersImportSpreadsheetBinaryToUtf8($binary);
+        if ($utf8 === '') {
+            return response()->json([
+                'message' => 'فایل خالی یا غیرخواناست.',
+                'created_count' => 0,
+                'failures' => [],
+            ], 422);
+        }
+
+        if (strlen($binary) >= 2 && str_starts_with($binary, 'PK')) {
+            return response()->json([
+                'message' => 'فایل‌های اکسل واقعی ‎(.xlsx)‎ در این بخش به‌صورت متنی خوانده نمی‌شوند. یا همان فایل نمونه را بدون باز کردن در اکسل بارگذاری کنید، یا پس از ویرایش از منوی «ذخیرهٔ با نام» گزینهٔ «CSV UTF-8» یا «متن یونیکد ‎(Tab delimited)‎» را انتخاب کنید.',
+                'created_count' => 0,
+                'failures' => [],
+            ], 422);
+        }
+
+        $lines = preg_split("/\r\n|\n|\r/", $utf8) ?: [];
+        $lines = array_values(array_filter(array_map('trim', $lines), static fn (string $l): bool => $l !== ''));
+        if ($lines === []) {
+            return response()->json([
+                'message' => 'هیچ ردیفی در فایل یافت نشد.',
+                'created_count' => 0,
+                'failures' => [],
+            ], 422);
+        }
+
+        $delimiter = $this->customersImportDetectDelimiter($lines);
+        $dataLines = array_slice($lines, 1);
+        if ($dataLines === []) {
+            return response()->json([
+                'message' => 'فقط ردیف عنوان وجود دارد؛ ردیف داده اضافه کنید.',
+                'created_count' => 0,
+                'failures' => [],
+            ], 422);
+        }
+
+        if (count($dataLines) > 500) {
+            return response()->json([
+                'message' => 'حداکثر ۵۰۰ ردیف داده در هر بار بارگذاری مجاز است.',
+                'created_count' => 0,
+                'failures' => [],
+            ], 422);
+        }
+
+        $created = 0;
+        $failures = [];
+        $seenNational = [];
+        $seenMobile = [];
+        $seenCode = [];
+
+        foreach ($dataLines as $offset => $line) {
+            $sheetRowIndex = $offset + 2;
+            $cells = $this->customersImportAlignRowCells($this->customersImportExplodeLine($line, $delimiter));
+            if ($this->customersImportRowIsAllEmpty($cells)) {
+                continue;
+            }
+
+            $raw = [
+                'customer_code' => trim((string) ($cells[0] ?? '')),
+                'first_name' => trim((string) ($cells[1] ?? '')),
+                'last_name' => trim((string) ($cells[2] ?? '')),
+                'father_name' => trim((string) ($cells[3] ?? '')),
+                'national_id' => IranNationalId::normalizeNationalInput($cells[4] ?? ''),
+                'mobile' => $this->normalizeIranMobileForImport(trim((string) ($cells[5] ?? ''))),
+                'password' => trim((string) ($cells[6] ?? '')),
+                'city' => trim((string) ($cells[7] ?? '')),
+                'address' => trim((string) ($cells[8] ?? '')),
+                'postal_code' => preg_replace('/\D/', '', $this->toEnglishDigits(trim((string) ($cells[9] ?? '')))) ?? '',
+                'phone_landline' => trim((string) ($cells[10] ?? '')),
+                'membership_jdate' => trim((string) ($cells[11] ?? '')),
+                'birth_jdate' => trim((string) ($cells[12] ?? '')),
+                'email' => strtolower(trim((string) ($cells[13] ?? ''))),
+            ];
+
+            if ($raw['email'] === '') {
+                $raw['email'] = '';
+            }
+
+            if (isset($seenNational[$raw['national_id']]) && $raw['national_id'] !== '') {
+                $failures[] = [
+                    'row' => $sheetRowIndex,
+                    'errors' => ['کد ملی در چند ردیف از همین فایل تکراری است.'],
+                ];
+
+                continue;
+            }
+            if (isset($seenMobile[$raw['mobile']]) && $raw['mobile'] !== '') {
+                $failures[] = [
+                    'row' => $sheetRowIndex,
+                    'errors' => ['موبایل در چند ردیف از همین فایل تکراری است.'],
+                ];
+
+                continue;
+            }
+            $codeKey = $raw['customer_code'] !== '' ? $raw['customer_code'] : null;
+            if ($codeKey !== null && isset($seenCode[$codeKey])) {
+                $failures[] = [
+                    'row' => $sheetRowIndex,
+                    'errors' => ['کد مشتری در چند ردیف از همین فایل تکراری است.'],
+                ];
+
+                continue;
+            }
+
+            $membershipAt = $raw['membership_jdate'] !== '' ? $this->parseJalaliDate($raw['membership_jdate']) : null;
+            if ($raw['membership_jdate'] !== '' && $membershipAt === null) {
+                $failures[] = [
+                    'row' => $sheetRowIndex,
+                    'errors' => ['تاریخ عضویت شمسی معتبر نیست (مثال: ۱۴۰۴/۰۱/۱۵).'],
+                ];
+
+                continue;
+            }
+            $birthDate = $raw['birth_jdate'] !== '' ? $this->parseJalaliDate($raw['birth_jdate']) : null;
+            if ($raw['birth_jdate'] !== '' && $birthDate === null) {
+                $failures[] = [
+                    'row' => $sheetRowIndex,
+                    'errors' => ['تاریخ تولد شمسی معتبر نیست.'],
+                ];
+
+                continue;
+            }
+
+            $plainPassword = trim((string) $raw['password']);
+            if ($plainPassword === '' || mb_strlen($plainPassword) < 8) {
+                $plainPassword = 'Pw'.substr(bin2hex(random_bytes(7)), 0, 13);
+            }
+
+            $customerCodeForRules = $raw['customer_code'] !== '' ? $raw['customer_code'] : null;
+            $emailForRules = $raw['email'] !== '' ? $raw['email'] : null;
+
+            $rules = [
+                'first_name' => ['required', 'string', 'max:120'],
+                'last_name' => ['required', 'string', 'max:120'],
+                'father_name' => ['required', 'string', 'max:120'],
+                'national_id' => ['required', 'digits:10', new IranNationalId, Rule::unique('customers', 'national_id')],
+                'mobile' => ['required', 'string', 'max:20', 'regex:/^09\d{9}$/', Rule::unique('customers', 'mobile')],
+                'password' => ['required', 'string', 'min:8', 'max:255'],
+                'city' => ['required', 'string', 'max:120'],
+                'address' => ['required', 'string', 'max:2000'],
+                'postal_code' => ['required', 'string', 'max:16', 'regex:/^[0-9]{10}$/'],
+                'phone_landline' => ['nullable', 'string', 'max:32'],
+                'email' => ['nullable', 'string', 'lowercase', 'email', 'max:191'],
+            ];
+            if ($customerCodeForRules !== null) {
+                $rules['customer_code'] = ['required', 'string', 'max:40', Rule::unique('customers', 'customer_code')];
+            }
+
+            if ($emailForRules !== null) {
+                $rules['email'] = ['required', 'string', 'lowercase', 'email', 'max:191', Rule::unique('customers', 'email')];
+            }
+
+            $payload = [
+                'first_name' => $raw['first_name'],
+                'last_name' => $raw['last_name'],
+                'father_name' => $raw['father_name'],
+                'national_id' => $raw['national_id'],
+                'mobile' => $raw['mobile'],
+                'password' => $plainPassword,
+                'city' => $raw['city'],
+                'address' => $raw['address'],
+                'postal_code' => $raw['postal_code'],
+                'phone_landline' => $raw['phone_landline'] !== '' ? $raw['phone_landline'] : null,
+                'email' => $emailForRules,
+            ];
+            if ($customerCodeForRules !== null) {
+                $payload['customer_code'] = $customerCodeForRules;
+            }
+
+            $validator = Validator::make($payload, $rules, [], [
+                'customer_code' => 'کد مشتری',
+                'first_name' => 'نام',
+                'last_name' => 'نام خانوادگی',
+                'father_name' => 'نام پدر',
+                'national_id' => 'کد ملی',
+                'mobile' => 'موبایل',
+                'password' => 'رمز عبور',
+                'city' => 'شهر',
+                'address' => 'آدرس',
+                'postal_code' => 'کد پستی',
+                'phone_landline' => 'تلفن ثابت',
+                'email' => 'ایمیل',
+            ]);
+
+            if ($validator->fails()) {
+                $failures[] = [
+                    'row' => $sheetRowIndex,
+                    'errors' => array_values(array_unique($validator->errors()->all())),
+                ];
+
+                continue;
+            }
+
+            $validated = $validator->validated();
+            $username = $this->usernameFromMobile((string) $validated['mobile']);
+            if (Customer::query()->where('username', $username)->exists()) {
+                $failures[] = [
+                    'row' => $sheetRowIndex,
+                    'errors' => ['این شماره موبایل قبلاً به‌عنوان نام کاربری ثبت شده است.'],
+                ];
+
+                continue;
+            }
+
+            try {
+                $finalCode = trim((string) ($validated['customer_code'] ?? ''));
+                if ($finalCode === '') {
+                    $finalCode = $this->generateUniqueCustomerCode();
+                }
+                $this->persistImportedCustomerCore(
+                    $finalCode,
+                    $username,
+                    (string) $validated['first_name'],
+                    (string) $validated['last_name'],
+                    (string) $validated['father_name'],
+                    (string) $validated['national_id'],
+                    (string) $validated['mobile'],
+                    $validated['phone_landline'] ?? null,
+                    $membershipAt,
+                    $birthDate,
+                    $validated['email'] ?? null,
+                    (string) $validated['password'],
+                    (string) $validated['city'],
+                    (string) $validated['address'],
+                    (string) $validated['postal_code'],
+                );
+            } catch (\Throwable $ex) {
+                $failures[] = [
+                    'row' => $sheetRowIndex,
+                    'errors' => ['خطای غیرمنتظره هنگام ذخیره: '.$ex->getMessage()],
+                ];
+
+                continue;
+            }
+
+            $seenNational[$raw['national_id']] = true;
+            $seenMobile[$raw['mobile']] = true;
+            if ($codeKey !== null) {
+                $seenCode[$codeKey] = true;
+            }
+            ++$created;
+        }
+
+        $parts = [];
+        if ($created > 0) {
+            $parts[] = Jalali::enToFaNumbers((string) $created).' مشتری جدید ثبت شد.';
+        }
+        if ($failures !== []) {
+            $parts[] = Jalali::enToFaNumbers((string) count($failures)).' ردیف دارای اشکال است.';
+        }
+        if ($created === 0 && $failures === []) {
+            $parts[] = 'هیچ ردیف دادهٔ معتبری پردازش نشد.';
+        }
+
+        return response()->json([
+            'message' => implode(' ', $parts),
+            'created_count' => $created,
+            'failures' => $failures,
+        ]);
+    }
+
+    private function generateSampleNationalIdDigits(): string
+    {
+        for ($i = 100_000_000; $i <= 999_999_999; $i++) {
+            $nine = sprintf('%09d', $i);
+            $sum = 0;
+            for ($j = 0; $j < 9; $j++) {
+                $sum += (int) $nine[$j] * (10 - $j);
+            }
+            $remainder = $sum % 11;
+            $check = $remainder < 2 ? $remainder : 11 - $remainder;
+            $full = $nine.$check;
+            if (preg_match('/^(\d)\1{9}$/', $full)) {
+                continue;
+            }
+
+            return $full;
+        }
+
+        return '2283142978';
+    }
+
+    private function customersImportSpreadsheetBinaryToUtf8(string $binary): string
+    {
+        if ($binary === '') {
+            return '';
+        }
+        if (str_starts_with($binary, "\xFF\xFE")) {
+            $body = substr($binary, 2);
+
+            return mb_convert_encoding($body, 'UTF-8', 'UTF-16LE') ?: '';
+        }
+        if (str_starts_with($binary, "\xFE\xFF")) {
+            $body = substr($binary, 2);
+
+            return mb_convert_encoding($body, 'UTF-8', 'UTF-16BE') ?: '';
+        }
+        if (str_starts_with($binary, "\xEF\xBB\xBF")) {
+            $binary = substr($binary, 3);
+        }
+
+        return $binary;
+    }
+
+    /**
+     * بین ردیف‌های نمونه بیشترین «تعداد ستون پایدار» را با تب، ویرگول یا نقطه‌ویرگول می‌سنجیم (CSV ناحیه‌ای اکسل با ‎;‎).
+     *
+     * @param  array<int, string>  $lines
+     */
+    private function customersImportDetectDelimiter(array $lines): string
+    {
+        $sample = [];
+        foreach (array_slice($lines, 0, 25) as $line) {
+            $trimmed = trim($line);
+            if ($trimmed !== '') {
+                $sample[] = $trimmed;
+            }
+        }
+        if ($sample === []) {
+            return "\t";
+        }
+
+        $splitters = [
+            "\t" => fn (string $l): array => explode("\t", $l),
+            ',' => fn (string $l): array => str_getcsv($l),
+            ';' => fn (string $l): array => str_getcsv($l, ';', '"', '\\'),
+        ];
+
+        $bestDelimiter = "\t";
+        $bestMedian = -1;
+
+        foreach ($splitters as $delimiter => $splitFn) {
+            $counts = [];
+            foreach ($sample as $sampleLine) {
+                $counts[] = count($splitFn($sampleLine));
+            }
+
+            sort($counts);
+            $mid = $counts[(int) floor((count($counts) - 1) / 2)];
+            if ($mid > $bestMedian) {
+                $bestMedian = $mid;
+                $bestDelimiter = $delimiter;
+            }
+        }
+
+        return $bestDelimiter;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function customersImportExplodeLine(string $line, string $delimiter): array
+    {
+        return match ($delimiter) {
+            ',' => str_getcsv($line),
+            ';' => str_getcsv($line, ';', '"', '\\'),
+            default => explode("\t", $line),
+        };
+    }
+
+    /**
+     * اگر ستون اول (کد مشتری خالی) هنگام ذخیرهٔ CSV حذف شده باشد، اینجا قبل از ستون‌ها یک سلول خالی اضافه می‌کنیم تا نگاشت ستون‌ها حفظ شود.
+     *
+     * @param  array<int, string>  $rawCells
+     * @return array<int, string>
+     */
+    private function customersImportAlignRowCells(array $rawCells): array
+    {
+        $rawCells = array_values(array_map(static function (mixed $c): string {
+            return trim(ltrim((string) $c, "\xEF\xBB\xBF"));
+        }, $rawCells));
+
+        $chosen = null;
+        foreach ([0, 1, 2] as $prependLen) {
+            $merged = array_merge(array_fill(0, $prependLen, ''), $rawCells);
+            $cells = array_slice(array_pad($merged, 14, ''), 0, 14);
+            if ($this->customersImportRowLooksAlignedForTemplate($cells)) {
+                $chosen = $cells;
+
+                break;
+            }
+        }
+
+        if ($chosen !== null) {
+            return $chosen;
+        }
+
+        if (count($rawCells) === 13) {
+            return array_slice(array_pad(array_merge([''], $rawCells), 14, ''), 0, 14);
+        }
+
+        return array_slice(array_pad($rawCells, 14, ''), 0, 14);
+    }
+
+    /**
+     * @param  array<int, string>  $cells
+     */
+    private function customersImportRowLooksAlignedForTemplate(array $cells): bool
+    {
+        $digits = preg_replace('/\D/', '', $this->normalizeIranMobileForImport(trim((string) ($cells[5] ?? '')))) ?? '';
+
+        return preg_match('/^09\d{9}$/', $digits) === 1;
+    }
+
+    /**
+     * اگر اکسل صفر اول موبایل را حذف کرده باشد (‎912…‎)، برای اعتبارسنجی ‎0912…‎ بازمی‌گردانیم.
+     */
+    private function normalizeIranMobileForImport(string $value): string
+    {
+        $s = trim($this->toEnglishDigits($value));
+        $digits = preg_replace('/\D/', '', $s) ?? '';
+        if (strlen($digits) === 10 && str_starts_with($digits, '9')) {
+            return '0'.$digits;
+        }
+
+        return $s;
+    }
+
+    /**
+     * @param  array<int, string>  $cells
+     */
+    private function customersImportRowIsAllEmpty(array $cells): bool
+    {
+        foreach ($cells as $c) {
+            if (trim((string) $c) !== '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function persistImportedCustomerCore(
+        string $customerCode,
+        string $username,
+        string $firstName,
+        string $lastName,
+        string $fatherName,
+        string $nationalId,
+        string $mobile,
+        ?string $phoneLandline,
+        ?Carbon $membershipAt,
+        ?Carbon $birthDate,
+        ?string $email,
+        string $plainPassword,
+        string $city,
+        string $address,
+        string $postalCode,
+    ): Customer {
+        return DB::transaction(function () use (
+            $customerCode,
+            $username,
+            $firstName,
+            $lastName,
+            $fatherName,
+            $nationalId,
+            $mobile,
+            $phoneLandline,
+            $membershipAt,
+            $birthDate,
+            $email,
+            $plainPassword,
+            $city,
+            $address,
+            $postalCode,
+        ): Customer {
+            $c = Customer::query()->create([
+                'customer_code' => $customerCode,
+                'username' => $username,
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'father_name' => $fatherName,
+                'national_id' => $nationalId,
+                'mobile' => $mobile,
+                'phone_landline' => $phoneLandline,
+                'membership_at' => $membershipAt,
+                'birth_date' => $birthDate,
+                'email' => $email,
+                'password' => $plainPassword,
+                'city' => $city,
+                'address' => $address,
+                'postal_code' => $postalCode,
+            ]);
+            CustomerWallet::query()->create([
+                'customer_id' => $c->id,
+                'balance_toman' => 0,
+                'is_locked' => false,
+            ]);
+
+            return $c;
+        });
+    }
+
     public function storeLoan(Request $request, Customer $customer): JsonResponse
     {
         $validated = $request->validate([
@@ -548,6 +1227,67 @@ final class CustomerController extends Controller
         ]);
     }
 
+    /**
+     * نمایش یک‌صفحهٔ قابل چاپ (A4، برای باز شدن در پنجرهٔ جدید) برای دفترچهٔ اقساط پرونده.
+     */
+    public function loanInstallmentBookletPrint(Customer $customer, CustomerLoanFile $loanFile): View
+    {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+
+        $this->ensureLoanInstallmentSchedule($loanFile);
+        $loanFile->load([
+            'loanType',
+            'installments' => static function ($q): void {
+                $q->orderBy('sequence');
+            },
+            'installments.payments' => static function ($q): void {
+                $q->orderBy('id');
+            },
+        ]);
+
+        $lateCoef = (float) ($loanFile->loanType?->daily_late_coefficient ?? 0);
+
+        $bookletRows = [];
+        foreach ($loanFile->installments as $inst) {
+            $bookletRows[] = $this->buildInstallmentBookletPrintRow($inst, $lateCoef);
+        }
+
+        $loanTypeTitle = (string) ($loanFile->loanType?->title ?? '—');
+        $fileSummaryLine = Jalali::enToFaNumbers((string) $loanFile->loan_code).' — '.$loanTypeTitle;
+
+        $contractStartFa = '—';
+        if ($loanFile->loan_start_date !== null) {
+            $contractStartFa = Jalali::enToFaNumbers(
+                Jalali::instance(Carbon::parse($loanFile->loan_start_date))->format('Y/m/d')
+            );
+        }
+
+        $uiFontRaw = AppSetting::query()->where('key', 'app_ui_font')->value('value');
+        $appUiFont = is_string($uiFontRaw) && in_array($uiFontRaw, ['iransans', 'iranyekan', 'anjoman', 'estedad'], true)
+            ? $uiFontRaw
+            : 'iransans';
+
+        return view('admin.customers.loan_installment_booklet_print', [
+            'titleMain' => 'دفترچه اقساط',
+            'subtitleSales' => 'فروش اقساطی',
+            'borrowerFullName' => trim((string) $customer->fullName()),
+            'borrowerTitleLine' => 'آقای / خانم '.trim((string) $customer->fullName()),
+            'borrowerUsernameDisplay' => trim((string) ($customer->username ?? '')) !== ''
+                ? Jalali::enToFaNumbers(trim((string) $customer->username))
+                : '—',
+            'loanFileSummary' => $fileSummaryLine,
+            'contractDateFa' => $contractStartFa,
+            'installmentsCountDisplay' => Jalali::enToFaNumbers((string) (int) $loanFile->installments_count),
+            'installmentAmountDisplay' => $this->formatBookletMoneyFa((int) $loanFile->installment_amount_toman),
+            'bookletRows' => $bookletRows,
+            'portalUrl' => rtrim((string) url('/'), '/'),
+            'appUiFont' => $appUiFont,
+            'loanRevoked' => $loanFile->revoked_at !== null,
+        ]);
+    }
+
     public function updateLoanInstallment(
         Request $request,
         Customer $customer,
@@ -892,6 +1632,52 @@ final class CustomerController extends Controller
 
         return response()->json([
             'message' => 'پرداخت حذف شد.',
+            'installment' => $this->mapLoanInstallmentRow($installment->fresh(['recordedByAdmin']), $customer, $loanFile),
+            'payments' => CustomerLoanInstallmentPayment::query()
+                ->where('customer_loan_installment_id', (int) $installment->id)
+                ->with('recordedByAdmin')
+                ->orderBy('id')
+                ->get()
+                ->map(fn (CustomerLoanInstallmentPayment $p): array => $this->mapInstallmentPaymentRow($p))
+                ->values(),
+        ]);
+    }
+
+    /**
+     * حذف تمام ردیف‌های واریزی ثبت‌شده برای این قسط؛ خود ردیف قسط در برنامهٔ اقساط باقی می‌ماند.
+     */
+    public function destroyAllLoanInstallmentPayments(
+        Customer $customer,
+        CustomerLoanFile $loanFile,
+        CustomerLoanInstallment $installment,
+    ): JsonResponse {
+        if ((int) $loanFile->customer_id !== (int) $customer->id) {
+            abort(404);
+        }
+        if ((int) $installment->customer_loan_file_id !== (int) $loanFile->id) {
+            abort(404);
+        }
+        if ($loanFile->revoked_at !== null) {
+            return response()->json(['message' => 'قرارداد فسخ شده است؛ حذف پرداخت ممکن نیست.'], 422);
+        }
+        if ($loanFile->is_settled) {
+            return response()->json(['message' => 'پرونده تسویه‌شده است؛ حذف پرداخت مجاز نیست.'], 422);
+        }
+
+        $deleted = 0;
+        DB::transaction(function () use ($installment, &$deleted): void {
+            $deleted = (int) CustomerLoanInstallmentPayment::query()
+                ->where('customer_loan_installment_id', (int) $installment->id)
+                ->delete();
+            $installment->refresh();
+            $this->resyncInstallmentPaidTotalsFromPayments($installment);
+        });
+
+        return response()->json([
+            'message' => $deleted > 0
+                ? 'تمام واریزی‌های ثبت‌شده برای این قسط حذف شد؛ خود قسط حذف نشده است.'
+                : 'واریزی‌ای برای این قسط ثبت نشده بود.',
+            'deleted_count' => $deleted,
             'installment' => $this->mapLoanInstallmentRow($installment->fresh(['recordedByAdmin']), $customer, $loanFile),
             'payments' => CustomerLoanInstallmentPayment::query()
                 ->where('customer_loan_installment_id', (int) $installment->id)
@@ -2588,6 +3374,150 @@ final class CustomerController extends Controller
         }
 
         return max(0, $sum);
+    }
+
+    /** برآورد حق‌الزحمهٔ دیرکرد روزانه فقط برای بخش پرداخت‌نشدهٔ این قسط تا امروز (همان منطق فایل). */
+    private function estimateBookletPenaltyTomanForInstallment(CustomerLoanInstallment $inst, float $dailyLateCoef): int
+    {
+        if ($dailyLateCoef <= 0) {
+            return 0;
+        }
+        $unpaid = max(0, (int) $inst->amount_toman - (int) $inst->paid_amount_toman);
+        if ($unpaid <= 0) {
+            return 0;
+        }
+        $due = Carbon::parse($inst->due_date)->startOfDay();
+        $now = Carbon::now()->startOfDay();
+        if ($due->gte($now)) {
+            return 0;
+        }
+        $days = (int) $due->diffInDays($now);
+        if ($days < 1) {
+            return 0;
+        }
+
+        return max(0, (int) round($unpaid * $dailyLateCoef * $days));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function buildInstallmentBookletPrintRow(CustomerLoanInstallment $inst, float $lateCoef): array
+    {
+        $due = Carbon::parse($inst->due_date)->startOfDay();
+        $dueFa = Jalali::enToFaNumbers(Jalali::instance($due)->format('Y/m/d'));
+        $paidAtRoot = $inst->paid_at !== null ? Carbon::parse($inst->paid_at)->startOfDay() : null;
+
+        $paySlices = [];
+        foreach ($inst->payments as $pay) {
+            $paySlices[] = [
+                'amount' => (int) $pay->amount_toman,
+                'method' => (string) $pay->payment_method,
+                'deposited' => Carbon::parse($pay->deposited_at)->startOfDay(),
+                'note' => trim((string) ($pay->note ?? '')),
+            ];
+        }
+        if ($paySlices === [] && (int) $inst->paid_amount_toman > 0) {
+            $paySlices[] = [
+                'amount' => (int) $inst->paid_amount_toman,
+                'method' => CustomerLoanInstallmentPayment::METHOD_LEGACY_IMPORTED,
+                'deposited' => $inst->paid_at !== null
+                    ? Carbon::parse($inst->paid_at)->startOfDay()
+                    : Carbon::now()->startOfDay(),
+                'note' => '',
+            ];
+        }
+
+        $methodLabels = CustomerLoanInstallmentPayment::methodLabels();
+        $amountLines = [];
+        $dateLinesAll = [];
+        $sumCash = 0;
+        $sumBank = 0;
+        $sumTerminal = 0;
+        $sumOnlineCardBucket = 0;
+        $noteParts = [];
+
+        foreach ($paySlices as $slice) {
+            $depFa = Jalali::enToFaNumbers(Jalali::instance($slice['deposited'])->format('Y/m/d'));
+            $ml = $methodLabels[$slice['method']] ?? $slice['method'];
+            $amt = $slice['amount'];
+            $amountLines[] = $this->formatBookletMoneyFa($amt).' — '.$depFa."\n".'('.$ml.')';
+            $dateLinesAll[] = $depFa;
+
+            switch ($slice['method']) {
+                case CustomerLoanInstallmentPayment::METHOD_CASH:
+                    $sumCash += $amt;
+                    break;
+                case CustomerLoanInstallmentPayment::METHOD_BANK_TRANSFER:
+                    $sumBank += $amt;
+                    break;
+                case CustomerLoanInstallmentPayment::METHOD_CARD_TERMINAL:
+                    $sumTerminal += $amt;
+                    break;
+                case CustomerLoanInstallmentPayment::METHOD_ONLINE:
+                    $sumOnlineCardBucket += $amt;
+                    break;
+                case CustomerLoanInstallmentPayment::METHOD_GOLD:
+                    $noteParts[] = 'طلا: '.$this->formatBookletMoneyFa($amt).' ('.$depFa.')';
+                    break;
+                default:
+                    $noteParts[] = $ml.': '.$this->formatBookletMoneyFa($amt).' ('.$depFa.')';
+                    break;
+            }
+            if ($slice['note'] !== '') {
+                $noteParts[] = $slice['note'];
+            }
+        }
+
+        $amountsPaidCell = $amountLines !== [] ? implode("\n", $amountLines) : '—';
+        $payDatesCell = $dateLinesAll !== [] ? implode("\n", $dateLinesAll) : '—';
+
+        $now = Carbon::now()->startOfDay();
+        $earlyFa = '';
+        $lateFa = '';
+        $hasPositivePaidThisInst = array_sum(array_column($paySlices, 'amount')) > 0;
+        if ($hasPositivePaidThisInst && $paidAtRoot !== null) {
+            if ($paidAtRoot->lt($due)) {
+                $earlyFa = Jalali::enToFaNumbers((string) (int) $paidAtRoot->diffInDays($due)).' روز';
+            } elseif ($paidAtRoot->gt($due)) {
+                $lateFa = Jalali::enToFaNumbers((string) (int) $paidAtRoot->diffInDays($due)).' روز';
+            }
+        } elseif (
+            ! $hasPositivePaidThisInst &&
+            $now->gt($due) &&
+            (int) $inst->paid_amount_toman < (int) $inst->amount_toman
+        ) {
+            $lateFa = Jalali::enToFaNumbers((string) (int) $due->diffInDays($now)).' روز از سررسید (پرداخت‌نشده)';
+        }
+
+        $penaltyToman = $this->estimateBookletPenaltyTomanForInstallment($inst, $lateCoef);
+        $penaltyCell = $penaltyToman > 0 ? $this->formatBookletMoneyFa($penaltyToman) : '—';
+
+        $colCardParts = [];
+        if ($sumOnlineCardBucket > 0) {
+            $colCardParts[] = $this->formatBookletMoneyFa($sumOnlineCardBucket).' (پرداخت آنلاین / کارتی)';
+        }
+        $colCardCell = $colCardParts !== [] ? implode("\n", $colCardParts) : '—';
+
+        return [
+            'sequence_fa' => Jalali::enToFaNumbers((string) (int) $inst->sequence),
+            'due_fa' => $dueFa,
+            'pay_dates_cell' => $payDatesCell,
+            'amounts_paid_cell' => $amountsPaidCell,
+            'early_cell' => $earlyFa !== '' ? $earlyFa : '—',
+            'late_cell' => $lateFa !== '' ? $lateFa : '—',
+            'penalty_cell' => $penaltyCell,
+            'col_card_online' => $colCardCell,
+            'cash_cell' => $sumCash > 0 ? $this->formatBookletMoneyFa($sumCash) : '—',
+            'transfer_cell' => $sumBank > 0 ? $this->formatBookletMoneyFa($sumBank) : '—',
+            'terminal_cell' => $sumTerminal > 0 ? $this->formatBookletMoneyFa($sumTerminal) : '—',
+            'notes_cell' => $noteParts !== [] ? implode("\n", $noteParts) : '—',
+        ];
+    }
+
+    private function formatBookletMoneyFa(int $amount): string
+    {
+        return Jalali::enToFaNumbers(number_format($amount, 0, '.', ',')).' تومان';
     }
 
     private function calculateLoanProfitToman(

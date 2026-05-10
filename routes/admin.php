@@ -95,6 +95,18 @@ Route::middleware(['auth:admin'])->group(function (): void {
         ->middleware('throttle:60,1')
         ->name('customers.index');
 
+    Route::get('/customers/export-excel', [CustomerController::class, 'exportCustomersListExcel'])
+        ->middleware('throttle:20,1')
+        ->name('customers.export-excel');
+
+    Route::get('/customers/import/sample-excel', [CustomerController::class, 'downloadCustomersImportSampleExcel'])
+        ->middleware('throttle:60,1')
+        ->name('customers.import.sample-excel');
+
+    Route::post('/customers/import-excel', [CustomerController::class, 'importCustomersFromExcel'])
+        ->middleware('throttle:12,1')
+        ->name('customers.import-excel');
+
     Route::post('/customers', [CustomerController::class, 'store'])
         ->middleware('throttle:20,1')
         ->name('customers.store');
@@ -147,6 +159,10 @@ Route::middleware(['auth:admin'])->group(function (): void {
         ->middleware('throttle:60,1')
         ->name('customers.loan-files.installments.index');
 
+    Route::get('/customers/{customer}/loan-files/{loanFile}/installment-booklet', [CustomerController::class, 'loanInstallmentBookletPrint'])
+        ->middleware('throttle:30,1')
+        ->name('customers.loan-files.installment-booklet');
+
     Route::put('/customers/{customer}/loan-files/{loanFile}/installments/{installment}', [CustomerController::class, 'updateLoanInstallment'])
         ->middleware('throttle:30,1')
         ->name('customers.loan-files.installments.update');
@@ -158,6 +174,10 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::post('/customers/{customer}/loan-files/{loanFile}/installments/{installment}/payments', [CustomerController::class, 'storeLoanInstallmentPayment'])
         ->middleware('throttle:40,1')
         ->name('customers.loan-files.installments.payments.store');
+
+    Route::delete('/customers/{customer}/loan-files/{loanFile}/installments/{installment}/payments', [CustomerController::class, 'destroyAllLoanInstallmentPayments'])
+        ->middleware('throttle:40,1')
+        ->name('customers.loan-files.installments.payments.destroy-all');
 
     Route::put('/customers/{customer}/loan-files/{loanFile}/installments/{installment}/payments/{payment}', [CustomerController::class, 'updateLoanInstallmentPayment'])
         ->middleware('throttle:40,1')

@@ -25,6 +25,79 @@
             box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
         }
         .cust-reload-btn:hover { background: var(--primary-soft); border-color: rgba(37, 99, 235, 0.35); }
+        .cust-export-excel-btn {
+            border: 1px solid rgba(16, 185, 129, 0.42);
+            border-radius: 0.7rem;
+            padding: 0.55rem 0.85rem;
+            background: linear-gradient(180deg, rgba(16, 185, 129, 0.18), rgba(5, 150, 105, 0.12));
+            color: #047857;
+            font-size: 0.78rem;
+            font-weight: 800;
+            cursor: pointer;
+            font-family: inherit;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            text-decoration: none;
+            white-space: nowrap;
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.15);
+        }
+        .cust-export-excel-btn:hover { filter: brightness(1.04); border-color: rgba(5, 150, 105, 0.55); }
+        html[data-theme="dark"] .cust-export-excel-btn {
+            color: #6ee7b7;
+            background: linear-gradient(180deg, rgba(5, 150, 105, 0.28), rgba(4, 120, 87, 0.18));
+            border-color: rgba(52, 211, 153, 0.35);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+        }
+        .cust-import-btn {
+            border: 1px solid rgba(99, 102, 241, 0.45);
+            border-radius: 0.7rem;
+            padding: 0.55rem 0.85rem;
+            background: linear-gradient(180deg, rgba(99, 102, 241, 0.14), rgba(129, 140, 248, 0.08));
+            color: var(--primary-dark);
+            font-size: 0.78rem;
+            font-weight: 800;
+            cursor: pointer;
+            font-family: inherit;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.12);
+        }
+        .cust-import-btn:hover { filter: brightness(1.04); border-color: rgba(79, 70, 229, 0.55); }
+        html[data-theme="dark"] .cust-import-btn {
+            color: #a5b4fc;
+            background: linear-gradient(180deg, rgba(99, 102, 241, 0.28), rgba(67, 56, 202, 0.15));
+            border-color: rgba(165, 180, 252, 0.35);
+        }
+        #cust-import-overlay { z-index: 1450; }
+        .cust-import-modal .cust-import-help {
+            margin: 0.45rem 0 0.85rem;
+            padding: 0 1.1rem 0 0;
+            font-size: 0.78rem;
+            color: var(--muted);
+            line-height: 1.75;
+        }
+        .cust-import-modal .cust-import-help li { margin-bottom: 0.35rem; }
+        .cust-import-dl {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin: 0.35rem 0 0.65rem;
+            padding: 0.48rem 0.82rem;
+            border-radius: 0.65rem;
+            border: 1px solid rgba(59, 130, 246, 0.45);
+            background: var(--primary-soft);
+            color: var(--primary-dark);
+            font-size: 0.8rem;
+            font-weight: 800;
+            text-decoration: none;
+        }
+        .cust-import-dl:hover { filter: brightness(1.02); }
+        .cust-import-file {
+            margin-top: 0.35rem;
+        }
+        .cust-import-actions { display: inline-flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.75rem; align-items: center; }
         .cust-search { flex: 1 1 16rem; max-width: 22rem; }
         .cust-search input {
             width: 100%; border: 1px solid var(--border); border-radius: 0.65rem; padding: 0.48rem 0.72rem;
@@ -1380,6 +1453,18 @@
                 <button type="button" class="cust-reload-btn" onclick="window.location.reload()" title="بارگذاری مجدد" aria-label="بارگذاری مجدد">
                     <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
                 </button>
+                <a
+                    href="{{ route('admin.customers.export-excel', array_filter(['q' => $search !== null && $search !== '' ? $search : null])) }}"
+                    class="cust-export-excel-btn"
+                    title="دانلود خروجی اکسل مطابق همین جستجو (یا همه مشتریان)"
+                >
+                    <i class="fa-solid fa-file-excel" aria-hidden="true"></i>
+                    خروجی اکسل
+                </a>
+                <button type="button" class="cust-import-btn" id="cust-import-open-btn" aria-haspopup="dialog" title="ورود دسته‌جمعی مشتریان با فایل اکسل">
+                    <i class="fa-solid fa-file-arrow-up" aria-hidden="true"></i>
+                    ورود فایل اکسل مشتریان
+                </button>
                 <button type="button" class="cust-add-btn" id="cust-open-modal" aria-haspopup="dialog">
                     <i class="fa-solid fa-user-plus" aria-hidden="true"></i>
                     افزودن مشتری
@@ -1502,6 +1587,43 @@
             @if ($customers->hasPages())
                 <div class="cust-pagination">{{ $customers->links() }}</div>
             @endif
+        </div>
+    </div>
+
+    <div class="cust-overlay" id="cust-import-overlay" hidden aria-hidden="true">
+        <div class="cust-modal cust-import-modal" role="dialog" aria-modal="true" aria-labelledby="cust-import-title">
+            <div class="cust-modal-head">
+                <div>
+                    <h2 id="cust-import-title">ورود فایل اکسل مشتریان</h2>
+                    <p class="loan-inst-modal-sub" style="margin-top:0.25rem;">فقط اطلاعات پایهٔ هویتی و تماس؛ حساب بانکی، معرف و پروندهٔ وام بعداً در سامانه ثبت می‌شود.</p>
+                </div>
+                <button type="button" class="cust-modal-close" id="cust-import-close-btn" aria-label="بستن">&times;</button>
+            </div>
+            <div class="cust-modal-body">
+                <a class="cust-import-dl" href="{{ route('admin.customers.import.sample-excel') }}" download>
+                    <i class="fa-solid fa-download" aria-hidden="true"></i>
+                    دانلود فایل نمونه
+                </a>
+                <ul class="cust-import-help">
+                    <li>سطر اول فقط عنوان ستون‌هاست؛ از سطر دوم دادهٔ مشتریان را وارد کنید. حداکثر ۵۰۰ ردیف در هر بار.</li>
+                    <li>فایل نمونه با جداکنندهٔ تب (همان خروجی استاندارد اکسل) ساخته شده است؛ اکسل هنگام ذخیرهٔ CSV گاهی «ستون اول خالی» را حذف می‌کند؛ سامانه این حالت را تشخیص می‌دهد. فایل‌های ‎.xlsx واقعی را پس از ویرایش به صورت CSV UTF-8 یا متن یونیکد (جداشده با تب) ذخیره کنید یا همان نمونهٔ دانلودشده را بدون تبدیل بارگذاری کنید.</li>
+                    <li>فیلدهای اجباری: نام، نام خانوادگی، نام پدر، کد ملی (۱۰ رقم معتبر)، موبایل (۰۹…)، شهر، آدرس، کد پستی (ده رقم).</li>
+                    <li><strong>کد مشتری</strong> اختیاری است (خالی = تولید خودکار). اگر <strong>رمز عبور</strong> خالی یا کوتاه‌تر از ۸ نویسه باشد، برای آن ردیف رمز تصادفی امن تعیین می‌شود؛ پس از ثبت می‌توانید از همین پنل ویرایش یا بازیابی رمز انجام دهید.</li>
+                    <li>تاریخ‌ها به‌صورت شمسی مانند <span dir="ltr">1404/01/15</span>؛ تاریخ عضویت و تولد و ایمیل و تلفن ثابت اختیاری‌اند.</li>
+                    <li>ردیف‌های تکراری (کد ملی یا موبایل تکراری داخل یک فایل یا در دیتابیس) رد و در گزارش خطا نشان داده می‌شوند.</li>
+                </ul>
+                <form id="cust-import-form">
+                    @csrf
+                    <div class="cust-field cust-import-file">
+                        <label for="cust-import-file-input">انتخاب فایل اکسل یا CSV آماده‌شده مطابق نمونه <span class="req">*</span></label>
+                        <input id="cust-import-file-input" name="excel_file" type="file" accept=".xls,.csv,.txt,text/xml,application/vnd.ms-excel,text/plain" required>
+                    </div>
+                    <div class="cust-import-actions">
+                        <button type="submit" class="cust-submit" id="cust-import-submit-btn">بارگذاری و ثبت مشتریان</button>
+                        <button type="button" class="cust-cancel" id="cust-import-dismiss-btn">بستن</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -2552,6 +2674,7 @@
 
             var custFormMode = 'create';
             var custListBaseUrl = @json(rtrim(route('admin.customers.index'), '/'));
+            var customersImportExcelUrl = @json(route('admin.customers.import-excel'));
             var custStoreUrl = @json(route('admin.customers.store'));
             var appDisplayName = @json($appDisplayName ?? config('app.name'));
 
@@ -2619,6 +2742,9 @@
             }
             function customerLoanInstallmentsUrl(customerId, loanFileId) {
                 return custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/loan-files/' + encodeURIComponent(String(loanFileId || '')) + '/installments';
+            }
+            function customerLoanBookletPrintUrl(customerId, loanFileId) {
+                return custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/loan-files/' + encodeURIComponent(String(loanFileId || '')) + '/installment-booklet';
             }
             function customerLoanInstallmentUpdateUrl(customerId, loanFileId, installmentId) {
                 return custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/loan-files/' + encodeURIComponent(String(loanFileId || '')) + '/installments/' + encodeURIComponent(String(installmentId || ''));
@@ -2804,6 +2930,34 @@
             var pwdHint = document.getElementById('cust-password-hint');
             var modalTitle = document.getElementById('cust-modal-title');
             var modalDesc = document.getElementById('cust-modal-desc');
+            var custImportOverlay = document.getElementById('cust-import-overlay');
+            var custImportOpenBtn = document.getElementById('cust-import-open-btn');
+            var custImportCloseBtn = document.getElementById('cust-import-close-btn');
+            var custImportDismissBtn = document.getElementById('cust-import-dismiss-btn');
+            var custImportForm = document.getElementById('cust-import-form');
+            var custImportFileInput = document.getElementById('cust-import-file-input');
+            var custImportSubmitBtn = document.getElementById('cust-import-submit-btn');
+            var custImportSubmitting = false;
+
+            function openCustImportModal() {
+                if (!custImportOverlay) return;
+                custImportOverlay.hidden = false;
+                custImportOverlay.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('app-settings-open');
+            }
+            function closeCustImportModal() {
+                if (!custImportOverlay) return;
+                custImportOverlay.hidden = true;
+                custImportOverlay.setAttribute('aria-hidden', 'true');
+                document.body.classList.remove('app-settings-open');
+                if (custImportForm) custImportForm.reset();
+                custImportSubmitting = false;
+                if (custImportSubmitBtn) {
+                    custImportSubmitBtn.disabled = false;
+                    custImportSubmitBtn.textContent = 'بارگذاری و ثبت مشتریان';
+                }
+            }
+
             var walletModalOverlay = document.getElementById('wallet-modal-overlay');
             var walletCloseModal = document.getElementById('wallet-close-modal');
             var walletBalanceView = document.getElementById('wallet-balance-view');
@@ -2979,6 +3133,7 @@
             var loanInstPaySaveBtn = document.getElementById('loan-inst-pay-save');
             var loanInstPayTbody = document.getElementById('loan-inst-pay-tbody');
             var loanInstPaySubmitting = false;
+            var loanInstClearAllPaymentsBusy = false;
             var loanInstPayFormVisible = false;
             var loanInstPayCurrentInstallmentId = null;
             var loanInstPayLastServerPayload = null;
@@ -4264,6 +4419,8 @@
                     var payAttr = escapeHtmlAttr(JSON.stringify({ id: row.id }));
                     var payDisabled = loanLocked ? ' disabled' : '';
                     var payData = loanLocked ? '' : ' data-loan-inst-pay="' + payAttr + '"';
+                    var clearPayDisabled = loanLocked || paidAmt <= 0 ? ' disabled' : '';
+                    var clearPayData = loanLocked || paidAmt <= 0 ? '' : ' data-loan-inst-clear-payments="' + payAttr + '"';
                     return '<tr>' +
                         '<td>' + formatToman(row.sequence || 0) + '</td>' +
                         '<td>' + escapeHtmlText(formatToman(row.amount_toman || 0) + ' تومان') + '</td>' +
@@ -4274,7 +4431,9 @@
                         '<td>' + escapeHtmlText(String(row.recorded_by || '—')) + '</td>' +
                         '<td class="loan-inst-td--sms">' + loanInstMakeSmsCell(row) + '</td>' +
                         '<td><div class="loan-inst-ops">' +
-                            '<button type="button" class="loan-inst-op-btn loan-inst-op-btn--danger" title="حذف قسط" aria-label="حذف قسط"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>' +
+                            '<button type="button" class="loan-inst-op-btn loan-inst-op-btn--danger"' + clearPayData + clearPayDisabled +
+                            ' title="حذف واریزی‌های ثبت‌شده برای این قسط (خود قسط حذف نمی‌شود)" aria-label="حذف واریزی‌های این قسط">' +
+                            '<i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>' +
                             '<button type="button" class="loan-inst-op-btn" title="ویرایش قسط" aria-label="ویرایش قسط"' + editData + editDisabled + '><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i></button>' +
                             '<button type="button" class="loan-inst-op-btn loan-inst-op-btn--pay" title="ثبت واریزی قسط" aria-label="ثبت واریزی قسط"' + payData + payDisabled + '><i class="fa-solid fa-dollar-sign" aria-hidden="true"></i></button>' +
                         '</div></td>' +
@@ -4691,7 +4850,7 @@
                         '</div>' +
                         '<div class="loan-file-foot">' +
                             '<div class="loan-file-actions-left">' +
-                                '<button type="button" class="loan-file-btn loan-file-btn--mini" title="پرینت"><i class="fa-solid fa-print" aria-hidden="true"></i></button>' +
+                                '<button type="button" class="loan-file-btn loan-file-btn--mini" title="چاپ دفترچه اقساط" aria-label="چاپ دفترچه اقساط" data-loan-booklet-print data-loan-id="' + String(row.id || '') + '"><i class="fa-solid fa-print" aria-hidden="true"></i></button>' +
                                 '<button type="button" class="loan-file-btn loan-file-btn--mini" title="پیامک" data-loan-sms-id="' + String(row.id || '') + '" data-loan-default-sms="' + escapeHtmlAttr(defaultLoanSmsText) + '"><i class="fa-regular fa-message" aria-hidden="true"></i></button>' +
                                 '<button type="button" class="loan-file-btn loan-file-btn--mini loan-file-btn--danger" title="حذف" data-loan-delete-id="' + String(row.id || '') + '" data-loan-delete-code="' + escapeHtmlAttr(row.loan_code || '') + '"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>' +
                                 '<button type="button" class="loan-file-btn loan-file-btn--mini" title="ویرایش" data-loan-edit-id="' + String(row.id || '') + '"><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i></button>' +
@@ -5320,6 +5479,82 @@
                 openCreateModal();
             });
 
+            if (custImportOpenBtn) custImportOpenBtn.addEventListener('click', openCustImportModal);
+            if (custImportCloseBtn) custImportCloseBtn.addEventListener('click', closeCustImportModal);
+            if (custImportDismissBtn) custImportDismissBtn.addEventListener('click', closeCustImportModal);
+            if (custImportOverlay) {
+                custImportOverlay.addEventListener('click', function (evIm) {
+                    if (evIm.target === custImportOverlay) closeCustImportModal();
+                });
+            }
+            if (custImportForm && custImportFileInput && custImportSubmitBtn) {
+                custImportForm.addEventListener('submit', function (evIm) {
+                    evIm.preventDefault();
+                    if (custImportSubmitting) return;
+                    if (!custImportFileInput.files || custImportFileInput.files.length === 0) {
+                        if (window.AdminSwal && AdminSwal.error) AdminSwal.error('ابتدا فایل را انتخاب کنید.');
+                        return;
+                    }
+                    custImportSubmitting = true;
+                    custImportSubmitBtn.disabled = true;
+                    custImportSubmitBtn.textContent = 'در حال پردازش...';
+                    var fdIm = new FormData(custImportForm);
+                    var importScheduleReload = false;
+                    fetch(customersImportExcelUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        credentials: 'same-origin',
+                        body: fdIm
+                    }).then(function (rIm) {
+                        return rIm.json().then(function (jIm) {
+                            return { ok: rIm.ok, status: rIm.status, json: jIm };
+                        });
+                    }).then(function (resIm) {
+                        var jIx = resIm.json || {};
+                        var msgIx = String(jIx.message || '');
+                        var createdIx = Number(jIx.created_count || 0);
+                        var failsIx = Array.isArray(jIx.failures) ? jIx.failures : [];
+                        if (!msgIx && resIm.status >= 400) msgIx = 'درخواست ناموفق بود.';
+                        var detailIx = '';
+                        if (failsIx.length > 0) {
+                            detailIx = failsIx.slice(0, 14).map(function (fx) {
+                                return 'سطر ' + String(fx.row || '') + ': ' + (Array.isArray(fx.errors) ? fx.errors.join(' — ') : '');
+                            }).join('\n');
+                            if (failsIx.length > 14) detailIx += '\n…';
+                        }
+                        var combinedIx = detailIx !== '' ? (msgIx + '\n\n' + detailIx) : msgIx;
+                        if (createdIx > 0 && failsIx.length === 0) {
+                            importScheduleReload = true;
+                            closeCustImportModal();
+                            var pOk = (window.AdminSwal && AdminSwal.success) ? AdminSwal.success(msgIx) : Promise.resolve();
+                            pOk.then(function () { window.location.reload(); });
+                            return;
+                        }
+                        if (createdIx > 0 && failsIx.length > 0) {
+                            importScheduleReload = true;
+                            closeCustImportModal();
+                            var pPart = (window.AdminSwal && AdminSwal.warning)
+                                ? AdminSwal.warning(combinedIx, 'ثبت جزئی')
+                                : ((window.AdminSwal && AdminSwal.success) ? AdminSwal.success(combinedIx) : Promise.resolve());
+                            pPart.then(function () { window.location.reload(); });
+                            return;
+                        }
+                        if (window.AdminSwal && AdminSwal.error) AdminSwal.error(combinedIx !== '' ? combinedIx : 'هیچ مشتری جدیدی ثبت نشد.');
+                    }).catch(function () {
+                        if (window.AdminSwal && AdminSwal.error) AdminSwal.error('ارتباط با سرور برقرار نشد؛ دوباره تلاش کنید.');
+                    }).finally(function () {
+                        if (!importScheduleReload) {
+                            custImportSubmitting = false;
+                            custImportSubmitBtn.disabled = false;
+                            custImportSubmitBtn.textContent = 'بارگذاری و ثبت مشتریان';
+                        }
+                    });
+                });
+            }
+
             /* capture: از آنجا که روی منو e.stopPropagation() است، در حباب رویداد هرگز به document نمی‌رسد */
             document.addEventListener('click', function (e) {
                 var manageLoansBtn = e.target.closest('[data-cust-manage-loans]');
@@ -5726,6 +5961,15 @@
                 });
             }
             document.addEventListener('click', function (e) {
+                var bookletBtn = e.target.closest('[data-loan-booklet-print]');
+                if (bookletBtn && loanManageOverlay && loanManageOverlay.contains(bookletBtn)) {
+                    e.preventDefault();
+                    var lfBk = parseInt(String(bookletBtn.getAttribute('data-loan-id') || '0'), 10);
+                    if (lfBk > 0 && loanManageCurrentCustomerId) {
+                        window.open(customerLoanBookletPrintUrl(loanManageCurrentCustomerId, lfBk), '_blank', 'noopener');
+                    }
+                    return;
+                }
                 var instLoanBtn = e.target.closest('[data-loan-installments-open]');
                 if (instLoanBtn) {
                     e.preventDefault();
@@ -5783,6 +6027,62 @@
                         if (payOpenObj && payOpenObj.id) {
                             openLoanInstallmentPayModalInstallment(payOpenObj.id);
                         }
+                        return;
+                    }
+                    var clearInstPayBtn = e.target.closest('[data-loan-inst-clear-payments]');
+                    if (clearInstPayBtn && loanInstallmentsOverlay.contains(clearInstPayBtn) && !clearInstPayBtn.disabled) {
+                        e.preventDefault();
+                        if (loanInstClearAllPaymentsBusy || loanInstPaySubmitting) return;
+                        var rawClr = clearInstPayBtn.getAttribute('data-loan-inst-clear-payments') || '';
+                        var clrObj = null;
+                        try {
+                            clrObj = JSON.parse(rawClr);
+                        } catch (eClr) {
+                            clrObj = null;
+                        }
+                        var insClr = clrObj && clrObj.id ? Number(clrObj.id) : 0;
+                        var cidClr = loanManageCurrentCustomerId;
+                        var lfClr = loanInstActiveLoanFileId;
+                        if (insClr <= 0 || !cidClr || !lfClr) return;
+                        var runClearInstPayments = function () {
+                            loanInstClearAllPaymentsBusy = true;
+                            fetch(customerLoanInstallmentPaymentsUrl(cidClr, lfClr, insClr), {
+                                method: 'DELETE',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'X-CSRF-TOKEN': @json(csrf_token())
+                                },
+                                credentials: 'same-origin'
+                            }).then(function (rClr) {
+                                return rClr.json().then(function (jClr) {
+                                    return { ok: rClr.ok, json: jClr };
+                                });
+                            }).then(function (resClr) {
+                                if (!resClr.ok) {
+                                    var mClr = resClr.json && resClr.json.message ? String(resClr.json.message) : 'حذف واریزی‌ها ناموفق بود.';
+                                    throw new Error(mClr);
+                                }
+                                var okClr = resClr.json && resClr.json.message ? String(resClr.json.message) : 'واریزی‌ها حذف شد.';
+                                return loanInstPayRefreshAfterMutation(cidClr, lfClr, insClr, okClr);
+                            }).catch(function (eClr) {
+                                if (window.AdminSwal && AdminSwal.error) AdminSwal.error(eClr.message || 'حذف واریزی‌ها ناموفق بود.');
+                            }).finally(function () {
+                                loanInstClearAllPaymentsBusy = false;
+                            });
+                        };
+                        if (window.AdminSwal && AdminSwal.confirm) {
+                            AdminSwal.confirm({
+                                title: 'حذف واریزی‌های این قسط',
+                                text: 'تمام واریزی‌های ثبت‌شده برای این قسط حذف شود؟ خود قسط از برنامهٔ اقساط حذف نمی‌شود؛ ماندهٔ پرونده دوباره محاسبه می‌شود.',
+                                confirmButtonText: 'بله',
+                                cancelButtonText: 'خیر'
+                            }).then(function (rClrConf) {
+                                if (rClrConf && rClrConf.isConfirmed) runClearInstPayments();
+                            });
+                            return;
+                        }
+                        if (window.confirm('تمام واریزی‌های ثبت‌شده برای این قسط حذف شود؟ (خود قسط حذف نمی‌شود)')) runClearInstPayments();
                         return;
                     }
                     var editBtn = e.target.closest('[data-loan-inst-edit]');

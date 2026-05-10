@@ -20,6 +20,10 @@
         font-family: Anjoman, IRANSans, system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
     }
 
+    html[data-admin-ui-font="estedad"] body {
+        font-family: Estedad, IRANSans, system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+    }
+
     body input,
     body button,
     body textarea,

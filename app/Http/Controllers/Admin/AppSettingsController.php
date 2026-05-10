@@ -33,7 +33,7 @@ final class AppSettingsController extends Controller
     {
         $validated = $request->validate([
             'font_size' => ['required', 'in:small,normal,large,xlarge'],
-            'ui_font' => ['required', 'in:iransans,iranyekan,anjoman'],
+            'ui_font' => ['required', 'in:iransans,iranyekan,anjoman,estedad'],
             'app_icon_fa' => ['nullable', 'string', 'max:80', 'regex:/^fa-(solid|regular|brands)\s+fa-[a-z0-9-]+$/'],
             'favicon_fa' => ['nullable', 'string', 'max:80', 'regex:/^fa-(solid|regular|brands)\s+fa-[a-z0-9-]+$/'],
             'app_icon' => ['nullable', 'file', 'mimes:png,webp,jpg,jpeg,svg', 'max:2048'],
