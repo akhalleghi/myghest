@@ -359,6 +359,131 @@
             cursor: default;
         }
 
+        .admin-notif-wrap {
+            position: relative;
+            display: inline-flex;
+            vertical-align: middle;
+        }
+
+        .admin-notif-badge {
+            position: absolute;
+            top: 0.1rem;
+            inset-inline-end: 0.1rem;
+            min-width: 1.05rem;
+            height: 1.05rem;
+            padding: 0 0.22rem;
+            border-radius: 999px;
+            font-size: 0.58rem;
+            font-weight: 800;
+            line-height: 1.05rem;
+            text-align: center;
+            background: #dc2626;
+            color: #fff;
+            box-shadow: 0 1px 4px rgba(220, 38, 38, 0.45);
+            pointer-events: none;
+        }
+
+        .admin-notif-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 199;
+            background: rgba(15, 23, 42, 0.12);
+            border: 0;
+            padding: 0;
+            margin: 0;
+        }
+
+        html[data-theme="dark"] .admin-notif-overlay {
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .admin-notif-flyout {
+            position: fixed;
+            z-index: 200;
+            width: min(20rem, calc(100vw - 1rem));
+            max-width: calc(100vw - 1rem);
+            border-radius: 0.85rem;
+            border: 1px solid var(--border);
+            background: var(--topbar-bg);
+            color: var(--text);
+            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+            padding: 0;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        html[data-theme="dark"] .admin-notif-flyout {
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        }
+
+        .admin-notif-flyout__head {
+            padding: 0.65rem 0.85rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.82rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .admin-notif-flyout__body {
+            padding: 0.65rem 0.75rem 0.75rem;
+            max-height: min(70vh, 22rem);
+            overflow-y: auto;
+        }
+
+        .admin-notif-empty {
+            margin: 0;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--muted);
+            text-align: center;
+            padding: 0.5rem 0.25rem;
+        }
+
+        .admin-notif-card {
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+            padding: 0.65rem 0.72rem;
+            border-radius: 0.65rem;
+            border: 1px solid rgba(37, 99, 235, 0.28);
+            background: var(--primary-soft);
+            text-decoration: none;
+            color: inherit;
+            transition: border-color 0.12s ease, filter 0.12s ease;
+        }
+
+        .admin-notif-card:hover {
+            border-color: var(--primary);
+            filter: brightness(0.98);
+        }
+
+        html[data-theme="dark"] .admin-notif-card {
+            background: rgba(30, 58, 138, 0.22);
+        }
+
+        .admin-notif-card__ico {
+            font-size: 1.15rem;
+            color: var(--primary-dark);
+            opacity: 0.92;
+        }
+
+        .admin-notif-card__text {
+            font-size: 0.8rem;
+            font-weight: 700;
+            line-height: 1.5;
+            color: var(--text);
+        }
+
+        .admin-notif-card__cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.74rem;
+            font-weight: 800;
+            color: var(--primary-dark);
+            margin-top: 0.15rem;
+        }
+
         .logout-form {
             margin: 0;
         }
@@ -1160,17 +1285,19 @@
     @stack('head')
 </head>
 <body class="admin-app">
-    @php($todayFormatted = rescue(
-        function () {
-            $j = jalali(now());
+    @php
+        $todayFormatted = rescue(
+            function () {
+                $j = jalali(now());
 
-            return \Hekmatinasser\Jalali\Jalali::enToFaNumbers(
-                $j->format('l') . '، ' . $j->format('j F Y')
-            );
-        },
-        now()->format('Y-m-d'),
-        false,
-    ))
+                return \Hekmatinasser\Jalali\Jalali::enToFaNumbers(
+                    $j->format('l') . '، ' . $j->format('j F Y')
+                );
+            },
+            now()->format('Y-m-d'),
+            false,
+        );
+    @endphp
 
     <div class="admin-drawer-backdrop" id="admin-drawer-backdrop" aria-hidden="true"></div>
 
@@ -1192,7 +1319,7 @@
                     ['label' => 'داشبورد', 'href' => route('admin.dashboard'), 'icon' => 'fa-gauge-high', 'route' => 'admin.dashboard'],
                     ['label' => 'تعریف انواع وام', 'href' => route('admin.loan-types.index'), 'icon' => 'fa-money-bill-transfer', 'route' => 'admin.loan-types.index'],
                     ['label' => 'لیست مشتریان', 'href' => route('admin.customers.index'), 'icon' => 'fa-users', 'route' => 'admin.customers.index'],
-                    ['label' => 'اعلام واریزها', 'icon' => 'fa-building-columns', 'disabled' => true],
+                    ['label' => 'اعلام واریزها', 'href' => route('admin.deposit-declarations.index'), 'icon' => 'fa-building-columns', 'route' => 'admin.deposit-declarations.index'],
                     ['label' => 'مدیریت پیامک', 'href' => route('admin.sms.index'), 'icon' => 'fa-envelope', 'route' => 'admin.sms.index'],
                     ['label' => 'درخواست وام‌ها', 'icon' => 'fa-file-invoice', 'disabled' => true],
                     ['label' => 'نماینده‌ها', 'icon' => 'fa-user-tie', 'disabled' => true],
@@ -1226,9 +1353,28 @@
                     <button type="button" class="icon-btn" title="جستجو" disabled aria-disabled="true">
                         <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                     </button>
-                    <button type="button" class="icon-btn" title="اعلان‌ها" disabled aria-disabled="true">
-                        <i class="fa-regular fa-bell" aria-hidden="true"></i>
-                    </button>
+                    @if(auth()->guard('admin')->check())
+                        <span class="admin-notif-wrap">
+                            <button
+                                type="button"
+                                class="icon-btn"
+                                title="اعلان‌ها"
+                                aria-expanded="false"
+                                aria-haspopup="dialog"
+                                aria-controls="admin-notif-flyout"
+                                data-admin-notif-toggle
+                            >
+                                <i class="fa-regular fa-bell" aria-hidden="true"></i>
+                                @if(($adminPendingDepositDeclarationsBadge ?? '') !== '')
+                                    <span class="admin-notif-badge" aria-hidden="true">{{ $adminPendingDepositDeclarationsBadge }}</span>
+                                @endif
+                            </button>
+                        </span>
+                    @else
+                        <button type="button" class="icon-btn" title="اعلان‌ها" disabled aria-disabled="true">
+                            <i class="fa-regular fa-bell" aria-hidden="true"></i>
+                        </button>
+                    @endif
                     <span class="icon-btn icon-btn--static" title="پروفایل" aria-hidden="true">
                         <i class="fa-regular fa-user" aria-hidden="true"></i>
                     </span>
@@ -1289,9 +1435,28 @@
                     <button type="button" class="icon-btn" title="جستجو" disabled aria-disabled="true">
                         <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                     </button>
-                    <button type="button" class="icon-btn" title="اعلان‌ها" disabled aria-disabled="true">
-                        <i class="fa-regular fa-bell" aria-hidden="true"></i>
-                    </button>
+                    @if(auth()->guard('admin')->check())
+                        <span class="admin-notif-wrap">
+                            <button
+                                type="button"
+                                class="icon-btn"
+                                title="اعلان‌ها"
+                                aria-expanded="false"
+                                aria-haspopup="dialog"
+                                aria-controls="admin-notif-flyout"
+                                data-admin-notif-toggle
+                            >
+                                <i class="fa-regular fa-bell" aria-hidden="true"></i>
+                                @if(($adminPendingDepositDeclarationsBadge ?? '') !== '')
+                                    <span class="admin-notif-badge" aria-hidden="true">{{ $adminPendingDepositDeclarationsBadge }}</span>
+                                @endif
+                            </button>
+                        </span>
+                    @else
+                        <button type="button" class="icon-btn" title="اعلان‌ها" disabled aria-disabled="true">
+                            <i class="fa-regular fa-bell" aria-hidden="true"></i>
+                        </button>
+                    @endif
                     <span class="icon-btn icon-btn--static" title="پروفایل" aria-hidden="true">
                         <i class="fa-regular fa-user" aria-hidden="true"></i>
                     </span>
@@ -1325,6 +1490,44 @@
             </div>
         </div>
     </div>
+
+    @if(auth()->guard('admin')->check())
+        @php($adminPendingDep = (int) ($adminPendingDepositDeclarationsCount ?? 0))
+        <div id="admin-notif-overlay" class="admin-notif-overlay" hidden aria-hidden="true"></div>
+        <div
+            id="admin-notif-flyout"
+            class="admin-notif-flyout"
+            hidden
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-notif-flyout-title"
+        >
+            <div id="admin-notif-flyout-title" class="admin-notif-flyout__head">اعلان‌ها</div>
+            <div class="admin-notif-flyout__body">
+                @if($adminPendingDep === 0)
+                    <p class="admin-notif-empty">اعلان فعالی وجود ندارد.</p>
+                @else
+                    <a href="{{ route('admin.deposit-declarations.index', ['status' => 'pending']) }}" class="admin-notif-card">
+                        <span class="admin-notif-card__ico" aria-hidden="true">
+                            <i class="fa-solid fa-building-columns"></i>
+                        </span>
+                        <span class="admin-notif-card__text">
+                            @if($adminPendingDep === 1)
+                                یک درخواست اعلام واریزی ثبت شد و منتظر بررسی توسط شماست.
+                            @else
+                                {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $adminPendingDep) }}
+                                درخواست اعلام واریزی در انتظار بررسی شماست.
+                            @endif
+                        </span>
+                        <span class="admin-notif-card__cta">
+                            رفتن به صفحهٔ اعلام واریزها
+                            <i class="fa-solid fa-chevron-left" style="font-size:0.72rem;opacity:0.85" aria-hidden="true"></i>
+                        </span>
+                    </a>
+                @endif
+            </div>
+        </div>
+    @endif
 
     <div id="app-settings-overlay" class="app-settings-overlay" hidden aria-hidden="true">
         <div id="app-settings-modal" class="app-settings-modal" role="dialog" aria-modal="true" aria-labelledby="app-settings-title">
@@ -1724,6 +1927,8 @@
         (function () {
             document.addEventListener('DOMContentLoaded', function () {
                 var mq = window.matchMedia('(max-width: 960px)');
+                var notifFlyout = document.getElementById('admin-notif-flyout');
+                var notifOverlay = document.getElementById('admin-notif-overlay');
                 var hasUploadedFavicon = @json(!empty($faviconUrl));
                 var faviconFaClass = @json($faviconFaClass ?? 'fa-solid fa-globe');
 
@@ -1840,8 +2045,87 @@
                     });
                 });
 
+                function closeAdminNotif() {
+                    if (!notifFlyout || notifFlyout.hidden) return;
+                    notifFlyout.hidden = true;
+                    notifFlyout.setAttribute('aria-hidden', 'true');
+                    if (notifOverlay) {
+                        notifOverlay.hidden = true;
+                        notifOverlay.setAttribute('aria-hidden', 'true');
+                    }
+                    document.querySelectorAll('[data-admin-notif-toggle]').forEach(function (b) {
+                        b.setAttribute('aria-expanded', 'false');
+                    });
+                }
+
+                function positionAdminNotif(anchorBtn) {
+                    if (!notifFlyout || !anchorBtn) return;
+                    var rect = anchorBtn.getBoundingClientRect();
+                    var gap = 8;
+                    var pw = Math.min(320, window.innerWidth - 16);
+                    notifFlyout.style.width = pw + 'px';
+                    var left = rect.right - pw;
+                    if (left < gap) left = gap;
+                    if (left + pw > window.innerWidth - gap) left = window.innerWidth - pw - gap;
+                    notifFlyout.style.left = left + 'px';
+                    notifFlyout.style.top = (rect.bottom + gap) + 'px';
+                }
+
+                function openAdminNotif(anchorBtn) {
+                    if (!notifFlyout) return;
+                    positionAdminNotif(anchorBtn);
+                    notifFlyout.hidden = false;
+                    notifFlyout.setAttribute('aria-hidden', 'false');
+                    if (notifOverlay) {
+                        notifOverlay.hidden = false;
+                        notifOverlay.setAttribute('aria-hidden', 'false');
+                    }
+                    document.querySelectorAll('[data-admin-notif-toggle]').forEach(function (b) {
+                        b.setAttribute('aria-expanded', b === anchorBtn ? 'true' : 'false');
+                    });
+                }
+
+                function toggleAdminNotif(anchorBtn) {
+                    if (!notifFlyout) return;
+                    if (!notifFlyout.hidden) {
+                        var cur = document.querySelector('[data-admin-notif-toggle][aria-expanded="true"]');
+                        if (cur === anchorBtn) {
+                            closeAdminNotif();
+                            return;
+                        }
+                    }
+                    openAdminNotif(anchorBtn);
+                }
+
+                if (notifFlyout) {
+                    document.querySelectorAll('[data-admin-notif-toggle]').forEach(function (btn) {
+                        btn.addEventListener('click', function (e) {
+                            e.stopPropagation();
+                            toggleAdminNotif(btn);
+                        });
+                    });
+                    if (notifOverlay) {
+                        notifOverlay.addEventListener('click', closeAdminNotif);
+                    }
+                    document.addEventListener('click', function (e) {
+                        if (notifFlyout.hidden) return;
+                        if (notifFlyout.contains(e.target)) return;
+                        if (e.target.closest && e.target.closest('[data-admin-notif-toggle]')) return;
+                        closeAdminNotif();
+                    });
+                    window.addEventListener('resize', function () {
+                        if (notifFlyout.hidden) return;
+                        var openBtn = document.querySelector('[data-admin-notif-toggle][aria-expanded="true"]');
+                        if (openBtn) positionAdminNotif(openBtn);
+                    });
+                }
+
                 document.addEventListener('keydown', function (e) {
                     if (e.key !== 'Escape') return;
+                    if (notifFlyout && !notifFlyout.hidden) {
+                        closeAdminNotif();
+                        return;
+                    }
                     if (appSettingsOverlay && !appSettingsOverlay.hidden) {
                         closeSettings();
                         return;

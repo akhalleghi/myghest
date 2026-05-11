@@ -70,6 +70,11 @@ final class Customer extends Authenticatable
         return $this->hasMany(CustomerLoanFile::class)->latest('id');
     }
 
+    public function depositDeclarations(): HasMany
+    {
+        return $this->hasMany(CustomerDepositDeclaration::class)->latest('id');
+    }
+
     public function fullName(): string
     {
         return trim($this->first_name.' '.$this->last_name);

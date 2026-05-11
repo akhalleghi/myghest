@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Admin\AdminDepositDeclarationController;
 use App\Http\Controllers\Admin\AppSettingsController;
 use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
 use App\Http\Controllers\Admin\Auth\AdminDashboardController;
@@ -90,6 +91,18 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::post('/guarantor-otp/verify', [GuarantorOtpController::class, 'verify'])
         ->middleware('throttle:120,1')
         ->name('guarantor-otp.verify');
+
+    Route::get('/deposit-declarations', [AdminDepositDeclarationController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('deposit-declarations.index');
+
+    Route::get('/deposit-declarations/{deposit_declaration}/attachment', [AdminDepositDeclarationController::class, 'attachment'])
+        ->middleware('throttle:120,1')
+        ->name('deposit-declarations.attachment');
+
+    Route::post('/deposit-declarations/{deposit_declaration}/review', [AdminDepositDeclarationController::class, 'review'])
+        ->middleware('throttle:60,1')
+        ->name('deposit-declarations.review');
 
     Route::get('/customers', [CustomerController::class, 'index'])
         ->middleware('throttle:60,1')

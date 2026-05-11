@@ -62,13 +62,6 @@ final class UserPanelController extends Controller
         ]);
     }
 
-    public function deposits(): View
-    {
-        return view('user.portal.deposits', [
-            'pageTitle' => 'اعلام واریزی‌ها',
-        ]);
-    }
-
     public function loanRequest(): View
     {
         return view('user.portal.loan-request', [

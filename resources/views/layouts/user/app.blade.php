@@ -231,6 +231,117 @@
         }
         .icon-btn:hover:not(:disabled) { background: var(--primary-soft); border-color: rgba(37, 99, 235, 0.35); color: var(--primary-dark); }
         .icon-btn.icon-btn--static { cursor: default; pointer-events: none; }
+
+        .up-notif-wrap {
+            position: relative;
+            display: inline-flex;
+            vertical-align: middle;
+        }
+        .up-notif-badge {
+            position: absolute;
+            top: 0.1rem;
+            inset-inline-end: 0.1rem;
+            min-width: 1.05rem;
+            height: 1.05rem;
+            padding: 0 0.22rem;
+            border-radius: 999px;
+            font-size: 0.58rem;
+            font-weight: 800;
+            line-height: 1.05rem;
+            text-align: center;
+            background: #dc2626;
+            color: #fff;
+            box-shadow: 0 1px 4px rgba(220, 38, 38, 0.45);
+            pointer-events: none;
+        }
+        .up-notif-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 199;
+            background: rgba(15, 23, 42, 0.12);
+            border: 0;
+            padding: 0;
+            margin: 0;
+        }
+        html[data-theme="dark"] .up-notif-overlay {
+            background: rgba(0, 0, 0, 0.35);
+        }
+        .up-notif-flyout {
+            position: fixed;
+            z-index: 200;
+            width: min(20rem, calc(100vw - 1rem));
+            max-width: calc(100vw - 1rem);
+            border-radius: 0.85rem;
+            border: 1px solid var(--border);
+            background: var(--topbar-bg);
+            color: var(--text);
+            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+            padding: 0;
+            margin: 0;
+            overflow: hidden;
+        }
+        html[data-theme="dark"] .up-notif-flyout {
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        }
+        .up-notif-flyout__head {
+            padding: 0.65rem 0.85rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.82rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+        .up-notif-flyout__body {
+            padding: 0.65rem 0.75rem 0.75rem;
+            max-height: min(70vh, 22rem);
+            overflow-y: auto;
+        }
+        .up-notif-empty {
+            margin: 0;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--muted);
+            text-align: center;
+            padding: 0.5rem 0.25rem;
+        }
+        .up-notif-card {
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+            padding: 0.65rem 0.72rem;
+            border-radius: 0.65rem;
+            border: 1px solid rgba(37, 99, 235, 0.28);
+            background: var(--primary-soft);
+            text-decoration: none;
+            color: inherit;
+            transition: border-color 0.12s ease, filter 0.12s ease;
+        }
+        .up-notif-card:hover {
+            border-color: var(--primary);
+            filter: brightness(0.98);
+        }
+        html[data-theme="dark"] .up-notif-card {
+            background: rgba(30, 58, 138, 0.22);
+        }
+        .up-notif-card__ico {
+            font-size: 1.15rem;
+            color: var(--primary-dark);
+            opacity: 0.92;
+        }
+        .up-notif-card__text {
+            font-size: 0.8rem;
+            font-weight: 700;
+            line-height: 1.55;
+            color: var(--text);
+        }
+        .up-notif-card__cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.74rem;
+            font-weight: 800;
+            color: var(--primary-dark);
+            margin-top: 0.15rem;
+        }
         .theme-ico-slot { display: inline-grid; place-items: center; width: 1.1rem; height: 1.1rem; }
         .theme-ico-slot [data-theme-icon] { grid-area: 1 / 1; }
         .up-user-chip {
@@ -1876,16 +1987,19 @@
     @stack('head')
 </head>
 <body class="up-app">
-    @php($todayFormatted = rescue(
-        function () {
-            $j = jalali(now());
-            return \Hekmatinasser\Jalali\Jalali::enToFaNumbers(
-                $j->format('l') . '، ' . $j->format('j F Y')
-            );
-        },
-        now()->format('Y-m-d'),
-        false,
-    ))
+    @php
+        $todayFormatted = rescue(
+            function () {
+                $j = jalali(now());
+
+                return \Hekmatinasser\Jalali\Jalali::enToFaNumbers(
+                    $j->format('l') . '، ' . $j->format('j F Y')
+                );
+            },
+            now()->format('Y-m-d'),
+            false,
+        );
+    @endphp
 
     <div class="up-drawer-backdrop" id="up-drawer-backdrop" aria-hidden="true"></div>
 
@@ -1936,6 +2050,24 @@
                 </div>
                 <div class="drawer-extra-label">نوار ابزار</div>
                 <div class="drawer-actions">
+                    @if(auth()->guard('customer')->check())
+                        <span class="up-notif-wrap">
+                            <button
+                                type="button"
+                                class="icon-btn"
+                                title="اعلان‌ها"
+                                aria-expanded="false"
+                                aria-haspopup="dialog"
+                                aria-controls="up-notif-flyout"
+                                data-up-notif-toggle
+                            >
+                                <i class="fa-regular fa-bell" aria-hidden="true"></i>
+                                @if(($userPortalDepositReviewNotifBadge ?? '') !== '')
+                                    <span class="up-notif-badge" aria-hidden="true">{{ $userPortalDepositReviewNotifBadge }}</span>
+                                @endif
+                            </button>
+                        </span>
+                    @endif
                     <button type="button" class="icon-btn" title="حالت روشن / تیره" aria-label="تغییر حالت روشن و تیره" data-myghest-theme-toggle>
                         <span class="theme-ico-slot" aria-hidden="true">
                             <i class="fa-solid fa-moon" data-theme-icon="moon"></i>
@@ -1981,6 +2113,24 @@
                     امروز: {{ $todayFormatted }}
                 </div>
                 <div class="topbar-cluster">
+                    @if(auth()->guard('customer')->check())
+                        <span class="up-notif-wrap">
+                            <button
+                                type="button"
+                                class="icon-btn"
+                                title="اعلان‌ها"
+                                aria-expanded="false"
+                                aria-haspopup="dialog"
+                                aria-controls="up-notif-flyout"
+                                data-up-notif-toggle
+                            >
+                                <i class="fa-regular fa-bell" aria-hidden="true"></i>
+                                @if(($userPortalDepositReviewNotifBadge ?? '') !== '')
+                                    <span class="up-notif-badge" aria-hidden="true">{{ $userPortalDepositReviewNotifBadge }}</span>
+                                @endif
+                            </button>
+                        </span>
+                    @endif
                     <button type="button" class="icon-btn" title="حالت روشن / تیره" aria-label="تغییر حالت روشن و تیره" data-myghest-theme-toggle>
                         <span class="theme-ico-slot" aria-hidden="true">
                             <i class="fa-solid fa-moon" data-theme-icon="moon"></i>
@@ -2002,6 +2152,37 @@
             </div>
         </div>
     </div>
+
+    @if(auth()->guard('customer')->check())
+        @php($upDepNotifCount = (int) ($userPortalDepositReviewNotifCount ?? 0))
+        <div id="up-notif-overlay" class="up-notif-overlay" hidden aria-hidden="true"></div>
+        <div
+            id="up-notif-flyout"
+            class="up-notif-flyout"
+            hidden
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="up-notif-flyout-title"
+        >
+            <div id="up-notif-flyout-title" class="up-notif-flyout__head">اعلان‌ها</div>
+            <div class="up-notif-flyout__body">
+                @if($upDepNotifCount === 0)
+                    <p class="up-notif-empty">اعلان فعالی وجود ندارد.</p>
+                @else
+                    <a href="{{ route('user.deposits.index') }}" class="up-notif-card">
+                        <span class="up-notif-card__ico" aria-hidden="true">
+                            <i class="fa-solid fa-money-bill-transfer"></i>
+                        </span>
+                        <span class="up-notif-card__text">{{ $userPortalDepositReviewNotifMessage }}</span>
+                        <span class="up-notif-card__cta">
+                            رفتن به اعلام واریزی‌ها
+                            <i class="fa-solid fa-chevron-left" style="font-size:0.72rem;opacity:0.85" aria-hidden="true"></i>
+                        </span>
+                    </a>
+                @endif
+            </div>
+        </div>
+    @endif
 
     <script>
         (function () {
@@ -2052,6 +2233,84 @@
     <script>
         (function () {
             var mq = window.matchMedia('(max-width: 960px)');
+            var notifFlyout = document.getElementById('up-notif-flyout');
+            var notifOverlay = document.getElementById('up-notif-overlay');
+
+            function closeUpNotif() {
+                if (!notifFlyout || notifFlyout.hidden) return;
+                notifFlyout.hidden = true;
+                notifFlyout.setAttribute('aria-hidden', 'true');
+                if (notifOverlay) {
+                    notifOverlay.hidden = true;
+                    notifOverlay.setAttribute('aria-hidden', 'true');
+                }
+                document.querySelectorAll('[data-up-notif-toggle]').forEach(function (b) {
+                    b.setAttribute('aria-expanded', 'false');
+                });
+            }
+
+            function positionUpNotif(anchorBtn) {
+                if (!notifFlyout || !anchorBtn) return;
+                var rect = anchorBtn.getBoundingClientRect();
+                var gap = 8;
+                var pw = Math.min(320, window.innerWidth - 16);
+                notifFlyout.style.width = pw + 'px';
+                var left = rect.right - pw;
+                if (left < gap) left = gap;
+                if (left + pw > window.innerWidth - gap) left = window.innerWidth - pw - gap;
+                notifFlyout.style.left = left + 'px';
+                notifFlyout.style.top = (rect.bottom + gap) + 'px';
+            }
+
+            function openUpNotif(anchorBtn) {
+                if (!notifFlyout) return;
+                positionUpNotif(anchorBtn);
+                notifFlyout.hidden = false;
+                notifFlyout.setAttribute('aria-hidden', 'false');
+                if (notifOverlay) {
+                    notifOverlay.hidden = false;
+                    notifOverlay.setAttribute('aria-hidden', 'false');
+                }
+                document.querySelectorAll('[data-up-notif-toggle]').forEach(function (b) {
+                    b.setAttribute('aria-expanded', b === anchorBtn ? 'true' : 'false');
+                });
+            }
+
+            function toggleUpNotif(anchorBtn) {
+                if (!notifFlyout) return;
+                if (!notifFlyout.hidden) {
+                    var cur = document.querySelector('[data-up-notif-toggle][aria-expanded="true"]');
+                    if (cur === anchorBtn) {
+                        closeUpNotif();
+                        return;
+                    }
+                }
+                openUpNotif(anchorBtn);
+            }
+
+            if (notifFlyout) {
+                document.querySelectorAll('[data-up-notif-toggle]').forEach(function (btn) {
+                    btn.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                        toggleUpNotif(btn);
+                    });
+                });
+                if (notifOverlay) {
+                    notifOverlay.addEventListener('click', closeUpNotif);
+                }
+                document.addEventListener('click', function (e) {
+                    if (notifFlyout.hidden) return;
+                    if (notifFlyout.contains(e.target)) return;
+                    if (e.target.closest && e.target.closest('[data-up-notif-toggle]')) return;
+                    closeUpNotif();
+                });
+                window.addEventListener('resize', function () {
+                    if (notifFlyout.hidden) return;
+                    var openBtn = document.querySelector('[data-up-notif-toggle][aria-expanded="true"]');
+                    if (openBtn) positionUpNotif(openBtn);
+                });
+            }
+
             function closeDrawer() {
                 var root = document.body;
                 var aside = document.getElementById('up-drawer');
@@ -2090,7 +2349,12 @@
                 a.addEventListener('click', function () { if (mq.matches) closeDrawer(); });
             });
             document.addEventListener('keydown', function (e) {
-                if (e.key === 'Escape' && mq.matches) closeDrawer();
+                if (e.key !== 'Escape') return;
+                if (notifFlyout && !notifFlyout.hidden) {
+                    closeUpNotif();
+                    return;
+                }
+                if (mq.matches) closeDrawer();
             });
             function onMqChange(ev) { if (!ev.matches) closeDrawer(); }
             if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onMqChange);

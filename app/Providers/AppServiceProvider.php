@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\AppSetting;
+use App\Models\CustomerDepositDeclaration;
 use App\Services\Sms\Gateways\SepahanGostarGateway;
 use App\Services\Sms\SmsPanelManager;
 use Carbon\Carbon;
@@ -95,6 +96,23 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
+        View::composer('layouts.admin.app', function ($view): void {
+            $pendingDepositCount = 0;
+            $pendingDepositBadge = '';
+            if (Auth::guard('admin')->check()) {
+                $pendingDepositCount = (int) CustomerDepositDeclaration::query()
+                    ->where('status', CustomerDepositDeclaration::STATUS_PENDING)
+                    ->count();
+                if ($pendingDepositCount > 0) {
+                    $pendingDepositBadge = $pendingDepositCount > 99
+                        ? Jalali::enToFaNumbers('99').'+'
+                        : Jalali::enToFaNumbers((string) $pendingDepositCount);
+                }
+            }
+            $view->with('adminPendingDepositDeclarationsCount', $pendingDepositCount);
+            $view->with('adminPendingDepositDeclarationsBadge', $pendingDepositBadge);
+        });
+
         View::composer('layouts.user.app', function ($view): void {
             $customer = Auth::guard('customer')->user();
             $balance = 0;
@@ -108,6 +126,36 @@ class AppServiceProvider extends ServiceProvider
             );
             $name = $customer !== null ? trim($customer->fullName()) : '';
             $view->with('portalCustomerDisplayName', $name !== '' ? $name : 'مشتری');
+
+            $depositReviewNotifCount = 0;
+            $depositReviewNotifBadge = '';
+            $depositReviewNotifMessage = '';
+            if ($customer !== null) {
+                $base = CustomerDepositDeclaration::query()
+                    ->where('customer_id', $customer->id)
+                    ->whereNeedsCustomerReviewNotification();
+                $depositReviewNotifCount = (int) (clone $base)->count();
+                if ($depositReviewNotifCount > 0) {
+                    $depositReviewNotifBadge = $depositReviewNotifCount > 99
+                        ? Jalali::enToFaNumbers('99').'+'
+                        : Jalali::enToFaNumbers((string) $depositReviewNotifCount);
+                    $hasRejected = (clone $base)->where('status', CustomerDepositDeclaration::STATUS_REJECTED)->exists();
+                    $hasApproved = (clone $base)->whereIn('status', [
+                        CustomerDepositDeclaration::STATUS_APPROVED,
+                        CustomerDepositDeclaration::STATUS_APPROVED_APPLIED,
+                    ])->exists();
+                    if ($hasRejected && ! $hasApproved) {
+                        $depositReviewNotifMessage = 'اعلام واریزی شما توسط کارشناس رد شد. جهت مشاهدهٔ توضیحات به صفحهٔ اعلام واریزی‌ها بروید.';
+                    } elseif ($hasApproved && ! $hasRejected) {
+                        $depositReviewNotifMessage = 'با اعلام واریزی شما موافقت شد. جهت مشاهدهٔ توضیحات کلیک کنید و به صفحهٔ اعلام واریزی‌ها بروید.';
+                    } else {
+                        $depositReviewNotifMessage = 'رسیدگی به اعلام واریزی شما توسط کارشناس انجام شد. جهت مشاهدهٔ جزئیات و توضیحات به صفحهٔ اعلام واریزی‌ها بروید.';
+                    }
+                }
+            }
+            $view->with('userPortalDepositReviewNotifCount', $depositReviewNotifCount);
+            $view->with('userPortalDepositReviewNotifBadge', $depositReviewNotifBadge);
+            $view->with('userPortalDepositReviewNotifMessage', $depositReviewNotifMessage);
         });
     }
 }
