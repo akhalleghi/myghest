@@ -20,6 +20,7 @@ use App\Models\SmsLog;
 use App\Models\SmsTemplate;
 use App\Rules\IranNationalId;
 use App\Services\Admin\RawSmsDispatcher;
+use App\Services\Loans\LoanInstallmentScheduleService;
 use App\Services\Sms\SmsPanelManager;
 use App\Services\Sms\SmsSettingsService;
 use Carbon\Carbon;
@@ -910,6 +911,7 @@ final class CustomerController extends Controller
             ]);
             $file->loan_code = 'LF-'.str_pad((string) $file->id, 7, '0', STR_PAD_LEFT);
             $file->save();
+            app(LoanInstallmentScheduleService::class)->ensureSchedule($file);
 
             return $file->fresh(['loanType']) ?? $file;
         });
@@ -3800,43 +3802,7 @@ final class CustomerController extends Controller
 
     private function ensureLoanInstallmentSchedule(CustomerLoanFile $file): void
     {
-        if ($file->revoked_at !== null) {
-            return;
-        }
-
-        if ($file->installments()->exists()) {
-            return;
-        }
-
-        $n = (int) $file->installments_count;
-        if ($n < 1) {
-            return;
-        }
-
-        $start = Carbon::parse($file->loan_start_date)->startOfDay();
-        $intervalCount = max(1, (int) $file->installment_interval_count);
-        $unit = (string) $file->installment_interval_unit;
-        $amount = (int) $file->installment_amount_toman;
-
-        DB::transaction(function () use ($file, $n, $start, $intervalCount, $unit, $amount): void {
-            for ($i = 1; $i <= $n; $i++) {
-                $due = $start->copy();
-                if ($unit === LoanType::GAP_WEEKLY) {
-                    $due->addWeeks($i * $intervalCount);
-                } else {
-                    $due->addMonths($i * $intervalCount);
-                }
-                CustomerLoanInstallment::query()->create([
-                    'customer_loan_file_id' => $file->id,
-                    'sequence' => $i,
-                    'amount_toman' => $amount,
-                    'due_date' => $due->toDateString(),
-                    'paid_amount_toman' => 0,
-                    'paid_at' => null,
-                    'recorded_by_admin_id' => null,
-                ]);
-            }
-        });
+        app(LoanInstallmentScheduleService::class)->ensureSchedule($file);
     }
 
     private function resyncInstallmentPaidTotalsFromPayments(CustomerLoanInstallment $installment): void

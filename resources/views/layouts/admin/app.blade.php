@@ -899,6 +899,180 @@
             max-width: 100%;
         }
 
+        .app-settings-card--banking-visibility {
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.07) 0%, rgba(148, 163, 184, 0.08) 100%);
+            border: 1px solid rgba(37, 99, 235, 0.22);
+            box-shadow: 0 4px 18px rgba(37, 99, 235, 0.08);
+        }
+
+        html[data-theme="dark"] .app-settings-card--banking-visibility {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(15, 23, 42, 0.6) 100%);
+            border-color: rgba(59, 130, 246, 0.35);
+            box-shadow: 0 4px 22px rgba(0, 0, 0, 0.25);
+        }
+
+        .app-banking-visibility-title {
+            margin: 0 0 0.35rem;
+            font-size: 0.88rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .app-banking-visibility-lead {
+            margin: 0 0 0.85rem;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text);
+            line-height: 1.55;
+        }
+
+        .app-banking-visibility-control {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.65rem;
+            flex-wrap: wrap;
+            padding: 0.55rem 0.4rem 0.65rem;
+            margin-bottom: 0.35rem;
+            border-radius: 0.65rem;
+            background: var(--bg-card);
+            border: 1px dashed rgba(37, 99, 235, 0.28);
+        }
+
+        html[data-theme="dark"] .app-banking-visibility-control {
+            border-color: rgba(96, 165, 250, 0.35);
+        }
+
+        .app-switch-legend {
+            font-size: 0.82rem;
+            font-weight: 800;
+            color: var(--muted);
+            min-width: 2.25rem;
+            text-align: center;
+            transition: color 0.15s ease, transform 0.15s ease;
+        }
+
+        .app-banking-visibility-control:has(.app-switch input:checked) .app-switch-legend--on {
+            color: #1d4ed8;
+            transform: scale(1.04);
+        }
+
+        .app-banking-visibility-control:has(.app-switch input:checked) .app-switch-legend--off {
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .app-banking-visibility-control:not(:has(.app-switch input:checked)) .app-switch-legend--off {
+            color: #0f172a;
+            transform: scale(1.04);
+        }
+
+        html[data-theme="dark"] .app-banking-visibility-control:not(:has(.app-switch input:checked)) .app-switch-legend--off {
+            color: #e2e8f0;
+        }
+
+        html[data-theme="dark"] .app-banking-visibility-control:has(.app-switch input:checked) .app-switch-legend--on {
+            color: #93c5fd;
+        }
+
+        .app-switch {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        .app-switch input[type="checkbox"] {
+            position: absolute;
+            opacity: 0;
+            width: 1px;
+            height: 1px;
+            margin: 0;
+            pointer-events: none;
+        }
+
+        .app-switch-ui {
+            width: 2.85rem;
+            height: 1.55rem;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.45);
+            border: 1px solid var(--border);
+            transition: background 0.18s ease, border-color 0.18s ease;
+            position: relative;
+        }
+
+        .app-switch-ui::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            inset-inline-start: 0.2rem;
+            width: 1.1rem;
+            height: 1.1rem;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18);
+            transform: translateY(-50%);
+            transition: inset-inline-start 0.2s ease, background 0.18s ease;
+        }
+
+        .app-switch--prominent .app-switch-ui {
+            width: 3.65rem;
+            height: 1.95rem;
+            border: 2px solid #94a3b8;
+            background: #e2e8f0;
+            box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
+        }
+
+        .app-switch--prominent .app-switch-ui::after {
+            width: 1.42rem;
+            height: 1.42rem;
+            inset-inline-start: 0.22rem;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.22);
+        }
+
+        .app-switch--prominent input:checked + .app-switch-ui {
+            background: #2563eb;
+            border-color: #1d4ed8;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .app-switch--prominent input:checked + .app-switch-ui::after {
+            inset-inline-start: calc(100% - 1.42rem - 0.22rem);
+            background: #f8fafc;
+        }
+
+        html[data-theme="dark"] .app-switch--prominent .app-switch-ui {
+            background: #334155;
+            border-color: #64748b;
+        }
+
+        html[data-theme="dark"] .app-switch--prominent input:checked + .app-switch-ui {
+            background: #1d4ed8;
+            border-color: #3b82f6;
+        }
+
+        .app-switch input:checked + .app-switch-ui {
+            background: rgba(37, 99, 235, 0.35);
+            border-color: rgba(37, 99, 235, 0.55);
+        }
+
+        .app-switch input:checked + .app-switch-ui::after {
+            inset-inline-start: calc(100% - 1.1rem - 0.2rem);
+        }
+
+        .app-switch input:focus-visible + .app-switch-ui {
+            outline: 3px solid rgba(37, 99, 235, 0.45);
+            outline-offset: 3px;
+        }
+
+        .app-banking-visibility-note {
+            margin: 0.45rem 0 0;
+            font-size: 0.74rem;
+            color: var(--muted);
+            line-height: 1.65;
+        }
+
         .app-settings-field--stack {
             margin-bottom: 0.65rem;
         }
@@ -1418,9 +1592,33 @@
 
                         <form method="post" action="{{ route('admin.app-settings.financial.update') }}" class="app-financial-form">
                             @csrf
+                            <input type="hidden" name="banking_info_show_in_user_panel" value="0">
+                            <div class="app-settings-card app-settings-card--banking-visibility">
+                                <h4 class="app-banking-visibility-title">نمایش در پنل کاربر</h4>
+                                <p class="app-banking-visibility-lead" id="banking-show-user-label">اطلاعات در پنل کاربر نمایش داده شود؟</p>
+                                <div class="app-banking-visibility-control" role="group" aria-labelledby="banking-show-user-label">
+                                    <span class="app-switch-legend app-switch-legend--off" aria-hidden="true">خیر</span>
+                                    <label class="app-switch app-switch--prominent">
+                                        <input
+                                            type="checkbox"
+                                            name="banking_info_show_in_user_panel"
+                                            value="1"
+                                            role="switch"
+                                            aria-checked="{{ old('banking_info_show_in_user_panel', ($bankingInfoShowInUserPanel ?? false) ? '1' : '0') === '1' ? 'true' : 'false' }}"
+                                            @checked(old('banking_info_show_in_user_panel', ($bankingInfoShowInUserPanel ?? false) ? '1' : '0') === '1')
+                                        >
+                                        <span class="app-switch-ui" aria-hidden="true"></span>
+                                    </label>
+                                    <span class="app-switch-legend app-switch-legend--on" aria-hidden="true">بله</span>
+                                </div>
+                                <p class="app-banking-visibility-note">با روشن کردن این گزینه، متن «اطلاعات بانکی» در داشبورد پنل کاربر (موبایل و دسکتاپ) نشان داده می‌شود.</p>
+                                @error('banking_info_show_in_user_panel')
+                                    <div class="app-settings-error">{{ $message }}</div>
+                                @enderror
+                            </div>
                             <div class="app-settings-card">
                                 <h4>توضیحات اطلاعات بانکی</h4>
-                                <p class="app-settings-card-desc">در صورت تمایل می‌توانید اطلاعات بانکی خود را جهت واریز وجه، شامل شماره کارت و شماره شبا و غیره را در بخش زیر وارد کنید. این اطلاعات در داشبورد کاربران نمایش داده می‌شود.</p>
+                                <p class="app-settings-card-desc">در صورت تمایل می‌توانید اطلاعات بانکی خود را جهت واریز وجه، شامل شماره کارت، شبا و غیره را در بخش زیر وارد کنید. محتوا پیش از ذخیره پاک‌سازی می‌شود و فقط در صورت روشن بودن گزینهٔ بالا در پنل کاربر دیده می‌شود.</p>
                                 <div class="app-settings-field app-settings-field--stack app-banking-editor-wrap">
                                     <textarea
                                         id="banking-info-html"
@@ -1804,7 +2002,7 @@
                 @elseif($errors->has('display_name'))
                 activateSettingsTab('base');
                 openSettings();
-                @elseif($errors->has('zibal_merchant') || $errors->has('payment_gateway') || $errors->has('banking_info_html'))
+                @elseif($errors->has('zibal_merchant') || $errors->has('payment_gateway') || $errors->has('banking_info_html') || $errors->has('banking_info_show_in_user_panel'))
                 activateSettingsTab('financial');
                 openSettings();
                 @elseif(session('open_app_settings_tab') === 'financial')

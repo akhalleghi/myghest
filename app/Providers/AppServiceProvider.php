@@ -68,6 +68,10 @@ class AppServiceProvider extends ServiceProvider
                 ->where('key', 'banking_info_html')
                 ->value('value');
 
+            $bankingShowInUserPanel = AppSetting::query()
+                ->where('key', 'banking_info_show_in_user_panel')
+                ->value('value');
+
             $zibalCallbackUrl = route('payment.zibal.callback', absolute: true);
 
             $view->with('appDisplayName', is_string($displayName) && $displayName !== '' ? $displayName : config('app.name'));
@@ -85,6 +89,10 @@ class AppServiceProvider extends ServiceProvider
             $resolvedGateway = is_string($paymentGateway) && $paymentGateway !== '' ? $paymentGateway : 'zibal';
             $view->with('paymentGateway', in_array($resolvedGateway, ['zibal'], true) ? $resolvedGateway : 'zibal');
             $view->with('bankingInfoHtml', is_string($bankingInfoHtml) ? $bankingInfoHtml : '');
+            $view->with(
+                'bankingInfoShowInUserPanel',
+                is_string($bankingShowInUserPanel) && $bankingShowInUserPanel === '1'
+            );
         });
 
         View::composer('layouts.user.app', function ($view): void {

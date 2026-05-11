@@ -337,6 +337,1541 @@
         html[data-theme="dark"] .portal-card { box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25); }
         .portal-card h2 { margin: 0 0 0.5rem; font-size: 1.08rem; color: var(--text); }
         .portal-card p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        .portal-banking {
+            width: 100%;
+            max-width: 100%;
+            margin: 0 0 1.15rem;
+        }
+
+        .portal-banking__shell {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 1rem 1.05rem 1.15rem;
+            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.06);
+        }
+
+        html[data-theme="dark"] .portal-banking__shell {
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+        }
+
+        .portal-banking__title {
+            margin: 0 0 0.85rem;
+            padding-bottom: 0.65rem;
+            border-bottom: 1px dashed var(--border);
+            font-size: clamp(1rem, 3.8vw, 1.12rem);
+            font-weight: 800;
+            color: var(--text);
+            letter-spacing: -0.02em;
+        }
+
+        .portal-banking__grid {
+            display: grid;
+            gap: 1rem;
+            align-items: stretch;
+            grid-template-columns: 1fr;
+        }
+
+        .portal-banking__media {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-width: 0;
+        }
+
+        .portal-banking__img {
+            width: min(100%, 15rem);
+            height: auto;
+            max-height: 10.5rem;
+            object-fit: contain;
+            object-position: center;
+            display: block;
+            border-radius: 0.75rem;
+            background: var(--primary-soft);
+            padding: 0.5rem;
+        }
+
+        .portal-banking__body {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+
+        .portal-banking__html {
+            font-size: 0.9rem;
+            line-height: 1.65;
+            color: var(--text);
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            width: 100%;
+        }
+
+        .portal-banking__html :where(p, ul, ol, h2, h3, h4) {
+            margin: 0 0 0.55rem;
+        }
+
+        .portal-banking__html :where(ul, ol) {
+            padding-inline-start: 1.15rem;
+        }
+
+        .portal-banking__html :where(table) {
+            width: 100%;
+            max-width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+            margin: 0.35rem 0 0.65rem;
+        }
+
+        .portal-banking__html :where(th, td) {
+            border: 1px solid var(--border);
+            padding: 0.35rem 0.45rem;
+            vertical-align: top;
+            word-break: break-word;
+        }
+
+        .portal-banking__html :where(a) {
+            color: var(--primary-dark);
+            text-decoration: underline;
+            text-underline-offset: 0.12em;
+            word-break: break-word;
+        }
+
+        .portal-banking__html :where(a):hover {
+            text-decoration-thickness: 2px;
+        }
+
+        @media (min-width: 720px) {
+            .portal-banking__grid {
+                grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr);
+                gap: 1.15rem 1.35rem;
+                align-items: stretch;
+            }
+
+            .portal-banking__media {
+                align-self: stretch;
+                justify-content: center;
+                align-items: center;
+                padding: 0.7rem 0.6rem;
+                border-radius: 0.85rem;
+                background: var(--primary-soft);
+                border: 1px solid var(--border);
+            }
+
+            .portal-banking__img {
+                width: auto;
+                max-width: 100%;
+                height: auto;
+                max-height: min(70vh, 28rem);
+                object-fit: contain;
+                object-position: center;
+                background: transparent;
+                padding: 0.2rem;
+            }
+
+            .portal-banking__body {
+                justify-content: center;
+                align-self: stretch;
+            }
+
+            .portal-banking__html {
+                font-size: 0.92rem;
+            }
+        }
+
+        .portal-loans {
+            width: 100%;
+            max-width: 100%;
+            margin: 0 0 1.15rem;
+        }
+
+        .portal-loans__shell {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 1rem 1.05rem 1.15rem;
+            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.06);
+        }
+
+        html[data-theme="dark"] .portal-loans__shell {
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+        }
+
+        .portal-loans__head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.65rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px dashed var(--border);
+        }
+
+        .portal-loans__head-main {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 0;
+        }
+
+        .portal-loans__head-ico {
+            font-size: 1.15rem;
+            color: var(--primary-dark);
+            opacity: 0.9;
+        }
+
+        .portal-loans__title {
+            margin: 0;
+            font-size: clamp(1rem, 3.8vw, 1.12rem);
+            font-weight: 800;
+            color: var(--text);
+            letter-spacing: -0.02em;
+        }
+
+        .portal-loans__badge {
+            flex-shrink: 0;
+            font-size: 0.78rem;
+            font-weight: 800;
+            color: var(--primary-dark);
+            background: var(--primary-soft);
+            border: 1px solid rgba(37, 99, 235, 0.28);
+            padding: 0.28rem 0.55rem;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+
+        .portal-loans__empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 1rem 0.5rem;
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.6;
+            text-align: center;
+        }
+
+        .portal-loans__empty-ico {
+            font-size: 1.75rem;
+            opacity: 0.45;
+        }
+
+        .portal-loans__empty p {
+            margin: 0;
+        }
+
+        .portal-loans__list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .portal-loan {
+            border: 1px solid var(--border);
+            border-radius: 0.95rem;
+            padding: 0.55rem 0.6rem 0.65rem;
+            background: linear-gradient(180deg, rgba(37, 99, 235, 0.05) 0%, transparent 46%);
+            overflow: hidden;
+        }
+
+        html[data-theme="dark"] .portal-loan {
+            background: linear-gradient(180deg, rgba(59, 130, 246, 0.12) 0%, transparent 50%);
+        }
+
+        .portal-loan__bar {
+            display: flex;
+            flex-direction: row;
+            align-items: stretch;
+            justify-content: space-between;
+            gap: 0.4rem;
+            margin-bottom: 0.4rem;
+            flex-wrap: nowrap;
+        }
+
+        .portal-loan__bar--solo {
+            justify-content: center;
+        }
+
+        .portal-loan__ribbon-slot {
+            flex: 1 1 auto;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        .portal-loan__ribbon {
+            width: auto;
+            max-width: 10.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 0.1rem;
+            padding: 0.32rem 0.42rem 0.38rem;
+            border-radius: 0.55rem;
+            font-size: 0.66rem;
+            font-weight: 900;
+            line-height: 1.2;
+            color: #fff;
+            box-shadow: 0 3px 10px rgba(15, 23, 42, 0.14);
+        }
+
+        .portal-loan__ribbon-ico {
+            font-size: 1rem;
+            line-height: 1;
+            display: block;
+            margin-bottom: 0.06rem;
+        }
+
+        .portal-loan__ribbon-text {
+            display: block;
+        }
+
+        .portal-loan__ribbon-sub {
+            display: block;
+            font-size: 0.6rem;
+            font-weight: 700;
+            opacity: 0.92;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .portal-loan--state-settled .portal-loan__ribbon {
+            background: linear-gradient(145deg, #059669, #047857);
+        }
+
+        .portal-loan--state-revoked .portal-loan__ribbon {
+            background: linear-gradient(145deg, #b45309, #92400e);
+        }
+
+        .portal-loan--state-creditor .portal-loan__ribbon {
+            background: linear-gradient(145deg, #7c3aed, #5b21b6);
+        }
+
+        .portal-loan__code-card {
+            flex: 0 0 auto;
+            min-width: 6.75rem;
+            max-width: 11rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            gap: 0.04rem;
+            padding: 0.28rem 0.45rem 0.32rem;
+            border-radius: 0.55rem;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.72);
+        }
+
+        html[data-theme="dark"] .portal-loan__code-card {
+            background: rgba(30, 41, 59, 0.78);
+        }
+
+        .portal-loan__bar--solo .portal-loan__code-card {
+            max-width: 100%;
+            flex: 1 1 auto;
+        }
+
+        .portal-loan__code-card-k {
+            font-size: 0.58rem;
+            font-weight: 800;
+            color: var(--muted);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.2rem;
+        }
+
+        .portal-loan__code-card-v {
+            font-size: 0.74rem;
+            font-weight: 900;
+            color: var(--text);
+            letter-spacing: -0.02em;
+            direction: ltr;
+            unicode-bidi: embed;
+        }
+
+        .portal-loan__top {
+            margin-bottom: 0.35rem;
+        }
+
+        .portal-loan__title {
+            margin: 0;
+            font-size: 0.92rem;
+            font-weight: 800;
+            color: var(--text);
+            line-height: 1.35;
+        }
+
+        .portal-loan__inline-ico {
+            font-size: 0.85em;
+            opacity: 0.85;
+        }
+
+        .portal-loan__progress {
+            margin: 0 0 0.4rem;
+        }
+
+        .portal-loan__progress-track {
+            height: 0.38rem;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.35);
+            overflow: hidden;
+        }
+
+        .portal-loan__progress-fill {
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #3b82f6, #2563eb);
+            transition: width 0.35s ease;
+        }
+
+        .portal-loan__progress-label {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            margin-top: 0.2rem;
+            font-size: 0.65rem;
+            font-weight: 800;
+            color: var(--muted);
+        }
+
+        .portal-loan__stats {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.48rem 0.55rem;
+            margin: 0 0 0.48rem;
+            align-items: stretch;
+        }
+
+        .portal-loan__stat {
+            display: block;
+            min-width: 0;
+        }
+
+        .portal-loan__stat--remain {
+            grid-column: 1 / -1;
+        }
+
+        .portal-loan__stat-in {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: space-between;
+            gap: 0.32rem;
+            min-height: 4.15rem;
+            height: 100%;
+            padding: 0.42rem 0.5rem 0.46rem;
+            border-radius: 0.52rem;
+            border: 1px solid rgba(148, 163, 184, 0.48);
+            background: rgba(255, 255, 255, 0.72);
+            font-size: 0.74rem;
+            line-height: 1.38;
+        }
+
+        html[data-theme="dark"] .portal-loan__stat-in {
+            background: rgba(30, 41, 59, 0.72);
+        }
+
+        .portal-loan__stat-head {
+            display: flex;
+            align-items: center;
+            gap: 0.32rem;
+            flex-wrap: wrap;
+            min-width: 0;
+        }
+
+        .portal-loan__stat-ico {
+            font-size: 0.82rem;
+            color: var(--primary-dark);
+            opacity: 0.9;
+            flex-shrink: 0;
+        }
+
+        .portal-loan__stat-k {
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: var(--muted);
+            line-height: 1.25;
+        }
+
+        .portal-loan__stat-v {
+            font-size: 0.76rem;
+            font-weight: 800;
+            color: var(--text);
+            min-width: 0;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .portal-loan__stat-paren {
+            font-weight: 700;
+            color: var(--muted);
+            font-size: 0.88em;
+        }
+
+        .portal-loan__stat--paid .portal-loan__stat-in {
+            border-color: rgba(37, 99, 235, 0.38);
+            background: var(--primary-soft);
+        }
+
+        .portal-loan__stat--remain.portal-loan__stat--ok .portal-loan__stat-in {
+            border-color: rgba(5, 150, 105, 0.48);
+            background: rgba(16, 185, 129, 0.14);
+        }
+
+        .portal-loan__stat--remain.portal-loan__stat--warn .portal-loan__stat-in {
+            border-color: rgba(217, 119, 6, 0.45);
+            background: rgba(251, 191, 36, 0.14);
+        }
+
+        .portal-loan__stat--remain.portal-loan__stat--creditor .portal-loan__stat-in {
+            border-color: rgba(124, 58, 237, 0.48);
+            background: rgba(124, 58, 237, 0.12);
+        }
+
+        @media (min-width: 900px) {
+            .portal-loan__stats {
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                gap: 0.5rem 0.55rem;
+            }
+
+            .portal-loan__stat--remain {
+                grid-column: auto;
+            }
+
+            .portal-loan__stat-in {
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+                gap: 0.4rem 0.55rem;
+                min-height: 2.85rem;
+                padding: 0.36rem 0.48rem 0.4rem;
+            }
+
+            .portal-loan__stat-head {
+                flex-wrap: nowrap;
+                flex-shrink: 0;
+            }
+
+            .portal-loan__stat-v {
+                text-align: end;
+                flex: 1;
+                min-width: 0;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .portal-loan__ribbon {
+                max-width: 9.25rem;
+                padding: 0.28rem 0.36rem 0.34rem;
+            }
+        }
+
+        .portal-loan__settle-row {
+            margin: 0.25rem 0 0.35rem;
+        }
+
+        .portal-loan__btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            font-family: inherit;
+            font-size: 0.78rem;
+            font-weight: 800;
+            padding: 0.42rem 0.75rem;
+            border-radius: 0.6rem;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+            white-space: nowrap;
+        }
+
+        .portal-loan__btn--settle {
+            background: #fff;
+            color: var(--primary-dark);
+            border-color: rgba(37, 99, 235, 0.45);
+        }
+
+        html[data-theme="dark"] .portal-loan__btn--settle {
+            background: #1e293b;
+            color: #93c5fd;
+        }
+
+        .portal-loan__btn--settle:hover {
+            background: var(--primary-soft);
+        }
+
+        .portal-loan__btn--primary {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+
+        .portal-loan__btn--primary:hover {
+            filter: brightness(1.05);
+        }
+
+        .portal-loan__btn--ghost {
+            background: var(--bg-card);
+            color: var(--text);
+        }
+
+        .portal-loan__btn--ghost:hover {
+            background: var(--primary-soft);
+            border-color: rgba(37, 99, 235, 0.35);
+        }
+
+        .portal-loan__btn--disabled,
+        .portal-loan__btn--disabled:hover {
+            opacity: 0.55;
+            cursor: not-allowed;
+            pointer-events: auto;
+        }
+
+        .portal-loan__btn--table {
+            font-size: 0.68rem;
+            padding: 0.32rem 0.45rem;
+            min-height: 2rem;
+            white-space: nowrap;
+        }
+
+        .portal-loan__btn--block {
+            width: 100%;
+        }
+
+        .portal-loan__details {
+            margin-top: 0.2rem;
+            border-radius: 0.65rem;
+            border: 1px dashed rgba(148, 163, 184, 0.65);
+            overflow: hidden;
+        }
+
+        .portal-loan__summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 0.55rem 0.65rem;
+            font-size: 0.82rem;
+            font-weight: 800;
+            color: var(--primary-dark);
+            background: rgba(37, 99, 235, 0.07);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+
+        .portal-loan__summary-inner {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .portal-loan__summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .portal-loan__summary::after {
+            content: "\f078";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            font-size: 0.72rem;
+            opacity: 0.75;
+            transition: transform 0.2s ease;
+        }
+
+        .portal-loan__details[open] .portal-loan__summary::after {
+            transform: rotate(-180deg);
+        }
+
+        .portal-loan__inst-list {
+            padding: 0.55rem 0.45rem 0.65rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.65rem;
+            max-height: min(70vh, 26rem);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .portal-inst {
+            border: 1px solid var(--border);
+            border-radius: 0.7rem;
+            padding: 0.55rem 0.6rem 0.6rem;
+            background: var(--bg-card);
+            border-inline-start: 3px solid rgba(148, 163, 184, 0.65);
+        }
+
+        .portal-inst--tone-ok {
+            border-inline-start-color: #059669;
+            background: rgba(16, 185, 129, 0.06);
+        }
+
+        .portal-inst--tone-danger {
+            border-inline-start-color: #dc2626;
+            background: rgba(248, 113, 113, 0.08);
+        }
+
+        .portal-inst--tone-partial {
+            border-inline-start-color: #d97706;
+            background: rgba(251, 191, 36, 0.08);
+        }
+
+        .portal-inst__head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.35rem 0.5rem;
+            margin-bottom: 0.45rem;
+            padding-bottom: 0.35rem;
+            border-bottom: 1px dashed var(--border);
+        }
+
+        .portal-inst__n {
+            font-weight: 800;
+            font-size: 0.86rem;
+            color: var(--text);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .portal-inst__status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.7rem;
+            font-weight: 800;
+            color: var(--primary-dark);
+            background: var(--primary-soft);
+            padding: 0.18rem 0.48rem;
+            border-radius: 999px;
+        }
+
+        .portal-inst--tone-ok .portal-inst__status {
+            color: #047857;
+            background: rgba(16, 185, 129, 0.18);
+        }
+
+        .portal-inst--tone-danger .portal-inst__status {
+            color: #b91c1c;
+            background: rgba(248, 113, 113, 0.2);
+        }
+
+        .portal-inst__tiles {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.35rem 0.5rem;
+        }
+
+        @media (max-width: 420px) {
+            .portal-inst__tiles {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .portal-inst__tiles > div {
+            display: flex;
+            flex-direction: column;
+            gap: 0.06rem;
+            min-width: 0;
+        }
+
+        .portal-inst__k {
+            font-size: 0.64rem;
+            font-weight: 800;
+            color: var(--muted);
+        }
+
+        .portal-inst__v {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--text);
+            word-break: break-word;
+        }
+
+        .portal-inst__note {
+            margin: 0.45rem 0 0;
+            font-size: 0.72rem;
+            line-height: 1.55;
+            color: var(--muted);
+        }
+
+        .portal-inst__actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.45rem;
+            margin-top: 0.55rem;
+        }
+
+        @media (max-width: 380px) {
+            .portal-inst__actions {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .portal-inst__actions .portal-loan__btn {
+            width: 100%;
+            min-height: 2.35rem;
+        }
+
+        .portal-inst__locked {
+            margin-top: 0.55rem;
+            padding: 0.45rem 0.5rem;
+            border-radius: 0.55rem;
+            background: rgba(148, 163, 184, 0.16);
+            font-size: 0.72rem;
+            font-weight: 700;
+            line-height: 1.5;
+            color: var(--muted);
+            display: flex;
+            align-items: flex-start;
+            gap: 0.4rem;
+        }
+
+        .portal-inst__locked i {
+            margin-top: 0.12rem;
+            color: var(--text);
+            opacity: 0.65;
+        }
+
+        .portal-summary {
+            width: 100%;
+            max-width: 100%;
+            margin: 0 0 1.15rem;
+        }
+
+        .portal-summary__grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.65rem;
+        }
+
+        @media (min-width: 720px) {
+            .portal-summary__grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        @media (min-width: 1100px) {
+            .portal-summary__grid {
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+            }
+        }
+
+        .portal-sum-card {
+            --sum-accent: var(--primary-dark);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 0.9rem;
+            padding: 0.78rem 0.82rem 0.85rem;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+            min-height: 7.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        html[data-theme="dark"] .portal-sum-card {
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+        }
+
+        .portal-sum-card:hover {
+            border-color: color-mix(in srgb, var(--sum-accent) 38%, var(--border));
+            box-shadow: 0 10px 26px rgba(15, 23, 42, 0.07);
+        }
+
+        html[data-theme="dark"] .portal-sum-card:hover {
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+        }
+
+        .portal-sum-card--loans { --sum-accent: #2563eb; }
+        .portal-sum-card--paid { --sum-accent: #059669; }
+        .portal-sum-card--remain { --sum-accent: #d97706; }
+        .portal-sum-card--wallet { --sum-accent: #7c3aed; }
+        .portal-sum-card--tickets { --sum-accent: #dc2626; }
+
+        .portal-sum-card__head {
+            display: flex;
+            align-items: center;
+            gap: 0.48rem;
+            min-width: 0;
+        }
+
+        .portal-sum-card__ico-wrap {
+            width: 2.05rem;
+            height: 2.05rem;
+            border-radius: 0.55rem;
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+            font-size: 0.95rem;
+            color: var(--sum-accent);
+            background: color-mix(in srgb, var(--sum-accent) 14%, transparent);
+            border: 1px solid color-mix(in srgb, var(--sum-accent) 32%, transparent);
+        }
+
+        .portal-sum-card__title {
+            margin: 0;
+            font-size: 0.78rem;
+            font-weight: 800;
+            color: var(--text);
+            line-height: 1.35;
+        }
+
+        .portal-sum-card__value {
+            margin: 0.15rem 0 0;
+            font-size: clamp(0.95rem, 2.8vw, 1.05rem);
+            font-weight: 800;
+            color: var(--text);
+            line-height: 1.35;
+            word-break: break-word;
+        }
+
+        .portal-sum-card__value--money {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .portal-sum-card__hint {
+            margin: auto 0 0;
+            padding-top: 0.35rem;
+            border-top: 1px dashed rgba(148, 163, 184, 0.38);
+            font-size: 0.66rem;
+            font-weight: 700;
+            color: var(--muted);
+            line-height: 1.45;
+        }
+
+        html[data-theme="dark"] .portal-sum-card__hint {
+            border-top-color: rgba(148, 163, 184, 0.22);
+        }
+
+        .portal-loans-page {
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .portal-loans-page__head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.65rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px dashed var(--border);
+        }
+
+        .portal-loans-page__head-main {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 0;
+        }
+
+        .portal-loans-page__head-ico {
+            font-size: 1.25rem;
+            color: var(--primary-dark);
+            opacity: 0.9;
+        }
+
+        .portal-loans-page__title {
+            margin: 0;
+            font-size: clamp(1rem, 3.8vw, 1.15rem);
+            font-weight: 800;
+            color: var(--text);
+            letter-spacing: -0.02em;
+        }
+
+        .portal-loans-page__badge {
+            font-size: 0.78rem;
+            font-weight: 800;
+            padding: 0.28rem 0.62rem;
+            border-radius: 999px;
+            background: var(--primary-soft);
+            color: var(--primary-dark);
+            border: 1px solid rgba(37, 99, 235, 0.2);
+        }
+
+        html[data-theme="dark"] .portal-loans-page__badge {
+            border-color: rgba(59, 130, 246, 0.35);
+        }
+
+        .portal-loans-page__empty {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: var(--muted);
+            background: var(--bg-card);
+            border: 1px dashed var(--border);
+            border-radius: 1rem;
+        }
+
+        .portal-loans-page__empty-ico {
+            font-size: 2.25rem;
+            margin-bottom: 0.5rem;
+            opacity: 0.45;
+        }
+
+        .portal-loans-page__empty p {
+            margin: 0;
+            font-size: 0.92rem;
+            font-weight: 700;
+        }
+
+        .portal-loans-page__grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            align-items: stretch;
+        }
+
+        @media (min-width: 960px) {
+            .portal-loans-page__grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        .portal-loan-board {
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 0.65rem 0.72rem 0.75rem;
+            background: var(--bg-card);
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+            display: flex;
+            flex-direction: column;
+            gap: 0.55rem;
+            min-width: 0;
+        }
+
+        html[data-theme="dark"] .portal-loan-board {
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+        }
+
+        .portal-loan-board__bar {
+            display: flex;
+            flex-direction: row;
+            align-items: stretch;
+            justify-content: space-between;
+            gap: 0.45rem;
+            flex-wrap: nowrap;
+        }
+
+        .portal-loan-board__ribbon-slot {
+            flex: 1 1 auto;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        .portal-loan-board__ribbon {
+            max-width: 10.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 0.08rem;
+            padding: 0.32rem 0.42rem 0.36rem;
+            border-radius: 0.55rem;
+            font-size: 0.66rem;
+            font-weight: 900;
+            line-height: 1.2;
+            color: #fff;
+            box-shadow: 0 3px 10px rgba(15, 23, 42, 0.14);
+        }
+
+        .portal-loan-board__ribbon-ico {
+            font-size: 1rem;
+            line-height: 1;
+        }
+
+        .portal-loan-board__ribbon-text {
+            display: block;
+        }
+
+        .portal-loan-board--state-settled .portal-loan-board__ribbon {
+            background: linear-gradient(145deg, #059669, #047857);
+        }
+
+        .portal-loan-board--state-revoked .portal-loan-board__ribbon {
+            background: linear-gradient(145deg, #b45309, #92400e);
+        }
+
+        .portal-loan-board--state-creditor .portal-loan-board__ribbon {
+            background: linear-gradient(145deg, #7c3aed, #5b21b6);
+        }
+
+        .portal-loan-board__code-card {
+            flex: 0 0 auto;
+            min-width: 6.5rem;
+            max-width: 11rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 0.06rem;
+            padding: 0.38rem 0.45rem;
+            border-radius: 0.6rem;
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            background: rgba(255, 255, 255, 0.75);
+        }
+
+        html[data-theme="dark"] .portal-loan-board__code-card {
+            background: rgba(30, 41, 59, 0.75);
+        }
+
+        .portal-loan-board__code-k {
+            font-size: 0.62rem;
+            font-weight: 800;
+            color: var(--muted);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.2rem;
+        }
+
+        .portal-loan-board__code-v {
+            font-size: 0.95rem;
+            font-weight: 900;
+            color: var(--text);
+            letter-spacing: 0.04em;
+        }
+
+        .portal-loan-board__cols {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem 1rem;
+            align-items: start;
+        }
+
+        @media (max-width: 640px) {
+            .portal-loan-board__cols {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .portal-loan-board__col-title {
+            margin: 0 0 0.35rem;
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: var(--text);
+            line-height: 1.35;
+        }
+
+        .portal-loan-board__col-title--sub {
+            font-size: 0.88rem;
+            color: var(--primary-dark);
+        }
+
+        .portal-loan-board__sep {
+            border: 0;
+            border-top: 1px dashed var(--border);
+            margin: 0 0 0.55rem;
+        }
+
+        .portal-loan-board__sep--fine {
+            border-top-width: 1px;
+            opacity: 0.85;
+        }
+
+        .portal-loan-board__kv {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.38rem;
+        }
+
+        .portal-loan-board__kv-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+            gap: 0.35rem 0.5rem;
+            align-items: baseline;
+            font-size: 0.76rem;
+            line-height: 1.45;
+        }
+
+        .portal-loan-board__kv-row dt {
+            margin: 0;
+            font-weight: 800;
+            color: var(--muted);
+        }
+
+        .portal-loan-board__kv-row dd {
+            margin: 0;
+            font-weight: 700;
+            color: var(--text);
+            text-align: end;
+            min-width: 0;
+            word-break: break-word;
+        }
+
+        .portal-loan-board__kv-row--emph dd {
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .portal-loan-board__kv-strong {
+            display: block;
+            font-weight: 800;
+        }
+
+        .portal-loan-board__kv-note {
+            display: block;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: var(--muted);
+            margin-top: 0.12rem;
+        }
+
+        .portal-loan-board__val-ltr {
+            direction: ltr;
+            display: inline-block;
+            unicode-bidi: isolate;
+        }
+
+        .portal-loan-board__footer {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin-top: 0.15rem;
+            padding-top: 0.55rem;
+            border-top: 1px dashed rgba(148, 163, 184, 0.38);
+        }
+
+        html[data-theme="dark"] .portal-loan-board__footer {
+            border-top-color: rgba(148, 163, 184, 0.22);
+        }
+
+        @media (max-width: 420px) {
+            .portal-loan-board__footer {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .portal-loan-board__footer .portal-loan__btn {
+            width: 100%;
+            justify-content: center;
+            min-height: 2.45rem;
+        }
+
+        .portal-dialog__inner--wide {
+            max-height: min(88vh, 38rem);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .portal-loans-inst__sub {
+            margin: 0 0 0.55rem;
+            font-size: 0.74rem;
+            font-weight: 700;
+            color: var(--muted);
+            line-height: 1.45;
+        }
+
+        .portal-loans-inst__scroll {
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 0.65rem;
+            background: rgba(248, 250, 252, 0.5);
+        }
+
+        html[data-theme="dark"] .portal-loans-inst__scroll {
+            background: rgba(15, 23, 42, 0.35);
+        }
+
+        .portal-loans-inst__tbl {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.72rem;
+        }
+
+        .portal-loans-inst__tbl th,
+        .portal-loans-inst__tbl td {
+            padding: 0.5rem 0.45rem;
+            border-bottom: 1px solid var(--border);
+            text-align: start;
+            vertical-align: top;
+        }
+
+        .portal-loans-inst__tbl th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: var(--primary-soft);
+            font-weight: 800;
+            color: var(--text);
+            white-space: nowrap;
+        }
+
+        html[data-theme="dark"] .portal-loans-inst__tbl th {
+            background: rgba(30, 41, 59, 0.95);
+        }
+
+        .portal-loans-inst__tbl td {
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        .portal-loans-inst__cell-late {
+            max-width: 14rem;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .portal-loans-inst__actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            align-items: center;
+        }
+
+        .portal-loans-inst__locked {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--muted);
+        }
+
+        .portal-loans-inst__desktop-table {
+            display: block;
+        }
+
+        .portal-loans-inst-cards {
+            display: none;
+        }
+
+        .portal-loans-inst-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 0.65rem 0.72rem 0.72rem;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+        }
+
+        html[data-theme="dark"] .portal-loans-inst-card {
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+        }
+
+        .portal-loans-inst-card__head {
+            margin-bottom: 0.45rem;
+            padding-bottom: 0.4rem;
+            border-bottom: 1px dashed rgba(148, 163, 184, 0.45);
+        }
+
+        html[data-theme="dark"] .portal-loans-inst-card__head {
+            border-bottom-color: rgba(148, 163, 184, 0.25);
+        }
+
+        .portal-loans-inst-card__badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.82rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .portal-loans-inst-card__kv {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.42rem;
+        }
+
+        .portal-loans-inst-card__kv-row {
+            display: grid;
+            grid-template-columns: minmax(0, 5.8rem) minmax(0, 1fr);
+            gap: 0.35rem 0.55rem;
+            align-items: start;
+            font-size: 0.76rem;
+            line-height: 1.45;
+        }
+
+        .portal-loans-inst-card__kv-row dt {
+            margin: 0;
+            font-weight: 800;
+            color: var(--muted);
+        }
+
+        .portal-loans-inst-card__kv-row dd {
+            margin: 0;
+            font-weight: 700;
+            color: var(--text);
+            text-align: end;
+            word-break: break-word;
+        }
+
+        .portal-loans-inst-card__foot {
+            margin-top: 0.55rem;
+            padding-top: 0.5rem;
+            border-top: 1px dashed rgba(148, 163, 184, 0.45);
+        }
+
+        html[data-theme="dark"] .portal-loans-inst-card__foot {
+            border-top-color: rgba(148, 163, 184, 0.25);
+        }
+
+        .portal-loans-inst-card__foot .portal-loans-inst__actions {
+            flex-direction: column;
+            width: 100%;
+            gap: 0.45rem;
+        }
+
+        .portal-loans-inst-card__foot .portal-loan__btn--table {
+            width: 100%;
+            justify-content: center;
+            min-height: 2.4rem;
+            font-size: 0.76rem;
+            white-space: normal;
+        }
+
+        @media (max-width: 720px) {
+            .portal-loans-inst__desktop-table {
+                display: none !important;
+            }
+
+            .portal-loans-inst-cards {
+                display: flex;
+                flex-direction: column;
+                gap: 0.65rem;
+                padding: 0.55rem 0.5rem 0.65rem;
+            }
+
+            .portal-loans-inst__scroll {
+                border-radius: 0.55rem;
+            }
+        }
+
+        .portal-dialog {
+            max-width: min(100vw - 1.5rem, 22rem);
+            width: 100%;
+            border: none;
+            border-radius: 1rem;
+            padding: 0;
+            background: var(--bg-card);
+            color: var(--text);
+            box-shadow: 0 22px 60px rgba(15, 23, 42, 0.28);
+        }
+
+        .portal-dialog.portal-dialog--wide {
+            max-width: min(100vw - 0.75rem, 52rem);
+            width: 100%;
+        }
+
+        .portal-dialog::backdrop {
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(2px);
+        }
+
+        html[data-theme="dark"] .portal-dialog::backdrop {
+            background: rgba(0, 0, 0, 0.55);
+        }
+
+        .portal-dialog__inner {
+            position: relative;
+            padding: 1.1rem 1rem 1rem;
+        }
+
+        .portal-dialog__close {
+            position: absolute;
+            top: 0.45rem;
+            inset-inline-end: 0.45rem;
+            width: 2rem;
+            height: 2rem;
+            border: none;
+            background: transparent;
+            color: var(--muted);
+            font-size: 1.35rem;
+            line-height: 1;
+            cursor: pointer;
+            border-radius: 0.4rem;
+        }
+
+        .portal-dialog__close:hover {
+            background: var(--primary-soft);
+            color: var(--text);
+        }
+
+        .portal-dialog__title {
+            margin: 0 0 0.65rem;
+            padding-inline-end: 1.75rem;
+            font-size: 1rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+        }
+
+        .portal-dialog__title i {
+            color: var(--primary-dark);
+        }
+
+        .portal-dialog__lead {
+            margin: 0 0 0.25rem;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--muted);
+        }
+
+        .portal-dialog__lead--muted {
+            margin-top: 0.65rem;
+        }
+
+        .portal-dialog__amount {
+            margin: 0;
+            font-size: 1.15rem;
+            font-weight: 900;
+            color: var(--primary-dark);
+            letter-spacing: -0.02em;
+        }
+
+        .portal-dialog__sub {
+            margin: 0;
+            font-size: 0.9rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .portal-dialog__hint {
+            margin: 0.65rem 0 0;
+            font-size: 0.72rem;
+            line-height: 1.55;
+            color: var(--muted);
+        }
+
+        .portal-dialog__actions {
+            margin-top: 0.85rem;
+        }
     </style>
     @stack('head')
 </head>
