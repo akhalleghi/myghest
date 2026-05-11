@@ -3,14 +3,14 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Admin\AppSettingsController;
-use App\Http\Controllers\Admin\GuarantorOtpController;
-use App\Http\Controllers\Admin\OrganizationController;
 use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
 use App\Http\Controllers\Admin\Auth\AdminDashboardController;
 use App\Http\Controllers\Admin\Auth\AdminLoginController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\CustomerWalletController;
+use App\Http\Controllers\Admin\GuarantorOtpController;
 use App\Http\Controllers\Admin\LoanTypeController;
+use App\Http\Controllers\Admin\OrganizationController;
 use App\Http\Controllers\Admin\SmsManagementController;
 use Illuminate\Support\Facades\Route;
 
@@ -326,4 +326,8 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::post('/app-settings/ui', [AppSettingsController::class, 'updateUi'])
         ->middleware('throttle:20,1')
         ->name('app-settings.ui.update');
+
+    Route::post('/app-settings/financial', [AppSettingsController::class, 'updateFinancial'])
+        ->middleware('throttle:20,1')
+        ->name('app-settings.financial.update');
 });

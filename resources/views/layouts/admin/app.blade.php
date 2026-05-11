@@ -732,7 +732,8 @@
         }
 
         .app-settings-field input,
-        .app-settings-field select {
+        .app-settings-field select,
+        .app-settings-field textarea {
             width: 100%;
             border: 1px solid var(--border);
             border-radius: 0.6rem;
@@ -741,6 +742,20 @@
             padding: 0.48rem 0.58rem;
             font-family: inherit;
             font-size: 0.78rem;
+        }
+
+        .app-settings-field textarea {
+            min-height: 11rem;
+            resize: vertical;
+            line-height: 1.55;
+        }
+
+        .app-settings-field input[readonly] {
+            cursor: default;
+            background: color-mix(in oklab, var(--bg-card) 82%, var(--primary-soft));
+            color: var(--text);
+            word-break: break-all;
+            overflow-wrap: anywhere;
         }
         .app-icon-preview {
             margin-top: 0.45rem;
@@ -846,6 +861,57 @@
             line-height: 1.7;
         }
 
+        .app-financial-form {
+            width: 100%;
+            min-width: 0;
+        }
+
+        #app-settings-modal .app-banking-editor-wrap {
+            min-width: 0;
+            max-width: 100%;
+        }
+
+        #app-settings-modal .app-banking-editor-wrap .ck.ck-editor {
+            max-width: 100%;
+        }
+
+        #app-settings-modal .app-banking-editor-wrap .ck.ck-editor__main {
+            max-width: 100%;
+        }
+
+        #app-settings-modal .app-banking-editor-wrap .ck-editor__editable {
+            min-height: 11rem;
+            max-height: min(50vh, 22rem);
+            overflow-y: auto;
+        }
+
+        @media (min-width: 640px) {
+            #app-settings-modal .app-banking-editor-wrap .ck-editor__editable {
+                min-height: 13rem;
+                max-height: min(52vh, 26rem);
+            }
+        }
+
+        .app-financial-select {
+            min-height: 2.75rem;
+            padding-block: 0.48rem;
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .app-settings-field--stack {
+            margin-bottom: 0.65rem;
+        }
+
+        .app-settings-field--stack:last-of-type {
+            margin-bottom: 0;
+        }
+
+        .app-financial-form .app-settings-actions {
+            margin-top: 0.65rem;
+            padding-top: 0.65rem;
+        }
+
         .app-settings-actions {
             margin-top: 0.8rem;
             padding-top: 0.65rem;
@@ -915,7 +981,7 @@
             }
         }
     </style>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/admin-financial-ckeditor.js'])
     @include('layouts.partials.sweetalert2-css')
     @stack('head')
 </head>
@@ -1110,6 +1176,10 @@
                     <button type="button" class="app-settings-menu-btn" data-settings-tab="notifications">
                         <i class="fa-regular fa-bell" aria-hidden="true"></i>
                         اعلان‌ها
+                    </button>
+                    <button type="button" class="app-settings-menu-btn" data-settings-tab="financial">
+                        <i class="fa-solid fa-coins" aria-hidden="true"></i>
+                        تنظیمات مالی
                     </button>
                     <button type="button" class="app-settings-menu-btn" data-settings-tab="security">
                         <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
@@ -1342,6 +1412,83 @@
                             <button type="button" class="app-settings-btn app-settings-btn--primary">ذخیره تغییرات</button>
                         </div>
                     </section>
+                    <section class="app-settings-panel" data-settings-panel="financial" hidden>
+                        <h4 class="app-settings-panel-title">تنظیمات مالی</h4>
+                        <p class="app-settings-panel-subtitle">توضیحات بانکی برای کاربران و درگاه پرداخت.</p>
+
+                        <form method="post" action="{{ route('admin.app-settings.financial.update') }}" class="app-financial-form">
+                            @csrf
+                            <div class="app-settings-card">
+                                <h4>توضیحات اطلاعات بانکی</h4>
+                                <p class="app-settings-card-desc">در صورت تمایل می‌توانید اطلاعات بانکی خود را جهت واریز وجه، شامل شماره کارت و شماره شبا و غیره را در بخش زیر وارد کنید. این اطلاعات در داشبورد کاربران نمایش داده می‌شود.</p>
+                                <div class="app-settings-field app-settings-field--stack app-banking-editor-wrap">
+                                    <textarea
+                                        id="banking-info-html"
+                                        name="banking_info_html"
+                                        rows="10"
+                                        class="app-banking-textarea-fallback"
+                                        spellcheck="true"
+                                        dir="rtl"
+                                        aria-label="توضیحات اطلاعات بانکی برای داشبورد کاربر"
+                                    >{{ old('banking_info_html', $bankingInfoHtml ?? '') }}</textarea>
+                                    @error('banking_info_html')
+                                        <div class="app-settings-error">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                            </div>
+                            <div class="app-settings-card">
+                                <div class="app-settings-field app-settings-field--stack">
+                                    <label for="payment-gateway">درگاه پرداخت</label>
+                                    <select
+                                        id="payment-gateway"
+                                        name="payment_gateway"
+                                        class="app-financial-select"
+                                        required
+                                        autocomplete="off"
+                                    >
+                                        <option value="zibal" @selected(old('payment_gateway', $paymentGateway ?? 'zibal') === 'zibal')>زیبال</option>
+                                        <option value="zarinpal" disabled>زرین‌پال</option>
+                                        <option value="asanpardakht" disabled>آسان‌پرداخت</option>
+                                    </select>
+                                    @error('payment_gateway')
+                                        <div class="app-settings-error">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="app-settings-field app-settings-field--stack">
+                                    <label for="zibal-callback-url-readonly">آدرس بازگشت</label>
+                                    <input
+                                        id="zibal-callback-url-readonly"
+                                        type="text"
+                                        readonly
+                                        value="{{ $zibalCallbackUrl }}"
+                                        dir="ltr"
+                                        style="text-align: left"
+                                    >
+                                </div>
+                                <div class="app-settings-field app-settings-field--stack">
+                                    <label for="zibal-merchant">شناسه مرچنت</label>
+                                    <input
+                                        id="zibal-merchant"
+                                        type="text"
+                                        name="zibal_merchant"
+                                        value="{{ old('zibal_merchant', $zibalMerchant ?? '') }}"
+                                        placeholder="zibal"
+                                        autocomplete="off"
+                                        spellcheck="false"
+                                        dir="ltr"
+                                        style="text-align: left"
+                                        inputmode="text"
+                                    >
+                                    @error('zibal_merchant')
+                                        <div class="app-settings-error">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="app-settings-actions">
+                                    <button type="submit" class="app-settings-btn app-settings-btn--primary">ذخیره</button>
+                                </div>
+                            </div>
+                        </form>
+                    </section>
                     <section class="app-settings-panel" data-settings-panel="security" hidden>
                         <h4 class="app-settings-panel-title">امنیت</h4>
                         <p class="app-settings-panel-subtitle">برای افزایش امنیت دسترسی‌ها، سیاست‌های ورود را تنظیم کنید.</p>
@@ -1528,6 +1675,9 @@
                     settingsPanels.forEach(function (panelEl) {
                         panelEl.hidden = panelEl.getAttribute('data-settings-panel') !== tabId;
                     });
+                    if (tabId === 'financial' && typeof window.initFinancialBankingEditor === 'function') {
+                        window.initFinancialBankingEditor();
+                    }
                 }
 
                 function openSettings() {
@@ -1653,6 +1803,12 @@
                 openSettings();
                 @elseif($errors->has('display_name'))
                 activateSettingsTab('base');
+                openSettings();
+                @elseif($errors->has('zibal_merchant') || $errors->has('payment_gateway') || $errors->has('banking_info_html'))
+                activateSettingsTab('financial');
+                openSettings();
+                @elseif(session('open_app_settings_tab') === 'financial')
+                activateSettingsTab('financial');
                 openSettings();
                 @else
                 activateSettingsTab('base');

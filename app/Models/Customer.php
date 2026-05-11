@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 
-final class Customer extends Model
+final class Customer extends Authenticatable
 {
     protected $fillable = [
         'customer_code',
@@ -27,6 +27,14 @@ final class Customer extends Model
         'address',
         'postal_code',
         'credentials_sms_sent_at',
+    ];
+
+    /**
+     * @var list<string>
+     */
+    protected $hidden = [
+        'password',
+        'remember_token',
     ];
 
     /**

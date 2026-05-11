@@ -178,7 +178,7 @@
 
         .brand-row {
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             gap: 0.65rem;
         }
 
@@ -191,15 +191,23 @@
             display: grid;
             place-items: center;
             font-size: 1.08rem;
+            line-height: 1;
             flex-shrink: 0;
             box-shadow: 0 8px 18px rgba(37, 99, 235, 0.28);
         }
 
-        .brand > h1 {
+        .brand-row > div:last-child {
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+
+        .brand > h1,
+        .brand .brand-row h1 {
             margin: 0;
             font-size: 1.22rem;
             font-weight: 750;
             letter-spacing: -0.02em;
+            line-height: 1.35;
             color: var(--brand-heading);
         }
 
@@ -248,7 +256,11 @@
         label:first-of-type { margin-top: 1.06rem; }
 
         input[type="text"],
-        input[type="password"] {
+        input[type="password"],
+        input[type="tel"],
+        input[type="email"],
+        input[type="search"],
+        input[type="url"] {
             width: 100%;
             padding: 0.72rem 0.92rem;
             border-radius: 0.82rem;
@@ -386,7 +398,7 @@
     @stack('head')
 </head>
 <body>
-    <button type="button" class="auth-theme-fab" id="myghest-theme-toggle" title="حالت روشن / تیره" aria-label="تغییر حالت روشن و تیره">
+    <button type="button" class="auth-theme-fab" id="myghest-theme-toggle" data-myghest-theme-toggle title="حالت روشن / تیره" aria-label="تغییر حالت روشن و تیره">
         <span class="auth-theme-slot" aria-hidden="true">
             <i class="fa-solid fa-moon" data-theme-icon="moon"></i>
             <i class="fa-solid fa-sun" data-theme-icon="sun" style="display:none"></i>
@@ -397,6 +409,7 @@
             <span class="accent-bar" aria-hidden="true"></span>
             @yield('content')
         </main>
+        @stack('portals')
     </div>
     <script>
         (function () {
@@ -452,6 +465,8 @@
         })();
     </script>
     @include('layouts.partials.theme-toggle-script')
+    @include('layouts.partials.sweetalert2-auth-assets')
     @stack('scripts')
+    @yield('scripts')
 </body>
 </html>

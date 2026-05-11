@@ -8,24 +8,34 @@ use Illuminate\Support\Facades\Session;
 
 final class CaptchaService
 {
-    private const SESSION_KEY = 'security.admin_login_captcha';
+    public const PURPOSE_ADMIN_LOGIN = 'admin_login';
 
-    public static function issueNewCaptchaForRendering(): string
+    public const PURPOSE_USER_LOGIN = 'user_login';
+
+    public const PURPOSE_USER_FORGOT = 'user_forgot';
+
+    private const SESSION_KEYS = [
+        self::PURPOSE_ADMIN_LOGIN => 'security.admin_login_captcha',
+        self::PURPOSE_USER_LOGIN => 'security.user_login_captcha',
+        self::PURPOSE_USER_FORGOT => 'security.user_forgot_captcha',
+    ];
+
+    public static function issueNewCaptchaForRendering(string $purpose = self::PURPOSE_ADMIN_LOGIN): string
     {
         $code = self::randomCode(5);
 
         Session::put(
-            self::SESSION_KEY,
+            self::sessionKey($purpose),
             hash_hmac('sha256', self::normalize($code), config('app.key')),
         );
 
         return $code;
     }
 
-    public static function validate(?string $userInput): bool
+    public static function validate(?string $userInput, string $purpose = self::PURPOSE_ADMIN_LOGIN): bool
     {
-        $stored = Session::get(self::SESSION_KEY);
-        Session::forget(self::SESSION_KEY);
+        $stored = Session::get(self::sessionKey($purpose));
+        Session::forget(self::sessionKey($purpose));
 
         if (! is_string($stored) || ! is_string($userInput)) {
             return false;
@@ -34,6 +44,11 @@ final class CaptchaService
         $expected = hash_hmac('sha256', self::normalize($userInput), config('app.key'));
 
         return hash_equals($stored, $expected);
+    }
+
+    private static function sessionKey(string $purpose): string
+    {
+        return self::SESSION_KEYS[$purpose] ?? self::SESSION_KEYS[self::PURPOSE_ADMIN_LOGIN];
     }
 
     /**

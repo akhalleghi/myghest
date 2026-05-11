@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
+use App\Support\BankingHtmlSanitizer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -100,6 +101,41 @@ final class AppSettingsController extends Controller
         }
 
         return back()->with('flash_success', 'تنظیمات ظاهر با موفقیت ذخیره شد.');
+    }
+
+    public function updateFinancial(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'payment_gateway' => ['required', 'string', 'in:zibal'],
+            'zibal_merchant' => ['required', 'string', 'max:128'],
+            'banking_info_html' => ['nullable', 'string', 'max:65000'],
+        ], [], [
+            'payment_gateway' => 'درگاه پرداخت',
+            'zibal_merchant' => 'شناسه مرچنت زیبال',
+            'banking_info_html' => 'توضیحات اطلاعات بانکی',
+        ]);
+
+        AppSetting::query()->updateOrCreate(
+            ['key' => 'payment_gateway'],
+            ['value' => $validated['payment_gateway']]
+        );
+
+        AppSetting::query()->updateOrCreate(
+            ['key' => 'zibal_merchant'],
+            ['value' => trim((string) $validated['zibal_merchant'])]
+        );
+
+        $bankingHtml = BankingHtmlSanitizer::clean($validated['banking_info_html'] ?? null);
+        AppSetting::query()->updateOrCreate(
+            ['key' => 'banking_info_html'],
+            ['value' => $bankingHtml]
+        );
+
+        AppSetting::query()->where('key', 'zibal_callback_url')->delete();
+
+        return back()
+            ->with('flash_success', 'تنظیمات مالی ذخیره شد.')
+            ->with('open_app_settings_tab', 'financial');
     }
 
     private function storePublicAsset(UploadedFile $file, string $prefix): string

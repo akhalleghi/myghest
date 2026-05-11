@@ -2,13 +2,14 @@
 
 use App\Http\Middleware\AdminFarsiLocale;
 use App\Http\Middleware\EnsureAdminGuest;
+use App\Http\Middleware\EnsureCustomerGuest;
 use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Illuminate\Support\Facades\Route;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -33,11 +34,16 @@ return Application::configure(basePath: dirname(__DIR__))
                 return route('admin.login');
             }
 
+            if ($request->routeIs('user.*')) {
+                return route('customer.login');
+            }
+
             return '/';
         });
 
         $middleware->alias([
             'guest.admin' => EnsureAdminGuest::class,
+            'guest.customer' => EnsureCustomerGuest::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
