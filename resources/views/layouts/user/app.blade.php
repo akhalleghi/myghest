@@ -412,8 +412,9 @@
             }
             html[dir="ltr"] .up-sidebar.is-open { visibility: visible; transform: translateX(0); }
             .up-sidebar .sidebar-brand { display: none; }
-            .mobile-topbar { display: flex; align-items: center; gap: 0.65rem; padding: 0.55rem 0.85rem; background: var(--topbar-bg); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 40; min-height: var(--mobile-topbar-h); }
-            .mobile-nav-toggle {
+            .mobile-topbar { display: flex; align-items: center; gap: 0.45rem; padding: 0.5rem 0.7rem; background: var(--topbar-bg); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 40; min-height: var(--mobile-topbar-h); }
+            .mobile-nav-toggle,
+            .mobile-topbar-btn {
                 flex-shrink: 0;
                 width: 2.55rem;
                 height: 2.55rem;
@@ -425,13 +426,65 @@
                 cursor: pointer;
                 color: var(--primary-dark);
                 font-size: 1.12rem;
+                padding: 0;
+                line-height: 1;
+                font-family: inherit;
+                position: relative;
+                transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, filter 0.12s ease;
             }
+            .mobile-topbar-btn:hover:not(:disabled),
+            .mobile-nav-toggle:hover:not(:disabled) {
+                background: var(--primary-soft);
+                border-color: rgba(37, 99, 235, 0.35);
+            }
+            .mobile-topbar-btn:disabled { opacity: 0.55; cursor: not-allowed; }
             .mobile-nav-toggle__ico { grid-area: 1 / 1; }
             .mobile-nav-toggle__ico--close { display: none; }
             .up-drawer-open .mobile-nav-toggle__ico--bars { display: none; }
             .up-drawer-open .mobile-nav-toggle__ico--close { display: block; }
-            .mobile-app-title { margin: 0; font-size: clamp(0.88rem, 3.9vw, 1.06rem); font-weight: 800; color: var(--topbar-date); flex: 1; text-align: start; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .mobile-app-title { margin: 0; font-size: clamp(0.82rem, 3.6vw, 1.02rem); font-weight: 800; color: var(--topbar-date); flex: 1 1 0; text-align: start; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .mobile-topbar__actions {
+                display: flex;
+                align-items: center;
+                gap: 0.35rem;
+                flex-shrink: 0;
+                margin-inline-start: auto;
+            }
+            .mobile-topbar__actions .up-notif-wrap { display: inline-flex; }
+            .mobile-topbar__actions .up-notif-badge {
+                top: 0.12rem;
+                inset-inline-end: 0.12rem;
+            }
+            .mobile-topbar-btn .theme-ico-slot { width: 1.15rem; height: 1.15rem; }
+            .mobile-topbar__logout-form { margin: 0; display: inline-flex; }
+            .mobile-topbar-btn--logout {
+                background: var(--icon-btn-bg);
+                color: #b91c1c;
+                border-color: rgba(220, 38, 38, 0.32);
+                box-shadow: none;
+            }
+            .mobile-topbar-btn--logout:hover:not(:disabled) {
+                background: rgba(248, 113, 113, 0.12);
+                border-color: rgba(220, 38, 38, 0.55);
+                color: #b91c1c;
+                filter: none;
+            }
+            html[data-theme="dark"] .mobile-topbar-btn--logout {
+                color: #f87171;
+                border-color: rgba(248, 113, 113, 0.35);
+            }
+            html[data-theme="dark"] .mobile-topbar-btn--logout:hover:not(:disabled) {
+                background: rgba(248, 113, 113, 0.18);
+                color: #fca5a5;
+            }
             .drawer-extra.only-mobile { display: flex !important; flex-direction: column; }
+        }
+        @media (max-width: 380px) {
+            .mobile-topbar { gap: 0.3rem; padding: 0.45rem 0.55rem; }
+            .mobile-nav-toggle,
+            .mobile-topbar-btn { width: 2.3rem; height: 2.3rem; font-size: 1.02rem; }
+            .mobile-topbar__actions { gap: 0.26rem; }
+            .mobile-topbar-btn .theme-ico-slot { width: 1.05rem; height: 1.05rem; }
         }
         @media (min-width: 961px) {
             .drawer-extra.only-mobile { display: none !important; }
@@ -2048,40 +2101,6 @@
                     <i class="fa-regular fa-calendar-days" aria-hidden="true"></i>
                     <span>{{ $todayFormatted }}</span>
                 </div>
-                <div class="drawer-extra-label">نوار ابزار</div>
-                <div class="drawer-actions">
-                    @if(auth()->guard('customer')->check())
-                        <span class="up-notif-wrap">
-                            <button
-                                type="button"
-                                class="icon-btn"
-                                title="اعلان‌ها"
-                                aria-expanded="false"
-                                aria-haspopup="dialog"
-                                aria-controls="up-notif-flyout"
-                                data-up-notif-toggle
-                            >
-                                <i class="fa-regular fa-bell" aria-hidden="true"></i>
-                                @if(($userPortalDepositReviewNotifBadge ?? '') !== '')
-                                    <span class="up-notif-badge" aria-hidden="true">{{ $userPortalDepositReviewNotifBadge }}</span>
-                                @endif
-                            </button>
-                        </span>
-                    @endif
-                    <button type="button" class="icon-btn" title="حالت روشن / تیره" aria-label="تغییر حالت روشن و تیره" data-myghest-theme-toggle>
-                        <span class="theme-ico-slot" aria-hidden="true">
-                            <i class="fa-solid fa-moon" data-theme-icon="moon"></i>
-                            <i class="fa-solid fa-sun" data-theme-icon="sun" style="display:none"></i>
-                        </span>
-                    </button>
-                    <form class="logout-form" method="post" action="{{ route('user.logout') }}">
-                        @csrf
-                        <button type="submit">
-                            <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
-                            خروج
-                        </button>
-                    </form>
-                </div>
             </div>
         </aside>
 
@@ -2099,6 +2118,50 @@
                     <i class="fa-solid fa-xmark mobile-nav-toggle__ico mobile-nav-toggle__ico--close" aria-hidden="true"></i>
                 </button>
                 <h1 class="mobile-app-title">{{ $appDisplayName }}</h1>
+                <div class="mobile-topbar__actions">
+                    @if(auth()->guard('customer')->check())
+                        <span class="up-notif-wrap">
+                            <button
+                                type="button"
+                                class="mobile-topbar-btn"
+                                title="اعلان‌ها"
+                                aria-label="اعلان‌ها"
+                                aria-expanded="false"
+                                aria-haspopup="dialog"
+                                aria-controls="up-notif-flyout"
+                                data-up-notif-toggle
+                            >
+                                <i class="fa-regular fa-bell" aria-hidden="true"></i>
+                                @if(($userPortalDepositReviewNotifBadge ?? '') !== '')
+                                    <span class="up-notif-badge" aria-hidden="true">{{ $userPortalDepositReviewNotifBadge }}</span>
+                                @endif
+                            </button>
+                        </span>
+                    @endif
+                    <button
+                        type="button"
+                        class="mobile-topbar-btn"
+                        title="حالت روشن / تیره"
+                        aria-label="تغییر حالت روشن و تیره"
+                        data-myghest-theme-toggle
+                    >
+                        <span class="theme-ico-slot" aria-hidden="true">
+                            <i class="fa-solid fa-moon" data-theme-icon="moon"></i>
+                            <i class="fa-solid fa-sun" data-theme-icon="sun" style="display:none"></i>
+                        </span>
+                    </button>
+                    <form class="mobile-topbar__logout-form" method="post" action="{{ route('user.logout') }}" data-up-logout-form>
+                        @csrf
+                        <button
+                            type="submit"
+                            class="mobile-topbar-btn mobile-topbar-btn--logout"
+                            title="خروج"
+                            aria-label="خروج از حساب کاربری"
+                        >
+                            <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
+                        </button>
+                    </form>
+                </div>
             </header>
 
             <header class="topbar only-desktop">
@@ -2137,7 +2200,7 @@
                             <i class="fa-solid fa-sun" data-theme-icon="sun" style="display:none"></i>
                         </span>
                     </button>
-                    <form class="logout-form" method="post" action="{{ route('user.logout') }}">
+                    <form class="logout-form" method="post" action="{{ route('user.logout') }}" data-up-logout-form>
                         @csrf
                         <button type="submit">
                             <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
@@ -2355,6 +2418,38 @@
                     return;
                 }
                 if (mq.matches) closeDrawer();
+            });
+
+            var logoutConfirmText = 'شما در حال خروج از سامانه هستید. مطمئنید؟';
+            document.querySelectorAll('form[data-up-logout-form]').forEach(function (form) {
+                form.addEventListener('submit', function (e) {
+                    if (form.dataset.upLogoutConfirmed === '1') return;
+                    e.preventDefault();
+                    function doSubmit() {
+                        form.dataset.upLogoutConfirmed = '1';
+                        if (mq.matches) closeDrawer();
+                        if (notifFlyout && !notifFlyout.hidden) closeUpNotif();
+                        form.submit();
+                    }
+                    function fallbackConfirm() {
+                        if (window.confirm(logoutConfirmText)) doSubmit();
+                    }
+                    if (!window.AdminSwal || typeof AdminSwal.confirm !== 'function') {
+                        fallbackConfirm();
+                        return;
+                    }
+                    AdminSwal.confirm({
+                        icon: 'warning',
+                        title: 'خروج از سامانه',
+                        text: logoutConfirmText,
+                        confirmButtonText: 'بله، خارج شو',
+                        cancelButtonText: 'انصراف',
+                        confirmButtonColor: '#dc2626',
+                        focusCancel: true,
+                    }).then(function (res) {
+                        if (res && res.isConfirmed) doSubmit();
+                    }).catch(fallbackConfirm);
+                });
             });
             function onMqChange(ev) { if (!ev.matches) closeDrawer(); }
             if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onMqChange);

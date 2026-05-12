@@ -547,8 +547,8 @@
         .mobile-topbar {
             display: none;
             align-items: center;
-            gap: 0.65rem;
-            padding: 0.55rem 0.85rem;
+            gap: 0.45rem;
+            padding: 0.5rem 0.7rem;
             background: var(--topbar-bg);
             border-bottom: 1px solid var(--border);
             position: sticky;
@@ -557,7 +557,8 @@
             min-height: var(--mobile-topbar-h);
         }
 
-        .mobile-nav-toggle {
+        .mobile-nav-toggle,
+        .mobile-topbar-btn {
             flex-shrink: 0;
             width: 2.55rem;
             height: 2.55rem;
@@ -569,12 +570,22 @@
             cursor: pointer;
             color: var(--primary-dark);
             font-size: 1.12rem;
-            transition: background 0.12s ease, border-color 0.12s ease;
+            padding: 0;
+            line-height: 1;
+            font-family: inherit;
+            position: relative;
+            transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, filter 0.12s ease;
         }
 
-        .mobile-nav-toggle:hover {
+        .mobile-nav-toggle:hover:not(:disabled),
+        .mobile-topbar-btn:hover:not(:disabled) {
             background: var(--primary-soft);
             border-color: rgba(37, 99, 235, 0.35);
+        }
+
+        .mobile-topbar-btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
         }
 
         .mobile-nav-toggle__ico {
@@ -595,17 +606,88 @@
 
         .mobile-app-title {
             margin: 0;
-            font-size: clamp(0.88rem, 3.9vw, 1.06rem);
+            font-size: clamp(0.82rem, 3.6vw, 1.02rem);
             font-weight: 800;
             color: var(--topbar-date);
             letter-spacing: -0.02em;
             min-width: 0;
             line-height: 1.35;
-            flex: 1;
+            flex: 1 1 0;
             text-align: start;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+
+        .mobile-topbar__actions {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            flex-shrink: 0;
+            margin-inline-start: auto;
+        }
+
+        .mobile-topbar__actions .admin-notif-wrap {
+            display: inline-flex;
+        }
+
+        .mobile-topbar__actions .admin-notif-badge {
+            top: 0.12rem;
+            inset-inline-end: 0.12rem;
+        }
+
+        .mobile-topbar-btn .theme-ico-slot {
+            width: 1.15rem;
+            height: 1.15rem;
+        }
+
+        .mobile-topbar__logout-form {
+            margin: 0;
+            display: inline-flex;
+        }
+
+        .mobile-topbar-btn--logout {
+            background: var(--icon-btn-bg);
+            color: #b91c1c;
+            border-color: rgba(220, 38, 38, 0.32);
+            box-shadow: none;
+        }
+
+        .mobile-topbar-btn--logout:hover:not(:disabled) {
+            background: rgba(248, 113, 113, 0.12);
+            border-color: rgba(220, 38, 38, 0.55);
+            color: #b91c1c;
+            filter: none;
+        }
+
+        html[data-theme="dark"] .mobile-topbar-btn--logout {
+            color: #f87171;
+            border-color: rgba(248, 113, 113, 0.35);
+        }
+
+        html[data-theme="dark"] .mobile-topbar-btn--logout:hover:not(:disabled) {
+            background: rgba(248, 113, 113, 0.18);
+            color: #fca5a5;
+        }
+
+        @media (max-width: 380px) {
+            .mobile-topbar {
+                gap: 0.3rem;
+                padding: 0.45rem 0.55rem;
+            }
+            .mobile-nav-toggle,
+            .mobile-topbar-btn {
+                width: 2.3rem;
+                height: 2.3rem;
+                font-size: 1.02rem;
+            }
+            .mobile-topbar__actions {
+                gap: 0.26rem;
+            }
+            .mobile-topbar-btn .theme-ico-slot {
+                width: 1.05rem;
+                height: 1.05rem;
+            }
         }
 
         @media (max-width: 960px) {
@@ -1346,59 +1428,12 @@
                 @endforeach
             </nav>
 
-            {{-- ابزارهای نوار بالا فقط در موبایل داخل کشو --}}
+            {{-- بخش وضعیت در کشوی موبایل (دکمه‌های ابزار به نوار بالا منتقل شده‌اند) --}}
             <div class="drawer-extra only-mobile">
-                <div class="drawer-extra-label">نوار ابزار</div>
-                <div class="drawer-quick-icons">
-                    <button type="button" class="icon-btn" title="جستجو" disabled aria-disabled="true">
-                        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                    </button>
-                    @if(auth()->guard('admin')->check())
-                        <span class="admin-notif-wrap">
-                            <button
-                                type="button"
-                                class="icon-btn"
-                                title="اعلان‌ها"
-                                aria-expanded="false"
-                                aria-haspopup="dialog"
-                                aria-controls="admin-notif-flyout"
-                                data-admin-notif-toggle
-                            >
-                                <i class="fa-regular fa-bell" aria-hidden="true"></i>
-                                @if(($adminPendingDepositDeclarationsBadge ?? '') !== '')
-                                    <span class="admin-notif-badge" aria-hidden="true">{{ $adminPendingDepositDeclarationsBadge }}</span>
-                                @endif
-                            </button>
-                        </span>
-                    @else
-                        <button type="button" class="icon-btn" title="اعلان‌ها" disabled aria-disabled="true">
-                            <i class="fa-regular fa-bell" aria-hidden="true"></i>
-                        </button>
-                    @endif
-                    <span class="icon-btn icon-btn--static" title="پروفایل" aria-hidden="true">
-                        <i class="fa-regular fa-user" aria-hidden="true"></i>
-                    </span>
-                </div>
+                <div class="drawer-extra-label">وضعیت</div>
                 <div class="drawer-date-row">
                     <i class="fa-regular fa-calendar-days" aria-hidden="true"></i>
                     <span>امروز: {{ $todayFormatted }}</span>
-                </div>
-                <div class="drawer-actions">
-                    <button type="button" class="icon-btn" title="حالت روشن / تیره" aria-label="تغییر حالت روشن و تیره" data-myghest-theme-toggle>
-                        <span class="theme-ico-slot" aria-hidden="true">
-                            <i class="fa-solid fa-moon" data-theme-icon="moon"></i>
-                            <i class="fa-solid fa-sun" data-theme-icon="sun" style="display:none"></i>
-                        </span>
-                    </button>
-                    @auth('admin')
-                        <form class="logout-form" method="post" action="{{ route('admin.logout') }}">
-                            @csrf
-                            <button type="submit">
-                                <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
-                                خروج
-                            </button>
-                        </form>
-                    @endauth
                 </div>
             </div>
 
@@ -1428,6 +1463,52 @@
                     <i class="fa-solid fa-xmark mobile-nav-toggle__ico mobile-nav-toggle__ico--close" aria-hidden="true"></i>
                 </button>
                 <h1 class="mobile-app-title">{{ $appDisplayName }}</h1>
+                <div class="mobile-topbar__actions">
+                    @if(auth()->guard('admin')->check())
+                        <span class="admin-notif-wrap">
+                            <button
+                                type="button"
+                                class="mobile-topbar-btn"
+                                title="اعلان‌ها"
+                                aria-label="اعلان‌ها"
+                                aria-expanded="false"
+                                aria-haspopup="dialog"
+                                aria-controls="admin-notif-flyout"
+                                data-admin-notif-toggle
+                            >
+                                <i class="fa-regular fa-bell" aria-hidden="true"></i>
+                                @if(($adminPendingDepositDeclarationsBadge ?? '') !== '')
+                                    <span class="admin-notif-badge" aria-hidden="true">{{ $adminPendingDepositDeclarationsBadge }}</span>
+                                @endif
+                            </button>
+                        </span>
+                    @endif
+                    <button
+                        type="button"
+                        class="mobile-topbar-btn"
+                        title="حالت روشن / تیره"
+                        aria-label="تغییر حالت روشن و تیره"
+                        data-myghest-theme-toggle
+                    >
+                        <span class="theme-ico-slot" aria-hidden="true">
+                            <i class="fa-solid fa-moon" data-theme-icon="moon"></i>
+                            <i class="fa-solid fa-sun" data-theme-icon="sun" style="display:none"></i>
+                        </span>
+                    </button>
+                    @auth('admin')
+                        <form class="mobile-topbar__logout-form" method="post" action="{{ route('admin.logout') }}" data-admin-logout-form>
+                            @csrf
+                            <button
+                                type="submit"
+                                class="mobile-topbar-btn mobile-topbar-btn--logout"
+                                title="خروج"
+                                aria-label="خروج از حساب ادمین"
+                            >
+                                <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
+                            </button>
+                        </form>
+                    @endauth
+                </div>
             </header>
 
             <header class="topbar only-desktop">
@@ -1474,7 +1555,7 @@
                         </span>
                     </button>
                     @auth('admin')
-                        <form class="logout-form" method="post" action="{{ route('admin.logout') }}">
+                        <form class="logout-form" method="post" action="{{ route('admin.logout') }}" data-admin-logout-form>
                             @csrf
                             <button type="submit">
                                 <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
@@ -2295,6 +2376,39 @@
                 @else
                 activateSettingsTab('base');
                 @endif
+
+                var adminLogoutConfirmText = 'شما در حال خروج از سامانه هستید. مطمئنید؟';
+                document.querySelectorAll('form[data-admin-logout-form]').forEach(function (form) {
+                    form.addEventListener('submit', function (e) {
+                        if (form.dataset.adminLogoutConfirmed === '1') return;
+                        e.preventDefault();
+                        function doSubmit() {
+                            form.dataset.adminLogoutConfirmed = '1';
+                            if (mq.matches) closeDrawer();
+                            if (notifFlyout && !notifFlyout.hidden) closeAdminNotif();
+                            if (appSettingsOverlay && !appSettingsOverlay.hidden) closeSettings();
+                            form.submit();
+                        }
+                        function fallbackConfirm() {
+                            if (window.confirm(adminLogoutConfirmText)) doSubmit();
+                        }
+                        if (!window.AdminSwal || typeof AdminSwal.confirm !== 'function') {
+                            fallbackConfirm();
+                            return;
+                        }
+                        AdminSwal.confirm({
+                            icon: 'warning',
+                            title: 'خروج از سامانه',
+                            text: adminLogoutConfirmText,
+                            confirmButtonText: 'بله، خارج شو',
+                            cancelButtonText: 'انصراف',
+                            confirmButtonColor: '#dc2626',
+                            focusCancel: true,
+                        }).then(function (res) {
+                            if (res && res.isConfirmed) doSubmit();
+                        }).catch(fallbackConfirm);
+                    });
+                });
             });
         })();
     </script>
