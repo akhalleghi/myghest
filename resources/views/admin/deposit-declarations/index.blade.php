@@ -37,7 +37,6 @@
         #dd-dialog,
         #dd-view-dialog {
             display: none;
-            margin: 0;
             padding: 0;
             border: none;
             border-radius: 1rem;
@@ -48,15 +47,17 @@
             color: var(--text);
             box-shadow: 0 22px 60px rgba(15, 23, 42, 0.28);
             overflow: hidden;
+            inset-inline-start: 0;
+            inset-inline-end: 0;
+            margin-inline: auto;
         }
         #dd-dialog[open],
         #dd-view-dialog[open] {
             display: flex;
             flex-direction: column;
             position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            inset: 0;
+            margin: auto;
         }
         html[data-theme="dark"] #dd-dialog,
         html[data-theme="dark"] #dd-view-dialog {
