@@ -129,6 +129,56 @@
         .lr-info-cell small { opacity: 0.8; font-weight: 600; }
         .lr-muted-cell { color: var(--muted); font-style: italic; }
 
+        .lr-wiz-open-btn {
+            font-family: inherit; font-size: 0.74rem; font-weight: 800;
+            padding: 0.38rem 0.7rem; border-radius: 0.55rem; cursor: pointer;
+            border: 1px solid rgba(124, 58, 237, 0.45); background: rgba(124, 58, 237, 0.1); color: #6d28d9;
+            white-space: nowrap;
+        }
+        .lr-wiz-open-btn:hover { background: rgba(124, 58, 237, 0.18); }
+        .lr-wiz-open-btn--block { width: 100%; justify-content: center; display: inline-flex; align-items: center; gap: 0.35rem; }
+        .lr-card__actions { padding: 0 0.75rem 0.75rem; }
+
+        .lr-doc-card--attention { border-color: rgba(220, 38, 38, 0.5) !important; box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.12); }
+        .lr-doc-row__expert {
+            grid-column: 1 / -1;
+            font-size: 0.76rem; color: #991b1b; background: rgba(254, 226, 226, 0.7);
+            border: 1px solid rgba(220, 38, 38, 0.28); border-radius: 0.55rem; padding: 0.45rem 0.55rem;
+            line-height: 1.55; font-weight: 600;
+        }
+        .lr-doc-row__expert strong { display: block; margin-bottom: 0.2rem; font-size: 0.72rem; }
+        html[data-theme="dark"] .lr-doc-row__expert { color: #fecaca; background: rgba(127, 29, 29, 0.28); border-color: rgba(248, 113, 113, 0.35); }
+        .lr-doc-row.is-locked .lr-doc-row__desc input { opacity: 0.85; }
+        .lr-doc-alert--readonly {
+            background: rgba(59, 130, 246, 0.1) !important;
+            border-color: rgba(37, 99, 235, 0.35) !important;
+            color: var(--text) !important;
+        }
+        .lr-doc-hint-banner {
+            margin: 0 0 0.75rem;
+            padding: 0.65rem 0.75rem;
+            border-radius: 0.75rem;
+            border: 1px solid rgba(220, 38, 38, 0.35);
+            background: rgba(254, 226, 226, 0.55);
+            color: #7f1d1d;
+            font-size: 0.82rem;
+            line-height: 1.55;
+        }
+        .lr-doc-hint-banner--soft {
+            border-color: rgba(217, 119, 6, 0.4);
+            background: rgba(254, 243, 199, 0.65);
+            color: #78350f;
+        }
+        .lr-doc-hint-list { margin: 0.4rem 0 0; padding-inline-start: 1.1rem; }
+        .lr-doc-hint-list li { margin: 0.25rem 0; }
+        .lr-doc-hint-note {
+            margin-top: 0.25rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
         .lr-status-chip {
             display: inline-flex; align-items: center; gap: 0.32rem;
             padding: 0.22rem 0.55rem; border-radius: 999px;
@@ -809,6 +859,7 @@
         }
         .lr-preview-box .lr-preview-ico { font-size: 1.45rem; }
         .lr-preview-box.has-file { border-style: solid; border-color: var(--primary); }
+        .lr-preview-box.is-locked { pointer-events: none; opacity: 0.88; }
         .lr-preview-box .lr-preview-ext {
             position: absolute;
             inset-inline-end: 0.18rem;
@@ -898,64 +949,148 @@
             font-size: 0.85rem;
             line-height: 1.85;
         }
+        .lr-info-row__v--accent {
+            color: var(--primary-dark);
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
         .lr-info-row__v small { display: block; opacity: 0.9; }
-
-        /* ===== footer: 3-column grid برای layout دکمه‌ها ===== */
+        .lr-at-company-banner {
+            display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+            padding: 0.45rem 0.75rem; border-radius: 0.65rem;
+            background: rgba(16, 185, 129, 0.14); color: #047857; border: 1px solid rgba(16, 185, 129, 0.35);
+            font-weight: 800; font-size: 0.82rem;
+        }
+        .lr-at-company-banner i { font-size: 1rem; }
+        html[data-theme="dark"] .lr-at-company-banner { color: #6ee7b7; border-color: rgba(52, 211, 153, 0.35); }
+        .lr-expert-cell__banner { margin-bottom: 0.55rem; }
         .lr-wiz__foot {
-            display: grid;
-            grid-template-columns: 1fr auto 1fr;
+            flex-shrink: 0;
+            padding: 0.75rem 1rem 0.9rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
             align-items: center;
+            justify-content: space-between;
             gap: 0.5rem;
         }
-        .lr-foot-slot { display: flex; align-items: center; gap: 0.45rem; }
-        .lr-foot-slot--right { justify-self: start; }   /* در RTL: راست */
-        .lr-foot-slot--center { justify-self: center; }
-        .lr-foot-slot--left { justify-self: end; }      /* در RTL: چپ */
+        /* در RTL، flex-start = راست صفحه، flex-end = چپ صفحه */
+        .lr-wiz__foot-back {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.45rem;
+            justify-content: flex-start;
+        }
+        .lr-wiz__foot-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.45rem;
+            justify-content: flex-end;
+        }
+
+        /* یکدست با .lr-btn (همان پایهٔ دکمهٔ «مرحلهٔ قبل») — فقط رنگ متفاوت */
+        .lr-wiz__btn {
+            font-family: inherit;
+            font-size: 0.76rem;
+            font-weight: 800;
+            line-height: 1.25;
+            padding: 0.42rem 0.85rem;
+            min-height: 2.35rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            text-decoration: none;
+            white-space: nowrap;
+            transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, filter 0.12s ease, opacity 0.12s ease, box-shadow 0.12s ease;
+        }
+        .lr-wiz__btn i { font-size: 0.78em; opacity: 0.95; }
+        .lr-wiz__btn--secondary:hover:not(:disabled) {
+            background: var(--primary-soft);
+            border-color: rgba(37, 99, 235, 0.35);
+            color: var(--primary-dark);
+        }
+        .lr-wiz__btn--primary {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.22);
+        }
+        .lr-wiz__btn--primary:hover:not(:disabled) {
+            filter: brightness(1.05);
+        }
+        .lr-wiz__btn--primary:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            box-shadow: none;
+            filter: none;
+        }
+        /* ارسال: آبی (همان تم primary، کمی برجسته‌تر از «مرحله بعد») */
+        .lr-wiz__btn--submit {
+            background: linear-gradient(180deg, var(--primary), var(--primary-dark));
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 5px 14px rgba(37, 99, 235, 0.28);
+        }
+        .lr-wiz__btn--submit:hover:not(:disabled) {
+            filter: brightness(1.05);
+        }
+        .lr-wiz__btn--submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            box-shadow: none;
+            filter: none;
+        }
+        .lr-wiz__btn--neutral {
+            background: rgba(148, 163, 184, 0.2);
+            color: var(--text);
+            border-color: rgba(148, 163, 184, 0.35);
+            font-weight: 700;
+        }
+        .lr-wiz__btn--neutral:hover:not(:disabled) {
+            background: rgba(148, 163, 184, 0.32);
+            border-color: rgba(148, 163, 184, 0.45);
+        }
+        html[data-theme="dark"] .lr-wiz__btn--neutral {
+            background: rgba(148, 163, 184, 0.12);
+            border-color: rgba(148, 163, 184, 0.28);
+        }
 
         /* اطمینان از احترام به attribute hidden در همه دکمه‌های footer */
         .lr-wiz__foot [hidden] { display: none !important; }
 
-        .lr-btn-submit {
-            background: linear-gradient(180deg, #8b5cf6, #6d28d9);
-            color: #fff;
-            border: 0;
-            padding: 0.6rem 1.3rem;
-            border-radius: 0.55rem;
-            font-size: 0.88rem;
-            font-weight: 800;
-            cursor: pointer;
-            display: inline-flex; align-items: center; gap: 0.45rem;
-            transition: filter 0.12s ease, transform 0.12s ease;
-            box-shadow: 0 4px 14px rgba(124, 58, 237, 0.32);
-        }
-        .lr-btn-submit:hover:not(:disabled) { filter: brightness(1.05); transform: translateY(-1px); }
-        .lr-btn-submit:active:not(:disabled) { transform: translateY(0); }
-        .lr-btn-submit:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
-
-        .lr-btn-close {
-            background: rgba(148, 163, 184, 0.22);
-            color: var(--text);
-            border: 0;
-            padding: 0.5rem 1.1rem;
-            border-radius: 0.55rem;
-            font-size: 0.84rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: background 0.12s ease;
-        }
-        .lr-btn-close:hover { background: rgba(148, 163, 184, 0.34); }
-        html[data-theme="dark"] .lr-btn-close { background: rgba(148, 163, 184, 0.12); }
-
         @media (max-width: 520px) {
             .lr-wiz__foot {
-                grid-template-columns: 1fr;
-                gap: 0.4rem;
+                flex-direction: column;
+                align-items: stretch;
             }
-            .lr-foot-slot--center { justify-self: stretch; order: 1; }
-            .lr-foot-slot--right { justify-self: stretch; order: 2; }
-            .lr-foot-slot--left { justify-self: stretch; order: 3; }
-            .lr-foot-slot { justify-content: center; }
-            .lr-btn-submit { width: 100%; justify-content: center; }
+            .lr-wiz__foot-actions {
+                order: 1;
+                justify-content: center;
+            }
+            .lr-wiz__foot-back {
+                order: 2;
+                justify-content: center;
+            }
+            .lr-wiz__foot-actions .lr-wiz__btn,
+            .lr-wiz__foot-back .lr-wiz__btn {
+                flex: 1 1 auto;
+                justify-content: center;
+                min-width: 0;
+            }
+            .lr-wiz__foot-actions .lr-wiz__btn--submit {
+                white-space: normal;
+                line-height: 1.35;
+                padding-block: 0.5rem;
+            }
         }
 
         .lr-no-plans {
@@ -970,26 +1105,6 @@
         .lr-no-plans i { font-size: 2.4rem; color: var(--primary-dark); opacity: 0.45; }
         .lr-no-plans h3 { margin: 0; font-size: 0.95rem; font-weight: 800; color: var(--text); }
         .lr-no-plans p { margin: 0; font-size: 0.82rem; color: var(--muted); line-height: 1.7; max-width: 32rem; }
-
-        .lr-wiz__foot {
-            flex-shrink: 0;
-            padding: 0.75rem 1rem 0.9rem;
-            border-top: 1px solid var(--border);
-            display: flex;
-            gap: 0.45rem;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        .lr-wiz__foot-spacer { flex: 1; }
-        .lr-wiz__foot .lr-btn--prev {
-            background: var(--bg-card);
-            color: var(--text);
-        }
-        .lr-wiz__foot .lr-btn--next {
-            font-size: 0.86rem;
-            padding: 0.55rem 1.05rem;
-        }
-        .lr-wiz__foot .lr-btn--next i { font-size: 0.78em; }
 
         @media (max-width: 520px) {
             .lr-stepper__label { font-size: 0.68rem; }
@@ -1007,7 +1122,7 @@
             <h1 id="lr-page-title" class="lr-head__title">درخواست‌های وام</h1>
             <span class="lr-head__badge" aria-label="تعداد درخواست‌ها">{{ $loanRequestsCountFa }} مورد</span>
             <p class="lr-head__lead">
-                از این بخش می‌توانید درخواست وام جدید ثبت کنید و وضعیت درخواست‌های قبلی، نظر کارشناس و اطلاعات نمایندهٔ مربوطه را پیگیری نمایید.
+                از این بخش می‌توانید درخواست وام جدید ثبت کنید و وضعیت درخواست‌های قبلی و نظر کارشناس را پیگیری نمایید.
             </p>
         </div>
 
@@ -1017,7 +1132,7 @@
                 <input
                     type="search"
                     id="lr-search-q"
-                    placeholder="جستجو (شماره درخواست، عنوان وام، نام نماینده…)"
+                    placeholder="جستجو (شماره درخواست، عنوان وام، وضعیت، نظر کارشناس…)"
                     autocomplete="off"
                     maxlength="120"
                     spellcheck="false"
@@ -1057,17 +1172,14 @@
                         <th scope="col">مبلغ</th>
                         <th scope="col">تاریخ ثبت درخواست</th>
                         <th scope="col">وضعیت</th>
-                        <th scope="col">اطلاعات نماینده</th>
-                        <th scope="col">نظر کارشناس</th>
+                        <th scope="col">پیام کارشناس (برای شما)</th>
                         <th scope="col">عملیات‌ها</th>
                     </tr>
                 </thead>
                 <tbody id="lr-tbody">
-                    @forelse ($loanRequests as $item)
-                        {{-- هنگام پیاده‌سازی مدل، این بخش با اطلاعات واقعی پر می‌شود --}}
-                    @empty
+                    @if ($loanRequests->isEmpty())
                         <tr id="lr-empty-row">
-                            <td colspan="8" style="padding:0;border-bottom:0">
+                            <td colspan="7" style="padding:0;border-bottom:0">
                                 <div class="lr-empty">
                                     <i class="fa-regular fa-folder-open lr-empty__ico" aria-hidden="true"></i>
                                     <span class="lr-empty__title">هنوز درخواست وامی ثبت نکرده‌اید.</span>
@@ -1079,9 +1191,46 @@
                                 </div>
                             </td>
                         </tr>
-                    @endforelse
+                    @else
+                        @foreach ($loanRequests as $lr)
+                            <tr data-lr-row data-search="{{ e($lr['search']) }}">
+                                <td class="lr-id-cell">
+                                    <i class="fa-solid fa-hashtag" aria-hidden="true"></i>{{ $lr['id_fa'] }}
+                                </td>
+                                <td>
+                                    <div class="lr-info-cell">
+                                        <strong>{{ $lr['loan_title'] }}</strong>
+                                    </div>
+                                </td>
+                                <td class="lr-money">{{ $lr['amount_fa'] }} <small>تومان</small></td>
+                                <td>{{ $lr['submitted_at_jalali_fa'] }}</td>
+                                <td>
+                                    <span class="lr-status-chip {{ $lr['status_chip_class'] }}">
+                                        <i class="fa-regular fa-clock" aria-hidden="true"></i>
+                                        {{ $lr['status_label'] }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="lr-info-cell">
+                                        @if (!empty($lr['documents_at_company_banner_html']))
+                                            <div class="lr-expert-cell__banner">{!! $lr['documents_at_company_banner_html'] !!}</div>
+                                        @endif
+                                        {!! $lr['expert_note_html'] !!}
+                                    </div>
+                                </td>
+                                <td>
+                                    <button
+                                        type="button"
+                                        class="lr-wiz-open-btn"
+                                        data-lr-open-wizard="{{ (int) $lr['id'] }}"
+                                        data-lr-wizard-label="{{ e($lr['wizard_open_label']) }}"
+                                    >{{ $lr['wizard_open_label'] }}</button>
+                                </td>
+                            </tr>
+                        @endforeach
+                    @endif
                     <tr id="lr-no-result-row" class="lr-no-result-row" hidden>
-                        <td colspan="8">
+                        <td colspan="7">
                             <i class="fa-solid fa-magnifying-glass" aria-hidden="true" style="font-size:1.2rem;opacity:0.55;margin-inline-end:0.4rem"></i>
                             موردی با عبارت جست‌وجو یافت نشد.
                         </td>
@@ -1091,9 +1240,7 @@
         </div>
 
         <div id="lr-cards" class="lr-cards" role="list" aria-live="polite">
-            @forelse ($loanRequests as $item)
-                {{-- کارت موبایل برای هر درخواست (پس از پیاده‌سازی مدل تکمیل می‌شود) --}}
-            @empty
+            @if ($loanRequests->isEmpty())
                 <div class="lr-empty" id="lr-empty-card">
                     <i class="fa-regular fa-folder-open lr-empty__ico" aria-hidden="true"></i>
                     <span class="lr-empty__title">هنوز درخواست وامی ثبت نکرده‌اید.</span>
@@ -1103,7 +1250,53 @@
                         ثبت درخواست وام
                     </button>
                 </div>
-            @endforelse
+            @else
+                @foreach ($loanRequests as $lr)
+                    <article class="lr-card" data-lr-card data-search="{{ e($lr['search']) }}">
+                        <div class="lr-card__head">
+                            <span class="lr-card__id">
+                                <i class="fa-solid fa-hashtag" aria-hidden="true"></i>
+                                {{ $lr['id_fa'] }}
+                            </span>
+                            <span class="lr-status-chip {{ $lr['status_chip_class'] }}">
+                                <i class="fa-regular fa-clock" aria-hidden="true"></i>
+                                {{ $lr['status_label'] }}
+                            </span>
+                        </div>
+                        <dl class="lr-card__kv">
+                            <div class="lr-card__kv-row">
+                                <dt>وام</dt>
+                                <dd>{{ $lr['loan_title'] }}</dd>
+                            </div>
+                            <div class="lr-card__kv-row">
+                                <dt>مبلغ</dt>
+                                <dd class="lr-money">{{ $lr['amount_fa'] }} <small>تومان</small></dd>
+                            </div>
+                            <div class="lr-card__kv-row">
+                                <dt>تاریخ ثبت</dt>
+                                <dd>{{ $lr['submitted_at_jalali_fa'] }}</dd>
+                            </div>
+                            <div class="lr-card__kv-row">
+                                <dt>پیام کارشناس</dt>
+                                <dd>
+                                    @if (!empty($lr['documents_at_company_banner_html']))
+                                        <div class="lr-expert-cell__banner">{!! $lr['documents_at_company_banner_html'] !!}</div>
+                                    @endif
+                                    {!! $lr['expert_note_html'] !!}
+                                </dd>
+                            </div>
+                        </dl>
+                        <div class="lr-card__actions">
+                            <button
+                                type="button"
+                                class="lr-wiz-open-btn lr-wiz-open-btn--block"
+                                data-lr-open-wizard="{{ (int) $lr['id'] }}"
+                                data-lr-wizard-label="{{ e($lr['wizard_open_label']) }}"
+                            >{{ $lr['wizard_open_label'] }}</button>
+                        </div>
+                    </article>
+                @endforeach
+            @endif
             <div class="lr-empty" id="lr-no-result-card" hidden>
                 <i class="fa-solid fa-magnifying-glass lr-empty__ico" aria-hidden="true"></i>
                 <span class="lr-empty__title">موردی با عبارت جست‌وجو یافت نشد.</span>
@@ -1294,6 +1487,10 @@
                 <section class="lr-step" data-lr-step-panel="3" aria-label="مرحله سه: تعیین وضعیت" hidden>
                     <div class="lr-status-card">
                         <div class="lr-info-row">
+                            <span class="lr-info-row__k">شماره درخواست:</span>
+                            <span class="lr-info-row__v lr-info-row__v--accent" id="lr-st3-req-id">—</span>
+                        </div>
+                        <div class="lr-info-row">
                             <span class="lr-info-row__k">وضعیت:</span>
                             <span class="lr-info-row__v" id="lr-st3-status">در انتظار بررسی کارشناس</span>
                         </div>
@@ -1301,10 +1498,14 @@
                             <span class="lr-info-row__k">تاریخ ثبت درخواست:</span>
                             <span class="lr-info-row__v" id="lr-st3-date">—</span>
                         </div>
+                        <div class="lr-info-row" id="lr-st3-doc-banner-row" hidden role="status">
+                            <div id="lr-st3-doc-banner" class="lr-at-company-banner-host"></div>
+                        </div>
                         <div class="lr-info-row">
-                            <span class="lr-info-row__k">نظر کارشناس:</span>
+                            <span class="lr-info-row__k">نظر کارشناس (برای شما):</span>
                             <span class="lr-info-row__v">
-                                تاکنون کارشناس نظری ثبت نکرده است.
+                                <span id="lr-st3-expert">تاکنون کارشناس نظری ثبت نکرده است.</span>
+                                <br>
                                 <small id="lr-st3-physical">وضعیت تحویل شدن مدارک فیزیکی به شرکت: به شرکت نرسیده</small>
                             </span>
                         </div>
@@ -1313,26 +1514,23 @@
             </div>
 
             <footer class="lr-wiz__foot">
-                {{-- در RTL: راست view → مرحلهٔ قبل --}}
-                <div class="lr-foot-slot lr-foot-slot--right">
-                    <button type="button" class="lr-btn lr-btn--prev" id="lr-step-prev" hidden>
+                {{-- RTL: flex-start = سمت راست مدال — مرحلهٔ قبل --}}
+                <div class="lr-wiz__foot-back">
+                    <button type="button" class="lr-wiz__btn lr-wiz__btn--secondary" id="lr-step-prev" hidden>
                         <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
                         مرحلهٔ قبل
                     </button>
                 </div>
-                {{-- مرکز → ارسال درخواست --}}
-                <div class="lr-foot-slot lr-foot-slot--center">
-                    <button type="button" class="lr-btn-submit" id="lr-submit-btn" hidden>
+                {{-- RTL: flex-end = سمت چپ مدال — مرحلهٔ بعد، ارسال، بستن --}}
+                <div class="lr-wiz__foot-actions">
+                    <button type="button" class="lr-wiz__btn lr-wiz__btn--submit" id="lr-submit-btn" hidden>
                         <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
                         ارسال درخواست به کارشناس
                     </button>
-                </div>
-                {{-- در RTL: چپ view → مرحلهٔ بعد / بستن --}}
-                <div class="lr-foot-slot lr-foot-slot--left">
-                    <button type="button" class="lr-btn-close" id="lr-close-btn" hidden>
+                    <button type="button" class="lr-wiz__btn lr-wiz__btn--neutral" id="lr-close-btn" hidden>
                         بستن
                     </button>
-                    <button type="button" class="portal-loan__btn portal-loan__btn--primary lr-btn--next" id="lr-step-next" disabled>
+                    <button type="button" class="lr-wiz__btn lr-wiz__btn--primary" id="lr-step-next" disabled>
                         مرحلهٔ بعد
                         <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
                     </button>
@@ -1343,8 +1541,16 @@
 @endsection
 
 @push('scripts')
+    @php
+        $__lrWizPlaceholderId = 999999991;
+        $__lrWizContextUrl = str_replace((string) $__lrWizPlaceholderId, '__ID__', route('user.loan-request.wizard-context', ['customerLoanRequest' => $__lrWizPlaceholderId]));
+        $__lrWizUpdateUrl = str_replace((string) $__lrWizPlaceholderId, '__ID__', route('user.loan-request.update', ['customerLoanRequest' => $__lrWizPlaceholderId]));
+    @endphp
     <script>
         window.__LR_PLANS__ = @json($loanPlans ?? []);
+        window.__LR_STORE_URL__ = @json(route('user.loan-request.store'));
+        window.__LR_WIZ_CONTEXT_URL__ = @json($__lrWizContextUrl);
+        window.__LR_WIZ_UPDATE_URL__ = @json($__lrWizUpdateUrl);
     </script>
     <script>
         (function () {
@@ -1431,6 +1637,13 @@
                 docState: [],
                 docStatePlanId: null,
                 submitted: false,
+                editRequestId: null,
+                wizardEditable: true,
+                waivedPresetKeys: [],
+                reloadOnClose: false,
+                requestStatus: '',
+                requestMarkedDocumentsIncomplete: false,
+                documentIssueHints: [],
             };
 
             var FA_DIGITS = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
@@ -1513,6 +1726,209 @@
                 return Math.max(0, Math.round(profit));
             }
 
+            function lrWizardContextUrl(id) {
+                var t = typeof window.__LR_WIZ_CONTEXT_URL__ === 'string' ? window.__LR_WIZ_CONTEXT_URL__ : '';
+                return t ? t.replace('__ID__', String(id)) : '';
+            }
+            function lrWizardUpdateUrl(id) {
+                var t = typeof window.__LR_WIZ_UPDATE_URL__ === 'string' ? window.__LR_WIZ_UPDATE_URL__ : '';
+                return t ? t.replace('__ID__', String(id)) : '';
+            }
+
+            function lockStep1Fields(locked) {
+                var ids = ['lr-plan-select', 'lr-amount-input', 'lr-count-input', 'lr-gap-input', 'lr-desc-input'];
+                ids.forEach(function (id) {
+                    var el = document.getElementById(id);
+                    if (!el) return;
+                    el.disabled = !!locked;
+                });
+                document.querySelectorAll('[data-lr-step][data-lr-dir]').forEach(function (btn) {
+                    btn.disabled = !!locked;
+                });
+            }
+
+            function docRowLockedFromFlags(wizardEditable, mayReplace) {
+                return !wizardEditable || !mayReplace;
+            }
+
+            function buildDocStateFromServer(plan, serverDocs, waivedKeys, wizardEditable) {
+                disposeDocState();
+                LR.docState = [];
+                LR.docStatePlanId = plan ? plan.id : null;
+                if (!plan || !Array.isArray(plan.initial_documents)) return;
+
+                var docs = serverDocs || [];
+                var waived = waivedKeys || [];
+
+                plan.initial_documents.forEach(function (d, idx) {
+                    var pk = (d.preset_key != null && String(d.preset_key).trim() !== '')
+                        ? String(d.preset_key).trim()
+                        : ('doc_' + idx);
+                    var matches = docs.filter(function (sd) { return String(sd.preset_key) === pk; });
+                    matches.sort(function (a, b) { return Number(a.row_index || 0) - Number(b.row_index || 0); });
+
+                    var rows = [];
+                    if (matches.length === 0) {
+                        rows.push({
+                            id: 1,
+                            file: null,
+                            previewUrl: null,
+                            description: '',
+                            serverDocumentId: null,
+                            existingUrl: '',
+                            existingIsImage: false,
+                            expertNote: '',
+                            reviewStatus: '',
+                            needsAttention: false,
+                            mayReplaceFile: false,
+                            rowLocked: docRowLockedFromFlags(wizardEditable, false),
+                        });
+                    } else {
+                        matches.forEach(function (sd) {
+                            var rid = Number(sd.row_index) > 0 ? Number(sd.row_index) : Number(sd.id);
+                            var st = String(sd.review_status || '');
+                            var may = sd.may_replace_file === true || sd.may_replace_file === 1;
+                            rows.push({
+                                id: rid,
+                                file: null,
+                                previewUrl: null,
+                                description: sd.description != null ? String(sd.description) : '',
+                                serverDocumentId: sd.id,
+                                existingUrl: sd.file_url ? String(sd.file_url) : '',
+                                existingIsImage: !!sd.is_image,
+                                expertNote: sd.expert_note != null ? String(sd.expert_note) : '',
+                                reviewStatus: st,
+                                needsAttention: !!sd.needs_attention,
+                                mayReplaceFile: may,
+                                rowLocked: docRowLockedFromFlags(wizardEditable, may),
+                            });
+                        });
+                    }
+
+                    var nextRowId = rows.reduce(function (m, r) { return Math.max(m, Number(r.id) || 0); }, 0) + 1;
+
+                    LR.docState.push({
+                        presetKey: pk,
+                        title: String(d.title || ('مدرک ' + (idx + 1))),
+                        rows: rows,
+                        nextRowId: nextRowId,
+                    });
+                });
+            }
+
+            function applyWizardContext(ctx) {
+                LR.editRequestId = ctx.loan_request_id != null ? Number(ctx.loan_request_id) : null;
+                LR.wizardEditable = !!ctx.wizard_editable;
+                LR.requestMarkedDocumentsIncomplete = !!ctx.request_marked_documents_incomplete;
+                LR.documentIssueHints = Array.isArray(ctx.document_issue_hints) ? ctx.document_issue_hints.slice() : [];
+                LR.requestStatus = ctx.request && ctx.request.status != null ? String(ctx.request.status) : '';
+                LR.waivedPresetKeys = Array.isArray(ctx.waived_initial_preset_keys) ? ctx.waived_initial_preset_keys.slice() : [];
+                LR.plan = ctx.plan || null;
+                LR.planId = LR.plan ? LR.plan.id : null;
+
+                var planSelect = document.getElementById('lr-plan-select');
+                if (planSelect && LR.plan) {
+                    var pid = String(LR.plan.id);
+                    var exists = false;
+                    for (var oi = 0; oi < planSelect.options.length; oi++) {
+                        if (planSelect.options[oi].value === pid) { exists = true; break; }
+                    }
+                    if (!exists) {
+                        var o = document.createElement('option');
+                        o.value = pid;
+                        o.textContent = LR.plan.title_with_code || LR.plan.title || ('طرح #' + pid);
+                        planSelect.appendChild(o);
+                    }
+                    planSelect.value = pid;
+                    planSelect.disabled = true;
+                }
+
+                LR.amount = Number(ctx.request && ctx.request.amount_toman) || 0;
+                LR.count = Number(ctx.request && ctx.request.installments_count) || 1;
+                LR.gap = Number(ctx.request && ctx.request.installment_gap) || 1;
+                LR.desc = ctx.request && ctx.request.description != null ? String(ctx.request.description) : '';
+                if (LR.plan && ctx.request && ctx.request.installment_gap_unit) {
+                    LR.plan = Object.assign({}, LR.plan, { installment_gap_unit: String(ctx.request.installment_gap_unit) });
+                }
+
+                var info = document.getElementById('lr-plan-info');
+                var params = document.getElementById('lr-params-col');
+                var descW = document.getElementById('lr-desc-wrap');
+                if (LR.plan) {
+                    fillPlanInfo(LR.plan);
+                    if (info) info.hidden = false;
+                    if (params) params.hidden = false;
+                    if (descW) descW.hidden = false;
+                }
+
+                var amountInput = document.getElementById('lr-amount-input');
+                if (amountInput) amountInput.value = LR.amount > 0 ? faNum(LR.amount.toLocaleString('en-US')) : '';
+                var descInput = document.getElementById('lr-desc-input');
+                if (descInput) descInput.value = LR.desc;
+
+                lockStep1Fields(!LR.wizardEditable);
+
+                refreshOutputs();
+                refreshDescUi();
+
+                buildDocStateFromServer(LR.plan, ctx.documents || [], LR.waivedPresetKeys, LR.wizardEditable);
+                renderStep2();
+                updateNextBtn();
+                setWizardModeLabel();
+            }
+
+            function setWizardModeLabel() {
+                var h = document.querySelector('#lr-wizard .lr-wiz__title');
+                if (!h) return;
+                var base = '<i class="fa-solid fa-hand-holding-dollar" aria-hidden="true"></i> درخواست وام';
+                var viewOnly = !!LR.editRequestId && !LR.wizardEditable;
+                var edit = !!LR.editRequestId && !!LR.wizardEditable;
+                if (viewOnly) {
+                    h.innerHTML = base + ' <span style="font-size:0.78em;font-weight:700;opacity:0.85">(مشاهده)</span>';
+                } else if (edit) {
+                    h.innerHTML = base + ' <span style="font-size:0.78em;font-weight:700;opacity:0.85">(ویرایش)</span>';
+                } else {
+                    h.innerHTML = base;
+                }
+            }
+
+            function openExistingWizard(requestId) {
+                if (!wizardDialog) return;
+                var url = lrWizardContextUrl(requestId);
+                if (!url) {
+                    window.alert('آدرس بارگذاری درخواست تنظیم نشده است.');
+                    return;
+                }
+                resetWizard();
+                if (typeof wizardDialog.showModal === 'function') {
+                    wizardDialog.showModal();
+                } else {
+                    wizardDialog.setAttribute('open', '');
+                }
+                var st2 = document.getElementById('lr-step2-root');
+                if (st2) st2.innerHTML = '<div class="lr-step-coming"><p>در حال بارگذاری…</p></div>';
+                showStep(1);
+                fetch(url, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                })
+                    .then(function (r) {
+                        if (!r.ok) throw new Error('bad');
+                        return r.json();
+                    })
+                    .then(function (ctx) {
+                        applyWizardContext(ctx);
+                    })
+                    .catch(function () {
+                        closeWizard();
+                        if (window.AdminSwal && AdminSwal.fire) {
+                            AdminSwal.fire({ icon: 'error', title: 'خطا', text: 'بارگذاری اطلاعات درخواست ناموفق بود.' });
+                        } else {
+                            window.alert('بارگذاری اطلاعات درخواست ناموفق بود.');
+                        }
+                    });
+            }
+
             // ---------- بازشدن و بستن مودال ----------
             function openWizard() {
                 if (!wizardDialog) return;
@@ -1527,7 +1943,6 @@
             function closeWizard() {
                 if (!wizardDialog) return;
                 if (wizardDialog.open) wizardDialog.close();
-                disposeDocState();
             }
             function resetWizard() {
                 disposeDocState();
@@ -1539,8 +1954,19 @@
                 LR.gap = 1;
                 LR.desc = '';
                 LR.submitted = false;
+                LR.editRequestId = null;
+                LR.wizardEditable = true;
+                LR.waivedPresetKeys = [];
+                LR.reloadOnClose = false;
+                LR.requestStatus = '';
+                LR.requestMarkedDocumentsIncomplete = false;
+                LR.documentIssueHints = [];
                 var sel = document.getElementById('lr-plan-select');
-                if (sel) sel.value = '';
+                if (sel) {
+                    sel.value = '';
+                    sel.disabled = false;
+                }
+                lockStep1Fields(false);
                 var info = document.getElementById('lr-plan-info');
                 if (info) info.hidden = true;
                 var params = document.getElementById('lr-params-col');
@@ -1562,6 +1988,7 @@
                 updateStepper();
                 updateNextBtn();
                 showStep(1);
+                setWizardModeLabel();
             }
 
             // ---------- اسکلت stepper / step navigation ----------
@@ -1596,11 +2023,11 @@
                 } else if (n === 2) {
                     if (prev) prev.hidden = false;
                     if (next) next.hidden = true;
-                    if (sub) sub.hidden = false;
+                    if (sub) sub.hidden = !!(LR.editRequestId && !LR.wizardEditable);
                     if (close) close.hidden = true;
                 } else if (n === 3) {
-                    // پس از ارسال موفق: مرحلهٔ قبل و بستن
-                    if (prev) prev.hidden = false;
+                    // پس از ثبت واقعی: فقط بستن؛ قبل از ثبت (حالت نادر) دکمهٔ قبلی بماند
+                    if (prev) prev.hidden = !!LR.submitted;
                     if (next) next.hidden = true;
                     if (sub) sub.hidden = true;
                     if (close) close.hidden = false;
@@ -1706,6 +2133,7 @@
             }
 
             function onPlanChange(planId) {
+                if (LR.editRequestId) return;
                 var plan = LR_PLANS.find(function (p) { return String(p.id) === String(planId); }) || null;
                 LR.plan = plan;
                 LR.planId = plan ? plan.id : null;
@@ -1887,10 +2315,26 @@
                 LR.docStatePlanId = plan ? plan.id : null;
                 if (!plan || !Array.isArray(plan.initial_documents)) return;
                 plan.initial_documents.forEach(function (d, idx) {
+                    var pk = (d.preset_key != null && String(d.preset_key).trim() !== '')
+                        ? String(d.preset_key).trim()
+                        : ('doc_' + idx);
                     LR.docState.push({
-                        presetKey: 'doc_' + idx,
+                        presetKey: pk,
                         title: String(d.title || ('مدرک ' + (idx + 1))),
-                        rows: [{ id: 1, file: null, previewUrl: null, description: '' }],
+                        rows: [{
+                            id: 1,
+                            file: null,
+                            previewUrl: null,
+                            description: '',
+                            serverDocumentId: null,
+                            existingUrl: '',
+                            existingIsImage: false,
+                            expertNote: '',
+                            reviewStatus: '',
+                            needsAttention: false,
+                            mayReplaceFile: true,
+                            rowLocked: false,
+                        }],
                         nextRowId: 2,
                     });
                 });
@@ -1911,10 +2355,17 @@
                 }
             }
 
-            // وضعیت چیپ هر مدرک
-            function docStatusInfo(doc) {
-                var hasAnyFile = doc.rows.some(function (r) { return !!r.file; });
-                if (hasAnyFile) return { label: 'ثبت‌شده', cls: 'lr-status-chip-row--done', sub: '' };
+            function rowStatusInfo(row) {
+                var hasLocal = !!row.file;
+                var hasServer = !!(row.existingUrl && row.serverDocumentId);
+                var eff = hasLocal || hasServer;
+                if (row.reviewStatus === 'incomplete') {
+                    return { label: 'ناقص', cls: 'lr-status-chip-row--pending', sub: '' };
+                }
+                if (row.reviewStatus === 'waiting_user') {
+                    return { label: 'منتظر شما', cls: 'lr-status-chip-row--pending', sub: '' };
+                }
+                if (eff) return { label: 'ثبت‌شده', cls: 'lr-status-chip-row--done', sub: '' };
                 return { label: 'ثبت', cls: 'lr-status-chip-row--pending', sub: 'در انتظار ثبت توسط کاربر' };
             }
 
@@ -1936,22 +2387,49 @@
                     return;
                 }
 
+                var hintBanner = '';
+                if (LR.documentIssueHints && LR.documentIssueHints.length && LR.wizardEditable) {
+                    var items = LR.documentIssueHints.map(function (h) {
+                        var note = (h.expert_note && String(h.expert_note).trim() !== '')
+                            ? '<div class="lr-doc-hint-note">' + escapeHtml(String(h.expert_note)) + '</div>'
+                            : '';
+                        return '<li><strong>' + escapeHtml(String(h.title || 'مدرک')) + '</strong> — ' +
+                            escapeHtml(String(h.status_label || '')) + note + '</li>';
+                    }).join('');
+                    hintBanner = '<div class="lr-doc-hint-banner" role="status"><strong>موارد ناقص یا نیازمند اقدام شما</strong><ul class="lr-doc-hint-list">' + items + '</ul></div>';
+                } else if (LR.requestMarkedDocumentsIncomplete && LR.wizardEditable && (!LR.documentIssueHints || !LR.documentIssueHints.length)) {
+                    hintBanner = '<div class="lr-doc-hint-banner lr-doc-hint-banner--soft" role="status"><strong>وضعیت درخواست: مدارک ناقص</strong>' +
+                        '<p class="lr-doc-hint-note" style="margin:0.35rem 0 0">در کارت‌های زیر در صورت امکان، فایل قبلی را با نسخهٔ اصلاح‌شده جایگزین کنید و دوباره ارسال نمایید.</p></div>';
+                }
+
                 // وضعیتی که حداقل یک مدرک نیاز دارد
                 var alertHtml =
+                    (LR.editRequestId && !LR.wizardEditable
+                        ? '<div class="lr-doc-alert lr-doc-alert--readonly" role="status">' +
+                            '<i class="fa-solid fa-eye" aria-hidden="true"></i>' +
+                            '<div>این درخواست فقط برای مشاهده است؛ اطلاعات زیر همان چیزی است که ثبت کرده‌اید.</div></div>'
+                        : '') +
                     '<div class="lr-doc-alert" role="status">' +
                         '<i class="fa-solid fa-circle-info" aria-hidden="true"></i>' +
-                        '<div>کاربر گرامی، پس از ثبت مدارک، بر روی دکمهٔ «ارسال درخواست به کارشناس» پایین فرم کلیک نمایید.</div>' +
+                        '<div>' + (LR.wizardEditable
+                            ? 'کاربر گرامی، پس از ثبت مدارک، بر روی دکمهٔ «ارسال درخواست به کارشناس» پایین فرم کلیک نمایید.'
+                            : 'مدارک بارگذاری‌شده و توضیحات شما به‌صورت زیر است.') +
+                        '</div>' +
                     '</div>';
 
                 var cardsHtml = LR.docState.map(function (doc) {
                     var rowsHtml = doc.rows.map(function (r) { return rowHtml(doc, r); }).join('');
-                    var addDisabled = doc.rows.length >= MAX_ROWS_PER_DOC ? 'disabled' : '';
+                    var needAtt = doc.rows.some(function (r) {
+                        return r.needsAttention || (LR.requestMarkedDocumentsIncomplete && r.mayReplaceFile);
+                    });
+                    var addDisabled = doc.rows.length >= MAX_ROWS_PER_DOC || !LR.wizardEditable ? 'disabled' : '';
+                    var addWrapHidden = !LR.wizardEditable ? ' hidden' : '';
                     return (
-                        '<div class="lr-doc-card" data-lr-doc="' + escapeHtml(doc.presetKey) + '">' +
+                        '<div class="lr-doc-card' + (needAtt ? ' lr-doc-card--attention' : '') + '" data-lr-doc="' + escapeHtml(doc.presetKey) + '">' +
                             '<div class="lr-doc-card__head">' + escapeHtml(doc.title) + '</div>' +
                             '<div class="lr-doc-card__body">' +
                                 rowsHtml +
-                                '<div class="lr-doc-add-row-wrap">' +
+                                '<div class="lr-doc-add-row-wrap"' + addWrapHidden + '>' +
                                     '<button type="button" class="lr-doc-add-row" data-lr-add-row="' + escapeHtml(doc.presetKey) + '" ' + addDisabled + '>' +
                                         '<i class="fa-solid fa-plus" aria-hidden="true"></i>' +
                                         ' افزودن ردیف پیوست' +
@@ -1962,60 +2440,77 @@
                     );
                 }).join('');
 
-                root.innerHTML = alertHtml + cardsHtml;
+                root.innerHTML = hintBanner + alertHtml + cardsHtml;
                 attachStep2Handlers();
             }
 
             function rowHtml(doc, row) {
-                var st = docStatusInfo(doc);
-                var hasFile = !!row.file;
+                var st = rowStatusInfo(row);
+                var hasLocal = !!row.file;
+                var hasServer = !!row.existingUrl;
+                var eff = hasLocal || hasServer;
                 var previewInner;
-                if (hasFile && row.file && row.file.type && row.file.type.indexOf('image/') === 0 && row.previewUrl) {
+                if (hasLocal && row.file && row.file.type && row.file.type.indexOf('image/') === 0 && row.previewUrl) {
                     previewInner = '<img src="' + escapeAttr(row.previewUrl) + '" alt="' + escapeAttr(row.file.name || '') + '">';
-                } else if (hasFile) {
+                } else if (hasLocal) {
                     previewInner = '<i class="fa-regular fa-file-pdf lr-preview-ico" aria-hidden="true"></i>' +
                         '<span class="lr-preview-ext">' + escapeHtml(extOf(row.file.name) || 'PDF') + '</span>';
+                } else if (hasServer && row.existingIsImage) {
+                    previewInner = '<img src="' + escapeAttr(row.existingUrl) + '" alt="">';
+                } else if (hasServer) {
+                    previewInner = '<i class="fa-regular fa-file-pdf lr-preview-ico" aria-hidden="true"></i>' +
+                        '<span class="lr-preview-ext">PDF</span>';
                 } else {
                     previewInner = '<i class="fa-regular fa-image lr-preview-ico" aria-hidden="true"></i>';
                 }
                 var presetKey = escapeAttr(doc.presetKey);
                 var rowId = escapeAttr(String(row.id));
-                var pendingText = !hasFile
+                var pendingText = !eff && !row.rowLocked
                     ? '<div class="lr-status-chip-row--pending-text">در انتظار ثبت توسط کاربر</div>'
                     : '';
+                var expertHtml = (row.expertNote && String(row.expertNote).trim() !== '')
+                    ? '<div class="lr-doc-row__expert" role="note"><strong>توضیح کارشناس برای این مدرک</strong>' +
+                        escapeHtml(String(row.expertNote)) + '</div>'
+                    : '';
+                var lockedCls = row.rowLocked ? ' is-locked' : '';
+                var dis = row.rowLocked ? ' disabled' : '';
+                var canRemoveEmpty = doc.rows.length > 1;
+                var rmDis = (row.rowLocked || (hasServer && !hasLocal) || (!hasLocal && !hasServer && !canRemoveEmpty)) ? 'disabled' : '';
+                var dlDis = (!hasLocal && !hasServer) ? 'disabled' : '';
 
                 return (
-                    '<div class="lr-doc-row" data-lr-row="' + rowId + '" data-lr-doc-row="' + presetKey + '">' +
+                    '<div class="lr-doc-row' + lockedCls + '" data-lr-row="' + rowId + '" data-lr-doc-row="' + presetKey + '">' +
+                        expertHtml +
                         '<div class="lr-doc-row__status">' +
-                            '<span class="lr-status-chip-row ' + escapeAttr(st.cls) + '">' + escapeHtml(hasFile ? 'ثبت‌شده' : 'ثبت') + '</span>' +
+                            '<span class="lr-status-chip-row ' + escapeAttr(st.cls) + '">' + escapeHtml(st.label) + '</span>' +
                             pendingText +
                         '</div>' +
                         '<div class="lr-doc-row__desc">' +
                             '<input type="text" maxlength="500" placeholder="توضیحات خود را در صورت لزوم اینجا وارد کنید" ' +
                                 'value="' + escapeAttr(row.description || '') + '" ' +
-                                'data-lr-row-desc="' + presetKey + '|' + rowId + '">' +
+                                'data-lr-row-desc="' + presetKey + '|' + rowId + '"' + dis + '>' +
                         '</div>' +
                         '<div class="lr-doc-row__preview">' +
-                            '<label class="lr-preview-box ' + (hasFile ? 'has-file' : '') + '" tabindex="0" aria-label="انتخاب فایل">' +
+                            '<label class="lr-preview-box ' + (eff ? 'has-file' : '') + (row.rowLocked ? ' is-locked' : '') + '" tabindex="0" aria-label="انتخاب فایل">' +
                                 previewInner +
                                 '<input type="file" hidden accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf" ' +
-                                    'data-lr-row-file="' + presetKey + '|' + rowId + '">' +
+                                    'data-lr-row-file="' + presetKey + '|' + rowId + '"' + dis + '>' +
                             '</label>' +
                             '<div class="lr-preview-actions">' +
                                 '<button type="button" class="lr-preview-action lr-preview-action--remove" ' +
                                     'data-lr-row-remove="' + presetKey + '|' + rowId + '" ' +
-                                    (hasFile ? '' : 'disabled') + ' aria-label="حذف">' +
+                                    rmDis + ' aria-label="حذف">' +
                                     '<i class="fa-solid fa-trash" aria-hidden="true"></i>' +
                                     '<span>حذف</span>' +
                                 '</button>' +
                                 '<button type="button" class="lr-preview-action lr-preview-action--upload" ' +
-                                    'data-lr-row-upload="' + presetKey + '|' + rowId + '" aria-label="آپلود">' +
+                                    'data-lr-row-upload="' + presetKey + '|' + rowId + '"' + dis + ' aria-label="آپلود">' +
                                     '<i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>' +
                                     '<span>آپلود</span>' +
                                 '</button>' +
                                 '<button type="button" class="lr-preview-action lr-preview-action--download" ' +
                                     'data-lr-row-download="' + presetKey + '|' + rowId + '" ' +
-                                    (hasFile ? '' : 'disabled') + ' aria-label="دانلود">' +
+                                    dlDis + ' aria-label="دانلود">' +
                                     '<i class="fa-solid fa-cloud-arrow-down" aria-hidden="true"></i>' +
                                     '<span>دانلود</span>' +
                                 '</button>' +
@@ -2097,7 +2592,20 @@
                         var doc = findDoc(btn.getAttribute('data-lr-add-row'));
                         if (!doc) return;
                         if (doc.rows.length >= MAX_ROWS_PER_DOC) return;
-                        doc.rows.push({ id: doc.nextRowId++, file: null, previewUrl: null, description: '' });
+                        doc.rows.push({
+                            id: doc.nextRowId++,
+                            file: null,
+                            previewUrl: null,
+                            description: '',
+                            serverDocumentId: null,
+                            existingUrl: '',
+                            existingIsImage: false,
+                            expertNote: '',
+                            reviewStatus: '',
+                            needsAttention: false,
+                            mayReplaceFile: true,
+                            rowLocked: false,
+                        });
                         renderStep2();
                     });
                 });
@@ -2107,6 +2615,10 @@
                 var doc = findDoc(presetKey);
                 var row = findRow(doc, rowId);
                 if (!doc || !row) return;
+                if (row.rowLocked) {
+                    if (fileInput) fileInput.value = '';
+                    return;
+                }
                 var file = fileInput && fileInput.files && fileInput.files[0];
                 if (!file) return;
 
@@ -2132,6 +2644,7 @@
                 var doc = findDoc(presetKey);
                 var row = findRow(doc, rowId);
                 if (!doc || !row) return;
+                if (row.rowLocked) return;
 
                 // اگر فایل دارد فقط فایل را پاک کن. اگر ندارد و بیش از یک ردیف هست، خود ردیف را حذف کن.
                 if (row.file) {
@@ -2149,7 +2662,12 @@
             function handleRowDownload(presetKey, rowId) {
                 var doc = findDoc(presetKey);
                 var row = findRow(doc, rowId);
-                if (!doc || !row || !row.file) return;
+                if (!doc || !row) return;
+                if (row.existingUrl && !row.file) {
+                    window.open(row.existingUrl, '_blank', 'noopener,noreferrer');
+                    return;
+                }
+                if (!row.file) return;
 
                 var url = row.previewUrl;
                 var createdHere = false;
@@ -2201,27 +2719,71 @@
                     return faNum(d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate());
                 }
             }
-            function renderStep3() {
+            function renderStep3(summary) {
+                var reqId = document.getElementById('lr-st3-req-id');
+                if (reqId) reqId.textContent = (summary && summary.id_fa) ? summary.id_fa : '—';
+                var st = document.getElementById('lr-st3-status');
+                if (st) st.textContent = (summary && summary.status_label) ? summary.status_label : 'در انتظار بررسی کارشناس';
                 var dEl = document.getElementById('lr-st3-date');
-                if (dEl) dEl.textContent = todayJalaliFa();
+                if (dEl) dEl.textContent = (summary && summary.submitted_at_jalali_fa) ? summary.submitted_at_jalali_fa : todayJalaliFa();
+                var banRow = document.getElementById('lr-st3-doc-banner-row');
+                var ban = document.getElementById('lr-st3-doc-banner');
+                if (banRow && ban) {
+                    if (summary && summary.documents_at_company_banner_html) {
+                        ban.innerHTML = summary.documents_at_company_banner_html;
+                        banRow.hidden = false;
+                    } else {
+                        ban.innerHTML = '';
+                        banRow.hidden = true;
+                    }
+                }
+                var ex = document.getElementById('lr-st3-expert');
+                if (ex) {
+                    if (summary && summary.expert_note_html) {
+                        ex.innerHTML = summary.expert_note_html;
+                    } else {
+                        ex.textContent = 'تاکنون کارشناس نظری ثبت نکرده است.';
+                    }
+                }
+                var ph = document.getElementById('lr-st3-physical');
+                if (ph) {
+                    ph.textContent = (summary && summary.documents_physical_line_fa)
+                        ? summary.documents_physical_line_fa
+                        : 'وضعیت تحویل شدن مدارک فیزیکی به شرکت: به شرکت نرسیده';
+                }
             }
 
-            // اعتبارسنجی مدارک: هر کارت باید حداقل یک ردیف با فایل داشته باشد
+            function rowSatisfiesSubmit(row) {
+                if (row.rowLocked) return true;
+                var hasLocal = !!row.file;
+                var hasServer = !!(row.existingUrl && row.serverDocumentId);
+                if (row.serverDocumentId) {
+                    if (row.reviewStatus === 'incomplete') return hasLocal;
+                    return hasLocal || hasServer;
+                }
+                return hasLocal;
+            }
+
+            // اعتبارسنجی مدارک: هر کارت باید حداقل یک ردیف معتبر داشته باشد
             function step2Valid() {
                 if (!LR.plan) return false;
                 if (!step2NeedsDocs()) return true; // بدون مدارک: نیازی به آپلود نیست
                 if (!Array.isArray(LR.docState) || LR.docState.length === 0) return false;
                 return LR.docState.every(function (doc) {
-                    return doc.rows.some(function (r) { return !!r.file; });
+                    return doc.rows.some(rowSatisfiesSubmit);
                 });
+            }
+
+            function getCsrfToken() {
+                var m = document.querySelector('meta[name="csrf-token"]');
+                return m ? String(m.getAttribute('content') || '') : '';
             }
 
             function submitLoanRequest() {
                 var submitBtn = document.getElementById('lr-submit-btn');
                 if (!step2Valid()) {
-                    // اگر مدرک گم شده، فهرستش را نشان بده
                     var missing = (LR.docState || [])
-                        .filter(function (d) { return !d.rows.some(function (r) { return !!r.file; }); })
+                        .filter(function (d) { return !d.rows.some(rowSatisfiesSubmit); })
                         .map(function (d) { return d.title; });
                     var msg = missing.length
                         ? 'لطفاً برای مدرک‌های زیر فایل آپلود کنید:<br>• ' + missing.map(escapeHtml).join('<br>• ')
@@ -2229,23 +2791,103 @@
                     swalInWizard({ icon: 'warning', title: 'مدارک ناقص است', html: msg });
                     return;
                 }
+                if (!LR.plan) {
+                    swalInWizard({ icon: 'warning', title: 'طرح انتخاب نشده', text: 'لطفاً طرح وام را انتخاب کنید.' });
+                    return;
+                }
+
+                var isEdit = !!LR.editRequestId;
+                var storeUrl = typeof window.__LR_STORE_URL__ === 'string' ? window.__LR_STORE_URL__ : '';
+                var endpoint = isEdit ? lrWizardUpdateUrl(LR.editRequestId) : storeUrl;
+                if (!endpoint) {
+                    swalInWizard({ icon: 'error', title: 'خطا', text: 'آدرس ثبت درخواست روی سرور تنظیم نشده است.' });
+                    return;
+                }
+
                 if (submitBtn) submitBtn.disabled = true;
 
-                // در فاز فعلی بک‌اند پیاده نشده. وقتی مدل LoanRequest ساخته شد،
-                // اینجا fetch POST با FormData (+ CSRF) اضافه می‌شود.
-                // فعلاً مستقیماً به مرحلهٔ ۳ می‌رویم تا تجربه کاربری کامل باشد.
+                var fd = new FormData();
+                if (!isEdit) {
+                    fd.append('loan_type_id', String(LR.plan.id));
+                }
+                fd.append('amount_toman', String(Math.max(0, Math.floor(Number(LR.amount) || 0))));
+                fd.append('installments_count', String(Math.max(1, Math.floor(Number(LR.count) || 0))));
+                fd.append('installment_gap', String(Math.max(1, Math.floor(Number(LR.gap) || 0))));
+                fd.append('installment_gap_unit', String(LR.plan.installment_gap_unit || 'monthly'));
+                fd.append('description', String(LR.desc || ''));
 
-                renderStep3();
-                showStep(3);
+                var meta = [];
+                if (step2NeedsDocs()) {
+                    LR.docState.forEach(function (doc) {
+                        doc.rows.forEach(function (row) {
+                            if (!row.file) return;
+                            var m = {
+                                row_index: typeof row.id !== 'undefined' ? Number(row.id) : 0,
+                                client_row_id: typeof row.id !== 'undefined' ? Number(row.id) : null,
+                                description: row.description || '',
+                            };
+                            if (row.serverDocumentId) {
+                                m.document_id = row.serverDocumentId;
+                            } else {
+                                m.preset_key = doc.presetKey;
+                            }
+                            meta.push(m);
+                            fd.append('files[]', row.file);
+                        });
+                    });
+                }
+                fd.append('attachments_meta', JSON.stringify(meta));
 
-                swalInWizard({
-                    icon: 'success',
-                    title: 'درخواست شما ثبت شد',
-                    text: 'درخواست برای بررسی به کارشناس ارسال شد.',
-                    timer: 1800,
-                    showConfirmButton: false,
-                });
-                if (submitBtn) submitBtn.disabled = false;
+                fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': getCsrfToken(),
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: fd,
+                    credentials: 'same-origin'
+                })
+                    .then(function (res) {
+                        return res.text().then(function (text) {
+                            var body = {};
+                            try {
+                                body = text ? JSON.parse(text) : {};
+                            } catch (e) {}
+                            return { ok: res.ok, status: res.status, body: body };
+                        });
+                    })
+                    .then(function (r) {
+                        if (!r.ok) {
+                            var msg = (r.body && r.body.message) ? String(r.body.message) : 'ثبت درخواست انجام نشد.';
+                            if (r.body && r.body.errors && typeof r.body.errors === 'object') {
+                                var keys = Object.keys(r.body.errors);
+                                if (keys.length && r.body.errors[keys[0]] && r.body.errors[keys[0]][0]) {
+                                    msg = String(r.body.errors[keys[0]][0]);
+                                }
+                            }
+                            swalInWizard({ icon: 'error', title: 'خطا در ثبت', text: msg });
+                            return;
+                        }
+                        LR.submitted = true;
+                        LR.reloadOnClose = true;
+                        renderStep3(r.body.request || null);
+                        showStep(3);
+                        swalInWizard({
+                            icon: 'success',
+                            title: isEdit ? 'ذخیره شد' : 'درخواست شما ثبت شد',
+                            text: (r.body && r.body.message)
+                                ? String(r.body.message)
+                                : (isEdit ? 'تغییرات ذخیره شد.' : 'درخواست برای بررسی به کارشناس ارسال شد.'),
+                            confirmButtonText: 'باشه'
+                        });
+                    })
+                    .catch(function () {
+                        swalInWizard({ icon: 'error', title: 'خطا', text: 'ارتباط با سرور برقرار نشد. اتصال اینترنت را بررسی کنید.' });
+                    })
+                    .finally(function () {
+                        if (submitBtn) submitBtn.disabled = false;
+                    });
             }
 
             // ---------- +/- handlers ----------
@@ -2292,7 +2934,12 @@
 
                 // native close (Esc / form method=dialog)
                 wizardDialog.addEventListener('close', function () {
+                    var reloadAfter = !!LR.reloadOnClose || !!LR.submitted;
                     disposeDocState();
+                    LR.reloadOnClose = false;
+                    if (reloadAfter) {
+                        window.location.reload();
+                    }
                 });
 
                 // plan select
@@ -2397,6 +3044,15 @@
                     window.alert(title + '\n' + text);
                 }
             }
+
+            document.addEventListener('click', function (e) {
+                var b = e.target && e.target.closest && e.target.closest('[data-lr-open-wizard]');
+                if (!b) return;
+                var id = parseInt(String(b.getAttribute('data-lr-open-wizard') || '0'), 10);
+                if (!id) return;
+                e.preventDefault();
+                openExistingWizard(id);
+            });
 
             if (openCreate) openCreate.addEventListener('click', openCreateWizard);
             document.querySelectorAll('[data-lr-create-cta]').forEach(function (b) {

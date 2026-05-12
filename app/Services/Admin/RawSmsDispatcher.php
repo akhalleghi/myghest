@@ -16,9 +16,10 @@ final class RawSmsDispatcher
     ) {}
 
     /**
+     * @param  array<string, mixed>  $extraMeta
      * @return array{ok: bool, message: string}
      */
-    public function send(string $recipient, string $messageText, string $type = 'customer-credentials'): array
+    public function send(string $recipient, string $messageText, string $type = 'customer-credentials', array $extraMeta = []): array
     {
         $active = SmsPanelSetting::query()->where('is_active', true)->first();
         if ($active === null) {
@@ -56,11 +57,11 @@ final class RawSmsDispatcher
             'recipient' => $recipient,
             'type' => $type,
             'cost' => 0,
-            'meta' => [
+            'meta' => array_merge([
                 'provider' => $providerKey,
                 'response_code' => $result->code,
                 'result_message' => $result->message,
-            ],
+            ], $extraMeta),
         ]);
 
         return [

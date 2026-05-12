@@ -597,6 +597,7 @@ final class SmsManagementController extends Controller
         return [
             'installment' => 'قسط',
             'status_change' => 'تغییر وضعیت',
+            'loan_request_status' => 'درخواست وام (وضعیت)',
             'panel_login' => 'ورود به پنل',
             'registration' => 'ثبت نام',
             'registration_verification_code' => 'کد تاییدیه ثبت نام',
@@ -632,6 +633,7 @@ final class SmsManagementController extends Controller
             'guarantor_name' => ['label' => 'نام و نام خانوادگی ضامن', 'sample' => 'محمد احمدی'],
             'borrower_name' => ['label' => 'نام مشتری وام‌گیرنده', 'sample' => 'زهرا کریمی'],
             'app_name' => ['label' => 'نام نمایشی سامانه', 'sample' => 'سامانه میهمان'],
+            'loan_request_status_title' => ['label' => 'عنوان وضعیت درخواست وام', 'sample' => 'تکمیل مدارک'],
             'code' => ['label' => 'کد تأیید پیامکی', 'sample' => '847392'],
         ];
     }

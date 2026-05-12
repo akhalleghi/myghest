@@ -2811,6 +2811,18 @@ final class CustomerController extends Controller
             ->with('flash_success', $flash);
     }
 
+    /**
+     * دادهٔ حداقلی برای باز کردن مودال «مدیریت وام‌ها» از صفحات دیگر (مثلاً درخواست وام).
+     */
+    public function loanManageModalContext(Customer $customer): JsonResponse
+    {
+        return response()->json([
+            'id' => $customer->id,
+            'name' => $customer->fullName(),
+            'mobile' => (string) ($customer->mobile ?? ''),
+        ]);
+    }
+
     public function editData(Customer $customer): JsonResponse
     {
         $customer->load(['bankAccounts', 'referrers']);

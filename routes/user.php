@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\User\UserCustomerLoanRequestController;
 use App\Http\Controllers\User\UserDepositDeclarationController;
 use App\Http\Controllers\User\UserPanelController;
 use Illuminate\Http\Request;
@@ -40,6 +41,21 @@ Route::middleware(['auth:customer'])->group(function (): void {
         ->middleware('throttle:60,1')
         ->name('deposits.attachment');
     Route::get('/loan-request', [UserPanelController::class, 'loanRequest'])->name('loan-request');
+    Route::post('/loan-request', [UserCustomerLoanRequestController::class, 'store'])
+        ->middleware('throttle:15,1')
+        ->name('loan-request.store');
+
+    Route::get('/loan-request/{customerLoanRequest}/wizard-context', [UserCustomerLoanRequestController::class, 'wizardContext'])
+        ->middleware('throttle:60,1')
+        ->name('loan-request.wizard-context');
+
+    Route::post('/loan-request/{customerLoanRequest}/update', [UserCustomerLoanRequestController::class, 'update'])
+        ->middleware('throttle:15,1')
+        ->name('loan-request.update');
+
+    Route::get('/loan-request/{customerLoanRequest}/documents/{customerLoanRequestDocument}/file', [UserCustomerLoanRequestController::class, 'documentFile'])
+        ->middleware('throttle:120,1')
+        ->name('loan-request.documents.file');
 
     Route::post('/logout', function (Request $request) {
         Auth::guard('customer')->logout();

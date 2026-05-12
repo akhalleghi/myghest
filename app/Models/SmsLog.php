@@ -8,6 +8,9 @@ use Illuminate\Database\Eloquent\Model;
 
 final class SmsLog extends Model
 {
+    /** پیامک‌های مرتبط با تغییر وضعیت درخواست وام (ادمین). */
+    public const TYPE_LOAN_REQUEST_STATUS = 'loan_request_status';
+
     public const STATUS_PENDING = 'pending';
     public const STATUS_DELIVERED = 'delivered';
     public const STATUS_UNDELIVERED = 'undelivered';

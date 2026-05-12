@@ -7,6 +7,7 @@ namespace App\Http\Controllers\User\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Services\Admin\CaptchaService;
+use App\Services\Auth\CustomerLoginLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
@@ -23,7 +24,7 @@ final class CustomerLoginController extends Controller
     /**
      * @throws ValidationException
      */
-    public function store(Request $request)
+    public function store(Request $request, CustomerLoginLogService $loginLogService)
     {
         $credentials = $request->validate([
             'username' => ['required', 'string', 'min:3', 'max:64'],
@@ -69,6 +70,12 @@ final class CustomerLoginController extends Controller
         RateLimiter::clear($this->throttleKey($request));
 
         $request->session()->regenerate();
+
+        try {
+            $loginLogService->recordSuccessfulLogin($customer, $request);
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return redirect()->intended(route('user.dashboard'));
     }

@@ -7907,6 +7907,35 @@
                 if (loanManageOverlay && !loanManageOverlay.hidden) closeLoanManageModal();
             });
 
+            (function openLoanManageFromQueryIfNeeded() {
+                var params = new URLSearchParams(window.location.search);
+                if (params.get('open_loan_manage') !== '1') return;
+                var cid = parseInt(params.get('customer_id') || '0', 10);
+                if (!cid) return;
+                var ctxUrl = custListBaseUrl + '/' + encodeURIComponent(String(cid)) + '/loan-manage-modal-context';
+                fetch(ctxUrl, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                }).then(function (r) {
+                    if (!r.ok) throw new Error('bad');
+                    return r.json();
+                }).then(function (data) {
+                    var id = parseInt(String(data.id || 0), 10);
+                    if (!id) return;
+                    openLoanManageModal(id, String(data.name || ''), String(data.mobile || ''));
+                    if (window.history && window.history.replaceState) {
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                }).catch(function () {
+                    if (window.AdminSwal && AdminSwal.error) {
+                        AdminSwal.error('امکان باز کردن مدیریت وام برای این مشتری وجود ندارد.');
+                    }
+                });
+            })();
+
             @if ($errors->any() && ! session('open_edit_customer_id'))
             custFormMode = 'create';
             removeMethodField();
@@ -7931,6 +7960,21 @@
             syncUsername();
             openModal();
             @endif
+
+            window.adminCustomersOpenEditModal = openEditModal;
+        })();
+
+        (function openCustomerEditFromQueryIfNeeded() {
+            var params = new URLSearchParams(window.location.search);
+            if (params.get('open_customer_edit') !== '1') return;
+            var cid = parseInt(params.get('customer_id') || '0', 10);
+            if (!cid) return;
+            var fn = window.adminCustomersOpenEditModal;
+            if (typeof fn !== 'function') return;
+            fn(cid);
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
         })();
     </script>
 @endpush

@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Admin\AdminCustomerLoginReportController;
+use App\Http\Controllers\Admin\AdminCustomerLoanRequestController;
+use App\Http\Controllers\Admin\AdminLoanRequestStatusDefinitionController;
 use App\Http\Controllers\Admin\AdminDepositDeclarationController;
 use App\Http\Controllers\Admin\AppSettingsController;
 use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
@@ -108,6 +111,66 @@ Route::middleware(['auth:admin'])->group(function (): void {
         ->middleware('throttle:60,1')
         ->name('customers.index');
 
+    Route::get('/customer-login-logs', [AdminCustomerLoginReportController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('customer-login-logs.index');
+
+    Route::get('/loan-requests', [AdminCustomerLoanRequestController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('loan-requests.index');
+
+    Route::get('/loan-requests/{customerLoanRequest}/edit-context', [AdminCustomerLoanRequestController::class, 'editContext'])
+        ->middleware('throttle:60,1')
+        ->name('loan-requests.edit-context');
+
+    Route::put('/loan-requests/{customerLoanRequest}', [AdminCustomerLoanRequestController::class, 'update'])
+        ->middleware('throttle:30,1')
+        ->name('loan-requests.update');
+
+    Route::get('/loan-requests/{customerLoanRequest}/status-logs', [AdminCustomerLoanRequestController::class, 'statusLogs'])
+        ->middleware('throttle:60,1')
+        ->name('loan-requests.status-logs');
+
+    Route::get('/loan-requests/{customerLoanRequest}/status-logs/export', [AdminCustomerLoanRequestController::class, 'exportStatusLogs'])
+        ->middleware('throttle:20,1')
+        ->name('loan-requests.status-logs.export');
+
+    Route::get('/loan-requests/{customerLoanRequest}/status-sms-logs', [AdminCustomerLoanRequestController::class, 'statusSmsLogs'])
+        ->middleware('throttle:60,1')
+        ->name('loan-requests.status-sms-logs');
+
+    Route::post('/loan-requests/{customerLoanRequest}/status-sms-logs/{smsLog}/resend', [AdminCustomerLoanRequestController::class, 'resendStatusSms'])
+        ->middleware('throttle:30,1')
+        ->name('loan-requests.status-sms-logs.resend');
+
+    Route::get('/loan-requests/{customerLoanRequest}/documents/{customerLoanRequestDocument}/file', [AdminCustomerLoanRequestController::class, 'documentFile'])
+        ->middleware('throttle:120,1')
+        ->name('loan-requests.documents.file');
+
+    Route::patch('/loan-requests/{customerLoanRequest}/documents/{customerLoanRequestDocument}', [AdminCustomerLoanRequestController::class, 'documentUpdate'])
+        ->middleware('throttle:60,1')
+        ->name('loan-requests.documents.update');
+
+    Route::delete('/loan-requests/{customerLoanRequest}/documents/{customerLoanRequestDocument}', [AdminCustomerLoanRequestController::class, 'documentDestroy'])
+        ->middleware('throttle:30,1')
+        ->name('loan-requests.documents.destroy');
+
+    Route::get('/loan-request-status-definitions', [AdminLoanRequestStatusDefinitionController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('loan-request-status-definitions.index');
+
+    Route::post('/loan-request-status-definitions', [AdminLoanRequestStatusDefinitionController::class, 'store'])
+        ->middleware('throttle:30,1')
+        ->name('loan-request-status-definitions.store');
+
+    Route::put('/loan-request-status-definitions/{loanRequestStatusDefinition}', [AdminLoanRequestStatusDefinitionController::class, 'update'])
+        ->middleware('throttle:30,1')
+        ->name('loan-request-status-definitions.update');
+
+    Route::delete('/loan-request-status-definitions/{loanRequestStatusDefinition}', [AdminLoanRequestStatusDefinitionController::class, 'destroy'])
+        ->middleware('throttle:30,1')
+        ->name('loan-request-status-definitions.destroy');
+
     Route::get('/customers/export-excel', [CustomerController::class, 'exportCustomersListExcel'])
         ->middleware('throttle:20,1')
         ->name('customers.export-excel');
@@ -127,6 +190,10 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::get('/customers/{customer}/edit-data', [CustomerController::class, 'editData'])
         ->middleware('throttle:60,1')
         ->name('customers.edit-data');
+
+    Route::get('/customers/{customer}/loan-manage-modal-context', [CustomerController::class, 'loanManageModalContext'])
+        ->middleware('throttle:60,1')
+        ->name('customers.loan-manage-modal-context');
 
     Route::get('/customers/{customer}/loan-board-summary', [CustomerController::class, 'loanBoardSummary'])
         ->middleware('throttle:60,1')
