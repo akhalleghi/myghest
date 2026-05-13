@@ -61,6 +61,20 @@ final class InstallmentOnlinePaymentResolver
         $slotFullyPaid = $amount > 0 && $paid >= $amount;
         $actionsEnabled = ! $contractLocked && ! $slotFullyPaid && $amount > 0;
 
+        if ($actionsEnabled) {
+            $currentSeq = (int) $installment->sequence;
+            $priorUnpaid = $file->installments->contains(static function (CustomerLoanInstallment $i) use ($currentSeq): bool {
+                if ((int) $i->sequence >= $currentSeq) {
+                    return false;
+                }
+
+                return (int) $i->amount_toman > 0 && (int) $i->paid_amount_toman < (int) $i->amount_toman;
+            });
+            if ($priorUnpaid) {
+                return ['ok' => false, 'message' => 'ابتدا قسط‌های قبلی را پرداخت نمایید.'];
+            }
+        }
+
         if (! $actionsEnabled) {
             if ($slotFullyPaid) {
                 return ['ok' => false, 'message' => 'این قسط از نظر نامی تسویه شده است.'];

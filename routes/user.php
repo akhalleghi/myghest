@@ -6,6 +6,7 @@ use App\Http\Controllers\User\UserCustomerLoanRequestController;
 use App\Http\Controllers\User\UserDepositDeclarationController;
 use App\Http\Controllers\User\UserInstallmentOnlinePaymentController;
 use App\Http\Controllers\User\UserNotificationController;
+use App\Http\Controllers\User\UserPaymentTransactionsController;
 use App\Http\Controllers\User\UserPanelController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -23,6 +24,9 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth:customer'])->group(function (): void {
     Route::get('/dashboard', [UserPanelController::class, 'dashboard'])->name('dashboard');
     Route::get('/loans', [UserPanelController::class, 'loans'])->name('loans.index');
+    Route::get('/payment-transactions', [UserPaymentTransactionsController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('payment-transactions.index');
     Route::get('/deposits', [UserDepositDeclarationController::class, 'page'])->name('deposits.index');
     Route::post('/deposits/review-notifications/ack', [UserDepositDeclarationController::class, 'acknowledgeReviewNotifications'])
         ->middleware('throttle:30,1')

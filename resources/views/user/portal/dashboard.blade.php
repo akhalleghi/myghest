@@ -183,8 +183,10 @@
                                             class="portal-inst portal-inst--tone-{{ $inst['status_tone'] ?? 'pending' }}"
                                             id="portal-inst-{{ (int) $inst['id'] }}"
                                             @if(!empty($inst['actions_enabled']))
-                                                data-inst-payable="1"
                                                 data-inst-root="1"
+                                            @endif
+                                            @if(!empty($inst['online_pay_eligible']))
+                                                data-portal-inst-online-pay="1"
                                             @endif
                                             data-installment-id="{{ (int) $inst['id'] }}"
                                             data-loan-title="{{ e($loan['loan_title'] ?? '') }}"
@@ -194,6 +196,7 @@
                                             data-due-jalali="{{ e($inst['due_jalali'] ?? '') }}"
                                             data-paid-fa="{{ e($inst['paid_fa'] ?? '') }}"
                                             data-slot-remaining-fa="{{ e($inst['slot_remaining_fa'] ?? '') }}"
+                                            data-online-payable-fa="{{ e($inst['online_payable_fa'] ?? '') }}"
                                             data-status-line="{{ e($inst['status_line'] ?? '') }}"
                                         >
                                             <div class="portal-inst__head">
@@ -207,11 +210,14 @@
                                                 </span>
                                             </div>
                                             <div class="portal-inst__tiles">
-                                                <div><span class="portal-inst__k">مبلغ</span><span class="portal-inst__v">{{ $inst['amount_fa'] }}</span></div>
+                                                <div><span class="portal-inst__k">@if(!empty($inst['online_pay_eligible']) && (int) ($inst['online_payable_toman'] ?? 0) > 0)قابل پرداخت آنلاین@elseمبلغ قسط@endif</span><span class="portal-inst__v">@if(!empty($inst['online_pay_eligible']) && (int) ($inst['online_payable_toman'] ?? 0) > 0){{ $inst['online_payable_fa'] ?? '—' }}@else{{ $inst['amount_fa'] ?? '—' }}@endif</span></div>
                                                 <div><span class="portal-inst__k">سررسید</span><span class="portal-inst__v">{{ $inst['due_jalali'] }}</span></div>
                                                 <div><span class="portal-inst__k">پرداختی</span><span class="portal-inst__v">{{ $inst['paid_fa'] }}</span></div>
                                                 <div><span class="portal-inst__k">تاریخ واریز</span><span class="portal-inst__v">{{ $inst['deposit_jalali'] }}</span></div>
                                             </div>
+                                            @if(!empty($inst['online_pay_eligible']) && (int) ($inst['online_payable_toman'] ?? 0) > 0 && (int) ($inst['online_payable_toman'] ?? 0) < (int) ($inst['slot_remaining_toman'] ?? 0))
+                                                <p class="portal-inst__note">مبلغ نامی ماندهٔ این قسط {{ $inst['slot_remaining_fa'] }} است؛ با توجه به پرونده، مبلغ قابل پرداخت در درگاه همان مبلغ «قابل پرداخت آنلاین» است.</p>
+                                            @endif
                                             @if(($inst['status_note'] ?? '') !== '—')
                                                 <p class="portal-inst__note">{{ $inst['status_note'] }}</p>
                                             @endif
@@ -224,16 +230,31 @@
                                                         <i class="fa-solid fa-building-columns" aria-hidden="true"></i>
                                                         اعلام واریزی
                                                     </a>
-                                                    <button
-                                                        type="button"
-                                                        class="portal-loan__btn portal-loan__btn--primary"
-                                                        data-portal-pay-online
-                                                        data-installment-label="قسط {{ $inst['sequence_fa'] }}"
-                                                    >
-                                                        <i class="fa-solid fa-credit-card" aria-hidden="true"></i>
-                                                        پرداخت آنلاین
-                                                    </button>
+                                                    @if(!empty($inst['online_pay_eligible']))
+                                                        <button
+                                                            type="button"
+                                                            class="portal-loan__btn portal-loan__btn--primary"
+                                                            data-portal-pay-online
+                                                            data-installment-label="قسط {{ $inst['sequence_fa'] }}"
+                                                        >
+                                                            <i class="fa-solid fa-credit-card" aria-hidden="true"></i>
+                                                            پرداخت آنلاین
+                                                        </button>
+                                                    @elseif(!empty($inst['online_pay_prior_sequence_block']))
+                                                        <button
+                                                            type="button"
+                                                            class="portal-loan__btn portal-loan__btn--primary"
+                                                            data-portal-pay-online-blocked
+                                                            data-installment-label="قسط {{ $inst['sequence_fa'] }}"
+                                                        >
+                                                            <i class="fa-solid fa-credit-card" aria-hidden="true"></i>
+                                                            پرداخت آنلاین
+                                                        </button>
+                                                    @endif
                                                 </div>
+                                                @if(!empty($inst['online_pay_prior_sequence_block']))
+                                                    <p class="portal-inst__note" role="note">برای پرداخت آنلاین این قسط، ابتدا قسط‌های قبلی را به‌طور کامل تسویه کنید.</p>
+                                                @endif
                                             @else
                                                 <div class="portal-inst__locked" role="note">
                                                     <i class="fa-solid fa-lock" aria-hidden="true"></i>

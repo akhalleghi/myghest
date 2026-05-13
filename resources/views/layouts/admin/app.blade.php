@@ -1448,6 +1448,7 @@
                     ['label' => 'تعریف انواع وام', 'href' => route('admin.loan-types.index'), 'icon' => 'fa-money-bill-transfer', 'route' => 'admin.loan-types.index'],
                     ['label' => 'لیست مشتریان', 'href' => route('admin.customers.index'), 'icon' => 'fa-users', 'route' => 'admin.customers.index'],
                     ['label' => 'اعلام واریزها', 'href' => route('admin.deposit-declarations.index'), 'icon' => 'fa-building-columns', 'route' => 'admin.deposit-declarations.index'],
+                    ['label' => 'تراکنش‌ها', 'href' => route('admin.customer-transactions.index'), 'icon' => 'fa-receipt', 'route' => 'admin.customer-transactions.index'],
                     ['label' => 'مدیریت پیامک', 'href' => route('admin.sms.index'), 'icon' => 'fa-envelope', 'route' => 'admin.sms.index'],
                     ['label' => 'درخواست وام‌ها', 'href' => route('admin.loan-requests.index'), 'icon' => 'fa-file-invoice', 'route' => 'admin.loan-requests.index'],
                     ['label' => 'گزارش ورود', 'href' => route('admin.customer-login-logs.index'), 'icon' => 'fa-right-to-bracket', 'route' => 'admin.customer-login-logs.index'],

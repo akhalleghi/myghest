@@ -309,6 +309,7 @@
                 el.setAttribute('data-due-jalali', inst.due_jalali != null ? String(inst.due_jalali) : '');
                 el.setAttribute('data-paid-fa', inst.paid_fa != null ? String(inst.paid_fa) : '');
                 el.setAttribute('data-slot-remaining-fa', inst.slot_remaining_fa != null ? String(inst.slot_remaining_fa) : '');
+                el.setAttribute('data-online-payable-fa', inst.online_payable_fa != null ? String(inst.online_payable_fa) : '');
                 el.setAttribute('data-status-line', inst.status_line != null ? String(inst.status_line) : '');
             }
 
@@ -321,17 +322,27 @@
                 aDep.href = depositHref(inst.id);
                 aDep.innerHTML = '<i class="fa-solid fa-building-columns" aria-hidden="true"></i> اعلام واریزی';
 
-                var btnPay = document.createElement('button');
-                btnPay.type = 'button';
-                btnPay.className = 'portal-loan__btn portal-loan__btn--primary portal-loan__btn--table';
-                btnPay.setAttribute('data-portal-pay-online', '');
-                btnPay.setAttribute('data-installment-label', 'قسط ' + (inst.sequence_fa || String(inst.sequence || '')));
-                btnPay.innerHTML = '<i class="fa-solid fa-credit-card" aria-hidden="true"></i> پرداخت آنلاین';
-                setInstallmentPayDataset(btnPay, loan, inst);
-
                 if (inst.actions_enabled) {
                     wrap.appendChild(aDep);
-                    wrap.appendChild(btnPay);
+                    if (inst.online_pay_eligible) {
+                        var btnPay = document.createElement('button');
+                        btnPay.type = 'button';
+                        btnPay.className = 'portal-loan__btn portal-loan__btn--primary portal-loan__btn--table';
+                        btnPay.setAttribute('data-portal-pay-online', '');
+                        btnPay.setAttribute('data-installment-label', 'قسط ' + (inst.sequence_fa || String(inst.sequence || '')));
+                        btnPay.innerHTML = '<i class="fa-solid fa-credit-card" aria-hidden="true"></i> پرداخت آنلاین';
+                        setInstallmentPayDataset(btnPay, loan, inst);
+                        wrap.appendChild(btnPay);
+                    } else if (inst.online_pay_prior_sequence_block) {
+                        var btnBlock = document.createElement('button');
+                        btnBlock.type = 'button';
+                        btnBlock.className = 'portal-loan__btn portal-loan__btn--primary portal-loan__btn--table';
+                        btnBlock.setAttribute('data-portal-pay-online-blocked', '');
+                        btnBlock.setAttribute('data-installment-label', 'قسط ' + (inst.sequence_fa || String(inst.sequence || '')));
+                        btnBlock.innerHTML = '<i class="fa-solid fa-credit-card" aria-hidden="true"></i> پرداخت آنلاین';
+                        setInstallmentPayDataset(btnBlock, loan, inst);
+                        wrap.appendChild(btnBlock);
+                    }
                 } else {
                     var span = document.createElement('span');
                     span.className = 'portal-loans-inst__locked';
@@ -371,11 +382,17 @@
                     if (inst.actions_enabled) {
                         tr.setAttribute('data-inst-root', '1');
                     }
+                    if (inst.online_pay_eligible) {
+                        tr.setAttribute('data-portal-inst-online-pay', '1');
+                    }
                     setInstallmentPayDataset(tr, loan, inst);
                     var tdSeq = document.createElement('td');
                     tdSeq.textContent = inst.sequence_fa != null ? String(inst.sequence_fa) : '';
                     var tdAmt = document.createElement('td');
-                    tdAmt.textContent = inst.amount_fa != null ? String(inst.amount_fa) : '';
+                    var showOnlinePay = !!inst.online_pay_eligible && Number(inst.online_payable_toman || 0) > 0;
+                    tdAmt.textContent = showOnlinePay
+                        ? (inst.online_payable_fa != null ? String(inst.online_payable_fa) : '')
+                        : (inst.amount_fa != null ? String(inst.amount_fa) : '');
                     var tdDue = document.createElement('td');
                     tdDue.textContent = inst.due_jalali != null ? String(inst.due_jalali) : '';
                     var tdPaid = document.createElement('td');
@@ -402,6 +419,9 @@
                         if (inst.actions_enabled) {
                             card.setAttribute('data-inst-root', '1');
                         }
+                        if (inst.online_pay_eligible) {
+                            card.setAttribute('data-portal-inst-online-pay', '1');
+                        }
                         setInstallmentPayDataset(card, loan, inst);
                         card.setAttribute('role', 'listitem');
                         var head = document.createElement('header');
@@ -413,7 +433,28 @@
                         card.appendChild(head);
                         var dl = document.createElement('dl');
                         dl.className = 'portal-loans-inst-card__kv';
-                        dl.appendChild(cardKvRow('مبلغ قسط', inst.amount_fa));
+                        var showOnlinePayCard = !!inst.online_pay_eligible && Number(inst.online_payable_toman || 0) > 0;
+                        dl.appendChild(
+                            cardKvRow(
+                                showOnlinePayCard ? 'قابل پرداخت آنلاین' : 'مبلغ قسط',
+                                showOnlinePayCard
+                                    ? (inst.online_payable_fa != null ? String(inst.online_payable_fa) : '')
+                                    : (inst.amount_fa != null ? String(inst.amount_fa) : '')
+                            )
+                        );
+                        if (
+                            showOnlinePayCard &&
+                            Number(inst.online_payable_toman || 0) < Number(inst.slot_remaining_toman || 0)
+                        ) {
+                            dl.appendChild(
+                                cardKvRow(
+                                    'توضیح',
+                                    'مبلغ نامی ماندهٔ این قسط ' +
+                                        (inst.slot_remaining_fa != null ? String(inst.slot_remaining_fa) : '') +
+                                        ' است؛ مبلغ درگاه همان «قابل پرداخت آنلاین» است.'
+                                )
+                            );
+                        }
                         dl.appendChild(cardKvRow('سررسید', inst.due_jalali));
                         dl.appendChild(cardKvRow('مبلغ پرداختی', inst.paid_fa));
                         dl.appendChild(cardKvRow('تاریخ واریز', inst.deposit_jalali));

@@ -61,6 +61,7 @@
                     dueJalali: ds.dueJalali || '',
                     paidFa: ds.paidFa || '',
                     slotRemainingFa: ds.slotRemainingFa || '',
+                    onlinePayableFa: ds.onlinePayableFa || '',
                     statusLine: ds.statusLine || ''
                 };
             }
@@ -76,10 +77,11 @@
                 parts.push(row('عنوان وام', d.loanTitle || '—'));
                 parts.push(row('کد پرونده', d.loanCodeFa || '—'));
                 parts.push(row('قسط', d.sequenceFa ? ('قسط ' + d.sequenceFa) : '—'));
-                parts.push(row('مبلغ قسط', d.amountFa || '—'));
+                parts.push(row('مبلغ قابل پرداخت در درگاه', d.onlinePayableFa || d.slotRemainingFa || '—'));
+                parts.push(row('مبلغ نامی قسط', d.amountFa || '—'));
+                parts.push(row('ماندهٔ نامی این قسط', d.slotRemainingFa || '—'));
                 parts.push(row('سررسید', d.dueJalali || '—'));
                 parts.push(row('پرداختی ثبت‌شده', d.paidFa || '—'));
-                parts.push(row('ماندهٔ قابل پرداخت (این قسط)', d.slotRemainingFa || '—'));
                 parts.push(row('وضعیت', d.statusLine || '—'));
                 kv.innerHTML = parts.join('');
 
@@ -93,9 +95,26 @@
                 if (e.target === dialog) closeDialog();
             });
 
+            function portalPayOnlineBlockedMessage() {
+                return 'ابتدا قسط‌های قبلی را پرداخت نمایید.';
+            }
+
             document.addEventListener('click', function (e) {
                 var t = e.target;
                 if (!t || !t.closest) return;
+
+                var payBlocked = t.closest('[data-portal-pay-online-blocked]');
+                if (payBlocked) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var msg = portalPayOnlineBlockedMessage();
+                    if (typeof window.AdminSwal !== 'undefined' && window.AdminSwal.fire) {
+                        window.AdminSwal.fire({ icon: 'info', title: 'پرداخت آنلاین', text: msg });
+                    } else {
+                        window.alert(msg);
+                    }
+                    return;
+                }
 
                 var payBtn = t.closest('[data-portal-pay-online]');
                 if (payBtn) {
@@ -106,17 +125,17 @@
                     return;
                 }
 
-                var inst = t.closest('.portal-inst[data-inst-payable="1"]');
+                var inst = t.closest('.portal-inst[data-portal-inst-online-pay="1"]');
                 if (inst && !t.closest('a, button, summary')) {
                     window.openPortalInstallmentPayModal(inst);
                 }
 
-                var tr = t.closest('tr[data-inst-root="1"]');
+                var tr = t.closest('tr[data-portal-inst-online-pay="1"]');
                 if (tr && !t.closest('a, button')) {
                     window.openPortalInstallmentPayModal(tr);
                 }
 
-                var card = t.closest('article.portal-loans-inst-card[data-inst-root="1"]');
+                var card = t.closest('article.portal-loans-inst-card[data-portal-inst-online-pay="1"]');
                 if (card && !t.closest('a, button')) {
                     window.openPortalInstallmentPayModal(card);
                 }

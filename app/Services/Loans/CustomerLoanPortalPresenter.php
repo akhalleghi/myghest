@@ -81,6 +81,7 @@ final class CustomerLoanPortalPresenter
         $creditorOverpayToman = $isCreditor ? (int) abs($signedRemaining) : 0;
 
         $instColl = $file->installments->sortBy('sequence')->values();
+        $installmentPayCeilingToman = $this->finance->installmentPaymentCeilingToman($file);
         $unpaidCount = (int) $instColl->filter(static function (CustomerLoanInstallment $i): bool {
             return (int) $i->paid_amount_toman < (int) $i->amount_toman;
         })->count();
@@ -106,8 +107,24 @@ final class CustomerLoanPortalPresenter
             : 0;
 
         $installmentsOut = [];
-        foreach ($instColl as $inst) {
-            $installmentsOut[] = $this->mapInstallmentForPortal($inst, $lateCoef, $contractLocked, $isRevoked);
+        $ordered = $instColl->values();
+        foreach ($ordered as $idx => $inst) {
+            $priorNominalSlotUnpaid = false;
+            for ($j = 0; $j < $idx; $j++) {
+                $prev = $ordered[$j];
+                if ((int) $prev->amount_toman > 0 && (int) $prev->paid_amount_toman < (int) $prev->amount_toman) {
+                    $priorNominalSlotUnpaid = true;
+                    break;
+                }
+            }
+            $installmentsOut[] = $this->mapInstallmentForPortal(
+                $inst,
+                $lateCoef,
+                $contractLocked,
+                $isRevoked,
+                $priorNominalSlotUnpaid,
+                $installmentPayCeilingToman
+            );
         }
 
         $hasEarlyRepayment = $this->loanHasEarlyFullyPaidInstallment($instColl);
@@ -253,7 +270,9 @@ final class CustomerLoanPortalPresenter
         CustomerLoanInstallment $inst,
         float $lateCoef,
         bool $contractLocked,
-        bool $isRevoked
+        bool $isRevoked,
+        bool $priorNominalSlotUnpaid,
+        int $installmentPayCeilingToman
     ): array {
         $due = Carbon::parse($inst->due_date)->startOfDay();
         $now = Carbon::now()->startOfDay();
@@ -265,6 +284,11 @@ final class CustomerLoanPortalPresenter
         $partialPaid = $paid > 0 && ! $slotFullyPaid;
 
         $actionsEnabled = ! $isRevoked && ! $contractLocked && ! $slotFullyPaid && $amount > 0;
+        $onlinePayableToman = (! $slotFullyPaid && $amount > 0)
+            ? min($slotRemaining, max(0, $installmentPayCeilingToman))
+            : 0;
+        $onlinePayEligible = $actionsEnabled && ! $priorNominalSlotUnpaid && $onlinePayableToman > 0;
+        $onlinePayPriorSequenceBlock = $actionsEnabled && $priorNominalSlotUnpaid;
 
         $depositCarbon = $this->resolveLatestDepositCarbon($inst);
         $depositJalali = $depositCarbon !== null ? $this->toJalaliFa($depositCarbon) : '—';
@@ -332,6 +356,10 @@ final class CustomerLoanPortalPresenter
             'paid_fa' => $paid > 0 ? $this->formatMoneyFa($paid) : '—',
             'slot_remaining_toman' => $slotRemaining,
             'slot_remaining_fa' => $this->formatMoneyFa($slotRemaining),
+            'online_payable_toman' => $onlinePayableToman,
+            'online_payable_fa' => $onlinePayableToman > 0 ? $this->formatMoneyFa($onlinePayableToman) : '—',
+            'online_pay_eligible' => $onlinePayEligible,
+            'online_pay_prior_sequence_block' => $onlinePayPriorSequenceBlock,
             'deposit_jalali' => $depositJalali,
             'early_late_cell_fa' => $this->formatInstallmentEarlyLateCellFa(
                 $inst,

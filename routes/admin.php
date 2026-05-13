@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AdminCustomerLoginReportController;
 use App\Http\Controllers\Admin\AdminCustomerLoanRequestController;
 use App\Http\Controllers\Admin\AdminLoanRequestStatusDefinitionController;
 use App\Http\Controllers\Admin\AdminNotificationController;
+use App\Http\Controllers\Admin\AdminCustomerTransactionController;
 use App\Http\Controllers\Admin\AdminDepositDeclarationController;
 use App\Http\Controllers\Admin\AppSettingsController;
 use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
@@ -95,6 +96,14 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::post('/guarantor-otp/verify', [GuarantorOtpController::class, 'verify'])
         ->middleware('throttle:120,1')
         ->name('guarantor-otp.verify');
+
+    Route::get('/customer-transactions', [AdminCustomerTransactionController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('customer-transactions.index');
+
+    Route::get('/customer-transactions/export', [AdminCustomerTransactionController::class, 'export'])
+        ->middleware('throttle:15,1')
+        ->name('customer-transactions.export');
 
     Route::get('/deposit-declarations', [AdminDepositDeclarationController::class, 'index'])
         ->middleware('throttle:60,1')

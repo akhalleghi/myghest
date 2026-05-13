@@ -17,6 +17,7 @@ final class InstallmentOnlinePaymentCompletionService
     public function __construct(
         private readonly ZibalIpgClient $zibal,
         private readonly LoanInstallmentPaidAmountSyncer $syncer,
+        private readonly CustomerTransactionLedgerService $ledger,
     ) {}
 
     public function completeZibalReturn(int $trackId, bool $gatewayReportsSuccess): RedirectResponse
@@ -53,6 +54,7 @@ final class InstallmentOnlinePaymentCompletionService
                     $bank = $intent->zibal_ref_number !== null && trim((string) $intent->zibal_ref_number) !== ''
                         ? trim((string) $intent->zibal_ref_number)
                         : null;
+                    $this->ledger->syncFromInstallmentIntent($intent);
 
                     return $this->okRedirect('پرداخت قبلاً با موفقیت ثبت شده است.', $trackId, $bank);
                 }
@@ -63,6 +65,7 @@ final class InstallmentOnlinePaymentCompletionService
                         'status' => CustomerLoanInstallmentOnlinePaymentIntent::STATUS_FAILED,
                         'failure_reason' => 'قسط حذف شده است.',
                     ]);
+                    $this->ledger->syncFromInstallmentIntent($intent->fresh());
 
                     return $this->failRedirect('قسط مرتبط با این پرداخت دیگر وجود ندارد.', $trackId, null);
                 }
@@ -73,6 +76,7 @@ final class InstallmentOnlinePaymentCompletionService
                         'status' => CustomerLoanInstallmentOnlinePaymentIntent::STATUS_FAILED,
                         'failure_reason' => $verify['message'],
                     ]);
+                    $this->ledger->syncFromInstallmentIntent($intent->fresh());
 
                     return $this->failRedirect('تأیید پرداخت توسط درگاه انجام نشد: '.$verify['message'], $trackId, null);
                 }
@@ -83,6 +87,7 @@ final class InstallmentOnlinePaymentCompletionService
                         'status' => CustomerLoanInstallmentOnlinePaymentIntent::STATUS_FAILED,
                         'failure_reason' => 'مبلغ تأییدشده با مبلغ درخواست هم‌خوانی ندارد.',
                     ]);
+                    $this->ledger->syncFromInstallmentIntent($intent->fresh());
 
                     return $this->failRedirect('مبلغ تأییدشده با سفارش هم‌خوانی ندارد؛ با پشتیبانی تماس بگیرید.', $trackId, null);
                 }
@@ -93,6 +98,7 @@ final class InstallmentOnlinePaymentCompletionService
                         'status' => CustomerLoanInstallmentOnlinePaymentIntent::STATUS_FAILED,
                         'failure_reason' => 'تبدیل مبلغ نامعتبر است.',
                     ]);
+                    $this->ledger->syncFromInstallmentIntent($intent->fresh());
 
                     return $this->failRedirect('خطا در پردازش مبلغ پرداخت.', $trackId, null);
                 }
@@ -118,6 +124,7 @@ final class InstallmentOnlinePaymentCompletionService
                     'zibal_ref_number' => $ref !== '' ? mb_substr($ref, 0, 64) : null,
                     'failure_reason' => null,
                 ]);
+                $this->ledger->syncFromInstallmentIntent($intent->fresh());
 
                 return $this->okRedirect(
                     'پرداخت آنلاین با موفقیت ثبت شد.',
@@ -136,13 +143,24 @@ final class InstallmentOnlinePaymentCompletionService
 
     private function markIntentFailedByTrackId(int $trackId, string $reason): void
     {
-        CustomerLoanInstallmentOnlinePaymentIntent::query()
+        $ids = CustomerLoanInstallmentOnlinePaymentIntent::query()
             ->where('track_id', $trackId)
             ->where('status', '!=', CustomerLoanInstallmentOnlinePaymentIntent::STATUS_COMPLETED)
+            ->pluck('id');
+
+        CustomerLoanInstallmentOnlinePaymentIntent::query()
+            ->whereIn('id', $ids)
             ->update([
                 'status' => CustomerLoanInstallmentOnlinePaymentIntent::STATUS_FAILED,
                 'failure_reason' => mb_substr($reason, 0, 2000),
             ]);
+
+        foreach ($ids as $id) {
+            $intent = CustomerLoanInstallmentOnlinePaymentIntent::query()->find($id);
+            if ($intent !== null) {
+                $this->ledger->syncFromInstallmentIntent($intent);
+            }
+        }
     }
 
     /**

@@ -83,6 +83,11 @@ final class Customer extends Authenticatable
         return $this->hasMany(CustomerLoanRequest::class)->latest('id');
     }
 
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(CustomerTransaction::class, 'customer_id')->latest('id');
+    }
+
     public function loginLogs(): HasMany
     {
         return $this->hasMany(CustomerLoginLog::class)->orderByDesc('logged_in_at')->orderByDesc('id');

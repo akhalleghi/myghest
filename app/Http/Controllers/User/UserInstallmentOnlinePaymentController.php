@@ -7,6 +7,7 @@ namespace App\Http\Controllers\User;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\CustomerLoanInstallmentOnlinePaymentIntent;
+use App\Services\Payment\CustomerTransactionLedgerService;
 use App\Services\Payment\InstallmentOnlinePaymentResolver;
 use App\Services\Payment\ZibalIpgClient;
 use Illuminate\Http\RedirectResponse;
@@ -20,6 +21,7 @@ final class UserInstallmentOnlinePaymentController extends Controller
         Request $request,
         InstallmentOnlinePaymentResolver $resolver,
         ZibalIpgClient $zibal,
+        CustomerTransactionLedgerService $ledger,
     ): RedirectResponse {
         $validated = $request->validate([
             'customer_loan_installment_id' => ['required', 'integer', 'min:1'],
@@ -75,6 +77,7 @@ final class UserInstallmentOnlinePaymentController extends Controller
             'zibal_ref_number' => null,
             'failure_reason' => null,
         ]);
+        $ledger->syncFromInstallmentIntent($intent);
 
         $req = $zibal->request($merchant, $amountRial, $callbackUrl, $description, $orderId);
         if (! $req['ok'] || $req['track_id'] === null) {
@@ -82,6 +85,7 @@ final class UserInstallmentOnlinePaymentController extends Controller
                 'status' => CustomerLoanInstallmentOnlinePaymentIntent::STATUS_FAILED,
                 'failure_reason' => $req['message'],
             ]);
+            $ledger->syncFromInstallmentIntent($intent->fresh());
 
             return $this->backWithPayFlash(false, 'شروع پرداخت در درگاه ممکن نشد: '.$req['message']);
         }
@@ -102,6 +106,8 @@ final class UserInstallmentOnlinePaymentController extends Controller
                 'status' => CustomerLoanInstallmentOnlinePaymentIntent::STATUS_REDIRECTED,
             ]);
         });
+
+        $ledger->syncFromInstallmentIntent($intent->fresh());
 
         $startUrl = 'https://gateway.zibal.ir/start/'.$req['track_id'];
 
