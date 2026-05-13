@@ -340,6 +340,20 @@ final class AdminCustomerLoanRequestController extends Controller
         ]);
     }
 
+    /**
+     * حذف کامل درخواست وام؛ فایل‌های پیوست توسط CustomerLoanRequest::booted() پاک می‌شوند
+     * و رکوردهای customer_loan_request_documents و customer_loan_request_status_logs
+     * از طریق FK با cascadeOnDelete حذف می‌شوند.
+     */
+    public function destroy(CustomerLoanRequest $customerLoanRequest): JsonResponse
+    {
+        $customerLoanRequest->delete();
+
+        return response()->json([
+            'message' => 'درخواست وام و مدارک آن حذف شد.',
+        ]);
+    }
+
     public function documentDestroy(
         CustomerLoanRequest $customerLoanRequest,
         CustomerLoanRequestDocument $customerLoanRequestDocument,

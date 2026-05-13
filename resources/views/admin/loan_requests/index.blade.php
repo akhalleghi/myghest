@@ -102,7 +102,7 @@
             background: var(--bg-card); color: var(--text); cursor: not-allowed; opacity: 0.5;
             display: inline-flex; align-items: center; justify-content: center; font-size: 0.88rem;
         }
-        .lrq-ico-btn[title] { cursor: help; }
+        .lrq-ico-btn:disabled[title] { cursor: help; }
         .lrq-ico-btn--action {
             opacity: 1; cursor: pointer;
             border-color: rgba(124, 58, 237, 0.45);
@@ -555,7 +555,7 @@
                             <td>
                                 <div class="lrq-ops">
                                     <button type="button" class="lrq-ico-btn lrq-ico-btn--action" data-lrq-open-edit="{{ $row['id'] }}" title="ویرایش درخواست" aria-label="ویرایش درخواست {{ $row['request_no_fa'] }}"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>
-                                    <button type="button" class="lrq-ico-btn" disabled title="حذف (به‌زودی)" aria-label="حذف"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>
+                                    <button type="button" class="lrq-ico-btn lrq-ico-btn--action lrq-ico-btn--danger" data-lrq-delete="{{ $row['id'] }}" data-lrq-delete-no="{{ $row['request_no_fa'] }}" title="حذف درخواست" aria-label="حذف درخواست {{ $row['request_no_fa'] }}"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>
                                 </div>
                             </td>
                         </tr>
@@ -615,7 +615,7 @@
                     <div class="lrq-card-ft">
                         <div class="lrq-ops">
                             <button type="button" class="lrq-ico-btn lrq-ico-btn--action" data-lrq-open-edit="{{ $row['id'] }}" title="ویرایش درخواست" aria-label="ویرایش"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>
-                            <button type="button" class="lrq-ico-btn" disabled title="حذف (به‌زودی)" aria-label="حذف"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>
+                            <button type="button" class="lrq-ico-btn lrq-ico-btn--action lrq-ico-btn--danger" data-lrq-delete="{{ $row['id'] }}" data-lrq-delete-no="{{ $row['request_no_fa'] }}" title="حذف درخواست" aria-label="حذف درخواست {{ $row['request_no_fa'] }}"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>
                         </div>
                     </div>
                 </article>
@@ -844,14 +844,31 @@
                 if (isNaN(x)) x = 0;
                 return String(x).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
             }
+            /**
+             * SweetAlert2 یک thenable شخصی برمی‌گرداند که .catch / .finally ندارد.
+             * این helper هر thenable را در یک Promise واقعی wrap می‌کند و هرگز reject نمی‌شود
+             * تا فراخوانی .catch / .finally روی نتیجه همیشه امن باشد.
+             */
+            function wrapSwalThenable(p) {
+                if (!p || typeof p.then !== 'function') return Promise.resolve();
+                return new Promise(function (resolve) {
+                    try {
+                        p.then(
+                            function (v) { resolve(v); },
+                            function () { resolve(); }
+                        );
+                    } catch (e) {
+                        resolve();
+                    }
+                });
+            }
             /** همیشه Promise؛ در غیر این صورت خطای sync در then به‌اشتباه «ارتباط با سرور» گزارش می‌شود. */
             function adminSwalAsPromise(method, firstArg) {
                 if (!window.AdminSwal || !AdminSwal[method] || typeof AdminSwal[method] !== 'function') {
                     return Promise.resolve();
                 }
                 try {
-                    var p = AdminSwal[method].call(AdminSwal, firstArg);
-                    return (p && typeof p.then === 'function') ? p : Promise.resolve();
+                    return wrapSwalThenable(AdminSwal[method].call(AdminSwal, firstArg));
                 } catch (e) {
                     return Promise.resolve();
                 }
@@ -926,6 +943,9 @@
                                     console.error('closeEditModal after save', eClose);
                                 }
                             }
+                            // پس از موفقیت سرور و بسته شدن مدال، جدول با reload به‌روزرسانی می‌شود.
+                            // query string (فیلترها/تاریخ‌ها/صفحه‌بندی) خودبه‌خود حفظ می‌شود.
+                            try { window.location.reload(); } catch (eR) { /* noop */ }
                         },
                         function (errSwal) {
                             if (typeof console !== 'undefined' && console.error) {
@@ -934,6 +954,7 @@
                             try {
                                 closeEditModal();
                             } catch (eClose2) { /* noop */ }
+                            try { window.location.reload(); } catch (eR2) { /* noop */ }
                         }
                     )
                     .catch(function (errFinal) {
@@ -1337,6 +1358,9 @@
                 };
                 var btn = document.getElementById('lrq-edit-save');
                 if (btn) btn.disabled = true;
+                // خطای واقعی شبکه فقط هنگامی باید «ارتباط با سرور» نمایش دهد که خود fetch reject شود.
+                // به همین دلیل onRejected را روی همان fetch می‌بندیم و خطاهای post-success در داخل
+                // try/catch داخلی نگه داشته می‌شوند تا اشتباهاً به‌عنوان «خطای شبکه» گزارش نشوند.
                 fetch(lrqResourceUrl(rid), {
                     method: 'PUT',
                     headers: {
@@ -1348,33 +1372,37 @@
                     credentials: 'same-origin',
                     body: JSON.stringify(payload)
                 })
-                    .then(readFetchJsonBody)
+                    .then(readFetchJsonBody, function (errNet) {
+                        if (typeof console !== 'undefined' && console.error) {
+                            console.error('saveLoanRequestEdit transport', errNet);
+                        }
+                        if (window.AdminSwal && AdminSwal.error) AdminSwal.error('ارتباط با سرور برقرار نشد.');
+                        return null;
+                    })
                     .then(function (res) {
+                        if (!res) return;
+                        if (!res.ok) {
+                            var msg = safeAdminMessage(res.body && res.body.message, 'ذخیره انجام نشد.');
+                            if (window.AdminSwal && AdminSwal.error) AdminSwal.error(msg);
+                            return;
+                        }
                         try {
-                            if (!res.ok) {
-                                var msg = safeAdminMessage(res.body && res.body.message, 'ذخیره انجام نشد.');
-                                if (window.AdminSwal && AdminSwal.error) AdminSwal.error(msg);
-                                return;
-                            }
                             return completeLoanRequestSaveAfterOk(res);
                         } catch (eHandle) {
                             if (typeof console !== 'undefined' && console.error) {
                                 console.error('saveLoanRequestEdit handleResponse', eHandle);
                             }
-                            try {
-                                closeEditModal();
-                            } catch (eClose) { /* noop */ }
-                            return adminSwalAsPromise(
-                                'warning',
-                                'خطای غیرمنتظره هنگام نمایش نتیجه. اگر تغییرات در سرور ذخیره شده‌اند، صفحه را تازه‌سازی کنید.'
-                            ).catch(function () {});
+                            try { closeEditModal(); } catch (eClose) { /* noop */ }
+                            if (window.AdminSwal && AdminSwal.warning) {
+                                AdminSwal.warning('تغییرات در سرور ذخیره شد، اما در نمایش نتیجه خطایی رخ داد. در صورت نیاز صفحه را تازه‌سازی کنید.');
+                            }
                         }
                     })
-                    .catch(function (err) {
+                    .then(null, function (eUnexpected) {
                         if (typeof console !== 'undefined' && console.error) {
-                            console.error('saveLoanRequestEdit transport', err);
+                            console.error('saveLoanRequestEdit post-success', eUnexpected);
                         }
-                        if (window.AdminSwal && AdminSwal.error) AdminSwal.error('ارتباط با سرور برقرار نشد.');
+                        // به‌عمد پیام «ارتباط با سرور» نشان نمی‌دهیم؛ سرور موفق پاسخ داده و تغییرات ذخیره شده‌اند.
                     })
                     .finally(function () {
                         if (btn) btn.disabled = false;
@@ -1433,6 +1461,104 @@
                 }
             });
 
+            function lrqRemoveRequestRowsFromDom(rid) {
+                var key = String(rid);
+                document.querySelectorAll('[data-lrq-row-check][data-lrq-id="' + key + '"]').forEach(function (cb) {
+                    var tr = cb.closest('tr');
+                    if (tr && tr.parentNode) tr.parentNode.removeChild(tr);
+                    var card = cb.closest('article.lrq-card');
+                    if (card && card.parentNode) card.parentNode.removeChild(card);
+                });
+            }
+
+            function lrqMaybeShowEmptyAfterDelete() {
+                var deskBody = document.querySelector('.lrq-desktop-only .lrq-tbl tbody');
+                if (deskBody && !deskBody.querySelector('tr')) {
+                    var emptyTr = document.createElement('tr');
+                    emptyTr.innerHTML = '<td colspan="6" class="lrq-empty">در این بازه تاریخ، درخواست وامی ثبت نشده است.</td>';
+                    deskBody.appendChild(emptyTr);
+                }
+                var mobile = document.querySelector('.lrq-mobile-stack');
+                if (mobile && !mobile.querySelector('article.lrq-card') && !mobile.querySelector('.lrq-card-empty')) {
+                    var emptyDiv = document.createElement('div');
+                    emptyDiv.className = 'lrq-card-empty';
+                    emptyDiv.setAttribute('role', 'status');
+                    emptyDiv.textContent = 'در این بازه تاریخ، درخواست وامی ثبت نشده است.';
+                    mobile.appendChild(emptyDiv);
+                }
+                var master = document.getElementById('lrq-select-all');
+                if (master) master.checked = false;
+            }
+
+            function performLrqDelete(rid) {
+                // خطای واقعی شبکه فقط هنگامی باید «ارتباط با سرور برقرار نشد» نمایش دهد که خود fetch reject شود.
+                // به همین دلیل onRejected را روی همان fetch می‌بندیم و منطق UI را در try/catch داخلی نگه می‌داریم
+                // تا یک خطای synchronous در پردازش پاسخ موفق، اشتباهاً به‌عنوان «خطای شبکه» گزارش نشود.
+                fetch(lrqResourceUrl(rid), {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken(),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                })
+                    .then(readFetchJsonBody, function (errNet) {
+                        if (typeof console !== 'undefined' && console.error) {
+                            console.error('performLrqDelete transport', errNet);
+                        }
+                        if (window.AdminSwal && AdminSwal.error) AdminSwal.error('ارتباط با سرور برقرار نشد.');
+                        return null;
+                    })
+                    .then(function (res) {
+                        if (!res) return;
+                        if (!res.ok) {
+                            var err = safeAdminMessage(res.body && res.body.message, 'حذف انجام نشد.');
+                            if (window.AdminSwal && AdminSwal.error) AdminSwal.error(err);
+                            return;
+                        }
+                        var msgOk = safeAdminMessage(res.body && res.body.message, 'حذف شد.');
+                        try {
+                            if (editOverlay && !editOverlay.hidden && lrqEditCtx.requestId === rid) {
+                                try { closeEditModal(); } catch (eClose) { /* noop */ }
+                            }
+                            lrqRemoveRequestRowsFromDom(rid);
+                            lrqMaybeShowEmptyAfterDelete();
+                        } catch (eUi) {
+                            if (typeof console !== 'undefined' && console.error) {
+                                console.error('performLrqDelete UI tail', eUi);
+                            }
+                        }
+                        if (window.AdminSwal && AdminSwal.success) AdminSwal.success(msgOk);
+                    });
+            }
+
+            document.addEventListener('click', function (e) {
+                var t = e.target;
+                var delBtn = t.closest && t.closest('[data-lrq-delete]');
+                if (!delBtn) return;
+                e.preventDefault();
+                var rid = parseInt(delBtn.getAttribute('data-lrq-delete') || '0', 10);
+                if (!rid) return;
+                var reqNo = delBtn.getAttribute('data-lrq-delete-no') || '';
+                var confirmTitle = 'حذف درخواست وام' + (reqNo ? ' شماره ' + reqNo : '');
+                var confirmText = 'با حذف این درخواست، تمام مدارک، فایل‌های پیوست و لاگ‌های تغییر وضعیت آن نیز حذف می‌شوند. این عمل قابل بازگشت نیست.';
+                if (window.AdminSwal && AdminSwal.confirm) {
+                    wrapSwalThenable(AdminSwal.confirm({
+                        title: confirmTitle,
+                        text: confirmText,
+                        confirmButtonText: 'بله، حذف شود',
+                        cancelButtonText: 'انصراف'
+                    })).then(function (result) {
+                        if (result && result.isConfirmed) performLrqDelete(rid);
+                    });
+                    return;
+                }
+                if (window.confirm(confirmTitle + '\n' + confirmText)) {
+                    performLrqDelete(rid);
+                }
+            });
+
             if (editClose) editClose.addEventListener('click', closeEditModal);
             var loanManageNav = document.getElementById('lrq-edit-open-loan-manage');
             if (loanManageNav) {
@@ -1488,27 +1614,39 @@
                                 try { body = text ? JSON.parse(text) : {}; } catch (e2) {}
                                 return { ok: r.ok, body: body };
                             });
+                        }, function (errNet) {
+                            if (typeof console !== 'undefined' && console.error) {
+                                console.error('docUpdate transport', errNet);
+                            }
+                            if (window.AdminSwal && AdminSwal.error) AdminSwal.error('ارتباط برقرار نشد.');
+                            return null;
                         }).then(function (res) {
+                            if (!res) return;
                             if (!res.ok) {
                                 var msg = (res.body && res.body.message) ? String(res.body.message) : 'ذخیره نشد.';
                                 if (window.AdminSwal && AdminSwal.error) AdminSwal.error(msg);
                                 return;
                             }
-                            var d = res.body && res.body.document;
-                            if (d && lrqEditCtx.documents) {
-                                lrqEditCtx.documents = lrqEditCtx.documents.map(function (row) {
-                                    if (Number(row.id) !== Number(d.id)) return row;
-                                    return Object.assign({}, row, {
-                                        review_status: d.review_status,
-                                        review_status_label: d.review_status_label,
-                                        expert_note: d.expert_note
+                            var okMsg = (res.body && res.body.message) ? String(res.body.message) : 'ذخیره شد.';
+                            try {
+                                var d = res.body && res.body.document;
+                                if (d && lrqEditCtx.documents) {
+                                    lrqEditCtx.documents = lrqEditCtx.documents.map(function (row) {
+                                        if (Number(row.id) !== Number(d.id)) return row;
+                                        return Object.assign({}, row, {
+                                            review_status: d.review_status,
+                                            review_status_label: d.review_status_label,
+                                            expert_note: d.expert_note
+                                        });
                                     });
-                                });
-                                renderLrqAdminDocuments(lrqEditCtx.documents, lrqEditCtx.document_review_statuses || []);
+                                    renderLrqAdminDocuments(lrqEditCtx.documents, lrqEditCtx.document_review_statuses || []);
+                                }
+                            } catch (eUi) {
+                                if (typeof console !== 'undefined' && console.error) {
+                                    console.error('docUpdate UI tail', eUi);
+                                }
                             }
-                            if (window.AdminSwal && AdminSwal.success) AdminSwal.success(String(res.body.message || 'ذخیره شد.'));
-                        }).catch(function () {
-                            if (window.AdminSwal && AdminSwal.error) AdminSwal.error('ارتباط برقرار نشد.');
+                            if (window.AdminSwal && AdminSwal.success) AdminSwal.success(okMsg);
                         }).finally(function () {
                             saveBtn.disabled = false;
                         });
@@ -1536,12 +1674,20 @@
                                 try { body = text ? JSON.parse(text) : {}; } catch (e2) {}
                                 return { ok: r.ok, body: body };
                             });
+                        }, function (errNet) {
+                            if (typeof console !== 'undefined' && console.error) {
+                                console.error('docDelete transport', errNet);
+                            }
+                            if (window.AdminSwal && AdminSwal.error) AdminSwal.error('ارتباط برقرار نشد.');
+                            return null;
                         }).then(function (res) {
+                            if (!res) return;
                             if (!res.ok) {
                                 var msg = (res.body && res.body.message) ? String(res.body.message) : 'حذف انجام نشد.';
                                 if (window.AdminSwal && AdminSwal.error) AdminSwal.error(msg);
                                 return;
                             }
+                            var okMsg = (res.body && res.body.message) ? String(res.body.message) : 'حذف شد.';
                             try {
                                 if (res.body && res.body.edit_context) {
                                     fillEditModal(res.body.edit_context);
@@ -1554,9 +1700,7 @@
                                     console.error('fillEditModal after document delete', eDelFill);
                                 }
                             }
-                            adminSwalAsPromise('success', String((res.body && res.body.message) ? res.body.message : 'حذف شد.'));
-                        }).catch(function () {
-                            if (window.AdminSwal && AdminSwal.error) AdminSwal.error('ارتباط برقرار نشد.');
+                            if (window.AdminSwal && AdminSwal.success) AdminSwal.success(okMsg);
                         }).finally(function () {
                             delBtn.disabled = false;
                         });
@@ -1975,12 +2119,12 @@
                         });
                     };
                     if (window.AdminSwal && AdminSwal.confirm) {
-                        AdminSwal.confirm({
+                        wrapSwalThenable(AdminSwal.confirm({
                             title: 'حذف وضعیت',
                             text: 'این وضعیت از فهرست حذف شود؟ اگر روی درخواستی استفاده شده باشد حذف انجام نمی‌شود.',
                             confirmButtonText: 'بله، حذف شود',
                             cancelButtonText: 'انصراف',
-                        }).then(function (result) {
+                        })).then(function (result) {
                             if (result && result.isConfirmed) doDel();
                         });
                         return;

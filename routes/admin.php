@@ -127,6 +127,10 @@ Route::middleware(['auth:admin'])->group(function (): void {
         ->middleware('throttle:30,1')
         ->name('loan-requests.update');
 
+    Route::delete('/loan-requests/{customerLoanRequest}', [AdminCustomerLoanRequestController::class, 'destroy'])
+        ->middleware('throttle:30,1')
+        ->name('loan-requests.destroy');
+
     Route::get('/loan-requests/{customerLoanRequest}/status-logs', [AdminCustomerLoanRequestController::class, 'statusLogs'])
         ->middleware('throttle:60,1')
         ->name('loan-requests.status-logs');
