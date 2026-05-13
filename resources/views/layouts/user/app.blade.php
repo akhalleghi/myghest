@@ -2069,6 +2069,44 @@
         .portal-dialog__actions {
             margin-top: 0.85rem;
         }
+
+        .portal-dialog--pay-inst {
+            max-width: 22rem;
+            width: calc(100% - 1.5rem);
+            margin: auto;
+        }
+
+        .portal-dialog__inst-dl {
+            margin: 0.5rem 0 0;
+            display: grid;
+            gap: 0.35rem 0.5rem;
+            font-size: 0.82rem;
+        }
+
+        .portal-dialog__inst-dl > div {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.5rem;
+            border-bottom: 1px dashed rgba(148, 163, 184, 0.45);
+            padding-bottom: 0.28rem;
+        }
+
+        .portal-dialog__inst-k {
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .portal-dialog__inst-v {
+            font-weight: 800;
+            text-align: left;
+        }
+
+        .portal-dialog__vpn-hint {
+            margin: 0.45rem 0 0;
+            font-size: 0.62rem;
+            line-height: 1.45;
+            color: var(--muted);
+        }
     </style>
     @stack('head')
 </head>
@@ -2528,6 +2566,10 @@
     </script>
     @include('layouts.partials.sweetalert2-css')
     @include('layouts.partials.sweetalert2-init')
+    @if(auth()->guard('customer')->check())
+        @include('layouts.partials.user-portal-pay-result-swal')
+        @include('user.portal.partials.installment-online-pay-dialog')
+    @endif
     @stack('scripts')
 </body>
 </html>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\User\UserCustomerLoanRequestController;
 use App\Http\Controllers\User\UserDepositDeclarationController;
+use App\Http\Controllers\User\UserInstallmentOnlinePaymentController;
 use App\Http\Controllers\User\UserNotificationController;
 use App\Http\Controllers\User\UserPanelController;
 use Illuminate\Http\Request;
@@ -32,6 +33,10 @@ Route::middleware(['auth:customer'])->group(function (): void {
     Route::post('/deposits/items', [UserDepositDeclarationController::class, 'store'])
         ->middleware('throttle:30,1')
         ->name('deposits.items.store');
+    Route::post('/installments/online-pay/start', [UserInstallmentOnlinePaymentController::class, 'start'])
+        ->middleware('throttle:10,1')
+        ->name('installments.online-pay.start');
+
     Route::post('/deposits/items/{deposit_declaration}/update', [UserDepositDeclarationController::class, 'update'])
         ->middleware('throttle:30,1')
         ->name('deposits.items.update');

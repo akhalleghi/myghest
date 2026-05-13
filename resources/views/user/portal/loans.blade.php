@@ -299,7 +299,20 @@
                 return base + sep + 'installment=' + encodeURIComponent(String(installmentId));
             }
 
-            function appendInstActions(container, inst) {
+            function setInstallmentPayDataset(el, loan, inst) {
+                if (!el) return;
+                el.setAttribute('data-installment-id', String(inst.id || ''));
+                el.setAttribute('data-loan-title', loan.loan_title != null ? String(loan.loan_title) : '');
+                el.setAttribute('data-loan-code-fa', loan.loan_code_fa != null ? String(loan.loan_code_fa) : '');
+                el.setAttribute('data-sequence-fa', inst.sequence_fa != null ? String(inst.sequence_fa) : String(inst.sequence || ''));
+                el.setAttribute('data-amount-fa', inst.amount_fa != null ? String(inst.amount_fa) : '');
+                el.setAttribute('data-due-jalali', inst.due_jalali != null ? String(inst.due_jalali) : '');
+                el.setAttribute('data-paid-fa', inst.paid_fa != null ? String(inst.paid_fa) : '');
+                el.setAttribute('data-slot-remaining-fa', inst.slot_remaining_fa != null ? String(inst.slot_remaining_fa) : '');
+                el.setAttribute('data-status-line', inst.status_line != null ? String(inst.status_line) : '');
+            }
+
+            function appendInstActions(container, loan, inst) {
                 var wrap = document.createElement('div');
                 wrap.className = 'portal-loans-inst__actions';
 
@@ -314,6 +327,7 @@
                 btnPay.setAttribute('data-portal-pay-online', '');
                 btnPay.setAttribute('data-installment-label', 'قسط ' + (inst.sequence_fa || String(inst.sequence || '')));
                 btnPay.innerHTML = '<i class="fa-solid fa-credit-card" aria-hidden="true"></i> پرداخت آنلاین';
+                setInstallmentPayDataset(btnPay, loan, inst);
 
                 if (inst.actions_enabled) {
                     wrap.appendChild(aDep);
@@ -354,6 +368,10 @@
                 var list = loan.installments || [];
                 list.forEach(function (inst) {
                     var tr = document.createElement('tr');
+                    if (inst.actions_enabled) {
+                        tr.setAttribute('data-inst-root', '1');
+                    }
+                    setInstallmentPayDataset(tr, loan, inst);
                     var tdSeq = document.createElement('td');
                     tdSeq.textContent = inst.sequence_fa != null ? String(inst.sequence_fa) : '';
                     var tdAmt = document.createElement('td');
@@ -368,7 +386,7 @@
                     tdLate.className = 'portal-loans-inst__cell-late';
                     tdLate.textContent = inst.early_late_cell_fa != null ? String(inst.early_late_cell_fa) : '—';
                     var tdAct = document.createElement('td');
-                    appendInstActions(tdAct, inst);
+                    appendInstActions(tdAct, loan, inst);
                     tr.appendChild(tdSeq);
                     tr.appendChild(tdAmt);
                     tr.appendChild(tdDue);
@@ -381,6 +399,10 @@
                     if (cardsRoot) {
                         var card = document.createElement('article');
                         card.className = 'portal-loans-inst-card';
+                        if (inst.actions_enabled) {
+                            card.setAttribute('data-inst-root', '1');
+                        }
+                        setInstallmentPayDataset(card, loan, inst);
                         card.setAttribute('role', 'listitem');
                         var head = document.createElement('header');
                         head.className = 'portal-loans-inst-card__head';
@@ -399,7 +421,7 @@
                         card.appendChild(dl);
                         var foot = document.createElement('div');
                         foot.className = 'portal-loans-inst-card__foot';
-                        appendInstActions(foot, inst);
+                        appendInstActions(foot, loan, inst);
                         card.appendChild(foot);
                         cardsRoot.appendChild(card);
                     }
@@ -416,20 +438,6 @@
                 });
             });
 
-            document.addEventListener('click', function (e) {
-                var t = e.target;
-                if (!t || !t.closest) return;
-                var pay = t.closest('[data-portal-pay-online]');
-                if (!pay) return;
-                var label = pay.getAttribute('data-installment-label') || 'این قسط';
-                if (typeof window.AdminSwal !== 'undefined' && window.AdminSwal.fire) {
-                    window.AdminSwal.fire({
-                        icon: 'info',
-                        title: 'پرداخت آنلاین',
-                        text: 'پرداخت آنلاین برای «' + label + '» به‌زودی فعال می‌شود. در صورت نیاز فعلاً از «اعلام واریزی» استفاده کنید.',
-                    });
-                }
-            });
         })();
     </script>
 @endpush

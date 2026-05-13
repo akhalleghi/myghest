@@ -60,6 +60,21 @@ final class LoanFileFinanceCalculator
     }
 
     /**
+     * حداکثر مبلغی که هنوز می‌توان به‌صورت مجموع پرداخت‌های اقساط ثبت کرد (پس از کسر تخفیف)، بدون توجه به سهم نامی هر قسط.
+     * (هم‌سو با پنل ادمین.)
+     */
+    public function installmentPaymentCeilingToman(CustomerLoanFile $file): int
+    {
+        $totalRepayable = $this->totalRepayableToman($file);
+        $totalPaid = (int) CustomerLoanInstallment::query()
+            ->where('customer_loan_file_id', (int) $file->id)
+            ->sum('paid_amount_toman');
+        $discount = (int) ($file->discount_amount_toman ?? 0);
+
+        return max(0, $totalRepayable - $discount - $totalPaid);
+    }
+
+    /**
      * @return array{schedule_remaining_toman: int, total_paid_toman: int, paid_installments_count: int, paid_installments_slot_count: int, late_fee_so_far_toman: int}
      */
     public function loanInstallmentFinancialSnapshot(CustomerLoanFile $file, int $totalRepayableContract): array

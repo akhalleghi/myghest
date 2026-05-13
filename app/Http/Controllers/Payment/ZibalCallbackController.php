@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Payment;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Contracts\View\View;
+use App\Services\Payment\InstallmentOnlinePaymentCompletionService;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 /**
  * نقطهٔ بازگشت کاربر از درگاه زیبال (IPG).
@@ -13,8 +15,13 @@ use Illuminate\Contracts\View\View;
  */
 final class ZibalCallbackController extends Controller
 {
-    public function __invoke(): View
+    public function __invoke(Request $request, InstallmentOnlinePaymentCompletionService $completion): RedirectResponse
     {
-        return view('payment.zibal-callback');
+        $trackId = (int) $request->query('trackId', 0);
+        $success = $request->query('success');
+        $status = (string) $request->query('status', '');
+        $successOk = $success === '1' || $success === 1 || $success === true || $status === '2';
+
+        return $completion->completeZibalReturn($trackId, $successOk);
     }
 }

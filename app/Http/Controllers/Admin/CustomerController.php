@@ -20,6 +20,7 @@ use App\Models\SmsLog;
 use App\Models\SmsTemplate;
 use App\Rules\IranNationalId;
 use App\Services\Admin\RawSmsDispatcher;
+use App\Services\Loans\LoanFileFinanceCalculator;
 use App\Services\Loans\LoanInstallmentScheduleService;
 use App\Services\Sms\SmsPanelManager;
 use App\Services\Sms\SmsSettingsService;
@@ -3296,21 +3297,7 @@ final class CustomerController extends Controller
      */
     private function loanInstallmentPaymentCeilingToman(CustomerLoanFile $file): int
     {
-        $profit = $this->calculateLoanProfitToman(
-            (int) $file->amount_toman,
-            (float) $file->effective_interest_rate,
-            (string) ($file->profit_calculation_method ?: LoanType::PROFIT_MONTHLY),
-            (int) $file->installments_count,
-            (int) $file->installment_interval_count,
-            (string) $file->installment_interval_unit
-        );
-        $totalRepayable = max(0, ((int) $file->amount_toman + $profit) - (int) $file->down_payment_toman);
-        $totalPaid = (int) CustomerLoanInstallment::query()
-            ->where('customer_loan_file_id', (int) $file->id)
-            ->sum('paid_amount_toman');
-        $discount = (int) ($file->discount_amount_toman ?? 0);
-
-        return max(0, $totalRepayable - $discount - $totalPaid);
+        return app(LoanFileFinanceCalculator::class)->installmentPaymentCeilingToman($file);
     }
 
     /**

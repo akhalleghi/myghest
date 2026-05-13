@@ -182,6 +182,19 @@
                                         <div
                                             class="portal-inst portal-inst--tone-{{ $inst['status_tone'] ?? 'pending' }}"
                                             id="portal-inst-{{ (int) $inst['id'] }}"
+                                            @if(!empty($inst['actions_enabled']))
+                                                data-inst-payable="1"
+                                                data-inst-root="1"
+                                            @endif
+                                            data-installment-id="{{ (int) $inst['id'] }}"
+                                            data-loan-title="{{ e($loan['loan_title'] ?? '') }}"
+                                            data-loan-code-fa="{{ e($loan['loan_code_fa'] ?? '') }}"
+                                            data-sequence-fa="{{ e($inst['sequence_fa'] ?? '') }}"
+                                            data-amount-fa="{{ e($inst['amount_fa'] ?? '') }}"
+                                            data-due-jalali="{{ e($inst['due_jalali'] ?? '') }}"
+                                            data-paid-fa="{{ e($inst['paid_fa'] ?? '') }}"
+                                            data-slot-remaining-fa="{{ e($inst['slot_remaining_fa'] ?? '') }}"
+                                            data-status-line="{{ e($inst['status_line'] ?? '') }}"
                                         >
                                             <div class="portal-inst__head">
                                                 <span class="portal-inst__n">
@@ -370,19 +383,6 @@
                         });
                     }
                     closeDialog();
-                });
-            });
-
-            document.querySelectorAll('[data-portal-pay-online]').forEach(function (btn) {
-                btn.addEventListener('click', function () {
-                    var label = btn.getAttribute('data-installment-label') || 'این قسط';
-                    if (typeof window.AdminSwal !== 'undefined' && window.AdminSwal.fire) {
-                        window.AdminSwal.fire({
-                            icon: 'info',
-                            title: 'پرداخت آنلاین',
-                            text: 'پرداخت آنلاین برای «' + label + '» به‌زودی فعال می‌شود. در صورت نیاز فعلاً از «اعلام واریزی» استفاده کنید.',
-                        });
-                    }
                 });
             });
         })();

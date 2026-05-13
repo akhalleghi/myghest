@@ -78,6 +78,11 @@ class AppServiceProvider extends ServiceProvider
 
             $zibalCallbackUrl = route('payment.zibal.callback', absolute: true);
 
+            $merchantTrim = is_string($zibalMerchant) ? trim($zibalMerchant) : '';
+            $resolvedGateway = is_string($paymentGateway) && $paymentGateway !== '' ? $paymentGateway : 'zibal';
+            $gatewayNormalized = in_array($resolvedGateway, ['zibal'], true) ? $resolvedGateway : 'zibal';
+            $userOnlinePaymentReady = $gatewayNormalized === 'zibal' && $merchantTrim !== '';
+
             $view->with('appDisplayName', is_string($displayName) && $displayName !== '' ? $displayName : config('app.name'));
             $view->with('appFontSize', is_string($fontSize) && in_array($fontSize, ['small', 'normal', 'large', 'xlarge'], true) ? $fontSize : 'normal');
             $view->with('appUiFont', is_string($uiFont) && in_array($uiFont, ['iransans', 'iranyekan', 'anjoman', 'estedad'], true) ? $uiFont : 'iransans');
@@ -90,8 +95,9 @@ class AppServiceProvider extends ServiceProvider
             $view->with('faviconFaClass', $resolvedFaviconFaClass);
             $view->with('zibalMerchant', is_string($zibalMerchant) ? $zibalMerchant : '');
             $view->with('zibalCallbackUrl', $zibalCallbackUrl);
-            $resolvedGateway = is_string($paymentGateway) && $paymentGateway !== '' ? $paymentGateway : 'zibal';
-            $view->with('paymentGateway', in_array($resolvedGateway, ['zibal'], true) ? $resolvedGateway : 'zibal');
+            $view->with('paymentGateway', $gatewayNormalized);
+            $view->with('userOnlinePaymentReady', $userOnlinePaymentReady);
+            $view->with('userInstallmentOnlinePayUrl', route('user.installments.online-pay.start'));
             $view->with('bankingInfoHtml', is_string($bankingInfoHtml) ? $bankingInfoHtml : '');
             $view->with(
                 'bankingInfoShowInUserPanel',
