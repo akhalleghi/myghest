@@ -16,9 +16,12 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 final class UserInstallmentOnlinePaymentController extends Controller
 {
+    private const RETURN_ROUTE_NAMES = ['user.loans.index', 'user.dashboard'];
+
     public function start(
         Request $request,
         InstallmentOnlinePaymentResolver $resolver,
@@ -27,8 +30,10 @@ final class UserInstallmentOnlinePaymentController extends Controller
     ): RedirectResponse {
         $validated = $request->validate([
             'customer_loan_installment_id' => ['required', 'integer', 'min:1'],
+            'return_route' => ['nullable', 'string', Rule::in(self::RETURN_ROUTE_NAMES)],
         ], [], [
             'customer_loan_installment_id' => 'قسط',
+            'return_route' => 'صفحه بازگشت',
         ]);
 
         $customer = Auth::guard('customer')->user();
@@ -111,7 +116,11 @@ final class UserInstallmentOnlinePaymentController extends Controller
 
         $ledger->syncFromInstallmentIntent($intent->fresh());
 
-        $request->session()->put('portal_pay_return_route', 'user.loans.index');
+        $returnRoute = isset($validated['return_route']) && is_string($validated['return_route'])
+            && in_array($validated['return_route'], self::RETURN_ROUTE_NAMES, true)
+            ? $validated['return_route']
+            : 'user.loans.index';
+        $request->session()->put('portal_pay_return_route', $returnRoute);
         $request->session()->save();
 
         $startUrl = 'https://gateway.zibal.ir/start/'.$req['track_id'];

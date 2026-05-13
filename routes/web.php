@@ -45,4 +45,5 @@ Route::middleware(['guest.customer'])->group(function (): void {
 });
 
 Route::get('/payment/zibal/callback', ZibalCallbackController::class)
+    ->middleware('throttle:120,1')
     ->name('payment.zibal.callback');

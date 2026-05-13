@@ -1,5 +1,6 @@
 @php($upPayReady = (bool) ($userOnlinePaymentReady ?? false))
 @php($upPayUrl = $userInstallmentOnlinePayUrl ?? route('user.installments.online-pay.start'))
+@php($portalInstPayReturnRoute = request()->routeIs('user.dashboard') ? 'user.dashboard' : 'user.loans.index')
 @php($upWalletPayUrl = $userInstallmentWalletPayUrl ?? route('user.installments.wallet-pay'))
 @php($walletBal = (int) ($customerWalletBalanceToman ?? 0))
 
@@ -28,6 +29,7 @@
             </p>
             <form class="portal-dialog__actions" method="post" action="{{ $upPayUrl }}" id="portal-installment-pay-form">
                 @csrf
+                <input type="hidden" name="return_route" value="{{ $portalInstPayReturnRoute }}">
                 <input type="hidden" name="customer_loan_installment_id" id="portal-installment-pay-id" value="" required>
                 <button type="submit" class="portal-loan__btn portal-loan__btn--primary portal-loan__btn--block" id="portal-installment-pay-submit" @if(!$upPayReady) disabled title="درگاه پرداخت در تنظیمات مدیریت تکمیل نشده است." @endif>
                     <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>

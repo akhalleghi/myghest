@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class UserDepositDeclarationController extends Controller
@@ -84,7 +85,7 @@ final class UserDepositDeclarationController extends Controller
             'customer_loan_file_id' => ['required', 'integer', 'min:1'],
             'customer_loan_installment_id' => ['required', 'integer', 'min:1'],
             'deposited_jdate' => ['required', 'string', 'max:20'],
-            'amount_toman' => ['required', 'integer', 'min:1', 'max:999999999999'],
+            'amount_toman' => ['required', 'integer', 'min:1', 'max:500000000'],
             'user_payment_method' => ['required', 'string', Rule::in(CustomerDepositDeclaration::userPaymentMethodKeys())],
             'tracking_number' => ['nullable', 'string', 'max:190'],
             'customer_note' => ['nullable', 'string', 'max:5000'],
@@ -99,7 +100,7 @@ final class UserDepositDeclarationController extends Controller
 
         try {
             $row = $this->deposits->create($customer, $validated, $request->file('attachment'));
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422);
         }
 
@@ -120,7 +121,7 @@ final class UserDepositDeclarationController extends Controller
             'customer_loan_file_id' => ['required', 'integer', 'min:1'],
             'customer_loan_installment_id' => ['required', 'integer', 'min:1'],
             'deposited_jdate' => ['required', 'string', 'max:20'],
-            'amount_toman' => ['required', 'integer', 'min:1', 'max:999999999999'],
+            'amount_toman' => ['required', 'integer', 'min:1', 'max:500000000'],
             'user_payment_method' => ['required', 'string', Rule::in(CustomerDepositDeclaration::userPaymentMethodKeys())],
             'tracking_number' => ['nullable', 'string', 'max:190'],
             'customer_note' => ['nullable', 'string', 'max:5000'],
@@ -129,7 +130,7 @@ final class UserDepositDeclarationController extends Controller
 
         try {
             $row = $this->deposits->update($customer, $deposit_declaration, $validated, $request->file('attachment'));
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422);
         }
 
@@ -148,7 +149,7 @@ final class UserDepositDeclarationController extends Controller
 
         try {
             $this->deposits->deleteIfPending($customer, $deposit_declaration);
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422);
         }
 

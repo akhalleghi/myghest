@@ -58,11 +58,12 @@ final class DepositDeclarationUserService
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(Customer $customer, array $data, ?UploadedFile $attachment): CustomerDepositDeclaration
     {
-        $this->assertLoanAndInstallment($customer, (int) $data['customer_loan_file_id'], (int) $data['customer_loan_installment_id']);
+        $inst = $this->assertLoanAndInstallment($customer, (int) $data['customer_loan_file_id'], (int) $data['customer_loan_installment_id']);
+        $this->assertDepositAmountWithinBounds($inst, (int) $data['amount_toman']);
 
         $depCarbon = JalaliInputParser::toCarbonDate((string) ($data['deposited_jdate'] ?? ''));
         if ($depCarbon === null) {
@@ -86,7 +87,7 @@ final class DepositDeclarationUserService
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function update(Customer $customer, CustomerDepositDeclaration $row, array $data, ?UploadedFile $attachment): CustomerDepositDeclaration
     {
@@ -97,11 +98,12 @@ final class DepositDeclarationUserService
             throw ValidationException::withMessages(['status' => ['فقط درخواست‌های در حال بررسی قابل ویرایش هستند.']]);
         }
 
-        $this->assertLoanAndInstallment(
+        $inst = $this->assertLoanAndInstallment(
             $customer,
             (int) $data['customer_loan_file_id'],
             (int) $data['customer_loan_installment_id']
         );
+        $this->assertDepositAmountWithinBounds($inst, (int) $data['amount_toman']);
 
         $depCarbon = JalaliInputParser::toCarbonDate((string) ($data['deposited_jdate'] ?? ''));
         if ($depCarbon === null) {
@@ -140,7 +142,7 @@ final class DepositDeclarationUserService
         $row->delete();
     }
 
-    private function assertLoanAndInstallment(Customer $customer, int $loanFileId, int $installmentId): void
+    private function assertLoanAndInstallment(Customer $customer, int $loanFileId, int $installmentId): CustomerLoanInstallment
     {
         $file = CustomerLoanFile::query()
             ->where('customer_id', $customer->id)
@@ -159,6 +161,32 @@ final class DepositDeclarationUserService
         if ($inst === null) {
             throw ValidationException::withMessages(['customer_loan_installment_id' => ['قسط انتخاب‌شده معتبر نیست.']]);
         }
+
+        return $inst;
+    }
+
+    /**
+     * جلوگیری از اعلام مبالغ غیرواقعی نسبت به ماندهٔ قسط (سقف سمت سرور مستقل از UI).
+     */
+    private function assertDepositAmountWithinBounds(CustomerLoanInstallment $inst, int $amountToman): void
+    {
+        $slotRemaining = max(0, (int) $inst->amount_toman - (int) $inst->paid_amount_toman);
+        if ($slotRemaining < 1) {
+            throw ValidationException::withMessages([
+                'customer_loan_installment_id' => ['این قسط مانده‌ای برای اعلام واریزی ندارد.'],
+            ]);
+        }
+
+        $headroom = max((int) floor($slotRemaining * 0.5), 5_000_000);
+        $maxDeclare = min(500_000_000, $slotRemaining + $headroom);
+        if ($amountToman < 1 || $amountToman > $maxDeclare) {
+            throw ValidationException::withMessages([
+                'amount_toman' => [
+                    'مبلغ اعلام‌شده با ماندهٔ معقول این قسط هم‌خوان نیست. حداکثر مجاز در این مرحله: '
+                    .number_format($maxDeclare, 0, '.', ',').' تومان',
+                ],
+            ]);
+        }
     }
 
     private function storeAttachment(Customer $customer, ?UploadedFile $file): ?string
@@ -169,6 +197,11 @@ final class DepositDeclarationUserService
         $ext = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'bin');
         if (! in_array($ext, ['jpg', 'jpeg', 'png', 'pdf'], true)) {
             throw ValidationException::withMessages(['attachment' => ['فرمت فایل مجاز: jpg، png، pdf']]);
+        }
+        $mime = (string) ($file->getMimeType() ?: '');
+        $allowedMimes = ['image/jpeg', 'image/png', 'application/pdf'];
+        if (! in_array($mime, $allowedMimes, true)) {
+            throw ValidationException::withMessages(['attachment' => ['نوع فایل (MIME) با فرمت‌های مجاز هم‌خوان نیست.']]);
         }
         $name = Str::lower(Str::random(18)).'.'.$ext;
         $dir = 'deposit-declarations/'.$customer->id;

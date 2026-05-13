@@ -9,6 +9,7 @@ use App\Services\Payment\PortalLoanWalletPaymentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 final class UserLoanFullSettlementWalletPaymentController extends Controller
 {
@@ -19,7 +20,7 @@ final class UserLoanFullSettlementWalletPaymentController extends Controller
         $validated = $request->validate([
             'customer_loan_file_id' => ['required', 'integer', 'min:1'],
             'payment_idempotency_key' => ['required', 'string', 'uuid'],
-            'return_route' => ['nullable', 'string', 'in:'.implode(',', self::RETURN_ROUTE_NAMES)],
+            'return_route' => ['nullable', 'string', Rule::in(self::RETURN_ROUTE_NAMES)],
         ], [], [
             'customer_loan_file_id' => 'پرونده وام',
             'payment_idempotency_key' => 'شناسهٔ یکتای پرداخت',

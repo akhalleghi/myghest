@@ -23,6 +23,12 @@ use Illuminate\Support\Facades\DB;
 
 final class InstallmentOnlinePaymentCompletionService
 {
+    /** مسیرهای مجاز برای بازگشت پس از درگاه (جلوگیری از بازگشت به نام‌مسیرهای ناشناس). */
+    private const ALLOWED_PORTAL_PAY_RETURN_ROUTES = [
+        'user.loans.index',
+        'user.dashboard',
+    ];
+
     public function __construct(
         private readonly ZibalIpgClient $zibal,
         private readonly LoanInstallmentPaidAmountSyncer $syncer,
@@ -30,6 +36,7 @@ final class InstallmentOnlinePaymentCompletionService
         private readonly CustomerWalletService $walletService,
         private readonly CustomerLoanPortalPresenter $portalPresenter,
         private readonly LoanFullSettlementOnlinePrincipalAllocator $fullSettlementAllocator,
+        private readonly InstallmentOnlinePaymentResolver $installmentResolver,
     ) {}
 
     public function completeZibalReturn(int $trackId, bool $gatewayReportsSuccess): RedirectResponse
@@ -181,6 +188,40 @@ final class InstallmentOnlinePaymentCompletionService
                 $trackId,
                 null,
                 (int) $intent->expected_amount_toman
+            ));
+        }
+
+        $customer = Customer::query()->whereKey((int) $intent->customer_id)->first();
+        if ($customer === null) {
+            $intent->update([
+                'status' => CustomerLoanInstallmentOnlinePaymentIntent::STATUS_FAILED,
+                'failure_reason' => 'حساب مشتری برای این پرداخت یافت نشد.',
+            ]);
+            $this->ledger->syncFromInstallmentIntent($intent->fresh());
+
+            return $this->redirectPortalPay($this->payResultPayload(
+                false,
+                'حساب کاربری برای این پرداخت یافت نشد.',
+                $trackId,
+                null,
+                $paidToman
+            ));
+        }
+
+        $resolved = $this->installmentResolver->resolveForCustomer($customer, (int) $installment->id);
+        if (! ($resolved['ok'] ?? false) || (int) ($resolved['amount_toman'] ?? 0) !== $paidToman) {
+            $intent->update([
+                'status' => CustomerLoanInstallmentOnlinePaymentIntent::STATUS_FAILED,
+                'failure_reason' => 'وضعیت قسط پس از شروع پرداخت تغییر کرده است.',
+            ]);
+            $this->ledger->syncFromInstallmentIntent($intent->fresh());
+
+            return $this->redirectPortalPay($this->payResultPayload(
+                false,
+                'وضعیت قسط پس از شروع پرداخت تغییر کرده است. در صورت کسر مبلغ از حساب، با پشتیبانی تماس بگیرید.',
+                $trackId,
+                null,
+                $paidToman
             ));
         }
 
@@ -651,7 +692,7 @@ final class InstallmentOnlinePaymentCompletionService
     private function redirectPortalPay(array $payload): RedirectResponse
     {
         $routeName = session()->pull('portal_pay_return_route');
-        if (! is_string($routeName) || $routeName === '') {
+        if (! is_string($routeName) || ! in_array($routeName, self::ALLOWED_PORTAL_PAY_RETURN_ROUTES, true)) {
             $routeName = 'user.loans.index';
         }
 
