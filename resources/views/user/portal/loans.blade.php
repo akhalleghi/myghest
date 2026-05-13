@@ -143,6 +143,7 @@
                                     data-remaining-fa="{{ $loan['remaining_amount_fa'] }}"
                                     data-late-fa="{{ $loan['late_fee_estimate_fa'] }}"
                                     data-total-fa="{{ $loan['full_settlement_online_fa'] ?? '' }}"
+                                    data-settlement-toman="{{ (int) ($loan['full_settlement_online_toman'] ?? 0) }}"
                                 >
                                     <i class="fa-solid fa-hand-holding-dollar" aria-hidden="true"></i>
                                     تسویه بدهی
@@ -175,28 +176,69 @@
                 <i class="fa-solid fa-hand-holding-dollar" aria-hidden="true"></i>
                 تسویه بدهی
             </h3>
+            <p class="portal-dialog__hint" style="margin-top:0.35rem;text-align:center;line-height:1.65">
+                مبالغ زیر برآورد امروز است؛ برای پرداخت، ابتدا درگاه بانکی (پیشنهادی) یا در صورت تمایل کیف پول را انتخاب کنید.
+            </p>
             <p class="portal-dialog__lead">ماندهٔ تعهد قسطی (پس از تخفیف‌های ثبت‌شده):</p>
             <p class="portal-dialog__amount" id="portal-loans-settle-remaining">—</p>
             <p class="portal-dialog__lead portal-dialog__lead--muted">برآورد جریمهٔ دیرکرد تا امروز:</p>
             <p class="portal-dialog__sub" id="portal-loans-settle-late">—</p>
-            <p class="portal-dialog__lead portal-dialog__lead--muted">جمع قابل پرداخت در درگاه:</p>
+            <p class="portal-dialog__lead portal-dialog__lead--muted">جمع قابل پرداخت:</p>
             <p class="portal-dialog__amount" id="portal-loans-settle-total" style="margin-top:0.15rem">—</p>
-            <p class="portal-dialog__hint">مبلغ نهایی بر اساس وضعیت پرونده در لحظهٔ پرداخت محاسبه و از طریق درگاه فعال سیستم وصول می‌شود.</p>
-            <p class="portal-dialog__vpn-hint" id="portal-loans-settle-vpn">
-                پیش از ورود به درگاه، از خاموش بودن VPN خود اطمینان حاصل نمایید.
-            </p>
-            <form class="portal-dialog__actions" method="post" action="{{ $upFsPayUrl }}" id="portal-loans-settle-pay-form">
-                @csrf
-                <input type="hidden" name="customer_loan_file_id" id="portal-loans-settle-loan-file-id" value="" required>
-                <input type="hidden" name="return_route" value="user.loans.index">
-                <button type="submit" class="portal-loan__btn portal-loan__btn--primary portal-loan__btn--block" id="portal-loans-settle-pay-submit" @if(!$upPayReady) disabled title="درگاه پرداخت در تنظیمات مدیریت تکمیل نشده است." @endif>
-                    <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
-                    ورود به درگاه پرداخت
-                </button>
-                @unless($upPayReady)
-                    <p class="portal-dialog__hint" style="margin-top:0.45rem;text-align:center">درگاه پرداخت توسط مدیریت فعال نشده است؛ پس از تکمیل تنظیمات مالی ادمین دوباره تلاش کنید.</p>
-                @endunless
-            </form>
+
+            @php($upWalletFsUrl = $userLoanFullSettlementWalletPayUrl ?? route('user.loans.full-settlement.wallet-pay'))
+
+            <div class="portal-pay-path-card portal-pay-path-card--gateway">
+                <p class="portal-dialog__lead" style="font-size:0.88rem;font-weight:900;color:var(--text)">
+                    <i class="fa-solid fa-building-columns" aria-hidden="true"></i>
+                    پرداخت و تسویهٔ کامل از درگاه بانکی
+                </p>
+                <p class="portal-dialog__hint" style="margin-top:0.35rem;text-align:center">
+                    روش پیشنهادی؛ مبلغ نهایی در لحظهٔ پرداخت از روی وضعیت پرونده محاسبه می‌شود و در صورت تغییر، سرور عملیات را رد می‌کند.
+                </p>
+                <p class="portal-dialog__vpn-hint" id="portal-loans-settle-vpn">
+                    پیش از ورود به درگاه، از خاموش بودن VPN خود اطمینان حاصل نمایید.
+                </p>
+                <form class="portal-dialog__actions" method="post" action="{{ $upFsPayUrl }}" id="portal-loans-settle-pay-form">
+                    @csrf
+                    <input type="hidden" name="customer_loan_file_id" id="portal-loans-settle-loan-file-id" value="" required>
+                    <input type="hidden" name="return_route" value="user.loans.index">
+                    <button type="submit" class="portal-loan__btn portal-loan__btn--primary portal-loan__btn--block" id="portal-loans-settle-pay-submit" @if(!$upPayReady) disabled title="درگاه پرداخت در تنظیمات مدیریت تکمیل نشده است." @endif>
+                        <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                        ورود به درگاه و تسویهٔ کامل
+                    </button>
+                    @unless($upPayReady)
+                        <p class="portal-dialog__hint" style="margin-top:0.45rem;text-align:center">درگاه پرداخت توسط مدیریت فعال نشده است؛ در صورت کفایت موجودی می‌توانید از کیف پول زیر استفاده کنید.</p>
+                    @endunless
+                </form>
+            </div>
+
+            <div class="portal-pay-alt-block">
+                <p class="portal-pay-alt-heading">یا تسویهٔ کامل با کیف پول</p>
+                <div class="portal-pay-wallet-panel">
+                    <p class="portal-dialog__lead portal-dialog__lead--muted" style="margin:0;text-align:center;font-size:0.8rem">
+                        موجودی کیف پول شما:
+                        <strong id="portal-loans-settle-wallet-line">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format(max(0, (int) ($customerWalletBalanceToman ?? 0)), 0, '.', ',')) }} تومان</strong>
+                    </p>
+                    <div id="portal-loans-settle-wallet-hint" class="portal-dialog__hint" style="display:none;text-align:center;margin-top:0.35rem"></div>
+                    <div id="portal-loans-settle-wallet-topup-wrap" class="portal-dialog__actions" style="display:none;margin-top:0.35rem;padding-top:0">
+                        <button type="button" class="portal-loan__btn portal-loan__btn--ghost portal-loan__btn--block" id="portal-loans-settle-wallet-topup-btn">
+                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                            شارژ کیف پول (پوشش کمبود)
+                        </button>
+                    </div>
+                    <form class="portal-dialog__actions" method="post" action="{{ $upWalletFsUrl }}" id="portal-loans-settle-wallet-form">
+                        @csrf
+                        <input type="hidden" name="customer_loan_file_id" id="portal-loans-settle-wallet-loan-file-id" value="" required>
+                        <input type="hidden" name="return_route" value="user.loans.index">
+                        <input type="hidden" name="payment_idempotency_key" id="portal-loans-settle-wallet-idem" value="" required>
+                        <button type="submit" class="portal-loan__btn portal-loan__btn--ghost portal-loan__btn--block" id="portal-loans-settle-wallet-submit">
+                            <i class="fa-solid fa-wallet" aria-hidden="true"></i>
+                            تسویهٔ کامل از کیف پول
+                        </button>
+                    </form>
+                </div>
+            </div>
         </div>
     </dialog>
 
@@ -242,6 +284,7 @@
             var instDialog = document.getElementById('portal-loans-inst-dialog');
             var loans = window.__PORTAL_LOANS_LIST__ || [];
             var routes = window.__PORTAL_LOANS_ROUTES__ || { depositsIndex: '' };
+            var lastLoansSettleWalletShortToman = 0;
 
             function closeLoansDialogs() {
                 if (settleDialog && settleDialog.open) settleDialog.close();
@@ -263,21 +306,83 @@
                 });
             }
 
+            function newIdempotencyKey() {
+                if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                    return window.crypto.randomUUID();
+                }
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                    var r = (Math.random() * 16) | 0;
+                    var v = c === 'x' ? r : (r & 0x3) | 0x8;
+                    return v.toString(16);
+                });
+            }
+
+            function faMoneyFromToman(t) {
+                if (!Number.isFinite(t) || t < 1) return '—';
+                var s = String(Math.floor(t));
+                var rev = s.split('').reverse().join('');
+                var parts = [];
+                for (var i = 0; i < rev.length; i += 3) {
+                    parts.push(rev.substr(i, 3).split('').reverse().join(''));
+                }
+                var joined = parts.reverse().join(',');
+                return joined.replace(/\d/g, function (d) {
+                    return '۰۱۲۳۴۵۶۷۸۹'[parseInt(d, 10)];
+                }) + ' تومان';
+            }
+
             document.querySelectorAll('[data-portal-settle-open]').forEach(function (btn) {
                 btn.addEventListener('click', function () {
                     if (!settleDialog) return;
+                    var balHeader = 0;
+                    if (typeof window.portalApplyWalletBalanceToGlobals === 'function') {
+                        balHeader = window.portalApplyWalletBalanceToGlobals();
+                    }
+                    var wLineEl = document.getElementById('portal-loans-settle-wallet-line');
+                    if (wLineEl && typeof window.portalFormatFaTomanLine === 'function') {
+                        wLineEl.textContent = window.portalFormatFaTomanLine(balHeader);
+                    }
                     var rem = btn.getAttribute('data-remaining-fa') || '—';
                     var late = btn.getAttribute('data-late-fa') || '—';
                     var total = btn.getAttribute('data-total-fa') || '—';
                     var lid = btn.getAttribute('data-loan-file-id') || '';
+                    var needT = parseInt(btn.getAttribute('data-settlement-toman') || '0', 10) || 0;
                     var elR = document.getElementById('portal-loans-settle-remaining');
                     var elL = document.getElementById('portal-loans-settle-late');
                     var elT = document.getElementById('portal-loans-settle-total');
                     var hid = document.getElementById('portal-loans-settle-loan-file-id');
+                    var wHid = document.getElementById('portal-loans-settle-wallet-loan-file-id');
+                    var wIdem = document.getElementById('portal-loans-settle-wallet-idem');
+                    var wSub = document.getElementById('portal-loans-settle-wallet-submit');
+                    var wHint = document.getElementById('portal-loans-settle-wallet-hint');
+                    var settleTopWrap = document.getElementById('portal-loans-settle-wallet-topup-wrap');
                     if (elR) elR.textContent = rem;
                     if (elL) elL.textContent = late;
                     if (elT) elT.textContent = total;
                     if (hid) hid.value = lid;
+                    if (wHid) wHid.value = lid;
+                    if (wIdem) wIdem.value = newIdempotencyKey();
+                    var bal = typeof window.__PORTAL_WALLET_BALANCE_TOMAN__ === 'number' ? window.__PORTAL_WALLET_BALANCE_TOMAN__ : balHeader;
+                    var short = needT > bal ? (needT - bal) : 0;
+                    lastLoansSettleWalletShortToman = short;
+                    if (settleTopWrap) {
+                        settleTopWrap.style.display = needT > 0 && short > 0 ? 'block' : 'none';
+                    }
+                    if (wHint) {
+                        if (needT > 0 && short > 0) {
+                            wHint.style.display = 'block';
+                            wHint.innerHTML =
+                                'برای تسویهٔ کامل از کیف پول، موجودی باید حداقل <strong>' + faMoneyFromToman(needT) + '</strong> باشد. ' +
+                                'کمبود فعلی: <strong>' + faMoneyFromToman(short) + '</strong> — با دکمهٔ زیر می‌توانید همین مبلغ را در فرم شارژ پیش‌نویس کنید.';
+                        } else {
+                            wHint.style.display = 'none';
+                            wHint.textContent = '';
+                        }
+                    }
+                    if (wSub) {
+                        wSub.disabled = needT < 1 || short > 0;
+                        wSub.title = short > 0 ? 'موجودی کیف پول کافی نیست.' : '';
+                    }
                     if (typeof settleDialog.showModal === 'function') settleDialog.showModal();
                 });
             });
@@ -292,6 +397,29 @@
                     }
                 });
             });
+
+            var settleTopBtn = document.getElementById('portal-loans-settle-wallet-topup-btn');
+            if (settleTopBtn) {
+                settleTopBtn.addEventListener('click', function () {
+                    if (settleDialog && settleDialog.open) settleDialog.close();
+                    if (typeof window.portalOpenWalletTopupPrefill === 'function') {
+                        window.portalOpenWalletTopupPrefill(lastLoansSettleWalletShortToman);
+                    }
+                });
+            }
+
+            var settleWalletForm = document.getElementById('portal-loans-settle-wallet-form');
+            if (settleWalletForm) {
+                settleWalletForm.addEventListener('submit', function (e) {
+                    var wHid = document.getElementById('portal-loans-settle-wallet-loan-file-id');
+                    if (!wHid || String(wHid.value || '').trim() === '') {
+                        e.preventDefault();
+                        if (window.AdminSwal && AdminSwal.fire) {
+                            AdminSwal.fire({ icon: 'warning', title: 'تسویه', text: 'پرونده انتخاب نشده است.' });
+                        }
+                    }
+                });
+            }
 
             var settleForm = document.getElementById('portal-loans-settle-pay-form');
             if (settleForm) {
@@ -331,6 +459,7 @@
                 el.setAttribute('data-paid-fa', inst.paid_fa != null ? String(inst.paid_fa) : '');
                 el.setAttribute('data-slot-remaining-fa', inst.slot_remaining_fa != null ? String(inst.slot_remaining_fa) : '');
                 el.setAttribute('data-online-payable-fa', inst.online_payable_fa != null ? String(inst.online_payable_fa) : '');
+                el.setAttribute('data-online-payable-toman', String(inst.online_payable_toman != null ? Number(inst.online_payable_toman) : 0));
                 el.setAttribute('data-status-line', inst.status_line != null ? String(inst.status_line) : '');
             }
 

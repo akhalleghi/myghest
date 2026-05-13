@@ -20,8 +20,14 @@ final class CustomerLoanInstallmentPayment extends Model
 
     public const METHOD_ONLINE = 'online';
 
+    /** پرداخت قسط از موجودی کیف پول (کسر داخلی، بدون درگاه) */
+    public const METHOD_WALLET = 'wallet';
+
     /** پرداخت تسویهٔ کلی بدهی از درگاه (ثبت خودکار پس از بازگشت IPG) */
     public const METHOD_FULL_SETTLEMENT_ONLINE = 'full_settlement_online';
+
+    /** تسویهٔ کلی از کیف پول (کسر داخلی) */
+    public const METHOD_FULL_SETTLEMENT_WALLET = 'full_settlement_wallet';
 
     public const METHOD_CARD_TERMINAL = 'card_terminal';
 
@@ -48,7 +54,9 @@ final class CustomerLoanInstallmentPayment extends Model
             self::METHOD_BANK_TRANSFER => 'واریز بانکی',
             self::METHOD_GOLD => 'طلا',
             self::METHOD_ONLINE => 'آنلاین',
+            self::METHOD_WALLET => 'کیف پول',
             self::METHOD_FULL_SETTLEMENT_ONLINE => 'تسویهٔ یکجای بدهی (درگاه)',
+            self::METHOD_FULL_SETTLEMENT_WALLET => 'تسویهٔ یکجای بدهی (کیف پول)',
             self::METHOD_CARD_TERMINAL => 'کارتخوان',
         ];
     }
@@ -69,6 +77,8 @@ final class CustomerLoanInstallmentPayment extends Model
         return array_values(array_diff(self::methodKeys(), [
             self::METHOD_LEGACY_IMPORTED,
             self::METHOD_FULL_SETTLEMENT_ONLINE,
+            self::METHOD_FULL_SETTLEMENT_WALLET,
+            self::METHOD_WALLET,
         ]));
     }
 

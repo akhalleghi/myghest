@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services\Payment;
 
+use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanFullSettlementOnlinePaymentIntent;
+use App\Models\CustomerLoanInstallment;
 use App\Models\CustomerLoanInstallmentOnlinePaymentIntent;
 use App\Models\CustomerTransaction;
 use App\Models\CustomerWalletOnlinePaymentIntent;
+use App\Models\CustomerWalletTransaction;
 use Hekmatinasser\Jalali\Jalali;
 
 /**
@@ -144,6 +147,107 @@ final class CustomerTransactionLedgerService
         $row->meta = $meta;
         $fail = $intent->failure_reason;
         $row->failure_reason = $fail !== null && trim((string) $fail) !== '' ? (string) $fail : null;
+
+        $row->save();
+    }
+
+    public function syncFromWalletInstallmentPayment(
+        CustomerWalletTransaction $wtx,
+        CustomerLoanInstallment $installment,
+        CustomerLoanFile $file,
+        int $amountToman,
+    ): void {
+        $wtx->loadMissing(['customer']);
+
+        $loanTitle = (string) ($file->loanType?->title ?? 'وام');
+        $loanCode = (string) ($file->loan_code ?? '');
+        $seq = (int) $installment->sequence;
+
+        $loanCodeFa = $loanCode !== '' ? Jalali::enToFaNumbers($loanCode) : '—';
+        $seqFa = Jalali::enToFaNumbers((string) max(1, $seq));
+
+        $detailParts = array_filter([
+            $loanTitle !== '' && $loanTitle !== 'وام' ? 'نوع وام: '.$loanTitle : null,
+            $loanCode !== '' ? 'کد پرونده: '.$loanCodeFa : null,
+            'قسط: '.$seqFa,
+        ]);
+        $detail = $detailParts !== [] ? implode(' — ', $detailParts) : null;
+
+        $meta = [
+            'loan_file_id' => (int) $file->id,
+            'installment_id' => (int) $installment->id,
+            'loan_code' => $loanCode !== '' ? $loanCode : null,
+            'wallet_transaction_id' => (int) $wtx->id,
+        ];
+
+        $row = CustomerTransaction::query()->firstOrNew([
+            'source_type' => CustomerWalletTransaction::class,
+            'source_id' => (int) $wtx->id,
+        ]);
+
+        $row->customer_id = (int) $wtx->customer_id;
+        $row->kind = CustomerTransaction::KIND_INSTALLMENT_WALLET_PAYMENT;
+        $row->status = CustomerTransaction::STATUS_COMPLETED;
+        $row->amount_toman = $amountToman;
+        $row->amount_rial = $amountToman * 10;
+        $row->gateway_key = null;
+        $row->track_id = null;
+        $row->bank_reference = 'wtx-'.(string) $wtx->id;
+        $row->title = 'پرداخت قسط (کیف پول)';
+        $row->detail = $detail;
+        $row->meta = $meta;
+        $row->failure_reason = null;
+
+        $row->save();
+    }
+
+    /**
+     * @param  array{principal_toman: int, late_fee_toman: int, amount_toman: int}  $quote
+     */
+    public function syncFromWalletFullSettlementPayment(
+        CustomerWalletTransaction $wtx,
+        CustomerLoanFile $file,
+        array $quote,
+        int $amountToman,
+    ): void {
+        $file->loadMissing('loanType');
+
+        $loanTitle = (string) ($file->loanType?->title ?? 'وام');
+        $loanCode = (string) ($file->loan_code ?? '');
+        $loanCodeFa = $loanCode !== '' ? Jalali::enToFaNumbers($loanCode) : '—';
+
+        $detailParts = array_filter([
+            $loanTitle !== '' && $loanTitle !== 'وام' ? 'نوع وام: '.$loanTitle : null,
+            $loanCode !== '' ? 'کد پرونده: '.$loanCodeFa : null,
+            'تسویهٔ کلی بدهی (کیف پول)',
+        ]);
+        $detail = $detailParts !== [] ? implode(' — ', $detailParts) : null;
+
+        $meta = [
+            'loan_file_id' => (int) $file->id,
+            'loan_code' => $loanCode !== '' ? $loanCode : null,
+            'principal_component_toman' => (int) $quote['principal_toman'],
+            'late_fee_component_toman' => (int) $quote['late_fee_toman'],
+            'wallet_transaction_id' => (int) $wtx->id,
+        ];
+
+        $row = CustomerTransaction::query()->firstOrNew([
+            'source_type' => CustomerWalletTransaction::class,
+            'source_id' => (int) $wtx->id,
+        ]);
+
+        $row->customer_id = (int) $wtx->customer_id;
+        $row->kind = CustomerTransaction::KIND_FULL_SETTLEMENT_WALLET_PAYMENT;
+        $row->status = CustomerTransaction::STATUS_COMPLETED;
+        $row->amount_toman = $amountToman;
+        $row->amount_rial = $amountToman * 10;
+        $row->gateway_key = null;
+        $row->track_id = null;
+        $row->bank_reference = 'wtx-'.(string) $wtx->id;
+        $row->title = 'تسویهٔ کلی بدهی (کیف پول)';
+        $row->detail = $detail;
+        $row->meta = $meta;
+        $row->failure_reason = null;
 
         $row->save();
     }

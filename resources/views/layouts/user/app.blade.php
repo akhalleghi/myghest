@@ -2176,6 +2176,61 @@
             line-height: 1.45;
             color: var(--muted);
         }
+
+        /* پرداخت پورتال: درگاه پیشنهادی + کیف پول ثانویه */
+        .portal-pay-path-card {
+            margin-top: 0.75rem;
+            padding: 0.65rem 0.7rem 0.75rem;
+            border-radius: 0.65rem;
+            border: 1px solid rgba(148, 163, 184, 0.55);
+            background: rgba(255, 255, 255, 0.35);
+        }
+
+        .portal-pay-path-card--gateway {
+            border-color: rgba(37, 99, 235, 0.38);
+            background: linear-gradient(180deg, rgba(37, 99, 235, 0.07), rgba(255, 255, 255, 0.22));
+        }
+
+        .portal-pay-path-card .portal-dialog__actions {
+            margin-top: 0.55rem;
+            padding-top: 0;
+        }
+
+        .portal-pay-path-card .portal-dialog__lead {
+            margin-top: 0.15rem;
+            text-align: center;
+        }
+
+        .portal-pay-alt-block {
+            margin-top: 1rem;
+            padding-top: 0.85rem;
+            border-top: 1px dashed rgba(148, 163, 184, 0.5);
+        }
+
+        .portal-pay-alt-heading {
+            margin: 0 0 0.5rem;
+            text-align: center;
+            font-size: 0.74rem;
+            font-weight: 800;
+            color: var(--muted);
+        }
+
+        .portal-pay-wallet-panel {
+            margin-top: 0.35rem;
+            padding: 0.55rem 0.6rem 0.65rem;
+            border-radius: 0.55rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+        }
+
+        .portal-pay-wallet-panel .portal-dialog__actions {
+            margin-top: 0.5rem;
+            padding-top: 0;
+        }
+
+        .portal-pay-wallet-panel .portal-dialog__hint {
+            margin-top: 0.4rem;
+        }
     </style>
     @stack('head')
 </head>
@@ -2646,6 +2701,52 @@
     @include('layouts.partials.sweetalert2-css')
     @include('layouts.partials.sweetalert2-init')
     @if(auth()->guard('customer')->check())
+        <script>
+            (function () {
+                window.portalReadWalletBalanceToman = function () {
+                    var btn = document.getElementById('up-wallet-open-btn');
+                    if (!btn || !btn.getAttribute) {
+                        return typeof window.__PORTAL_WALLET_BALANCE_TOMAN__ === 'number' ? window.__PORTAL_WALLET_BALANCE_TOMAN__ : 0;
+                    }
+                    var n = parseInt(String(btn.getAttribute('data-wallet-balance-toman') || '0'), 10);
+
+                    return Number.isFinite(n) && n >= 0 ? n : 0;
+                };
+                window.portalApplyWalletBalanceToGlobals = function () {
+                    var n = window.portalReadWalletBalanceToman();
+                    window.__PORTAL_WALLET_BALANCE_TOMAN__ = n;
+
+                    return n;
+                };
+                window.portalFormatFaTomanLine = function (toman) {
+                    var n = Math.max(0, Math.floor(Number(toman) || 0));
+                    var s = String(n);
+                    if (s === '0') {
+                        return '۰ تومان';
+                    }
+                    var rev = s.split('').reverse().join('');
+                    var parts = [];
+                    for (var i = 0; i < rev.length; i += 3) {
+                        parts.push(rev.substr(i, 3).split('').reverse().join(''));
+                    }
+                    var joined = parts.reverse().join(',');
+
+                    return joined.replace(/\d/g, function (d) {
+                        return '۰۱۲۳۴۵۶۷۸۹'[parseInt(d, 10)];
+                    }) + ' تومان';
+                };
+                function portalBootstrapWalletBalance() {
+                    if (typeof window.portalApplyWalletBalanceToGlobals === 'function') {
+                        window.portalApplyWalletBalanceToGlobals();
+                    }
+                }
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', portalBootstrapWalletBalance);
+                } else {
+                    portalBootstrapWalletBalance();
+                }
+            })();
+        </script>
         @include('layouts.partials.user-portal-pay-result-swal')
         @include('user.portal.partials.installment-online-pay-dialog')
         @include('user.portal.partials.wallet-topup-dialog')

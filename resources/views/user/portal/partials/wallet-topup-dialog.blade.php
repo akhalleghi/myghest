@@ -2,6 +2,7 @@
 @php($upWalletTopupUrl = $userWalletOnlineTopupUrl ?? route('user.wallet.online-topup.start'))
 @php($wMin = 10000)
 @php($wMax = 500000000)
+@php($portalWalletTopupPrefillToman = max(0, (int) session()->pull('portal_wallet_topup_prefill_toman', 0)))
 
 <dialog id="portal-wallet-topup-dialog" class="portal-dialog portal-dialog--wallet-topup" aria-labelledby="portal-wallet-topup-title">
     <div class="portal-dialog__inner">
@@ -52,6 +53,7 @@
 </dialog>
 
 @push('scripts')
+    <script>window.__PORTAL_WALLET_TOPUP_PREFILL_TOMAN__ = {{ (int) $portalWalletTopupPrefillToman }};</script>
     @if($errors->has('amount_toman'))
         <script>
             document.addEventListener('DOMContentLoaded', function () {
@@ -129,6 +131,25 @@
                 if (dialog.open) dialog.close();
             }
 
+            function closeOtherPortalPaymentDialogs() {
+                [
+                    'portal-installment-pay-dialog',
+                    'portal-loans-settle-dialog',
+                    'portal-settle-dialog',
+                ].forEach(function (id) {
+                    var el = document.getElementById(id);
+                    if (el && el.open) el.close();
+                });
+            }
+
+            function clampPrefillToman(raw) {
+                var x = Math.floor(Number(raw) || 0);
+                if (x < 1) return 0;
+                if (x < minV) x = minV;
+                if (x > maxV) x = maxV;
+                return x;
+            }
+
             document.querySelectorAll('[data-portal-wallet-topup-close]').forEach(function (b) {
                 b.addEventListener('click', closeDialog);
             });
@@ -136,9 +157,11 @@
                 if (e.target === dialog) closeDialog();
             });
 
-            function openWalletTopupModal() {
+            function openWalletTopupModal(prefillToman) {
                 if (typeof dialog.showModal !== 'function') return;
-                syncFromDigits('');
+                var n = clampPrefillToman(prefillToman);
+                syncFromDigits(n > 0 ? String(n) : '');
+                closeOtherPortalPaymentDialogs();
                 dialog.showModal();
                 setTimeout(function () {
                     try {
@@ -147,13 +170,19 @@
                 }, 80);
             }
 
+            window.portalOpenWalletTopupPrefill = function (toman) {
+                openWalletTopupModal(toman);
+            };
+
             function bindOpenTrigger(el) {
-                el.addEventListener('click', openWalletTopupModal);
+                el.addEventListener('click', function () {
+                    openWalletTopupModal(0);
+                });
                 if (el.tagName !== 'BUTTON') {
                     el.addEventListener('keydown', function (e) {
                         if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
-                            openWalletTopupModal();
+                            openWalletTopupModal(0);
                         }
                     });
                 }
@@ -161,6 +190,22 @@
 
             if (openBtn) bindOpenTrigger(openBtn);
             document.querySelectorAll('[data-portal-wallet-topup-open]').forEach(bindOpenTrigger);
+
+            function runWhenDomReady(fn) {
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', fn);
+                } else {
+                    fn();
+                }
+            }
+            runWhenDomReady(function () {
+                var pre = typeof window.__PORTAL_WALLET_TOPUP_PREFILL_TOMAN__ === 'number'
+                    ? window.__PORTAL_WALLET_TOPUP_PREFILL_TOMAN__
+                    : 0;
+                if (pre > 0) {
+                    openWalletTopupModal(pre);
+                }
+            });
 
             amountVisible.addEventListener('input', function () {
                 var digits = normalizeDigits(amountVisible.value);

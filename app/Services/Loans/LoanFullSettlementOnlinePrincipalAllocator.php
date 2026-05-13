@@ -25,7 +25,8 @@ final class LoanFullSettlementOnlinePrincipalAllocator
     public function allocatePrincipalAcrossInstallments(
         CustomerLoanFile $file,
         int $principalToman,
-        string $bankRefTrim
+        string $bankRefTrim,
+        string $installmentPaymentMethod = CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_ONLINE,
     ): void {
         if ($principalToman < 0) {
             throw new \RuntimeException('مبلغ اصلی نامعتبر است.');
@@ -34,7 +35,10 @@ final class LoanFullSettlementOnlinePrincipalAllocator
             return;
         }
 
-        $note = 'تسویهٔ یکجای بدهی از درگاه'.($bankRefTrim !== '' ? ' — مرجع: '.$bankRefTrim : '');
+        $note = match ($installmentPaymentMethod) {
+            CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET => 'تسویهٔ یکجای بدهی از کیف پول'.($bankRefTrim !== '' ? ' — مرجع: '.$bankRefTrim : ''),
+            default => 'تسویهٔ یکجای بدهی از درگاه'.($bankRefTrim !== '' ? ' — مرجع: '.$bankRefTrim : ''),
+        };
         $today = Carbon::now()->startOfDay()->format('Y-m-d');
 
         $file->loadMissing([
@@ -61,7 +65,7 @@ final class LoanFullSettlementOnlinePrincipalAllocator
             }
             CustomerLoanInstallmentPayment::query()->create([
                 'customer_loan_installment_id' => (int) $inst->id,
-                'payment_method' => CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_ONLINE,
+                'payment_method' => $installmentPaymentMethod,
                 'amount_toman' => $pay,
                 'reference_due_date' => null,
                 'deposited_at' => $today,

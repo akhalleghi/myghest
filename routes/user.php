@@ -5,7 +5,9 @@ declare(strict_types=1);
 use App\Http\Controllers\User\UserCustomerLoanRequestController;
 use App\Http\Controllers\User\UserDepositDeclarationController;
 use App\Http\Controllers\User\UserInstallmentOnlinePaymentController;
+use App\Http\Controllers\User\UserInstallmentWalletPaymentController;
 use App\Http\Controllers\User\UserLoanFullSettlementOnlinePaymentController;
+use App\Http\Controllers\User\UserLoanFullSettlementWalletPaymentController;
 use App\Http\Controllers\User\UserNotificationController;
 use App\Http\Controllers\User\UserPanelController;
 use App\Http\Controllers\User\UserPaymentTransactionsController;
@@ -44,9 +46,17 @@ Route::middleware(['auth:customer', ShareCustomerPortalOnlinePaymentFlags::class
         ->middleware('throttle:10,1')
         ->name('installments.online-pay.start');
 
+    Route::post('/installments/wallet-pay', [UserInstallmentWalletPaymentController::class, 'pay'])
+        ->middleware('throttle:15,1')
+        ->name('installments.wallet-pay');
+
     Route::post('/loans/full-settlement/online-pay/start', [UserLoanFullSettlementOnlinePaymentController::class, 'start'])
         ->middleware('throttle:5,1')
         ->name('loans.full-settlement.online-pay.start');
+
+    Route::post('/loans/full-settlement/wallet-pay', [UserLoanFullSettlementWalletPaymentController::class, 'pay'])
+        ->middleware('throttle:8,1')
+        ->name('loans.full-settlement.wallet-pay');
 
     Route::post('/wallet/online-topup/start', [UserWalletOnlinePaymentController::class, 'start'])
         ->middleware('throttle:5,1')

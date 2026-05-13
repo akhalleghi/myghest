@@ -31,6 +31,8 @@ final class ShareCustomerPortalOnlinePaymentFlags
 
         View::share('userOnlinePaymentReady', $ready);
         View::share('userLoanFullSettlementOnlinePayUrl', route('user.loans.full-settlement.online-pay.start'));
+        View::share('userInstallmentWalletPayUrl', route('user.installments.wallet-pay'));
+        View::share('userLoanFullSettlementWalletPayUrl', route('user.loans.full-settlement.wallet-pay'));
 
         return $next($request);
     }

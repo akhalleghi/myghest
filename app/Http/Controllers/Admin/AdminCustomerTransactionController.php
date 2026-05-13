@@ -267,8 +267,10 @@ final class AdminCustomerTransactionController extends Controller
     {
         return [
             CustomerTransaction::KIND_INSTALLMENT_ONLINE_PAYMENT => 'پرداخت قسط (درگاه)',
+            CustomerTransaction::KIND_INSTALLMENT_WALLET_PAYMENT => 'پرداخت قسط (کیف پول)',
             CustomerTransaction::KIND_WALLET_TOPUP => 'شارژ کیف پول',
             CustomerTransaction::KIND_FULL_SETTLEMENT_ONLINE_PAYMENT => 'تسویهٔ کلی بدهی (درگاه)',
+            CustomerTransaction::KIND_FULL_SETTLEMENT_WALLET_PAYMENT => 'تسویهٔ کلی بدهی (کیف پول)',
         ];
     }
 
