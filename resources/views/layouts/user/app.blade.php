@@ -342,6 +342,39 @@
             color: var(--primary-dark);
             margin-top: 0.15rem;
         }
+        .up-notif-flyout__toolbar {
+            display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+            padding: 0.45rem 0.75rem; border-bottom: 1px solid var(--border);
+            font-size: 0.74rem; color: var(--muted); font-weight: 700;
+        }
+        .up-notif-flyout__toolbar form { margin: 0; }
+        .up-notif-mark-all {
+            border: 1px solid rgba(37, 99, 235, 0.4); background: rgba(37, 99, 235, 0.08);
+            color: var(--primary-dark); font-family: inherit; font-size: 0.72rem; font-weight: 800;
+            padding: 0.3rem 0.55rem; border-radius: 0.5rem; cursor: pointer;
+        }
+        .up-notif-mark-all:hover:not(:disabled) { filter: brightness(1.05); }
+        .up-notif-mark-all:disabled { opacity: 0.45; cursor: not-allowed; }
+        .up-notif-section-h { margin: 0.1rem 0 0.45rem; font-size: 0.72rem; font-weight: 800; color: var(--muted); }
+        .up-notif-list { display: flex; flex-direction: column; gap: 0.5rem; }
+        .up-notif-item {
+            display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.55rem;
+            padding: 0.6rem 0.7rem; border-radius: 0.65rem; border: 1px solid var(--border);
+            background: var(--bg-card); text-decoration: none; color: inherit;
+            transition: border-color 0.12s ease, background 0.12s ease;
+        }
+        .up-notif-item:hover { border-color: rgba(37, 99, 235, 0.5); background: rgba(37, 99, 235, 0.04); }
+        .up-notif-item--unread { border-right: 3px solid var(--primary); background: rgba(37, 99, 235, 0.06); }
+        html[data-theme="dark"] .up-notif-item--unread { background: rgba(30, 58, 138, 0.22); }
+        .up-notif-item__ico {
+            width: 2.15rem; height: 2.15rem; border-radius: 0.55rem;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: rgba(37, 99, 235, 0.12); color: var(--primary-dark); font-size: 0.95rem; flex-shrink: 0;
+        }
+        .up-notif-item__main { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+        .up-notif-item__title { font-size: 0.82rem; font-weight: 800; color: var(--text); line-height: 1.4; }
+        .up-notif-item__body { font-size: 0.76rem; font-weight: 600; color: var(--muted); line-height: 1.55; word-break: break-word; }
+        .up-notif-item__meta { font-size: 0.7rem; font-weight: 700; color: var(--muted); opacity: 0.85; }
         .theme-ico-slot { display: inline-grid; place-items: center; width: 1.1rem; height: 1.1rem; }
         .theme-ico-slot [data-theme-icon] { grid-area: 1 / 1; }
         .up-user-chip {
@@ -2132,7 +2165,9 @@
                                 data-up-notif-toggle
                             >
                                 <i class="fa-regular fa-bell" aria-hidden="true"></i>
-                                @if(($userPortalDepositReviewNotifBadge ?? '') !== '')
+                                @if(($userPortalNotificationsBadgeUnified ?? '') !== '')
+                                    <span class="up-notif-badge" aria-hidden="true">{{ $userPortalNotificationsBadgeUnified }}</span>
+                                @elseif(($userPortalDepositReviewNotifBadge ?? '') !== '')
                                     <span class="up-notif-badge" aria-hidden="true">{{ $userPortalDepositReviewNotifBadge }}</span>
                                 @endif
                             </button>
@@ -2188,7 +2223,9 @@
                                 data-up-notif-toggle
                             >
                                 <i class="fa-regular fa-bell" aria-hidden="true"></i>
-                                @if(($userPortalDepositReviewNotifBadge ?? '') !== '')
+                                @if(($userPortalNotificationsBadgeUnified ?? '') !== '')
+                                    <span class="up-notif-badge" aria-hidden="true">{{ $userPortalNotificationsBadgeUnified }}</span>
+                                @elseif(($userPortalDepositReviewNotifBadge ?? '') !== '')
                                     <span class="up-notif-badge" aria-hidden="true">{{ $userPortalDepositReviewNotifBadge }}</span>
                                 @endif
                             </button>
@@ -2218,6 +2255,8 @@
 
     @if(auth()->guard('customer')->check())
         @php($upDepNotifCount = (int) ($userPortalDepositReviewNotifCount ?? 0))
+        @php($upLoanNotifs = $userPortalLoanNotifications ?? collect())
+        @php($upLoanUnread = (int) ($userPortalLoanNotificationsUnreadCount ?? 0))
         <div id="up-notif-overlay" class="up-notif-overlay" hidden aria-hidden="true"></div>
         <div
             id="up-notif-flyout"
@@ -2228,20 +2267,51 @@
             aria-labelledby="up-notif-flyout-title"
         >
             <div id="up-notif-flyout-title" class="up-notif-flyout__head">اعلان‌ها</div>
+            @if($upLoanUnread > 0)
+                <div class="up-notif-flyout__toolbar">
+                    <span>{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $upLoanUnread) }} اعلان خوانده‌نشده</span>
+                    <form method="POST" action="{{ route('user.notifications.mark-all-read') }}">
+                        @csrf
+                        <button type="submit" class="up-notif-mark-all">خواندن همه</button>
+                    </form>
+                </div>
+            @endif
             <div class="up-notif-flyout__body">
-                @if($upDepNotifCount === 0)
+                @if($upDepNotifCount === 0 && $upLoanNotifs->isEmpty())
                     <p class="up-notif-empty">اعلان فعالی وجود ندارد.</p>
                 @else
-                    <a href="{{ route('user.deposits.index') }}" class="up-notif-card">
-                        <span class="up-notif-card__ico" aria-hidden="true">
-                            <i class="fa-solid fa-money-bill-transfer"></i>
-                        </span>
-                        <span class="up-notif-card__text">{{ $userPortalDepositReviewNotifMessage }}</span>
-                        <span class="up-notif-card__cta">
-                            رفتن به اعلام واریزی‌ها
-                            <i class="fa-solid fa-chevron-left" style="font-size:0.72rem;opacity:0.85" aria-hidden="true"></i>
-                        </span>
-                    </a>
+                    @if($upDepNotifCount > 0)
+                        <a href="{{ route('user.deposits.index') }}" class="up-notif-card">
+                            <span class="up-notif-card__ico" aria-hidden="true">
+                                <i class="fa-solid fa-money-bill-transfer"></i>
+                            </span>
+                            <span class="up-notif-card__text">{{ $userPortalDepositReviewNotifMessage }}</span>
+                            <span class="up-notif-card__cta">
+                                رفتن به اعلام واریزی‌ها
+                                <i class="fa-solid fa-chevron-left" style="font-size:0.72rem;opacity:0.85" aria-hidden="true"></i>
+                            </span>
+                        </a>
+                    @endif
+                    @if(! $upLoanNotifs->isEmpty())
+                        @if($upDepNotifCount > 0)
+                            <p class="up-notif-section-h">اعلان‌های اخیر</p>
+                        @endif
+                        <div class="up-notif-list">
+                            @foreach($upLoanNotifs as $note)
+                                <a href="{{ route('user.notifications.follow', ['notification' => $note['id']]) }}"
+                                    class="up-notif-item {{ $note['is_unread'] ? 'up-notif-item--unread' : '' }}">
+                                    <span class="up-notif-item__ico" aria-hidden="true">
+                                        <i class="{{ $note['icon'] ?: 'fa-regular fa-bell' }}"></i>
+                                    </span>
+                                    <span class="up-notif-item__main">
+                                        <span class="up-notif-item__title">{{ $note['title'] }}</span>
+                                        <span class="up-notif-item__body">{{ $note['body'] }}</span>
+                                        <span class="up-notif-item__meta">{{ $note['created_at_fa'] }}</span>
+                                    </span>
+                                </a>
+                            @endforeach
+                        </div>
+                    @endif
                 @endif
             </div>
         </div>

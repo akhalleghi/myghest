@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AppSetting;
 use App\Models\CustomerLoanRequest;
 use App\Models\CustomerLoanRequestDocument;
 use App\Models\CustomerLoanRequestStatusLog;
@@ -14,6 +15,7 @@ use App\Services\Admin\RawSmsDispatcher;
 use App\Services\Loans\AdminCustomerLoanRequestPresenter;
 use App\Services\Loans\AdminCustomerLoanRequestUpdateService;
 use App\Services\Loans\AdminLoanRequestEditModalPresenter;
+use App\Services\Loans\ConvertLoanRequestToLoanFileService;
 use App\Services\Loans\LoanRequestDocumentAdminWriter;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
@@ -27,61 +29,25 @@ use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
+/**
+ * کنترلر ادمین برای مدیریت «درخواست‌های وام».
+ *
+ * فیلترهای صفحهٔ فهرست:
+ *  - `q` (string)
+ *  - `from_jdate` / `to_jdate` (Y/m/d Jalali)
+ *  - `status[]` (آرایه‌ای از کدهای `loan_request_status_definitions.code`)
+ *
+ * این کنترلر `index`، `export` و `printView` همگی از یک منبع فیلتر مشترک
+ * استفاده می‌کنند تا خروجی اکسل و چاپ، دقیقاً همان رکوردهای جدول را شامل شوند.
+ */
+
 final class AdminCustomerLoanRequestController extends Controller
 {
     public function index(Request $request, AdminCustomerLoanRequestPresenter $presenter): View
     {
-        $search = trim((string) $request->query('q', ''));
+        $filters = $this->resolveListFilters($request);
 
-        $fromJDate = trim((string) $request->query('from_jdate', ''));
-        $toJDate = trim((string) $request->query('to_jdate', ''));
-
-        $nowJ = Jalali::now();
-        $defaultFromJ = (clone $nowJ)->startMonth()->format('Y/m/d');
-        $defaultToJ = $nowJ->format('Y/m/d');
-
-        if ($fromJDate === '') {
-            $fromJDate = $defaultFromJ;
-        }
-        if ($toJDate === '') {
-            $toJDate = $defaultToJ;
-        }
-
-        $from = $this->parseJalaliDateStart($fromJDate);
-        $to = $this->parseJalaliDateEnd($toJDate);
-
-        if ($from === null || $to === null || $from->gt($to)) {
-            $from = $this->parseJalaliDateStart($defaultFromJ);
-            $to = $this->parseJalaliDateEnd($defaultToJ);
-            $fromJDate = $defaultFromJ;
-            $toJDate = $defaultToJ;
-        }
-
-        $query = CustomerLoanRequest::query()
-            ->with(['customer', 'loanType'])
-            ->whereBetween('submitted_at', [$from, $to])
-            ->when($search !== '', function (Builder $q) use ($search): void {
-                $q->where(function (Builder $sub) use ($search): void {
-                    if (ctype_digit($search)) {
-                        $sub->where('customer_loan_requests.id', (int) $search);
-                    }
-                    $sub->orWhere('description', 'like', '%'.$search.'%')
-                        ->orWhere('expert_note', 'like', '%'.$search.'%')
-                        ->orWhere('expert_note_customer', 'like', '%'.$search.'%')
-                        ->orWhereHas('customer', function (Builder $c) use ($search): void {
-                            $c->where('first_name', 'like', '%'.$search.'%')
-                                ->orWhere('last_name', 'like', '%'.$search.'%')
-                                ->orWhere('national_id', 'like', '%'.$search.'%')
-                                ->orWhere('mobile', 'like', '%'.$search.'%');
-                        })
-                        ->orWhereHas('loanType', function (Builder $lt) use ($search): void {
-                            $lt->where('title', 'like', '%'.$search.'%')
-                                ->orWhere('plan_title', 'like', '%'.$search.'%');
-                        });
-                });
-            })
-            ->orderByDesc('submitted_at')
-            ->orderByDesc('id');
+        $query = $this->buildFilteredQuery($filters);
 
         $paginator = $query->paginate(25)->withQueryString();
 
@@ -92,12 +58,126 @@ final class AdminCustomerLoanRequestController extends Controller
 
         $paginator->setCollection($rows);
 
+        $statusOptions = LoanRequestStatusDefinition::query()
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['code', 'title'])
+            ->map(static fn (LoanRequestStatusDefinition $d): array => [
+                'code' => (string) $d->code,
+                'title' => (string) $d->title,
+            ])
+            ->all();
+
         return view('admin.loan_requests.index', [
             'pageTitle' => 'درخواست وام‌ها',
             'loanRequests' => $paginator,
-            'fromJDate' => $fromJDate,
-            'toJDate' => $toJDate,
-            'search' => $search,
+            'fromJDate' => $filters['from_jdate'],
+            'toJDate' => $filters['to_jdate'],
+            'search' => $filters['q'],
+            'selectedStatuses' => $filters['statuses'],
+            'statusOptions' => $statusOptions,
+        ]);
+    }
+
+    /**
+     * خروجی اکسل از فهرست فیلترشدهٔ درخواست‌های وام.
+     *
+     * فرمت: «.xls شبیه‌سازی‌شده» با ساختار «UTF-16LE + Tab» — هم‌خوان با اکسل ویندوز
+     * و سازگار با همان الگوی موجود در `CustomerController::exportCustomersListExcel`.
+     * این انتخاب از افزودن وابستگی جدید (PhpSpreadsheet) جلوگیری می‌کند.
+     */
+    public function export(Request $request): StreamedResponse
+    {
+        $filters = $this->resolveListFilters($request);
+        $statusTitles = LoanRequestStatusDefinition::titlesByCode();
+
+        $filename = 'loan-requests-'.now()->format('Ymd-His').'.xls';
+        $headers = [
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-16LE',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ];
+
+        return response()->streamDownload(function () use ($filters, $statusTitles): void {
+            $out = fopen('php://output', 'wb');
+            if (! is_resource($out)) {
+                return;
+            }
+
+            fwrite($out, "\xFF\xFE");
+
+            $this->writeExcelUnicodeRow($out, [
+                'شماره درخواست',
+                'نام مشتری',
+                'کد مشتری',
+                'کد ملی',
+                'نام وام درخواستی',
+                'مبلغ درخواستی (تومان)',
+                'تاریخ ثبت درخواست',
+                'وضعیت جاری',
+                'نظر کارشناس',
+                'شماره تماس',
+                'شهر',
+            ]);
+
+            $this->buildFilteredQuery($filters)
+                ->orderByDesc('submitted_at')
+                ->orderByDesc('id')
+                ->chunkById(200, function ($chunk) use ($out, $statusTitles): void {
+                    foreach ($chunk as $r) {
+                        if (! $r instanceof CustomerLoanRequest) {
+                            continue;
+                        }
+                        $this->writeExcelUnicodeRow($out, $this->buildExportCells($r, $statusTitles));
+                    }
+                });
+
+            fclose($out);
+        }, $filename, $headers);
+    }
+
+    /**
+     * صفحهٔ مخصوص چاپ (A4) با همان فیلترهای جدول؛ به‌صورت یک Blade مستقل رندر می‌شود
+     * تا فقط جدول، سرلوحه و اطلاعات لازم چاپ شود (بدون منوها و کنترل‌های صفحه).
+     */
+    public function printView(Request $request, AdminCustomerLoanRequestPresenter $presenter): View
+    {
+        $filters = $this->resolveListFilters($request);
+        $statusTitles = LoanRequestStatusDefinition::titlesByCode();
+
+        $rows = $this->buildFilteredQuery($filters)
+            ->orderByDesc('submitted_at')
+            ->orderByDesc('id')
+            ->limit(5000)
+            ->get()
+            ->map(fn (CustomerLoanRequest $r): array => $this->buildPrintRow($r, $presenter, $statusTitles))
+            ->all();
+
+        $statusLabels = array_values(array_map(
+            static fn (string $code): string => $statusTitles[$code] ?? $code,
+            $filters['statuses'],
+        ));
+
+        $uiFontRaw = AppSetting::query()->where('key', 'app_ui_font')->value('value');
+        $appUiFont = is_string($uiFontRaw) && in_array($uiFontRaw, ['iransans', 'iranyekan', 'anjoman', 'estedad'], true)
+            ? $uiFontRaw
+            : 'iransans';
+
+        $appDisplayNameRaw = AppSetting::query()->where('key', 'app_display_name')->value('value');
+        $appDisplayName = is_string($appDisplayNameRaw) && $appDisplayNameRaw !== ''
+            ? $appDisplayNameRaw
+            : (string) config('app.name');
+
+        return view('admin.loan_requests.print', [
+            'rows' => $rows,
+            'fromJDate' => $filters['from_jdate'],
+            'toJDate' => $filters['to_jdate'],
+            'search' => $filters['q'],
+            'selectedStatusLabels' => $statusLabels,
+            'generatedAtFa' => Jalali::enToFaNumbers(Jalali::now()->format('Y/m/d')).' '.Jalali::enToFaNumbers(now()->format('H:i')),
+            'appUiFont' => $appUiFont,
+            'appDisplayName' => $appDisplayName,
         ]);
     }
 
@@ -341,12 +421,100 @@ final class AdminCustomerLoanRequestController extends Controller
     }
 
     /**
+     * پیش‌نمایش مالی برای دیالوگ تأیید «تبدیل به وام»؛ بدون نوشتن در DB.
+     * دو تاریخ ورودی اختیاری هستند تا با مقادیر فعلی فرم همخوان باشد.
+     */
+    public function convertPreview(
+        Request $request,
+        CustomerLoanRequest $customerLoanRequest,
+        ConvertLoanRequestToLoanFileService $converter,
+    ): JsonResponse {
+        $validated = $request->validate([
+            'loan_start_jdate' => ['nullable', 'string', 'max:20'],
+            'disbursement_due_jdate' => ['nullable', 'string', 'max:20'],
+        ], [], [
+            'loan_start_jdate' => 'تاریخ شروع وام',
+            'disbursement_due_jdate' => 'سررسید واریز',
+        ]);
+
+        try {
+            $preview = $converter->preview(
+                $customerLoanRequest,
+                isset($validated['loan_start_jdate']) ? (string) $validated['loan_start_jdate'] : null,
+                isset($validated['disbursement_due_jdate']) ? (string) $validated['disbursement_due_jdate'] : null,
+            );
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'اطلاعات تبدیل قابل پیش‌نمایش نیست.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        return response()->json($preview);
+    }
+
+    /**
+     * تبدیل درخواست وام به پروندهٔ وام واقعی + ایجاد جدول اقساط.
+     * در صورت موفقیت، edit_context جدید برمی‌گرداند تا فرانت بتواند مدال را همگام کند.
+     */
+    public function convert(
+        Request $request,
+        CustomerLoanRequest $customerLoanRequest,
+        ConvertLoanRequestToLoanFileService $converter,
+        AdminLoanRequestEditModalPresenter $presenter,
+    ): JsonResponse {
+        $validated = $request->validate([
+            'loan_start_jdate' => ['required', 'string', 'max:20'],
+            'disbursement_due_jdate' => ['nullable', 'string', 'max:20'],
+        ], [], [
+            'loan_start_jdate' => 'تاریخ شروع وام',
+            'disbursement_due_jdate' => 'سررسید واریز',
+        ]);
+
+        try {
+            $result = $converter->convert(
+                $customerLoanRequest,
+                (string) $validated['loan_start_jdate'],
+                isset($validated['disbursement_due_jdate']) ? (string) $validated['disbursement_due_jdate'] : null,
+                Auth::guard('admin')->id(),
+            );
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'ایجاد وام امکان‌پذیر نیست.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        $statusTitles = LoanRequestStatusDefinition::titlesByCode();
+        $fresh = $customerLoanRequest->fresh();
+
+        return response()->json([
+            'message' => $result['message'],
+            'loan_file' => [
+                'id' => (int) $result['loan_file']->id,
+                'loan_code' => (string) $result['loan_file']->loan_code,
+                'customer_id' => (int) $result['loan_file']->customer_id,
+                'installments_count' => (int) $result['loan_file']->installments_count,
+                'installment_amount_toman' => (int) $result['loan_file']->installment_amount_toman,
+                'amount_toman' => (int) $result['loan_file']->amount_toman,
+            ],
+            'edit_context' => $fresh !== null ? $presenter->build($fresh, $statusTitles) : null,
+        ]);
+    }
+
+    /**
      * حذف کامل درخواست وام؛ فایل‌های پیوست توسط CustomerLoanRequest::booted() پاک می‌شوند
      * و رکوردهای customer_loan_request_documents و customer_loan_request_status_logs
      * از طریق FK با cascadeOnDelete حذف می‌شوند.
      */
     public function destroy(CustomerLoanRequest $customerLoanRequest): JsonResponse
     {
+        if ($customerLoanRequest->customer_loan_file_id !== null) {
+            return response()->json([
+                'message' => 'این درخواست به وام تبدیل شده است و قابل حذف نیست.',
+            ], 422);
+        }
+
         $customerLoanRequest->delete();
 
         return response()->json([
@@ -487,5 +655,211 @@ final class AdminCustomerLoanRequestController extends Controller
         $en = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
         return str_replace(array_merge($fa, $ar), array_merge($en, $en), $value);
+    }
+
+    /**
+     * استخراج و اعتبارسنجی فیلترهای فهرست. در صورت نامعتبر بودن تاریخ‌ها، به محدودهٔ
+     * پیش‌فرض (ابتدای ماه جاری تا امروز) برمی‌گردد — مشابه رفتار قبلی.
+     *
+     * @return array{q: string, from_jdate: string, to_jdate: string, from: Carbon, to: Carbon, statuses: list<string>}
+     */
+    private function resolveListFilters(Request $request): array
+    {
+        $search = trim((string) $request->query('q', ''));
+
+        $fromJDate = trim((string) $request->query('from_jdate', ''));
+        $toJDate = trim((string) $request->query('to_jdate', ''));
+
+        $nowJ = Jalali::now();
+        $defaultFromJ = (clone $nowJ)->startMonth()->format('Y/m/d');
+        $defaultToJ = $nowJ->format('Y/m/d');
+
+        if ($fromJDate === '') {
+            $fromJDate = $defaultFromJ;
+        }
+        if ($toJDate === '') {
+            $toJDate = $defaultToJ;
+        }
+
+        $from = $this->parseJalaliDateStart($fromJDate);
+        $to = $this->parseJalaliDateEnd($toJDate);
+
+        if ($from === null || $to === null || $from->gt($to)) {
+            $from = $this->parseJalaliDateStart($defaultFromJ);
+            $to = $this->parseJalaliDateEnd($defaultToJ);
+            $fromJDate = $defaultFromJ;
+            $toJDate = $defaultToJ;
+        }
+
+        $rawStatuses = $request->query('status', []);
+        if (is_string($rawStatuses)) {
+            $rawStatuses = $rawStatuses === '' ? [] : [$rawStatuses];
+        }
+        if (! is_array($rawStatuses)) {
+            $rawStatuses = [];
+        }
+        $rawStatuses = array_values(array_unique(array_filter(array_map(
+            static fn ($v): string => is_string($v) || is_int($v) ? trim((string) $v) : '',
+            $rawStatuses,
+        ), static fn (string $v): bool => $v !== '')));
+
+        $allowedStatusCodes = LoanRequestStatusDefinition::query()
+            ->pluck('code')
+            ->map(static fn ($c): string => (string) $c)
+            ->all();
+        $statuses = array_values(array_intersect($rawStatuses, $allowedStatusCodes));
+
+        return [
+            'q' => $search,
+            'from_jdate' => $fromJDate,
+            'to_jdate' => $toJDate,
+            'from' => $from,
+            'to' => $to,
+            'statuses' => $statuses,
+        ];
+    }
+
+    /**
+     * @param  array{q: string, from: Carbon, to: Carbon, statuses: list<string>}  $filters
+     * @return Builder<CustomerLoanRequest>
+     */
+    private function buildFilteredQuery(array $filters): Builder
+    {
+        $search = $filters['q'];
+        $statuses = $filters['statuses'];
+
+        return CustomerLoanRequest::query()
+            ->with(['customer', 'loanType'])
+            ->whereBetween('submitted_at', [$filters['from'], $filters['to']])
+            ->when($statuses !== [], static function (Builder $q) use ($statuses): void {
+                $q->whereIn('customer_loan_requests.status', $statuses);
+            })
+            ->when($search !== '', function (Builder $q) use ($search): void {
+                $q->where(function (Builder $sub) use ($search): void {
+                    if (ctype_digit($search)) {
+                        $sub->where('customer_loan_requests.id', (int) $search);
+                    }
+                    $sub->orWhere('description', 'like', '%'.$search.'%')
+                        ->orWhere('expert_note', 'like', '%'.$search.'%')
+                        ->orWhere('expert_note_customer', 'like', '%'.$search.'%')
+                        ->orWhereHas('customer', function (Builder $c) use ($search): void {
+                            $c->where('first_name', 'like', '%'.$search.'%')
+                                ->orWhere('last_name', 'like', '%'.$search.'%')
+                                ->orWhere('national_id', 'like', '%'.$search.'%')
+                                ->orWhere('mobile', 'like', '%'.$search.'%');
+                        })
+                        ->orWhereHas('loanType', function (Builder $lt) use ($search): void {
+                            $lt->where('title', 'like', '%'.$search.'%')
+                                ->orWhere('plan_title', 'like', '%'.$search.'%');
+                        });
+                });
+            })
+            ->orderByDesc('submitted_at')
+            ->orderByDesc('id');
+    }
+
+    /**
+     * نوشتن یک ردیف در خروجی «اکسل»؛ شبیه‌سازی‌شده با UTF-16LE + tab.
+     * هم‌راستا با `CustomerController::writeExcelUnicodeRow`.
+     *
+     * @param  resource  $out
+     * @param  array<int, string>  $cells
+     */
+    private function writeExcelUnicodeRow($out, array $cells): void
+    {
+        $cleanCells = array_map(static function (string $value): string {
+            return str_replace(["\t", "\r", "\n"], [' ', ' ', ' '], $value);
+        }, $cells);
+
+        $line = implode("\t", $cleanCells)."\r\n";
+        fwrite($out, mb_convert_encoding($line, 'UTF-16LE', 'UTF-8'));
+    }
+
+    /**
+     * ستون‌های خروجی اکسل برای یک درخواست؛ مقادیر همگی رشته‌اند تا اکسل آن‌ها را
+     * بدون تفسیر فرمت (مثلاً تبدیل تاریخ به عدد) نمایش دهد.
+     *
+     * @param  array<string, string>  $statusTitles
+     * @return array<int, string>
+     */
+    private function buildExportCells(CustomerLoanRequest $r, array $statusTitles): array
+    {
+        $customer = $r->customer;
+        $loanType = $r->loanType;
+
+        $customerName = $customer !== null ? trim($customer->fullName()) : '';
+        $customerCode = $customer !== null ? trim((string) ($customer->customer_code ?? '')) : '';
+        $nationalId = $customer !== null ? trim((string) ($customer->national_id ?? '')) : '';
+        $mobile = $customer !== null ? trim((string) ($customer->mobile ?? '')) : '';
+        $city = $customer !== null ? trim((string) ($customer->city ?? '')) : '';
+
+        $loanTitle = '';
+        if ($loanType !== null) {
+            $loanTitle = trim((string) ($loanType->plan_title ?? ''));
+            if ($loanTitle === '') {
+                $loanTitle = trim((string) ($loanType->title ?? ''));
+            }
+        }
+
+        $submittedAt = $r->submitted_at ?? $r->created_at;
+        $submittedFa = '';
+        if ($submittedAt !== null) {
+            $c = $submittedAt instanceof Carbon ? $submittedAt : Carbon::parse((string) $submittedAt);
+            $submittedFa = Jalali::enToFaNumbers(Jalali::instance($c)->format('Y/m/d')).' '.Jalali::enToFaNumbers($c->format('H:i'));
+        }
+
+        $statusCode = (string) $r->status;
+        $statusLabel = $statusTitles[$statusCode] ?? $statusCode;
+
+        $expertNote = trim((string) ($r->expert_note ?? ''));
+
+        $amountStr = Jalali::enToFaNumbers(number_format(max(0, (int) $r->amount_toman), 0, '.', ','));
+
+        return [
+            Jalali::enToFaNumbers((string) $r->id),
+            $customerName !== '' ? $customerName : '—',
+            $customerCode !== '' ? Jalali::enToFaNumbers($customerCode) : '—',
+            $nationalId !== '' ? Jalali::enToFaNumbers($nationalId) : '—',
+            $loanTitle !== '' ? $loanTitle : '—',
+            $amountStr,
+            $submittedFa !== '' ? $submittedFa : '—',
+            $statusLabel,
+            $expertNote !== '' ? $expertNote : '—',
+            $mobile !== '' ? Jalali::enToFaNumbers($mobile) : '—',
+            $city !== '' ? $city : '—',
+        ];
+    }
+
+    /**
+     * ساخت ردیف برای صفحهٔ چاپ (ساختار آرایه‌ای استاندارد).
+     *
+     * @param  array<string, string>  $statusTitles
+     * @return array<string, string>
+     */
+    private function buildPrintRow(
+        CustomerLoanRequest $r,
+        AdminCustomerLoanRequestPresenter $presenter,
+        array $statusTitles,
+    ): array {
+        $base = $presenter->mapRow($r, $statusTitles);
+
+        $customer = $r->customer;
+        $customerCode = $customer !== null ? trim((string) ($customer->customer_code ?? '')) : '';
+        $mobile = $customer !== null ? trim((string) ($customer->mobile ?? '')) : '';
+        $city = $customer !== null ? trim((string) ($customer->city ?? '')) : '';
+
+        return [
+            'request_no_fa' => (string) $base['request_no_fa'],
+            'customer_name' => (string) $base['customer_name'],
+            'customer_code_fa' => $customerCode !== '' ? Jalali::enToFaNumbers($customerCode) : '—',
+            'national_id_fa' => (string) $base['national_id_fa'],
+            'loan_title' => (string) $base['loan_title'],
+            'amount_fa' => (string) $base['amount_fa'],
+            'datetime_fa' => (string) $base['datetime_fa'],
+            'status_label' => (string) $base['status_label'],
+            'expert_note' => trim((string) ($r->expert_note ?? '')),
+            'mobile_fa' => $mobile !== '' ? Jalali::enToFaNumbers($mobile) : '—',
+            'city' => $city !== '' ? $city : '—',
+        ];
     }
 }

@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace App\Services\Loans;
 
+use App\Models\Admin;
 use App\Models\Customer;
 use App\Models\CustomerLoanRequest;
 use App\Models\CustomerLoanRequestDocument;
 use App\Models\LoanType;
+use App\Notifications\LoanRequestUpdatedForAdmins;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -205,6 +209,8 @@ final class CustomerLoanRequestUserUpdateService
                 $this->maybeAdvanceRequestAfterDocumentsFixed($fresh);
             }
 
+            $this->notifyAdminsOfCustomerUpdate($fresh, $customer);
+
             return $fresh;
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -234,5 +240,26 @@ final class CustomerLoanRequestUserUpdateService
         }
         $loanRequest->status = CustomerLoanRequest::STATUS_PENDING_EXPERT_REVIEW;
         $loanRequest->save();
+    }
+
+    /**
+     * ارسال اعلان درون‌برنامه‌ای به ادمین‌های فعال پس از ویرایش درخواست توسط مشتری.
+     * عمداً هرگز Exception پرتاب نمی‌کنیم تا مسیر اصلی ذخیره/ویرایش مختل نشود.
+     */
+    private function notifyAdminsOfCustomerUpdate(CustomerLoanRequest $request, Customer $customer): void
+    {
+        try {
+            $admins = Admin::query()->where('is_active', true)->get();
+            if ($admins->isEmpty()) {
+                return;
+            }
+            Notification::send($admins, LoanRequestUpdatedForAdmins::build($request, $customer));
+        } catch (\Throwable $e) {
+            Log::warning('notify admins of customer loan request update failed', [
+                'loan_request_id' => $request->id ?? null,
+                'customer_id' => $customer->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

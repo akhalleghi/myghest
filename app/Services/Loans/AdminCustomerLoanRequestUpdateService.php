@@ -12,10 +12,13 @@ use App\Models\LoanRequestStatusDefinition;
 use App\Models\LoanType;
 use App\Models\SmsLog;
 use App\Models\SmsTemplate;
+use App\Notifications\LoanRequestStatusChangedForCustomer;
 use App\Services\Admin\RawSmsDispatcher;
 use App\Services\Sms\SmsTemplateRenderer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
 final class AdminCustomerLoanRequestUpdateService
 {
@@ -85,6 +88,10 @@ final class AdminCustomerLoanRequestUpdateService
             if ($sendSms && $statusChanged) {
                 $smsNote = $this->sendStatusChangeSms($loanRequest, $toStatus);
             }
+
+            if ($statusChanged) {
+                $this->notifyCustomerOfStatusChange($loanRequest, $fromStatus, $toStatus);
+            }
         });
 
         return [
@@ -142,5 +149,28 @@ final class AdminCustomerLoanRequestUpdateService
         $v = AppSetting::query()->where('key', 'app_display_name')->value('value');
 
         return is_string($v) && $v !== '' ? $v : (string) config('app.name');
+    }
+
+    /**
+     * ارسال «اعلان درون‌برنامه‌ای» تغییر وضعیت به مشتری.
+     *
+     * این متد به‌عمد هرگز Exception نمی‌اندازد؛ اعلان نباید مسیر اصلی ذخیرهٔ تغییرات را قطع کند.
+     */
+    private function notifyCustomerOfStatusChange(CustomerLoanRequest $loanRequest, ?string $fromStatus, string $toStatus): void
+    {
+        try {
+            $loanRequest->loadMissing('customer');
+            $customer = $loanRequest->customer;
+            if (! $customer instanceof Customer) {
+                return;
+            }
+            $notification = LoanRequestStatusChangedForCustomer::build($loanRequest, $fromStatus, $toStatus);
+            Notification::send($customer, $notification);
+        } catch (\Throwable $e) {
+            Log::warning('notify customer status change failed', [
+                'loan_request_id' => $loanRequest->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

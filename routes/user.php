@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\User\UserCustomerLoanRequestController;
 use App\Http\Controllers\User\UserDepositDeclarationController;
+use App\Http\Controllers\User\UserNotificationController;
 use App\Http\Controllers\User\UserPanelController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -56,6 +57,14 @@ Route::middleware(['auth:customer'])->group(function (): void {
     Route::get('/loan-request/{customerLoanRequest}/documents/{customerLoanRequestDocument}/file', [UserCustomerLoanRequestController::class, 'documentFile'])
         ->middleware('throttle:120,1')
         ->name('loan-request.documents.file');
+
+    Route::get('/notifications/{notification}/follow', [UserNotificationController::class, 'follow'])
+        ->middleware('throttle:120,1')
+        ->name('notifications.follow');
+
+    Route::post('/notifications/mark-all-read', [UserNotificationController::class, 'markAllRead'])
+        ->middleware('throttle:30,1')
+        ->name('notifications.mark-all-read');
 
     Route::post('/logout', function (Request $request) {
         Auth::guard('customer')->logout();

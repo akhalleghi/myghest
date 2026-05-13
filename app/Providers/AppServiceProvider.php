@@ -2,12 +2,15 @@
 
 namespace App\Providers;
 
+use App\Models\Admin;
 use App\Models\AppSetting;
+use App\Models\Customer;
 use App\Models\CustomerDepositDeclaration;
 use App\Services\Sms\Gateways\SepahanGostarGateway;
 use App\Services\Sms\SmsPanelManager;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
+use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -99,6 +102,8 @@ class AppServiceProvider extends ServiceProvider
         View::composer('layouts.admin.app', function ($view): void {
             $pendingDepositCount = 0;
             $pendingDepositBadge = '';
+            $loanNotifs = collect();
+            $loanUnreadCount = 0;
             if (Auth::guard('admin')->check()) {
                 $pendingDepositCount = (int) CustomerDepositDeclaration::query()
                     ->where('status', CustomerDepositDeclaration::STATUS_PENDING)
@@ -108,9 +113,26 @@ class AppServiceProvider extends ServiceProvider
                         ? Jalali::enToFaNumbers('99').'+'
                         : Jalali::enToFaNumbers((string) $pendingDepositCount);
                 }
+
+                $admin = Auth::guard('admin')->user();
+                if ($admin instanceof Admin) {
+                    $loanNotifs = $this->loadRecentNotifications($admin::class, (int) $admin->getKey());
+                    $loanUnreadCount = (int) DatabaseNotification::query()
+                        ->where('notifiable_type', $admin::class)
+                        ->where('notifiable_id', $admin->getKey())
+                        ->whereNull('read_at')
+                        ->count();
+                }
             }
+            $totalBadgeCount = $pendingDepositCount + $loanUnreadCount;
+            $unifiedBadge = $totalBadgeCount > 0
+                ? ($totalBadgeCount > 99 ? Jalali::enToFaNumbers('99').'+' : Jalali::enToFaNumbers((string) $totalBadgeCount))
+                : '';
             $view->with('adminPendingDepositDeclarationsCount', $pendingDepositCount);
             $view->with('adminPendingDepositDeclarationsBadge', $pendingDepositBadge);
+            $view->with('adminLoanNotifications', $loanNotifs);
+            $view->with('adminLoanNotificationsUnreadCount', $loanUnreadCount);
+            $view->with('adminNotificationsBadgeUnified', $unifiedBadge);
         });
 
         View::composer('layouts.user.app', function ($view): void {
@@ -153,9 +175,61 @@ class AppServiceProvider extends ServiceProvider
                     }
                 }
             }
+            $loanNotifs = collect();
+            $loanUnreadCount = 0;
+            if ($customer instanceof Customer) {
+                $loanNotifs = $this->loadRecentNotifications($customer::class, (int) $customer->getKey());
+                $loanUnreadCount = (int) DatabaseNotification::query()
+                    ->where('notifiable_type', $customer::class)
+                    ->where('notifiable_id', $customer->getKey())
+                    ->whereNull('read_at')
+                    ->count();
+            }
+            $totalBadgeCount = $depositReviewNotifCount + $loanUnreadCount;
+            $unifiedBadge = $totalBadgeCount > 0
+                ? ($totalBadgeCount > 99 ? Jalali::enToFaNumbers('99').'+' : Jalali::enToFaNumbers((string) $totalBadgeCount))
+                : '';
             $view->with('userPortalDepositReviewNotifCount', $depositReviewNotifCount);
             $view->with('userPortalDepositReviewNotifBadge', $depositReviewNotifBadge);
             $view->with('userPortalDepositReviewNotifMessage', $depositReviewNotifMessage);
+            $view->with('userPortalLoanNotifications', $loanNotifs);
+            $view->with('userPortalLoanNotificationsUnreadCount', $loanUnreadCount);
+            $view->with('userPortalNotificationsBadgeUnified', $unifiedBadge);
+        });
+    }
+
+    /**
+     * بازخوانی آخرین ۱۵ اعلان دیتابیسی برای نمایش در flyout زنگ.
+     *
+     * هر آیتم شامل عنوان/متن/URL ازپیش‌مارک‌خوانده‌شدنی و زمان جلالی است.
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function loadRecentNotifications(string $notifiableType, int $notifiableId): \Illuminate\Support\Collection
+    {
+        $rows = DatabaseNotification::query()
+            ->where('notifiable_type', $notifiableType)
+            ->where('notifiable_id', $notifiableId)
+            ->orderByDesc('created_at')
+            ->limit(15)
+            ->get(['id', 'type', 'data', 'read_at', 'created_at']);
+
+        return $rows->map(static function (DatabaseNotification $n): array {
+            $data = is_array($n->data) ? $n->data : (json_decode((string) $n->data, true) ?: []);
+            $createdAt = $n->created_at instanceof Carbon ? $n->created_at : ($n->created_at !== null ? Carbon::parse((string) $n->created_at) : null);
+            $createdAtFa = $createdAt !== null
+                ? Jalali::enToFaNumbers(Jalali::instance($createdAt)->format('Y/m/d')).' '.Jalali::enToFaNumbers($createdAt->format('H:i'))
+                : '';
+
+            return [
+                'id' => (string) $n->id,
+                'title' => isset($data['title']) ? (string) $data['title'] : 'اعلان',
+                'body' => isset($data['body']) ? (string) $data['body'] : '',
+                'icon' => isset($data['icon']) ? (string) $data['icon'] : 'fa-regular fa-bell',
+                'kind' => isset($data['kind']) ? (string) $data['kind'] : '',
+                'is_unread' => $n->read_at === null,
+                'created_at_fa' => $createdAtFa,
+            ];
         });
     }
 }

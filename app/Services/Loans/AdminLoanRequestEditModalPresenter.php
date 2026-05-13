@@ -105,6 +105,13 @@ final class AdminLoanRequestEditModalPresenter
             ->values()
             ->all();
 
+        $convertedAtFa = null;
+        if ($request->converted_to_loan_at !== null) {
+            $cAt = $request->converted_to_loan_at instanceof Carbon ? $request->converted_to_loan_at : Carbon::parse((string) $request->converted_to_loan_at);
+            $convertedAtFa = Jalali::enToFaNumbers(Jalali::instance($cAt)->format('Y/m/d'))
+                .' '.Jalali::enToFaNumbers($cAt->format('H:i:s'));
+        }
+
         return [
             'request' => [
                 'id' => (int) $request->id,
@@ -124,6 +131,9 @@ final class AdminLoanRequestEditModalPresenter
                 'expert_note_customer' => (string) ($request->expert_note_customer ?? ''),
                 'description' => (string) ($request->description ?? ''),
                 'documents_physical_received' => (bool) $request->documents_physical_received,
+                'is_converted_to_loan' => $request->customer_loan_file_id !== null,
+                'converted_loan_file_id' => $request->customer_loan_file_id !== null ? (int) $request->customer_loan_file_id : null,
+                'converted_at_fa' => $convertedAtFa,
             ],
             'customer' => [
                 'id' => (int) $customer->id,

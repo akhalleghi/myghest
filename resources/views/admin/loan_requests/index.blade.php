@@ -142,6 +142,22 @@
             width: 2.25rem; height: 2.25rem; border-radius: 0.55rem; cursor: pointer; font-size: 1.2rem; line-height: 1;
         }
         .lrq-edit-modal-body { padding: 0.85rem 1rem 1rem; overflow: auto; flex: 1; min-height: 0; }
+        .lrq-converted-banner {
+            display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+            gap: 0.6rem; padding: 0.85rem 1rem; margin: 0 0 0.95rem;
+            border: 2px solid rgba(220, 38, 38, 0.6); border-radius: 0.85rem;
+            background: linear-gradient(180deg, rgba(254, 226, 226, 0.95), rgba(254, 202, 202, 0.85));
+            color: #b91c1c; font-weight: 900; font-size: 1.05rem; line-height: 1.6; text-align: center;
+            box-shadow: 0 6px 18px rgba(220, 38, 38, 0.18);
+        }
+        [data-theme="dark"] .lrq-converted-banner {
+            background: linear-gradient(180deg, rgba(127, 29, 29, 0.35), rgba(127, 29, 29, 0.25));
+            color: #fecaca; border-color: rgba(248, 113, 113, 0.7);
+        }
+        .lrq-converted-banner i { font-size: 1.35rem; }
+        .lrq-converted-banner-text { letter-spacing: 0.01em; }
+        .lrq-converted-banner-meta { font-size: 0.78rem; font-weight: 700; color: #7f1d1d; opacity: 0.85; }
+        [data-theme="dark"] .lrq-converted-banner-meta { color: #fecaca; }
         .lrq-edit-layout {
             display: grid; grid-template-columns: minmax(0, 15.5rem) minmax(0, 1fr); gap: 1rem;
             align-items: start;
@@ -250,32 +266,64 @@
         .lrq-btn-outline {
             border: 1px solid rgba(124, 58, 237, 0.55); border-radius: 0.65rem; padding: 0.55rem 1rem;
             background: transparent; color: #6d28d9; font-weight: 800; font-size: 0.82rem;
-            cursor: not-allowed; opacity: 0.55; font-family: inherit;
+            cursor: pointer; opacity: 1; font-family: inherit;
+            display: inline-flex; align-items: center; gap: 0.35rem;
         }
+        .lrq-btn-outline:hover:not(:disabled) {
+            background: rgba(124, 58, 237, 0.08);
+            border-color: rgba(124, 58, 237, 0.75);
+        }
+        .lrq-btn-outline:focus-visible {
+            outline: 2px solid rgba(124, 58, 237, 0.45);
+            outline-offset: 1px;
+        }
+        .lrq-btn-outline:disabled { opacity: 0.55; cursor: not-allowed; }
 
         .lrq-docs-admin-section {
             margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);
         }
         .lrq-docs-admin-h { margin: 0 0 0.65rem; font-size: 0.88rem; font-weight: 800; color: var(--text); }
-        .lrq-edit-docs-host { display: flex; flex-direction: column; gap: 0.75rem; max-height: min(55vh, 28rem); overflow: auto; padding: 0.1rem; }
+        /*
+         * محفظهٔ کارت‌های مدارک: عمداً اسکرول داخلی ندارد. اسکرول کل صفحه فقط در سطح
+         * `.lrq-edit-modal-body` انجام می‌شود تا کاربر همیشه کل کارت (تصویر، تغییر وضعیت،
+         * نظر کارشناس، دکمه‌ها) را به‌صورت یکپارچه ببیند و دچار اسکرول داخل اسکرول نشود.
+         */
+        .lrq-edit-docs-host {
+            display: flex; flex-direction: column; gap: 0.95rem;
+            padding: 0.15rem 0.25rem;
+        }
         .lrq-doc-admin-card {
             border: 1px solid var(--border); border-radius: 0.85rem; overflow: hidden;
             background: var(--bg-card); box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+            display: flex; flex-direction: column;
         }
         .lrq-doc-admin-card-head {
-            padding: 0.45rem 0.65rem; font-size: 0.78rem; font-weight: 800;
+            padding: 0.5rem 0.75rem; font-size: 0.8rem; font-weight: 800;
             background: rgba(148, 163, 184, 0.18); color: var(--text); border-bottom: 1px solid var(--border);
         }
-        .lrq-doc-admin-body { padding: 0.65rem 0.7rem 0.75rem; display: grid; gap: 0.55rem; }
-        @media (min-width: 720px) {
-            .lrq-doc-admin-body { grid-template-columns: 1fr minmax(7rem, 9rem); align-items: start; }
+        /*
+         * ارتفاع کارت کاملاً «هوشمند» است: هیچ سقفی روی body یا ستون‌ها قرار نگرفته،
+         * `align-items: start` باعث می‌شود ستون‌ها در ردیف اول از بالا تراز شوند، و چون
+         * هر بخش بعدی (وضعیت، نظر، دکمه‌ها) با `grid-column: 1 / -1` تمام عرض را اشغال
+         * می‌کند، هیچ نقطه‌ای از کارت زیر بخش دیگر مخفی نمی‌شود.
+         */
+        .lrq-doc-admin-body {
+            padding: 0.85rem 0.85rem 0.95rem; display: grid; gap: 0.85rem;
+            grid-template-columns: 1fr; align-items: start;
         }
-        .lrq-doc-admin-cust { font-size: 0.76rem; }
-        .lrq-doc-admin-cust strong { display: block; margin-bottom: 0.25rem; font-size: 0.72rem; color: var(--muted); }
-        .lrq-doc-admin-cust p { margin: 0; line-height: 1.5; white-space: pre-wrap; word-break: break-word; color: var(--text); }
-        .lrq-doc-admin-preview { text-align: center; }
+        @media (min-width: 720px) {
+            .lrq-doc-admin-body { grid-template-columns: minmax(0, 1fr) minmax(11rem, 14rem); }
+        }
+        .lrq-doc-admin-cust { font-size: 0.78rem; min-width: 0; }
+        .lrq-doc-admin-cust strong { display: block; margin-bottom: 0.3rem; font-size: 0.72rem; color: var(--muted); }
+        .lrq-doc-admin-cust p { margin: 0; line-height: 1.6; white-space: pre-wrap; word-break: break-word; color: var(--text); }
+        .lrq-doc-admin-preview {
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+            gap: 0.4rem; min-width: 0;
+        }
         .lrq-doc-admin-preview img {
-            max-width: 100%; max-height: 7rem; border-radius: 0.5rem; border: 1px solid var(--border); object-fit: contain; background: rgba(148, 163, 184, 0.08);
+            display: block; max-width: 100%; max-height: 11rem; width: auto; height: auto;
+            border-radius: 0.55rem; border: 1px solid var(--border); object-fit: contain; background: rgba(148, 163, 184, 0.08);
         }
         .lrq-doc-admin-dl {
             display: inline-flex; align-items: center; gap: 0.25rem; margin-top: 0.35rem; font-size: 0.74rem; font-weight: 700; color: #15803d; text-decoration: none;
@@ -300,7 +348,8 @@
             padding: 0.45rem 0.5rem; font-size: 0.78rem; font-family: inherit; min-height: 3.2rem; resize: vertical; background: var(--bg-card); color: var(--text);
         }
         .lrq-doc-admin-actions {
-            grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; justify-content: flex-end; margin-top: 0.15rem;
+            grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: flex-end;
+            margin-top: 0.25rem; padding-top: 0.45rem; border-top: 1px dashed rgba(148, 163, 184, 0.35);
         }
         .lrq-doc-admin-save {
             border: none; border-radius: 0.55rem; padding: 0.42rem 0.85rem;
@@ -336,6 +385,33 @@
         .lrq-log-msg { max-width: 14rem; word-break: break-word; line-height: 1.45; }
         .lrq-log-mini { font-size: 0.72rem; font-weight: 700; border: none; border-radius: 0.5rem; padding: 0.28rem 0.45rem; cursor: pointer; font-family: inherit; background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
         .lrq-log-mini:hover { filter: brightness(1.05); }
+
+        .lrq-convert-modal {
+            width: min(620px, 100%); margin: 0.5rem auto 1.5rem; border-radius: 1rem; border: 1px solid var(--border);
+            background: var(--bg-card); max-height: calc(100vh - 2rem); display: flex; flex-direction: column;
+            box-shadow: 0 22px 60px rgba(15, 23, 42, 0.22);
+        }
+        .lrq-convert-head { display: flex; align-items: center; justify-content: space-between; gap: 0.65rem; padding: 0.7rem 0.95rem; border-bottom: 1px solid var(--border); }
+        .lrq-convert-head h2 { margin: 0; font-size: 0.95rem; font-weight: 800; }
+        .lrq-convert-body { padding: 0.85rem 0.95rem 0.65rem; overflow: auto; flex: 1; min-height: 0; }
+        .lrq-convert-hint { margin: 0 0 0.65rem; font-size: 0.78rem; color: var(--muted); line-height: 1.6; }
+        .lrq-convert-summary {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.45rem 0.65rem;
+            padding: 0.55rem 0.65rem; margin: 0 0 0.85rem; border: 1px dashed var(--border); border-radius: 0.7rem;
+            background: rgba(99, 102, 241, 0.05); font-size: 0.78rem;
+        }
+        .lrq-convert-summary .lrq-convert-row { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+        .lrq-convert-summary .lrq-convert-row .k { color: var(--muted); font-size: 0.7rem; }
+        .lrq-convert-summary .lrq-convert-row .v { font-weight: 800; word-break: break-word; }
+        .lrq-convert-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
+        @media (max-width: 600px) { .lrq-convert-grid { grid-template-columns: 1fr; } }
+        .lrq-convert-grid .lrq-field input {
+            width: 100%; border: 1px solid var(--border); border-radius: 0.6rem; padding: 0.5rem 0.6rem; font-size: 0.85rem;
+            font-family: inherit; background: var(--bg-card); color: var(--text); direction: ltr; text-align: center; letter-spacing: 0.04em;
+        }
+        .lrq-convert-grid .lrq-field input:focus { outline: 2px solid rgba(99, 102, 241, 0.35); outline-offset: 1px; }
+        .lrq-convert-foot { display: flex; align-items: center; justify-content: flex-end; gap: 0.55rem; padding: 0.65rem 0.95rem; border-top: 1px solid var(--border); background: rgba(15, 23, 42, 0.03); }
+        [data-theme="dark"] .lrq-convert-foot { background: rgba(255, 255, 255, 0.04); }
 
         .lrq-sdef-modal { width: min(920px, 100%); margin: 0.5rem auto 1.5rem; border-radius: 1rem; border: 1px solid var(--border); background: var(--bg-card); max-height: calc(100vh - 2rem); display: flex; flex-direction: column; box-shadow: 0 22px 60px rgba(15, 23, 42, 0.22); }
         .lrq-sdef-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.65rem; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
@@ -462,6 +538,128 @@
         }
 
         .lrq-pagination { padding: 0.75rem 0.5rem; }
+
+        /* === Toolbar: status filter + tools (export / print) === */
+        .lrq-toolbar {
+            display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.6rem;
+            margin: 0.4rem 0 0.75rem;
+        }
+        .lrq-toolbar__group {
+            display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+        }
+        .lrq-toolbar__spacer { flex: 1; min-width: 0; }
+
+        details.lrq-status-filter {
+            position: relative;
+        }
+        details.lrq-status-filter > summary {
+            list-style: none; cursor: pointer; user-select: none;
+            display: inline-flex; align-items: center; gap: 0.45rem;
+            padding: 0.55rem 0.85rem;
+            border: 1px solid rgba(37, 99, 235, 0.35);
+            background: var(--bg-card); color: var(--text);
+            border-radius: 0.7rem; font-weight: 700; font-size: 0.82rem;
+            font-family: inherit;
+        }
+        details.lrq-status-filter > summary::-webkit-details-marker { display: none; }
+        details.lrq-status-filter > summary:hover { border-color: var(--primary); }
+        details.lrq-status-filter[open] > summary { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-dark); }
+        html[data-theme="dark"] details.lrq-status-filter[open] > summary { background: rgba(30, 58, 138, 0.22); }
+
+        .lrq-status-filter__count {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 1.35rem; height: 1.35rem; padding: 0 0.35rem;
+            border-radius: 999px; background: var(--primary); color: #fff;
+            font-size: 0.7rem; font-weight: 900;
+        }
+
+        .lrq-status-panel {
+            position: absolute; z-index: 30; top: calc(100% + 0.35rem); inset-inline-start: 0;
+            min-width: 18rem; max-width: 24rem;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 0.85rem; box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16);
+            padding: 0.7rem 0.75rem; display: flex; flex-direction: column; gap: 0.55rem;
+        }
+        html[data-theme="dark"] .lrq-status-panel { box-shadow: 0 14px 30px rgba(0,0,0,0.45); }
+
+        .lrq-status-panel__hint {
+            font-size: 0.74rem; color: var(--muted); font-weight: 700; margin: 0 0 0.15rem;
+        }
+        .lrq-status-panel__list {
+            display: flex; flex-direction: column; gap: 0.25rem;
+            max-height: 14rem; overflow-y: auto; padding: 0.1rem 0.15rem;
+        }
+        .lrq-status-panel__item {
+            display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.45rem;
+            border-radius: 0.5rem; font-size: 0.8rem; font-weight: 700; color: var(--text); cursor: pointer;
+        }
+        .lrq-status-panel__item:hover { background: rgba(37, 99, 235, 0.06); }
+        html[data-theme="dark"] .lrq-status-panel__item:hover { background: rgba(30, 58, 138, 0.22); }
+        .lrq-status-panel__item input[type="checkbox"] { width: 1rem; height: 1rem; accent-color: var(--primary); }
+        .lrq-status-panel__actions {
+            display: flex; gap: 0.4rem; justify-content: space-between; padding-top: 0.25rem;
+            border-top: 1px dashed var(--border);
+        }
+        .lrq-status-panel__btn {
+            font-family: inherit; font-size: 0.78rem; font-weight: 800; padding: 0.4rem 0.65rem;
+            border-radius: 0.55rem; cursor: pointer; border: 1px solid transparent;
+        }
+        .lrq-status-panel__btn--primary {
+            background: linear-gradient(180deg, var(--primary), var(--primary-dark));
+            color: #fff; box-shadow: 0 6px 14px rgba(37, 99, 235, 0.22);
+        }
+        .lrq-status-panel__btn--primary:hover { filter: brightness(1.05); }
+        .lrq-status-panel__btn--ghost {
+            background: transparent; color: var(--primary-dark);
+            border-color: rgba(37, 99, 235, 0.4);
+        }
+        .lrq-status-panel__btn--ghost:hover { background: rgba(37, 99, 235, 0.06); }
+
+        .lrq-tool-btn {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            padding: 0.55rem 0.85rem; border-radius: 0.7rem;
+            font-family: inherit; font-weight: 800; font-size: 0.82rem;
+            cursor: pointer; text-decoration: none; border: 1px solid transparent;
+            transition: filter 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+        }
+        .lrq-tool-btn--excel {
+            background: linear-gradient(180deg, #16a34a, #15803d);
+            color: #fff; box-shadow: 0 6px 14px rgba(22, 163, 74, 0.22);
+        }
+        .lrq-tool-btn--excel:hover { filter: brightness(1.05); }
+        .lrq-tool-btn--print {
+            background: var(--bg-card); color: var(--primary-dark);
+            border-color: rgba(37, 99, 235, 0.4);
+        }
+        .lrq-tool-btn--print:hover { background: var(--primary-soft); border-color: var(--primary); }
+        html[data-theme="dark"] .lrq-tool-btn--print:hover { background: rgba(30, 58, 138, 0.22); }
+
+        .lrq-active-status-chips {
+            display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center;
+            margin-top: 0.4rem;
+        }
+        .lrq-active-status-chip {
+            display: inline-flex; align-items: center; gap: 0.35rem;
+            padding: 0.2rem 0.55rem; border-radius: 999px;
+            font-size: 0.72rem; font-weight: 800;
+            background: var(--primary-soft); color: var(--primary-dark);
+            border: 1px solid rgba(37, 99, 235, 0.35);
+        }
+        html[data-theme="dark"] .lrq-active-status-chip {
+            background: rgba(30, 58, 138, 0.28); color: #c7d2fe; border-color: rgba(99, 102, 241, 0.5);
+        }
+        .lrq-active-status-chip__x {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1rem; height: 1rem; border-radius: 999px;
+            background: rgba(37, 99, 235, 0.18); color: var(--primary-dark);
+            font-size: 0.6rem; text-decoration: none;
+        }
+        .lrq-active-status-chip__x:hover { background: rgba(37, 99, 235, 0.32); }
+        .lrq-active-status-clear {
+            font-size: 0.74rem; font-weight: 800; color: #b91c1c; text-decoration: none;
+            border: 1px dashed rgba(220, 38, 38, 0.5); padding: 0.2rem 0.55rem; border-radius: 999px;
+        }
+        .lrq-active-status-clear:hover { background: rgba(254, 226, 226, 0.6); }
     </style>
 @endpush
 
@@ -472,11 +670,28 @@
             بازهٔ تاریخ ثبت درخواست را انتخاب کنید و روی «دریافت اطلاعات» بزنید. سپس در جدول زیر می‌توانید جستجو کنید و برای مشاهدهٔ پروندهٔ وام مشتری، روی نام او کلیک کنید.
         </p>
 
+        @php
+            $selectedStatuses = $selectedStatuses ?? [];
+            $statusOptions = $statusOptions ?? [];
+            $statusTitleMap = collect($statusOptions)->pluck('title', 'code')->all();
+            $exportQuery = array_filter([
+                'from_jdate' => $fromJDate,
+                'to_jdate' => $toJDate,
+                'q' => $search,
+                'status' => $selectedStatuses,
+            ], static function ($v): bool {
+                return $v !== '' && $v !== null && $v !== [];
+            });
+        @endphp
+
         <div class="lrq-date-card">
             <form method="get" action="{{ route('admin.loan-requests.index') }}" class="lrq-date-form" id="lrq-date-form">
                 @if ($search !== '')
                     <input type="hidden" name="q" value="{{ e($search) }}">
                 @endif
+                @foreach ($selectedStatuses as $sc)
+                    <input type="hidden" name="status[]" value="{{ e($sc) }}">
+                @endforeach
                 <div class="lrq-date-row">
                     <div class="lrq-date-field">
                         <label for="lrq-from-jdate">از تاریخ</label>
@@ -495,6 +710,9 @@
             <form method="get" class="lrq-search-form" action="{{ route('admin.loan-requests.index') }}">
                 <input type="hidden" name="from_jdate" value="{{ e($fromJDate) }}">
                 <input type="hidden" name="to_jdate" value="{{ e($toJDate) }}">
+                @foreach ($selectedStatuses as $sc)
+                    <input type="hidden" name="status[]" value="{{ e($sc) }}">
+                @endforeach
                 <input type="search" name="q" value="{{ e($search) }}" placeholder="اطلاعات مورد نظر خود جهت جستجو وارد کنید" maxlength="200" autocomplete="off">
                 <button type="submit" aria-label="جستجو"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></button>
             </form>
@@ -503,6 +721,86 @@
                 انتخاب همه
             </label>
         </div>
+
+        <div class="lrq-toolbar" role="toolbar" aria-label="ابزار فیلتر و خروجی">
+            <div class="lrq-toolbar__group">
+                <details class="lrq-status-filter" id="lrq-status-filter">
+                    <summary aria-haspopup="listbox" aria-expanded="false">
+                        <i class="fa-solid fa-filter" aria-hidden="true"></i>
+                        فیلتر وضعیت‌ها
+                        @if (count($selectedStatuses) > 0)
+                            <span class="lrq-status-filter__count" aria-label="تعداد انتخاب‌شده">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) count($selectedStatuses)) }}</span>
+                        @endif
+                    </summary>
+                    <div class="lrq-status-panel" role="dialog" aria-label="انتخاب وضعیت‌ها">
+                        <p class="lrq-status-panel__hint">وضعیت‌هایی که می‌خواهید نمایش داده شوند را انتخاب و «اعمال فیلتر» را بزنید. در صورت خالی بودن، همه وضعیت‌ها نمایش داده می‌شوند.</p>
+                        <form method="get" action="{{ route('admin.loan-requests.index') }}" id="lrq-status-filter-form">
+                            <input type="hidden" name="from_jdate" value="{{ e($fromJDate) }}">
+                            <input type="hidden" name="to_jdate" value="{{ e($toJDate) }}">
+                            @if ($search !== '')
+                                <input type="hidden" name="q" value="{{ e($search) }}">
+                            @endif
+                            <div class="lrq-status-panel__list">
+                                @forelse ($statusOptions as $opt)
+                                    <label class="lrq-status-panel__item">
+                                        <input type="checkbox" name="status[]" value="{{ e($opt['code']) }}"
+                                            @checked(in_array($opt['code'], $selectedStatuses, true))>
+                                        <span>{{ $opt['title'] }}</span>
+                                    </label>
+                                @empty
+                                    <p class="lrq-status-panel__hint" style="text-align:center">وضعیتی تعریف نشده است.</p>
+                                @endforelse
+                            </div>
+                            <div class="lrq-status-panel__actions">
+                                <button type="submit" class="lrq-status-panel__btn lrq-status-panel__btn--primary">اعمال فیلتر</button>
+                                <a href="{{ route('admin.loan-requests.index', array_filter(['from_jdate' => $fromJDate, 'to_jdate' => $toJDate, 'q' => $search], static fn ($v) => $v !== '' && $v !== null)) }}"
+                                    class="lrq-status-panel__btn lrq-status-panel__btn--ghost">پاک‌سازی</a>
+                            </div>
+                        </form>
+                    </div>
+                </details>
+            </div>
+
+            <div class="lrq-toolbar__spacer"></div>
+
+            <div class="lrq-toolbar__group">
+                <a class="lrq-tool-btn lrq-tool-btn--excel" href="{{ route('admin.loan-requests.export', $exportQuery) }}"
+                    title="دریافت خروجی اکسل از همین فهرست فیلتر شده">
+                    <i class="fa-solid fa-file-excel" aria-hidden="true"></i>
+                    خروجی اکسل
+                </a>
+                <a class="lrq-tool-btn lrq-tool-btn--print" href="{{ route('admin.loan-requests.print', $exportQuery) }}"
+                    target="_blank" rel="noopener" title="چاپ A4 از همین فهرست فیلتر شده">
+                    <i class="fa-solid fa-print" aria-hidden="true"></i>
+                    چاپ
+                </a>
+            </div>
+        </div>
+
+        @if (count($selectedStatuses) > 0)
+            <div class="lrq-active-status-chips" aria-label="وضعیت‌های فعال در فیلتر">
+                @foreach ($selectedStatuses as $sc)
+                    @php
+                        $remaining = array_values(array_filter($selectedStatuses, static fn ($x) => $x !== $sc));
+                        $removeUrl = route('admin.loan-requests.index', array_filter([
+                            'from_jdate' => $fromJDate,
+                            'to_jdate' => $toJDate,
+                            'q' => $search,
+                            'status' => $remaining,
+                        ], static fn ($v) => $v !== '' && $v !== null && $v !== []));
+                    @endphp
+                    <span class="lrq-active-status-chip">
+                        {{ $statusTitleMap[$sc] ?? $sc }}
+                        <a class="lrq-active-status-chip__x" href="{{ $removeUrl }}" title="حذف از فیلتر" aria-label="حذف وضعیت از فیلتر">
+                            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                        </a>
+                    </span>
+                @endforeach
+                <a class="lrq-active-status-clear" href="{{ route('admin.loan-requests.index', array_filter(['from_jdate' => $fromJDate, 'to_jdate' => $toJDate, 'q' => $search], static fn ($v) => $v !== '' && $v !== null)) }}">
+                    حذف همه فیلترهای وضعیت
+                </a>
+            </div>
+        @endif
 
         <div class="lrq-wrap lrq-desktop-only" role="region" aria-label="جدول درخواست‌های وام">
             <table class="lrq-tbl">
@@ -637,6 +935,11 @@
                 <div class="lrq-edit-modal-body">
                     <div id="lrq-edit-loading" class="lrq-empty" hidden>در حال بارگذاری…</div>
                     <div id="lrq-edit-form-wrap" hidden>
+                        <div id="lrq-edit-converted-banner" class="lrq-converted-banner" hidden role="status" aria-live="polite">
+                            <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                            <span class="lrq-converted-banner-text">این درخواست به وام تخصیص داده شده است</span>
+                            <span class="lrq-converted-banner-meta" id="lrq-edit-converted-meta"></span>
+                        </div>
                         <div class="lrq-edit-layout">
                             <aside class="lrq-edit-side" aria-label="اطلاعات مشتری">
                                 <div class="lrq-edit-side-top">
@@ -732,7 +1035,7 @@
                                     </div>
                                     <div class="lrq-edit-foot-end">
                                         <button type="button" class="lrq-btn-primary" id="lrq-edit-save">ذخیره تغییرات</button>
-                                        <button type="button" class="lrq-btn-outline" disabled title="در فاز بعدی فعال می‌شود">تبدیل به وام</button>
+                                        <button type="button" class="lrq-btn-outline" id="lrq-edit-convert-loan">تبدیل به وام</button>
                                     </div>
                                 </div>
                                 <div class="lrq-docs-admin-section" id="lrq-docs-admin-section">
@@ -799,6 +1102,36 @@
             </div>
         </div>
 
+        <div id="lrq-convert-overlay" class="lrq-modal-overlay lrq-modal-overlay--top" hidden aria-hidden="true">
+            <div class="lrq-convert-modal" role="dialog" aria-modal="true" aria-labelledby="lrq-convert-title">
+                <div class="lrq-convert-head">
+                    <h2 id="lrq-convert-title">تبدیل درخواست به وام</h2>
+                    <button type="button" class="lrq-edit-modal-close" id="lrq-convert-close" aria-label="بستن">&times;</button>
+                </div>
+                <div class="lrq-convert-body">
+                    <p class="lrq-convert-hint" id="lrq-convert-hint">دو تاریخ زیر را در تقویم شمسی وارد کنید. مبلغ وام، تعداد و فاصلهٔ اقساط و مبلغ هر قسط از مشخصات همین درخواست برداشته می‌شوند.</p>
+                    <div class="lrq-convert-summary" id="lrq-convert-summary"></div>
+                    <div class="lrq-convert-grid">
+                        <div class="lrq-field">
+                            <label for="lrq-convert-start-jdate">تاریخ شروع وام</label>
+                            <input type="text" id="lrq-convert-start-jdate" autocomplete="off" placeholder="مثال: ۱۴۰۵/۰۲/۱۵" inputmode="numeric">
+                        </div>
+                        <div class="lrq-field">
+                            <label for="lrq-convert-due-jdate">سررسید واریز به حساب مشتری</label>
+                            <input type="text" id="lrq-convert-due-jdate" autocomplete="off" placeholder="مثال: ۱۴۰۵/۰۲/۲۰" inputmode="numeric">
+                        </div>
+                    </div>
+                </div>
+                <div class="lrq-convert-foot">
+                    <button type="button" class="lrq-btn-ghost" id="lrq-convert-cancel">انصراف</button>
+                    <button type="button" class="lrq-btn-primary" id="lrq-convert-submit">
+                        <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+                        <span>ایجاد وام</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <div id="lrq-sdef-overlay" class="lrq-modal-overlay lrq-modal-overlay--nested" hidden aria-hidden="true">
             <div class="lrq-sdef-modal" role="dialog" aria-modal="true" aria-labelledby="lrq-sdef-title">
                 <div class="lrq-sdef-head">
@@ -831,6 +1164,12 @@
 
             function lrqEditContextUrl(id) {
                 return lrqListBase + '/' + encodeURIComponent(id) + '/edit-context';
+            }
+            function lrqConvertPreviewUrl(id) {
+                return lrqListBase + '/' + encodeURIComponent(id) + '/convert-preview';
+            }
+            function lrqConvertUrl(id) {
+                return lrqListBase + '/' + encodeURIComponent(id) + '/convert';
             }
             function lrqStatusDefItemUrl(id) {
                 return lrqStatusDefIndex + '/' + encodeURIComponent(id);
@@ -1061,11 +1400,13 @@
             var lrqStatusLogSearchTimer = null;
 
             function syncLrqModalScrollLock() {
+                var convertOv = document.getElementById('lrq-convert-overlay');
                 var anyOpen =
                     (editOverlay && !editOverlay.hidden) ||
                     (sdefOverlay && !sdefOverlay.hidden) ||
                     (statusLogOverlay && !statusLogOverlay.hidden) ||
-                    (smsLogOverlay && !smsLogOverlay.hidden);
+                    (smsLogOverlay && !smsLogOverlay.hidden) ||
+                    (convertOv && !convertOv.hidden);
                 document.documentElement.style.overflow = anyOpen ? 'hidden' : '';
             }
 
@@ -1113,6 +1454,8 @@
                 var r = data.request || {};
                 lrqEditCtx.customerId = parseInt(String(c.id || 0), 10);
                 lrqEditCtx.requestId = parseInt(String(r.id || 0), 10);
+                // نگه‌داری آخرین payload سرور برای دسترسی سایر مدال‌ها (مثل «تبدیل به وام»).
+                try { lrqEditCtx._lastData = data; } catch (eCtxStash) { /* noop */ }
 
                 setLrqText('lrq-edit-cust-name', c.full_name || '—');
                 setLrqText('lrq-edit-cust-username', c.username || '—');
@@ -1195,6 +1538,35 @@
                 lrqEditCtx.documents = Array.isArray(data.documents) ? data.documents.slice() : [];
                 lrqEditCtx.document_review_statuses = Array.isArray(data.document_review_statuses) ? data.document_review_statuses.slice() : [];
                 renderLrqAdminDocuments(lrqEditCtx.documents, lrqEditCtx.document_review_statuses);
+
+                // وضعیت دکمه «تبدیل به وام»: اگر قبلاً تبدیل شده، غیرفعال می‌شود و توضیح مناسب نمایش می‌یابد.
+                var convertBtn = document.getElementById('lrq-edit-convert-loan');
+                if (convertBtn) {
+                    if (r.is_converted_to_loan) {
+                        convertBtn.disabled = true;
+                        convertBtn.title = 'این درخواست قبلاً به وام تبدیل شده است' + (r.converted_at_fa ? ' — در ' + r.converted_at_fa : '');
+                        convertBtn.setAttribute('aria-disabled', 'true');
+                    } else {
+                        convertBtn.disabled = false;
+                        convertBtn.title = 'تبدیل این درخواست به یک پروندهٔ وام برای مشتری';
+                        convertBtn.removeAttribute('aria-disabled');
+                    }
+                }
+
+                // نوار قرمز بزرگ بالای مدال: فقط در صورت تبدیل‌شدن این درخواست به وام نمایش داده می‌شود.
+                var convertedBanner = document.getElementById('lrq-edit-converted-banner');
+                var convertedMeta = document.getElementById('lrq-edit-converted-meta');
+                if (convertedBanner) {
+                    if (r.is_converted_to_loan) {
+                        convertedBanner.hidden = false;
+                        if (convertedMeta) {
+                            convertedMeta.textContent = r.converted_at_fa ? '(در ' + r.converted_at_fa + ')' : '';
+                        }
+                    } else {
+                        convertedBanner.hidden = true;
+                        if (convertedMeta) convertedMeta.textContent = '';
+                    }
+                }
             }
 
             function lrqAdminDocResourceUrl(rid, docId) {
@@ -1735,6 +2107,265 @@
             var btnSaveEdit = document.getElementById('lrq-edit-save');
             if (btnSaveEdit) btnSaveEdit.addEventListener('click', saveLoanRequestEdit);
 
+            // ===================== مدال «تبدیل به وام» =====================
+            var convertOverlay = document.getElementById('lrq-convert-overlay');
+            var convertCloseBtn = document.getElementById('lrq-convert-close');
+            var convertCancelBtn = document.getElementById('lrq-convert-cancel');
+            var convertSubmitBtn = document.getElementById('lrq-convert-submit');
+            var convertOpenBtn = document.getElementById('lrq-edit-convert-loan');
+            var convertStartInput = document.getElementById('lrq-convert-start-jdate');
+            var convertDueInput = document.getElementById('lrq-convert-due-jdate');
+            var convertSummary = document.getElementById('lrq-convert-summary');
+            var convertHint = document.getElementById('lrq-convert-hint');
+            var convertCtx = { initialized: false, busy: false };
+
+            function escapeConvertHtml(s) {
+                return escapeHtmlText(s);
+            }
+
+            function initConvertDatepickers() {
+                if (convertCtx.initialized) return;
+                if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.pDatepicker) return;
+                window.jQuery('#lrq-convert-start-jdate, #lrq-convert-due-jdate').pDatepicker({
+                    format: 'YYYY/MM/DD',
+                    autoClose: true,
+                    initialValue: false,
+                    calendarType: 'persian',
+                    initialValueType: 'persian',
+                    toolbox: { calendarSwitch: false }
+                });
+                convertCtx.initialized = true;
+            }
+
+            function renderConvertSummary(r, c) {
+                if (!convertSummary) return;
+                var rows = [
+                    { k: 'مشتری', v: (c.full_name || '—') + (c.username ? ' — ' + c.username : '') },
+                    { k: 'کد ملی', v: c.national_id_fa || '—' },
+                    { k: 'موبایل', v: c.mobile_fa || '—' },
+                    { k: 'مبلغ وام', v: formatNum(r.amount_toman) + ' تومان' },
+                    { k: 'تعداد اقساط', v: formatNum(r.installments_count) + ' قسط' },
+                    { k: 'فاصلهٔ هر قسط', v: formatNum(r.installment_interval_count) + ' ' + (r.installment_interval_unit_fa || '') },
+                    { k: 'مبلغ هر قسط (پیش‌فرض)', v: formatNum(r.installment_amount_toman) + ' تومان' }
+                ];
+                var html = '';
+                for (var i = 0; i < rows.length; i++) {
+                    html += '<div class="lrq-convert-row"><span class="k">' + escapeConvertHtml(rows[i].k) + '</span><span class="v">' + escapeConvertHtml(rows[i].v) + '</span></div>';
+                }
+                convertSummary.innerHTML = html;
+            }
+
+            function openConvertModal() {
+                if (!convertOverlay) return;
+                var r = (lrqEditCtx && lrqEditCtx._lastData && lrqEditCtx._lastData.request) || null;
+                var c = (lrqEditCtx && lrqEditCtx._lastData && lrqEditCtx._lastData.customer) || null;
+                if (!r || !c || !lrqEditCtx.requestId) {
+                    if (window.AdminSwal && AdminSwal.warning) AdminSwal.warning('اطلاعات درخواست در دسترس نیست؛ مدال را ببندید و دوباره باز کنید.');
+                    return;
+                }
+                if (r.is_converted_to_loan) {
+                    if (window.AdminSwal && AdminSwal.info) {
+                        AdminSwal.info('این درخواست قبلاً به وام تبدیل شده است' + (r.converted_at_fa ? ' (در ' + r.converted_at_fa + ')' : '') + '.');
+                    }
+                    return;
+                }
+                renderConvertSummary(r, c);
+                if (convertStartInput) convertStartInput.value = '';
+                if (convertDueInput) convertDueInput.value = '';
+                setOverlay(true, convertOverlay);
+                initConvertDatepickers();
+                setTimeout(function () { if (convertStartInput) { try { convertStartInput.focus(); } catch (e) {} } }, 50);
+            }
+
+            function closeConvertModal() {
+                if (!convertOverlay) return;
+                setOverlay(false, convertOverlay);
+                convertCtx.busy = false;
+                if (convertSubmitBtn) convertSubmitBtn.disabled = false;
+            }
+
+            function buildConvertConfirmHtml(p) {
+                function row(k, v, strong) {
+                    return '<tr>'
+                        + '<th style="text-align:start;padding:0.35rem 0.5rem;border-bottom:1px solid rgba(148,163,184,0.35);font-weight:600;white-space:nowrap;color:#64748b">' + escapeConvertHtml(k) + '</th>'
+                        + '<td style="text-align:end;padding:0.35rem 0.5rem;border-bottom:1px solid rgba(148,163,184,0.35);' + (strong ? 'font-weight:800;' : 'font-weight:600;') + '">' + escapeConvertHtml(v) + '</td>'
+                        + '</tr>';
+                }
+                var c = p.customer || {};
+                var lt = p.loan_type || {};
+                var rows = '';
+                rows += row('مشتری', (c.full_name || '—') + (c.username ? ' (' + c.username + ')' : ''));
+                rows += row('کد ملی', c.national_id_fa || '—');
+                rows += row('موبایل', c.mobile_fa || '—');
+                rows += row('نوع وام', lt.title || '—');
+                rows += row('روش محاسبهٔ سود', lt.profit_method_label || '—');
+                rows += row('درصد سود', (lt.interest_rate_fa || '—') + '٪');
+                rows += row('مبلغ وام', formatNum(p.amount_toman) + ' تومان', true);
+                rows += row('تعداد اقساط', formatNum(p.installments_count) + ' قسط');
+                rows += row('فاصلهٔ بین اقساط', formatNum(p.installment_interval_count) + ' ' + (p.installment_interval_unit_fa || ''));
+                rows += row('مبلغ هر قسط', formatNum(p.installment_amount_toman) + ' تومان', true);
+                rows += row('سود کل', formatNum(p.profit_toman) + ' تومان');
+                rows += row('جمع کل قابل بازپرداخت', formatNum(p.total_repayable_toman) + ' تومان', true);
+                rows += row('تاریخ شروع وام', p.loan_start_jdate_fa || '—', true);
+                rows += row('سررسید واریز به مشتری', p.disbursement_due_jdate_fa || '—');
+                if (p.first_due_jdate_fa) rows += row('اولین سررسید قسط', p.first_due_jdate_fa);
+                if (p.last_due_jdate_fa) rows += row('آخرین سررسید قسط', p.last_due_jdate_fa);
+                return ''
+                    + '<div style="font-size:0.82rem;line-height:1.7;text-align:start;direction:rtl">'
+                    + '<p style="margin:0 0 0.55rem;color:#475569">ایجاد وام با مشخصات زیر برای مشتری مورد تأیید است؟ پس از تأیید، پروندهٔ وام و جدول اقساط ساخته می‌شود و از این پس قابل ویرایش از طریق «مدیریت وام‌های مشتری» است.</p>'
+                    + '<table style="width:100%;border-collapse:collapse;background:rgba(99,102,241,0.04);border:1px solid rgba(148,163,184,0.35);border-radius:0.6rem;overflow:hidden">'
+                    + '<tbody>' + rows + '</tbody>'
+                    + '</table>'
+                    + '</div>';
+            }
+
+            function fetchConvertPreview(rid, startJ, dueJ) {
+                var u = new URL(lrqConvertPreviewUrl(rid), window.location.origin);
+                if (startJ) u.searchParams.set('loan_start_jdate', startJ);
+                if (dueJ) u.searchParams.set('disbursement_due_jdate', dueJ);
+                return fetch(u.toString(), {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                }).then(readFetchJsonBody);
+            }
+
+            function performLrqConvert() {
+                if (convertCtx.busy) return;
+                var rid = lrqEditCtx.requestId;
+                if (!rid) return;
+                var startJ = (convertStartInput && convertStartInput.value ? String(convertStartInput.value).trim() : '');
+                var dueJ = (convertDueInput && convertDueInput.value ? String(convertDueInput.value).trim() : '');
+                if (!startJ) {
+                    if (window.AdminSwal && AdminSwal.warning) AdminSwal.warning('تاریخ شروع وام را وارد کنید.');
+                    if (convertStartInput) { try { convertStartInput.focus(); } catch (e) {} }
+                    return;
+                }
+                if (!dueJ) {
+                    if (window.AdminSwal && AdminSwal.warning) AdminSwal.warning('تاریخ سررسید واریز به حساب مشتری را وارد کنید.');
+                    if (convertDueInput) { try { convertDueInput.focus(); } catch (e) {} }
+                    return;
+                }
+                convertCtx.busy = true;
+                if (convertSubmitBtn) convertSubmitBtn.disabled = true;
+
+                fetchConvertPreview(rid, startJ, dueJ)
+                    .then(null, function (errNet) {
+                        if (typeof console !== 'undefined' && console.error) {
+                            console.error('lrqConvertPreview transport', errNet);
+                        }
+                        if (window.AdminSwal && AdminSwal.error) AdminSwal.error('ارتباط با سرور برقرار نشد.');
+                        convertCtx.busy = false;
+                        if (convertSubmitBtn) convertSubmitBtn.disabled = false;
+                        return null;
+                    })
+                    .then(function (res) {
+                        if (!res) return null;
+                        if (!res.ok) {
+                            var msg = safeAdminMessage(res.body && res.body.message, 'پیش‌نمایش امکان‌پذیر نیست.');
+                            if (window.AdminSwal && AdminSwal.error) AdminSwal.error(msg);
+                            convertCtx.busy = false;
+                            if (convertSubmitBtn) convertSubmitBtn.disabled = false;
+                            return null;
+                        }
+                        var preview = res.body || {};
+                        if (preview.already_converted) {
+                            if (window.AdminSwal && AdminSwal.info) AdminSwal.info('این درخواست قبلاً به وام تبدیل شده است.');
+                            convertCtx.busy = false;
+                            if (convertSubmitBtn) convertSubmitBtn.disabled = false;
+                            return null;
+                        }
+                        if (!window.AdminSwal || !AdminSwal.fire) {
+                            // در نبود SweetAlert از confirm استاندارد استفاده می‌کنیم.
+                            if (window.confirm('ایجاد وام با مشخصات نمایش داده شده تأیید می‌شود؟')) {
+                                return doConvertCommit(rid, startJ, dueJ);
+                            }
+                            convertCtx.busy = false;
+                            if (convertSubmitBtn) convertSubmitBtn.disabled = false;
+                            return null;
+                        }
+                        return wrapSwalThenable(AdminSwal.fire({
+                            icon: 'question',
+                            title: 'تأیید ایجاد وام',
+                            html: buildConvertConfirmHtml(preview),
+                            width: 720,
+                            showCancelButton: true,
+                            confirmButtonText: 'تأیید و ایجاد وام',
+                            cancelButtonText: 'انصراف',
+                            reverseButtons: true,
+                            focusCancel: true
+                        })).then(function (result) {
+                            if (result && result.isConfirmed) {
+                                return doConvertCommit(rid, startJ, dueJ);
+                            }
+                            convertCtx.busy = false;
+                            if (convertSubmitBtn) convertSubmitBtn.disabled = false;
+                            return null;
+                        });
+                    });
+            }
+
+            function doConvertCommit(rid, startJ, dueJ) {
+                return fetch(lrqConvertUrl(rid), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken(),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ loan_start_jdate: startJ, disbursement_due_jdate: dueJ })
+                })
+                    .then(readFetchJsonBody, function (errNet) {
+                        if (typeof console !== 'undefined' && console.error) {
+                            console.error('lrqConvert transport', errNet);
+                        }
+                        if (window.AdminSwal && AdminSwal.error) AdminSwal.error('ارتباط با سرور برقرار نشد.');
+                        return null;
+                    })
+                    .then(function (res) {
+                        if (!res) {
+                            convertCtx.busy = false;
+                            if (convertSubmitBtn) convertSubmitBtn.disabled = false;
+                            return;
+                        }
+                        if (!res.ok) {
+                            var msg = safeAdminMessage(res.body && res.body.message, 'ایجاد وام انجام نشد.');
+                            if (window.AdminSwal && AdminSwal.error) AdminSwal.error(msg);
+                            convertCtx.busy = false;
+                            if (convertSubmitBtn) convertSubmitBtn.disabled = false;
+                            return;
+                        }
+                        var okMsg = safeAdminMessage(res.body && res.body.message, 'وام با موفقیت ایجاد شد.');
+                        try { closeConvertModal(); } catch (eCC) { /* noop */ }
+                        try { closeEditModal(); } catch (eCE) { /* noop */ }
+                        // پس از موفقیت، SweetAlert موفقیت را نشان می‌دهیم و در ادامه جدول را رفرش می‌کنیم.
+                        adminSwalAsPromise('success', okMsg).then(function () {
+                            try { window.location.reload(); } catch (eR) { /* noop */ }
+                        });
+                    })
+                    .then(null, function (eUnexpected) {
+                        if (typeof console !== 'undefined' && console.error) {
+                            console.error('lrqConvert post-success', eUnexpected);
+                        }
+                    });
+            }
+
+            if (convertOpenBtn) convertOpenBtn.addEventListener('click', function () {
+                if (convertOpenBtn.disabled) return;
+                openConvertModal();
+            });
+            if (convertCloseBtn) convertCloseBtn.addEventListener('click', closeConvertModal);
+            if (convertCancelBtn) convertCancelBtn.addEventListener('click', closeConvertModal);
+            if (convertSubmitBtn) convertSubmitBtn.addEventListener('click', performLrqConvert);
+            if (convertOverlay) {
+                convertOverlay.addEventListener('click', function (e) {
+                    if (e.target === convertOverlay) closeConvertModal();
+                });
+            }
+            // ===================== پایان مدال «تبدیل به وام» =====================
+
             var statusLogExport = document.getElementById('lrq-statuslog-export');
             if (statusLogExport) {
                 statusLogExport.addEventListener('click', function () {
@@ -2167,6 +2798,29 @@
                     sdefListEl.appendChild(sdefCardEl(blank, 0, stages, sms, true));
                 });
             }
+        })();
+
+        // close the status filter popover when clicking outside or pressing Escape
+        (function () {
+            var details = document.getElementById('lrq-status-filter');
+            if (!details) return;
+            var summary = details.querySelector('summary');
+            if (summary) {
+                details.addEventListener('toggle', function () {
+                    summary.setAttribute('aria-expanded', details.open ? 'true' : 'false');
+                });
+            }
+            document.addEventListener('click', function (ev) {
+                if (!details.open) return;
+                if (details.contains(ev.target)) return;
+                details.open = false;
+            });
+            document.addEventListener('keydown', function (ev) {
+                if (ev.key === 'Escape' && details.open) {
+                    details.open = false;
+                    if (summary) summary.focus();
+                }
+            });
         })();
     </script>
 @endpush

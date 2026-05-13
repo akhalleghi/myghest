@@ -28,6 +28,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $documents_physical_received
  * @property array<int, string>|null $waived_initial_preset_keys
  * @property \Illuminate\Support\Carbon $submitted_at
+ * @property int|null $customer_loan_file_id
+ * @property \Illuminate\Support\Carbon|null $converted_to_loan_at
+ * @property int|null $converted_by_admin_id
  */
 final class CustomerLoanRequest extends Model
 {
@@ -79,6 +82,9 @@ final class CustomerLoanRequest extends Model
         'documents_physical_received',
         'waived_initial_preset_keys',
         'submitted_at',
+        'customer_loan_file_id',
+        'converted_to_loan_at',
+        'converted_by_admin_id',
     ];
 
     /**
@@ -96,6 +102,9 @@ final class CustomerLoanRequest extends Model
             'documents_physical_received' => 'boolean',
             'waived_initial_preset_keys' => 'array',
             'submitted_at' => 'datetime',
+            'customer_loan_file_id' => 'integer',
+            'converted_to_loan_at' => 'datetime',
+            'converted_by_admin_id' => 'integer',
         ];
     }
 
@@ -107,6 +116,22 @@ final class CustomerLoanRequest extends Model
     public function loanType(): BelongsTo
     {
         return $this->belongsTo(LoanType::class);
+    }
+
+    /**
+     * پروندهٔ وامی که این درخواست به آن «تبدیل» شده است (در صورت وجود).
+     */
+    public function loanFile(): BelongsTo
+    {
+        return $this->belongsTo(CustomerLoanFile::class, 'customer_loan_file_id');
+    }
+
+    /**
+     * آیا این درخواست قبلاً به پروندهٔ وام تبدیل شده است؟
+     */
+    public function isConvertedToLoan(): bool
+    {
+        return $this->customer_loan_file_id !== null;
     }
 
     public function documents(): HasMany

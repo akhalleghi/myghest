@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Admin\AdminCustomerLoginReportController;
 use App\Http\Controllers\Admin\AdminCustomerLoanRequestController;
 use App\Http\Controllers\Admin\AdminLoanRequestStatusDefinitionController;
+use App\Http\Controllers\Admin\AdminNotificationController;
 use App\Http\Controllers\Admin\AdminDepositDeclarationController;
 use App\Http\Controllers\Admin\AppSettingsController;
 use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
@@ -119,6 +120,14 @@ Route::middleware(['auth:admin'])->group(function (): void {
         ->middleware('throttle:60,1')
         ->name('loan-requests.index');
 
+    Route::get('/loan-requests/export', [AdminCustomerLoanRequestController::class, 'export'])
+        ->middleware('throttle:20,1')
+        ->name('loan-requests.export');
+
+    Route::get('/loan-requests/print', [AdminCustomerLoanRequestController::class, 'printView'])
+        ->middleware('throttle:30,1')
+        ->name('loan-requests.print');
+
     Route::get('/loan-requests/{customerLoanRequest}/edit-context', [AdminCustomerLoanRequestController::class, 'editContext'])
         ->middleware('throttle:60,1')
         ->name('loan-requests.edit-context');
@@ -130,6 +139,14 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::delete('/loan-requests/{customerLoanRequest}', [AdminCustomerLoanRequestController::class, 'destroy'])
         ->middleware('throttle:30,1')
         ->name('loan-requests.destroy');
+
+    Route::get('/loan-requests/{customerLoanRequest}/convert-preview', [AdminCustomerLoanRequestController::class, 'convertPreview'])
+        ->middleware('throttle:60,1')
+        ->name('loan-requests.convert-preview');
+
+    Route::post('/loan-requests/{customerLoanRequest}/convert', [AdminCustomerLoanRequestController::class, 'convert'])
+        ->middleware('throttle:20,1')
+        ->name('loan-requests.convert');
 
     Route::get('/loan-requests/{customerLoanRequest}/status-logs', [AdminCustomerLoanRequestController::class, 'statusLogs'])
         ->middleware('throttle:60,1')
@@ -402,6 +419,14 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::delete('/sms-management/{smsLog}', [SmsManagementController::class, 'destroyLog'])
         ->middleware('throttle:30,1')
         ->name('sms.destroy');
+
+    Route::get('/notifications/{notification}/follow', [AdminNotificationController::class, 'follow'])
+        ->middleware('throttle:120,1')
+        ->name('notifications.follow');
+
+    Route::post('/notifications/mark-all-read', [AdminNotificationController::class, 'markAllRead'])
+        ->middleware('throttle:30,1')
+        ->name('notifications.mark-all-read');
 
     Route::post('/app-settings/base', [AppSettingsController::class, 'updateBase'])
         ->middleware('throttle:20,1')

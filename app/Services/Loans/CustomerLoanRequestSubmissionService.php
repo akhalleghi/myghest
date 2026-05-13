@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace App\Services\Loans;
 
+use App\Models\Admin;
 use App\Models\Customer;
 use App\Models\CustomerLoanRequest;
 use App\Models\CustomerLoanRequestDocument;
 use App\Models\CustomerLoanRequestStatusLog;
 use App\Models\LoanType;
+use App\Notifications\LoanRequestSubmittedForAdmins;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -116,6 +120,8 @@ final class CustomerLoanRequestSubmissionService
                 null,
                 null,
             );
+
+            $this->notifyAdminsOfNewSubmission($request, $customer);
 
             return $request->load(['loanType', 'documents']);
         } catch (\Throwable $e) {
@@ -248,5 +254,27 @@ final class CustomerLoanRequestSubmissionService
         }
 
         return $out;
+    }
+
+    /**
+     * ارسال اعلان درون‌برنامه‌ای به همهٔ ادمین‌های فعال.
+     *
+     * مسیر اصلی ثبت درخواست را هرگز قطع نمی‌کنیم؛ هر خطایی در ارسال اعلان فقط لاگ می‌شود.
+     */
+    private function notifyAdminsOfNewSubmission(CustomerLoanRequest $request, Customer $customer): void
+    {
+        try {
+            $admins = Admin::query()->where('is_active', true)->get();
+            if ($admins->isEmpty()) {
+                return;
+            }
+            Notification::send($admins, LoanRequestSubmittedForAdmins::build($request, $customer));
+        } catch (\Throwable $e) {
+            Log::warning('notify admins of new loan request failed', [
+                'loan_request_id' => $request->id ?? null,
+                'customer_id' => $customer->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

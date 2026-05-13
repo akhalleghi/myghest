@@ -484,6 +484,52 @@
             margin-top: 0.15rem;
         }
 
+        .admin-notif-flyout__toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 0.45rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.74rem;
+            color: var(--muted);
+            font-weight: 700;
+        }
+        .admin-notif-flyout__toolbar form { margin: 0; }
+        .admin-notif-mark-all {
+            border: 1px solid rgba(37, 99, 235, 0.4);
+            background: rgba(37, 99, 235, 0.08);
+            color: var(--primary-dark);
+            font-family: inherit; font-size: 0.72rem; font-weight: 800;
+            padding: 0.3rem 0.55rem; border-radius: 0.5rem; cursor: pointer;
+        }
+        .admin-notif-mark-all:hover:not(:disabled) { filter: brightness(1.05); }
+        .admin-notif-mark-all:disabled { opacity: 0.45; cursor: not-allowed; }
+        .admin-notif-section-h {
+            margin: 0.1rem 0 0.45rem; font-size: 0.72rem; font-weight: 800; color: var(--muted);
+            letter-spacing: 0.01em;
+        }
+        .admin-notif-list { display: flex; flex-direction: column; gap: 0.5rem; }
+        .admin-notif-item {
+            display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.55rem;
+            padding: 0.6rem 0.7rem; border-radius: 0.65rem; border: 1px solid var(--border);
+            background: var(--bg-card); text-decoration: none; color: inherit;
+            transition: border-color 0.12s ease, background 0.12s ease;
+        }
+        .admin-notif-item:hover { border-color: rgba(37, 99, 235, 0.5); background: rgba(37, 99, 235, 0.04); }
+        .admin-notif-item--unread { border-right: 3px solid var(--primary); background: rgba(37, 99, 235, 0.06); }
+        html[data-theme="dark"] .admin-notif-item--unread { background: rgba(30, 58, 138, 0.22); }
+        .admin-notif-item__ico {
+            width: 2.15rem; height: 2.15rem; border-radius: 0.55rem;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: rgba(37, 99, 235, 0.12); color: var(--primary-dark); font-size: 0.95rem;
+            flex-shrink: 0;
+        }
+        .admin-notif-item__main { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+        .admin-notif-item__title { font-size: 0.82rem; font-weight: 800; color: var(--text); line-height: 1.4; }
+        .admin-notif-item__body { font-size: 0.76rem; font-weight: 600; color: var(--muted); line-height: 1.55; word-break: break-word; }
+        .admin-notif-item__meta { font-size: 0.7rem; font-weight: 700; color: var(--muted); opacity: 0.85; }
+
         .logout-form {
             margin: 0;
         }
@@ -1478,7 +1524,9 @@
                                 data-admin-notif-toggle
                             >
                                 <i class="fa-regular fa-bell" aria-hidden="true"></i>
-                                @if(($adminPendingDepositDeclarationsBadge ?? '') !== '')
+                                @if(($adminNotificationsBadgeUnified ?? '') !== '')
+                                    <span class="admin-notif-badge" aria-hidden="true">{{ $adminNotificationsBadgeUnified }}</span>
+                                @elseif(($adminPendingDepositDeclarationsBadge ?? '') !== '')
                                     <span class="admin-notif-badge" aria-hidden="true">{{ $adminPendingDepositDeclarationsBadge }}</span>
                                 @endif
                             </button>
@@ -1529,7 +1577,9 @@
                                 data-admin-notif-toggle
                             >
                                 <i class="fa-regular fa-bell" aria-hidden="true"></i>
-                                @if(($adminPendingDepositDeclarationsBadge ?? '') !== '')
+                                @if(($adminNotificationsBadgeUnified ?? '') !== '')
+                                    <span class="admin-notif-badge" aria-hidden="true">{{ $adminNotificationsBadgeUnified }}</span>
+                                @elseif(($adminPendingDepositDeclarationsBadge ?? '') !== '')
                                     <span class="admin-notif-badge" aria-hidden="true">{{ $adminPendingDepositDeclarationsBadge }}</span>
                                 @endif
                             </button>
@@ -1575,6 +1625,8 @@
 
     @if(auth()->guard('admin')->check())
         @php($adminPendingDep = (int) ($adminPendingDepositDeclarationsCount ?? 0))
+        @php($adminLoanNotifs = $adminLoanNotifications ?? collect())
+        @php($adminLoanUnread = (int) ($adminLoanNotificationsUnreadCount ?? 0))
         <div id="admin-notif-overlay" class="admin-notif-overlay" hidden aria-hidden="true"></div>
         <div
             id="admin-notif-flyout"
@@ -1585,27 +1637,58 @@
             aria-labelledby="admin-notif-flyout-title"
         >
             <div id="admin-notif-flyout-title" class="admin-notif-flyout__head">اعلان‌ها</div>
+            @if($adminLoanUnread > 0)
+                <div class="admin-notif-flyout__toolbar">
+                    <span>{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $adminLoanUnread) }} اعلان خوانده‌نشده</span>
+                    <form method="POST" action="{{ route('admin.notifications.mark-all-read') }}">
+                        @csrf
+                        <button type="submit" class="admin-notif-mark-all">خواندن همه</button>
+                    </form>
+                </div>
+            @endif
             <div class="admin-notif-flyout__body">
-                @if($adminPendingDep === 0)
+                @if($adminPendingDep === 0 && $adminLoanNotifs->isEmpty())
                     <p class="admin-notif-empty">اعلان فعالی وجود ندارد.</p>
                 @else
-                    <a href="{{ route('admin.deposit-declarations.index', ['status' => 'pending']) }}" class="admin-notif-card">
-                        <span class="admin-notif-card__ico" aria-hidden="true">
-                            <i class="fa-solid fa-building-columns"></i>
-                        </span>
-                        <span class="admin-notif-card__text">
-                            @if($adminPendingDep === 1)
-                                یک درخواست اعلام واریزی ثبت شد و منتظر بررسی توسط شماست.
-                            @else
-                                {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $adminPendingDep) }}
-                                درخواست اعلام واریزی در انتظار بررسی شماست.
-                            @endif
-                        </span>
-                        <span class="admin-notif-card__cta">
-                            رفتن به صفحهٔ اعلام واریزها
-                            <i class="fa-solid fa-chevron-left" style="font-size:0.72rem;opacity:0.85" aria-hidden="true"></i>
-                        </span>
-                    </a>
+                    @if($adminPendingDep > 0)
+                        <a href="{{ route('admin.deposit-declarations.index', ['status' => 'pending']) }}" class="admin-notif-card">
+                            <span class="admin-notif-card__ico" aria-hidden="true">
+                                <i class="fa-solid fa-building-columns"></i>
+                            </span>
+                            <span class="admin-notif-card__text">
+                                @if($adminPendingDep === 1)
+                                    یک درخواست اعلام واریزی ثبت شد و منتظر بررسی توسط شماست.
+                                @else
+                                    {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $adminPendingDep) }}
+                                    درخواست اعلام واریزی در انتظار بررسی شماست.
+                                @endif
+                            </span>
+                            <span class="admin-notif-card__cta">
+                                رفتن به صفحهٔ اعلام واریزها
+                                <i class="fa-solid fa-chevron-left" style="font-size:0.72rem;opacity:0.85" aria-hidden="true"></i>
+                            </span>
+                        </a>
+                    @endif
+                    @if(! $adminLoanNotifs->isEmpty())
+                        @if($adminPendingDep > 0)
+                            <p class="admin-notif-section-h">اعلان‌های اخیر</p>
+                        @endif
+                        <div class="admin-notif-list">
+                            @foreach($adminLoanNotifs as $note)
+                                <a href="{{ route('admin.notifications.follow', ['notification' => $note['id']]) }}"
+                                    class="admin-notif-item {{ $note['is_unread'] ? 'admin-notif-item--unread' : '' }}">
+                                    <span class="admin-notif-item__ico" aria-hidden="true">
+                                        <i class="{{ $note['icon'] ?: 'fa-regular fa-bell' }}"></i>
+                                    </span>
+                                    <span class="admin-notif-item__main">
+                                        <span class="admin-notif-item__title">{{ $note['title'] }}</span>
+                                        <span class="admin-notif-item__body">{{ $note['body'] }}</span>
+                                        <span class="admin-notif-item__meta">{{ $note['created_at_fa'] }}</span>
+                                    </span>
+                                </a>
+                            @endforeach
+                        </div>
+                    @endif
                 @endif
             </div>
         </div>
