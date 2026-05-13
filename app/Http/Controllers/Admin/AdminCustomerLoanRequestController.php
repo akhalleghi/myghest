@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
+use App\Models\Customer;
 use App\Models\CustomerLoanRequest;
 use App\Models\CustomerLoanRequestDocument;
 use App\Models\CustomerLoanRequestStatusLog;
@@ -26,6 +27,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -40,14 +42,13 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * این کنترلر `index`، `export` و `printView` همگی از یک منبع فیلتر مشترک
  * استفاده می‌کنند تا خروجی اکسل و چاپ، دقیقاً همان رکوردهای جدول را شامل شوند.
  */
-
 final class AdminCustomerLoanRequestController extends Controller
 {
     public function index(Request $request, AdminCustomerLoanRequestPresenter $presenter): View
     {
         $filters = $this->resolveListFilters($request);
 
-        $query = $this->buildFilteredQuery($filters);
+        $query = $this->buildFilteredQuery($filters, $this->optionalCustomerFilterFromRequest($request));
 
         $paginator = $query->paginate(25)->withQueryString();
 
@@ -76,7 +77,70 @@ final class AdminCustomerLoanRequestController extends Controller
             'search' => $filters['q'],
             'selectedStatuses' => $filters['statuses'],
             'statusOptions' => $statusOptions,
+            'lrqListRouteName' => 'admin.loan-requests.index',
+            'lrqListRouteParams' => [],
+            'lrqForcedCustomerId' => null,
+            'lrqEmbedCustomer' => null,
+            'lrqHttpResourceBase' => $this->loanRequestHttpResourceBasePath(),
         ]);
+    }
+
+    /**
+     * صفحهٔ مستقل (برای iframe داخل مدال «مدیریت وام‌ها») با همان منطق فهرست اصلی، محدود به یک مشتری.
+     */
+    public function customerEmbedPanel(
+        Request $request,
+        Customer $customer,
+        AdminCustomerLoanRequestPresenter $presenter,
+    ): View {
+        $filters = $this->resolveListFilters($request);
+
+        $query = $this->buildFilteredQuery($filters, (int) $customer->id);
+
+        $paginator = $query->paginate(25)->withQueryString();
+
+        $statusTitles = LoanRequestStatusDefinition::titlesByCode();
+        $rows = $paginator->getCollection()->map(
+            static fn (CustomerLoanRequest $r): array => $presenter->mapRow($r, $statusTitles)
+        );
+
+        $paginator->setCollection($rows);
+
+        $statusOptions = LoanRequestStatusDefinition::query()
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['code', 'title'])
+            ->map(static fn (LoanRequestStatusDefinition $d): array => [
+                'code' => (string) $d->code,
+                'title' => (string) $d->title,
+            ])
+            ->all();
+
+        $name = trim($customer->first_name.' '.$customer->last_name);
+
+        return view('admin.loan_requests.customer_embed', [
+            'pageTitle' => 'درخواست وام‌ها — '.($name !== '' ? $name : 'مشتری #'.$customer->id),
+            'loanRequests' => $paginator,
+            'fromJDate' => $filters['from_jdate'],
+            'toJDate' => $filters['to_jdate'],
+            'search' => $filters['q'],
+            'selectedStatuses' => $filters['statuses'],
+            'statusOptions' => $statusOptions,
+            'lrqListRouteName' => 'admin.customers.loan-requests.embed',
+            'lrqListRouteParams' => ['customer' => $customer],
+            'lrqForcedCustomerId' => (int) $customer->id,
+            'lrqEmbedCustomer' => $customer,
+            'lrqHttpResourceBase' => $this->loanRequestHttpResourceBasePath(),
+        ]);
+    }
+
+    /**
+     * پیشوند URL منابع REST درخواست وام (ویرایش، تبدیل، مدارک، …) برای استفاده در اسکریپت‌های فرانت.
+     * جدا از مسیر «فهرست» صفحهٔ embed یا index نگه داشته می‌شود تا در صورت تغییر نام/مسیر فقط همین نقطه به‌روز شود.
+     */
+    private function loanRequestHttpResourceBasePath(): string
+    {
+        return rtrim((string) route('admin.loan-requests.index'), '/');
     }
 
     /**
@@ -90,6 +154,7 @@ final class AdminCustomerLoanRequestController extends Controller
     {
         $filters = $this->resolveListFilters($request);
         $statusTitles = LoanRequestStatusDefinition::titlesByCode();
+        $restrictedCustomerId = $this->optionalCustomerFilterFromRequest($request);
 
         $filename = 'loan-requests-'.now()->format('Ymd-His').'.xls';
         $headers = [
@@ -99,7 +164,7 @@ final class AdminCustomerLoanRequestController extends Controller
             'Pragma' => 'no-cache',
         ];
 
-        return response()->streamDownload(function () use ($filters, $statusTitles): void {
+        return response()->streamDownload(function () use ($filters, $statusTitles, $restrictedCustomerId): void {
             $out = fopen('php://output', 'wb');
             if (! is_resource($out)) {
                 return;
@@ -121,7 +186,7 @@ final class AdminCustomerLoanRequestController extends Controller
                 'شهر',
             ]);
 
-            $this->buildFilteredQuery($filters)
+            $this->buildFilteredQuery($filters, $restrictedCustomerId)
                 ->orderByDesc('submitted_at')
                 ->orderByDesc('id')
                 ->chunkById(200, function ($chunk) use ($out, $statusTitles): void {
@@ -145,8 +210,9 @@ final class AdminCustomerLoanRequestController extends Controller
     {
         $filters = $this->resolveListFilters($request);
         $statusTitles = LoanRequestStatusDefinition::titlesByCode();
+        $restrictedCustomerId = $this->optionalCustomerFilterFromRequest($request);
 
-        $rows = $this->buildFilteredQuery($filters)
+        $rows = $this->buildFilteredQuery($filters, $restrictedCustomerId)
             ->orderByDesc('submitted_at')
             ->orderByDesc('id')
             ->limit(5000)
@@ -226,7 +292,7 @@ final class AdminCustomerLoanRequestController extends Controller
                 $request,
                 Auth::guard('admin')->id(),
             );
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json([
                 'message' => 'اطلاعات مالی با طرح انتخاب‌شده هم‌خوانی ندارد.',
                 'errors' => $e->errors(),
@@ -443,7 +509,7 @@ final class AdminCustomerLoanRequestController extends Controller
                 isset($validated['loan_start_jdate']) ? (string) $validated['loan_start_jdate'] : null,
                 isset($validated['disbursement_due_jdate']) ? (string) $validated['disbursement_due_jdate'] : null,
             );
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json([
                 'message' => 'اطلاعات تبدیل قابل پیش‌نمایش نیست.',
                 'errors' => $e->errors(),
@@ -478,7 +544,7 @@ final class AdminCustomerLoanRequestController extends Controller
                 isset($validated['disbursement_due_jdate']) ? (string) $validated['disbursement_due_jdate'] : null,
                 Auth::guard('admin')->id(),
             );
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json([
                 'message' => 'ایجاد وام امکان‌پذیر نیست.',
                 'errors' => $e->errors(),
@@ -720,16 +786,29 @@ final class AdminCustomerLoanRequestController extends Controller
     }
 
     /**
+     * فیلتر اختیاری مشتری از query string (برای خروجی اکسل/چاپ و فهرست اصلی).
+     */
+    private function optionalCustomerFilterFromRequest(Request $request): ?int
+    {
+        $id = (int) $request->query('customer_id', 0);
+
+        return $id > 0 ? $id : null;
+    }
+
+    /**
      * @param  array{q: string, from: Carbon, to: Carbon, statuses: list<string>}  $filters
      * @return Builder<CustomerLoanRequest>
      */
-    private function buildFilteredQuery(array $filters): Builder
+    private function buildFilteredQuery(array $filters, ?int $restrictedToCustomerId = null): Builder
     {
         $search = $filters['q'];
         $statuses = $filters['statuses'];
 
         return CustomerLoanRequest::query()
             ->with(['customer', 'loanType'])
+            ->when($restrictedToCustomerId !== null && $restrictedToCustomerId > 0, static function (Builder $q) use ($restrictedToCustomerId): void {
+                $q->where('customer_loan_requests.customer_id', $restrictedToCustomerId);
+            })
             ->whereBetween('submitted_at', [$filters['from'], $filters['to']])
             ->when($statuses !== [], static function (Builder $q) use ($statuses): void {
                 $q->whereIn('customer_loan_requests.status', $statuses);

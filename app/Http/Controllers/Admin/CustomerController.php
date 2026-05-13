@@ -30,6 +30,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -38,7 +39,6 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
-use Illuminate\Support\Collection;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class CustomerController extends Controller
@@ -99,7 +99,31 @@ final class CustomerController extends Controller
                     'body' => $tpl->body,
                 ])
                 ->values(),
+            'loanManageLrqEmbedUrlTemplate' => $this->loanManageLoanRequestEmbedUrlTemplate(),
+            'loanManageCtxEmbedUrlTemplate' => $this->loanManageCustomerTransactionsEmbedUrlTemplate(),
         ]);
+    }
+
+    private function loanManageCustomerTransactionsEmbedUrlTemplate(): string
+    {
+        $id = (int) Customer::query()->orderBy('id')->value('id');
+        if ($id < 1) {
+            return '';
+        }
+        $u = route('admin.customers.customer-transactions.embed', ['customer' => $id]);
+
+        return preg_replace('#/'.preg_quote((string) $id, '#').'/#', '/__CUSTOMER_ID__/', $u, 1);
+    }
+
+    private function loanManageLoanRequestEmbedUrlTemplate(): string
+    {
+        $id = (int) Customer::query()->orderBy('id')->value('id');
+        if ($id < 1) {
+            return '';
+        }
+        $u = route('admin.customers.loan-requests.embed', ['customer' => $id]);
+
+        return preg_replace('#/'.preg_quote((string) $id, '#').'/#', '/__CUSTOMER_ID__/', $u, 1);
     }
 
     public function exportCustomersListExcel(Request $request): StreamedResponse
@@ -165,7 +189,7 @@ final class CustomerController extends Controller
      */
     private function buildCustomerListExportCells(Customer $customer): array
     {
-        /** @var \Illuminate\Support\Collection<int, array<string, mixed>> $loanRows */
+        /** @var Collection<int, array<string, mixed>> $loanRows */
         $loanRows = $customer->loanFiles->map(fn (CustomerLoanFile $file): array => $this->mapLoanFile($file))->values();
         $loanCount = $loanRows->count();
         $loanTotalWithProfit = (int) $loanRows->sum(static fn (array $row): int => (int) ($row['total_repayable_toman'] ?? 0));
@@ -528,7 +552,7 @@ final class CustomerController extends Controller
             if ($codeKey !== null) {
                 $seenCode[$codeKey] = true;
             }
-            ++$created;
+            $created++;
         }
 
         $parts = [];
@@ -2617,8 +2641,6 @@ final class CustomerController extends Controller
      * متن پیش‌فرض مدال ارسال سریع پیامک از قالب‌های انتخاب‌شده در «مدیریت پیامک» و قالب‌های سیستمی اقساط.
      *
      * Query: sms_type (اجباری)، installment_id برای انواع installment_*.
-     *
-     * @return JsonResponse
      */
     public function quickSmsModalPreview(Request $request, Customer $customer): JsonResponse
     {
@@ -3347,7 +3369,7 @@ final class CustomerController extends Controller
     }
 
     /**
-     * @param Collection<int, CustomerLoanInstallment> $installments
+     * @param  Collection<int, CustomerLoanInstallment>  $installments
      */
     private function estimateLateFeeSoFarToman(Collection $installments, float $dailyLateCoef, int $contractDebtRemainingAfterDiscount): int
     {
@@ -3456,6 +3478,7 @@ final class CustomerController extends Controller
                     $sumTerminal += $amt;
                     break;
                 case CustomerLoanInstallmentPayment::METHOD_ONLINE:
+                case CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_ONLINE:
                     $sumOnlineCardBucket += $amt;
                     break;
                 case CustomerLoanInstallmentPayment::METHOD_GOLD:

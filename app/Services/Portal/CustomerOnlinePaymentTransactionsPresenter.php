@@ -43,7 +43,7 @@ final class CustomerOnlinePaymentTransactionsPresenter
         $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $term).'%';
         $digits = preg_replace('/\D+/', '', $term) ?? '';
 
-        $query->where(function (Builder $w) use ($like, $digits, $term): void {
+        $query->where(function (Builder $w) use ($like, $digits): void {
             $w->where('title', 'like', $like)
                 ->orWhere('detail', 'like', $like)
                 ->orWhere('failure_reason', 'like', $like)
@@ -138,6 +138,7 @@ final class CustomerOnlinePaymentTransactionsPresenter
         return match ($kind) {
             CustomerTransaction::KIND_INSTALLMENT_ONLINE_PAYMENT => 'پرداخت قسط (درگاه)',
             CustomerTransaction::KIND_WALLET_TOPUP => 'شارژ کیف پول',
+            CustomerTransaction::KIND_FULL_SETTLEMENT_ONLINE_PAYMENT => 'تسویهٔ کلی بدهی (درگاه)',
             default => $kind,
         };
     }

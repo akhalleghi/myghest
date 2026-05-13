@@ -11,6 +11,7 @@ use App\Services\Sms\SmsPanelManager;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -36,7 +37,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Carbon::setLocale((string) config('app.locale'));
 
-        View::composer(['layouts.admin.app', 'layouts.admin.auth', 'layouts.user.app'], function ($view): void {
+        View::composer(['layouts.admin.app', 'layouts.admin.auth', 'layouts.admin.embed_iframe', 'layouts.user.app'], function ($view): void {
             $displayName = AppSetting::query()
                 ->where('key', 'app_display_name')
                 ->value('value');
@@ -83,6 +84,8 @@ class AppServiceProvider extends ServiceProvider
             $gatewayNormalized = in_array($resolvedGateway, ['zibal'], true) ? $resolvedGateway : 'zibal';
             $userOnlinePaymentReady = $gatewayNormalized === 'zibal' && $merchantTrim !== '';
 
+            View::share('userOnlinePaymentReady', $userOnlinePaymentReady);
+
             $view->with('appDisplayName', is_string($displayName) && $displayName !== '' ? $displayName : config('app.name'));
             $view->with('appFontSize', is_string($fontSize) && in_array($fontSize, ['small', 'normal', 'large', 'xlarge'], true) ? $fontSize : 'normal');
             $view->with('appUiFont', is_string($uiFont) && in_array($uiFont, ['iransans', 'iranyekan', 'anjoman', 'estedad'], true) ? $uiFont : 'iransans');
@@ -98,6 +101,7 @@ class AppServiceProvider extends ServiceProvider
             $view->with('paymentGateway', $gatewayNormalized);
             $view->with('userOnlinePaymentReady', $userOnlinePaymentReady);
             $view->with('userInstallmentOnlinePayUrl', route('user.installments.online-pay.start'));
+            $view->with('userWalletOnlineTopupUrl', route('user.wallet.online-topup.start'));
             $view->with('bankingInfoHtml', is_string($bankingInfoHtml) ? $bankingInfoHtml : '');
             $view->with(
                 'bankingInfoShowInUserPanel',
@@ -152,6 +156,7 @@ class AppServiceProvider extends ServiceProvider
                 'customerWalletBalanceFormatted',
                 Jalali::enToFaNumbers(number_format(max(0, $balance), 0, '.', ',')),
             );
+            $view->with('customerWalletBalanceToman', max(0, $balance));
             $name = $customer !== null ? trim($customer->fullName()) : '';
             $view->with('portalCustomerDisplayName', $name !== '' ? $name : 'مشتری');
 
@@ -209,9 +214,9 @@ class AppServiceProvider extends ServiceProvider
      *
      * هر آیتم شامل عنوان/متن/URL ازپیش‌مارک‌خوانده‌شدنی و زمان جلالی است.
      *
-     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     * @return Collection<int, array<string, mixed>>
      */
-    private function loadRecentNotifications(string $notifiableType, int $notifiableId): \Illuminate\Support\Collection
+    private function loadRecentNotifications(string $notifiableType, int $notifiableId): Collection
     {
         $rows = DatabaseNotification::query()
             ->where('notifiable_type', $notifiableType)

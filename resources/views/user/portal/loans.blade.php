@@ -139,8 +139,10 @@
                                     type="button"
                                     class="portal-loan__btn portal-loan__btn--primary"
                                     data-portal-settle-open
+                                    data-loan-file-id="{{ (int) $loan['id'] }}"
                                     data-remaining-fa="{{ $loan['remaining_amount_fa'] }}"
                                     data-late-fa="{{ $loan['late_fee_estimate_fa'] }}"
+                                    data-total-fa="{{ $loan['full_settlement_online_fa'] ?? '' }}"
                                 >
                                     <i class="fa-solid fa-hand-holding-dollar" aria-hidden="true"></i>
                                     تسویه بدهی
@@ -164,8 +166,10 @@
         @endif
     </section>
 
-    <dialog id="portal-loans-settle-dialog" class="portal-dialog" aria-labelledby="portal-loans-settle-title">
+    <dialog id="portal-loans-settle-dialog" class="portal-dialog portal-dialog--pay-inst" aria-labelledby="portal-loans-settle-title">
         <div class="portal-dialog__inner">
+            @php($upPayReady = (bool) ($userOnlinePaymentReady ?? false))
+            @php($upFsPayUrl = $userLoanFullSettlementOnlinePayUrl ?? route('user.loans.full-settlement.online-pay.start'))
             <button type="button" class="portal-dialog__close" data-portal-loans-dialog-close aria-label="بستن">&times;</button>
             <h3 id="portal-loans-settle-title" class="portal-dialog__title">
                 <i class="fa-solid fa-hand-holding-dollar" aria-hidden="true"></i>
@@ -175,13 +179,24 @@
             <p class="portal-dialog__amount" id="portal-loans-settle-remaining">—</p>
             <p class="portal-dialog__lead portal-dialog__lead--muted">برآورد جریمهٔ دیرکرد تا امروز:</p>
             <p class="portal-dialog__sub" id="portal-loans-settle-late">—</p>
-            <p class="portal-dialog__hint">مبالغ برآوردی هستند. پرداخت آنلاین به‌زودی فعال می‌شود.</p>
-            <div class="portal-dialog__actions">
-                <button type="button" class="portal-loan__btn portal-loan__btn--primary portal-loan__btn--block" data-portal-loans-settle-pay>
-                    <i class="fa-solid fa-credit-card" aria-hidden="true"></i>
-                    پرداخت آنلاین
+            <p class="portal-dialog__lead portal-dialog__lead--muted">جمع قابل پرداخت در درگاه:</p>
+            <p class="portal-dialog__amount" id="portal-loans-settle-total" style="margin-top:0.15rem">—</p>
+            <p class="portal-dialog__hint">مبلغ نهایی بر اساس وضعیت پرونده در لحظهٔ پرداخت محاسبه و از طریق درگاه فعال سیستم وصول می‌شود.</p>
+            <p class="portal-dialog__vpn-hint" id="portal-loans-settle-vpn">
+                پیش از ورود به درگاه، از خاموش بودن VPN خود اطمینان حاصل نمایید.
+            </p>
+            <form class="portal-dialog__actions" method="post" action="{{ $upFsPayUrl }}" id="portal-loans-settle-pay-form">
+                @csrf
+                <input type="hidden" name="customer_loan_file_id" id="portal-loans-settle-loan-file-id" value="" required>
+                <input type="hidden" name="return_route" value="user.loans.index">
+                <button type="submit" class="portal-loan__btn portal-loan__btn--primary portal-loan__btn--block" id="portal-loans-settle-pay-submit" @if(!$upPayReady) disabled title="درگاه پرداخت در تنظیمات مدیریت تکمیل نشده است." @endif>
+                    <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                    ورود به درگاه پرداخت
                 </button>
-            </div>
+                @unless($upPayReady)
+                    <p class="portal-dialog__hint" style="margin-top:0.45rem;text-align:center">درگاه پرداخت توسط مدیریت فعال نشده است؛ پس از تکمیل تنظیمات مالی ادمین دوباره تلاش کنید.</p>
+                @endunless
+            </form>
         </div>
     </dialog>
 
@@ -253,10 +268,16 @@
                     if (!settleDialog) return;
                     var rem = btn.getAttribute('data-remaining-fa') || '—';
                     var late = btn.getAttribute('data-late-fa') || '—';
+                    var total = btn.getAttribute('data-total-fa') || '—';
+                    var lid = btn.getAttribute('data-loan-file-id') || '';
                     var elR = document.getElementById('portal-loans-settle-remaining');
                     var elL = document.getElementById('portal-loans-settle-late');
+                    var elT = document.getElementById('portal-loans-settle-total');
+                    var hid = document.getElementById('portal-loans-settle-loan-file-id');
                     if (elR) elR.textContent = rem;
                     if (elL) elL.textContent = late;
+                    if (elT) elT.textContent = total;
+                    if (hid) hid.value = lid;
                     if (typeof settleDialog.showModal === 'function') settleDialog.showModal();
                 });
             });
@@ -272,18 +293,18 @@
                 });
             });
 
-            document.querySelectorAll('[data-portal-loans-settle-pay]').forEach(function (b) {
-                b.addEventListener('click', function () {
-                    if (typeof window.AdminSwal !== 'undefined' && window.AdminSwal.fire) {
-                        window.AdminSwal.fire({
-                            icon: 'info',
-                            title: 'پرداخت آنلاین',
-                            text: 'امکان پرداخت آنلاین تسویه کلی به‌زودی فعال می‌شود؛ فعلاً از اعلام واریزی یا مراجعه حضوری استفاده کنید.',
-                        });
+            var settleForm = document.getElementById('portal-loans-settle-pay-form');
+            if (settleForm) {
+                settleForm.addEventListener('submit', function (e) {
+                    var hid = document.getElementById('portal-loans-settle-loan-file-id');
+                    if (!hid || String(hid.value || '').trim() === '') {
+                        e.preventDefault();
+                        if (window.AdminSwal && AdminSwal.fire) {
+                            AdminSwal.fire({ icon: 'warning', title: 'تسویه', text: 'پرونده انتخاب نشده است.' });
+                        }
                     }
-                    closeLoansDialogs();
                 });
-            });
+            }
 
             function findLoan(id) {
                 var sid = String(id);

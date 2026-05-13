@@ -20,6 +20,9 @@ final class CustomerLoanInstallmentPayment extends Model
 
     public const METHOD_ONLINE = 'online';
 
+    /** پرداخت تسویهٔ کلی بدهی از درگاه (ثبت خودکار پس از بازگشت IPG) */
+    public const METHOD_FULL_SETTLEMENT_ONLINE = 'full_settlement_online';
+
     public const METHOD_CARD_TERMINAL = 'card_terminal';
 
     protected $table = 'customer_loan_installment_payments';
@@ -45,6 +48,7 @@ final class CustomerLoanInstallmentPayment extends Model
             self::METHOD_BANK_TRANSFER => 'واریز بانکی',
             self::METHOD_GOLD => 'طلا',
             self::METHOD_ONLINE => 'آنلاین',
+            self::METHOD_FULL_SETTLEMENT_ONLINE => 'تسویهٔ یکجای بدهی (درگاه)',
             self::METHOD_CARD_TERMINAL => 'کارتخوان',
         ];
     }
@@ -62,7 +66,10 @@ final class CustomerLoanInstallmentPayment extends Model
      */
     public static function creatablePaymentMethodKeys(): array
     {
-        return array_values(array_diff(self::methodKeys(), [self::METHOD_LEGACY_IMPORTED]));
+        return array_values(array_diff(self::methodKeys(), [
+            self::METHOD_LEGACY_IMPORTED,
+            self::METHOD_FULL_SETTLEMENT_ONLINE,
+        ]));
     }
 
     /**

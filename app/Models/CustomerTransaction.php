@@ -18,6 +18,8 @@ final class CustomerTransaction extends Model
     /** رزرو برای آینده — شارژ کیف پول */
     public const KIND_WALLET_TOPUP = 'wallet_topup';
 
+    public const KIND_FULL_SETTLEMENT_ONLINE_PAYMENT = 'full_settlement_online_payment';
+
     public const STATUS_CREATED = 'created';
 
     public const STATUS_REDIRECTED = 'redirected';
@@ -34,6 +36,7 @@ final class CustomerTransaction extends Model
         return [
             self::KIND_INSTALLMENT_ONLINE_PAYMENT,
             self::KIND_WALLET_TOPUP,
+            self::KIND_FULL_SETTLEMENT_ONLINE_PAYMENT,
         ];
     }
 

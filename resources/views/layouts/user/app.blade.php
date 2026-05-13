@@ -186,6 +186,26 @@
             font-variant-numeric: tabular-nums;
         }
         .up-wallet-currency { font-size: 0.72rem; font-weight: 700; color: var(--muted); margin-inline-start: 0.2rem; }
+        button.up-wallet-card {
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            font: inherit;
+            color: inherit;
+            transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+        }
+        button.up-wallet-card:hover,
+        button.up-wallet-card:focus-visible {
+            border-color: rgba(37, 99, 235, 0.45);
+            box-shadow: 0 8px 22px rgba(37, 99, 235, 0.16);
+            outline: none;
+        }
+        button.up-wallet-card:active { transform: scale(0.99); }
+        html[data-theme="dark"] button.up-wallet-card:hover,
+        html[data-theme="dark"] button.up-wallet-card:focus-visible {
+            border-color: rgba(96, 165, 250, 0.5);
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.32);
+        }
         .logout-form { margin: 0; }
         .logout-form button {
             font-family: inherit;
@@ -1414,6 +1434,15 @@
         .portal-sum-card--wallet { --sum-accent: #7c3aed; }
         .portal-sum-card--tickets { --sum-accent: #dc2626; }
 
+        .portal-sum-card[data-portal-wallet-topup-open] {
+            cursor: pointer;
+            user-select: none;
+        }
+        .portal-sum-card[data-portal-wallet-topup-open]:focus-visible {
+            outline: 2px solid color-mix(in srgb, var(--sum-accent) 62%, transparent);
+            outline-offset: 3px;
+        }
+
         .portal-sum-card__head {
             display: flex;
             align-items: center;
@@ -2101,6 +2130,46 @@
             text-align: left;
         }
 
+        .portal-dialog--wallet-topup .portal-dialog__wallet-balance {
+            margin: 0.35rem 0 0.15rem;
+            font-size: 1.05rem;
+            font-weight: 900;
+            color: var(--primary-dark);
+            font-variant-numeric: tabular-nums;
+            text-align: center;
+        }
+        .portal-dialog--wallet-topup .portal-dialog__wallet-form {
+            display: grid;
+            gap: 0.55rem;
+            margin-top: 0.55rem;
+        }
+        .portal-dialog--wallet-topup .portal-dialog__wallet-form label {
+            font-size: 0.76rem;
+            font-weight: 800;
+            color: var(--muted);
+            display: block;
+            margin-bottom: 0.2rem;
+        }
+        .portal-dialog--wallet-topup .portal-dialog__wallet-form input.portal-wallet-topup-amount-field {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 0.48rem 0.58rem;
+            border-radius: 0.6rem;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.88rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            direction: rtl;
+            text-align: center;
+        }
+        .portal-dialog--wallet-topup .portal-dialog__wallet-form input.portal-wallet-topup-amount-field:focus {
+            outline: 2px solid rgba(37, 99, 235, 0.35);
+            outline-offset: 1px;
+        }
+
         .portal-dialog__vpn-hint {
             margin: 0.45rem 0 0;
             font-size: 0.62rem;
@@ -2161,10 +2230,19 @@
             </nav>
 
             <div class="sidebar-foot">
-                <div class="up-wallet-card" role="region" aria-label="موجودی کیف پول">
+                <button
+                    type="button"
+                    class="up-wallet-card"
+                    id="up-wallet-open-btn"
+                    data-wallet-balance-toman="{{ (int) ($customerWalletBalanceToman ?? 0) }}"
+                    aria-haspopup="dialog"
+                    aria-controls="portal-wallet-topup-dialog"
+                    title="شارژ یا مشاهدهٔ موجودی کیف پول"
+                >
                     <div class="up-wallet-label"><i class="fa-solid fa-wallet" aria-hidden="true"></i> موجودی کیف پول</div>
                     <div class="up-wallet-amount">{{ $customerWalletBalanceFormatted }}<span class="up-wallet-currency">تومان</span></div>
-                </div>
+                    <div class="up-wallet-tap-hint" style="margin-top:0.35rem;font-size:0.62rem;font-weight:700;color:var(--muted);opacity:0.9">برای شارژ کلیک کنید</div>
+                </button>
             </div>
 
             <div class="drawer-extra only-mobile">
@@ -2570,6 +2648,7 @@
     @if(auth()->guard('customer')->check())
         @include('layouts.partials.user-portal-pay-result-swal')
         @include('user.portal.partials.installment-online-pay-dialog')
+        @include('user.portal.partials.wallet-topup-dialog')
     @endif
     @stack('scripts')
 </body>

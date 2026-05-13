@@ -636,6 +636,70 @@
             font-size: 0.78rem;
             line-height: 1.8;
         }
+        .loan-lrq-embed-wrap {
+            position: relative;
+            border: 1px solid var(--border);
+            border-radius: 0.78rem;
+            overflow: hidden;
+            background: var(--bg-card);
+            min-height: 18rem;
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        .loan-lrq-embed-loading {
+            position: absolute;
+            inset: 0;
+            z-index: 3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(2px);
+        }
+        html[data-theme="dark"] .loan-lrq-embed-loading {
+            background: rgba(15, 23, 42, 0.88);
+        }
+        .loan-lrq-embed-loading[hidden] {
+            display: none !important;
+        }
+        .loan-lrq-embed-loading-inner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.65rem;
+            padding: 1rem 1.25rem;
+            text-align: center;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: var(--muted);
+        }
+        .loan-lrq-embed-loading-inner i {
+            font-size: 1.35rem;
+            color: var(--primary);
+        }
+        .loan-tab-panel[data-loan-panel="requests"] {
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+        .loan-tab-panel[data-loan-panel="transactions"] {
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+        .loan-lrq-embed-iframe {
+            width: 100%;
+            flex: 1 1 auto;
+            min-height: 22rem;
+            height: min(72vh, 38rem);
+            border: 0;
+            display: block;
+            background: var(--bg-card);
+        }
         .loan-files-head {
             margin-bottom: 0.65rem;
             display: flex;
@@ -1996,10 +2060,38 @@
                     </div>
                 </div>
                 <div class="loan-tab-panel" data-loan-panel="requests" hidden>
-                    <div class="loan-manage-placeholder">درخواست وام‌ها: این بخش به‌زودی با لیست درخواست‌های وام تکمیل می‌شود.</div>
+                    <div class="loan-lrq-embed-wrap">
+                        <div id="loan-manage-lrq-loading" class="loan-lrq-embed-loading" hidden aria-live="polite" aria-busy="false">
+                            <div class="loan-lrq-embed-loading-inner">
+                                <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+                                <span>در حال بارگذاری اطلاعات…</span>
+                            </div>
+                        </div>
+                        <iframe
+                            id="loan-manage-lrq-iframe"
+                            class="loan-lrq-embed-iframe"
+                            title="درخواست وام‌های مشتری"
+                            loading="lazy"
+                            referrerpolicy="same-origin"
+                        ></iframe>
+                    </div>
                 </div>
                 <div class="loan-tab-panel" data-loan-panel="transactions" hidden>
-                    <div class="loan-manage-placeholder">تراکنش‌ها: این بخش به‌زودی با تراکنش‌های مرتبط با وام تکمیل می‌شود.</div>
+                    <div class="loan-lrq-embed-wrap">
+                        <div id="loan-manage-ctx-loading" class="loan-lrq-embed-loading" hidden aria-live="polite" aria-busy="false">
+                            <div class="loan-lrq-embed-loading-inner">
+                                <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+                                <span>در حال بارگذاری تراکنش‌ها…</span>
+                            </div>
+                        </div>
+                        <iframe
+                            id="loan-manage-ctx-iframe"
+                            class="loan-lrq-embed-iframe"
+                            title="تراکنش‌های مشتری"
+                            loading="lazy"
+                            referrerpolicy="same-origin"
+                        ></iframe>
+                    </div>
                 </div>
                 <div class="loan-tab-panel" data-loan-panel="sms" hidden>
                     <div class="loan-tab-panel-toolbar-row" dir="ltr">
@@ -2985,6 +3077,26 @@
             var quickSmsTemplate = document.getElementById('quick-sms-template');
             var quickSmsText = document.getElementById('quick-sms-text');
             var loanManageOverlay = document.getElementById('loan-manage-overlay');
+            var loanManageLrqIframe = document.getElementById('loan-manage-lrq-iframe');
+            var loanManageLrqLoading = document.getElementById('loan-manage-lrq-loading');
+            var loanManageLrqEmbedTmpl = @json($loanManageLrqEmbedUrlTemplate ?? '');
+
+            function setLoanManageLrqLoading(show) {
+                if (!loanManageLrqLoading) return;
+                loanManageLrqLoading.hidden = !show;
+                loanManageLrqLoading.setAttribute('aria-hidden', show ? 'false' : 'true');
+                loanManageLrqLoading.setAttribute('aria-busy', show ? 'true' : 'false');
+            }
+            var loanManageCtxIframe = document.getElementById('loan-manage-ctx-iframe');
+            var loanManageCtxLoading = document.getElementById('loan-manage-ctx-loading');
+            var loanManageCtxEmbedTmpl = @json($loanManageCtxEmbedUrlTemplate ?? '');
+
+            function setLoanManageCtxLoading(show) {
+                if (!loanManageCtxLoading) return;
+                loanManageCtxLoading.hidden = !show;
+                loanManageCtxLoading.setAttribute('aria-hidden', show ? 'false' : 'true');
+                loanManageCtxLoading.setAttribute('aria-busy', show ? 'true' : 'false');
+            }
             var loanManageClose = document.getElementById('loan-manage-close');
             var loanFilesSummary = document.getElementById('loan-files-summary');
             var loanFilesList = document.getElementById('loan-files-list');
@@ -5439,11 +5551,65 @@
                     initLoanSmsDayPicker();
                     loadLoanManageCustomerSms(loanManageCurrentCustomerId, loanSmsSelectedDate);
                 }
+                if (tabId === 'requests' && loanManageCurrentCustomerId && loanManageLrqIframe && loanManageLrqEmbedTmpl && loanManageLrqEmbedTmpl.indexOf('__CUSTOMER_ID__') !== -1) {
+                    var nextSrc = loanManageLrqEmbedTmpl.replace('__CUSTOMER_ID__', String(loanManageCurrentCustomerId));
+                    setLoanManageLrqLoading(true);
+                    if (loanManageLrqIframe.src === nextSrc) {
+                        setLoanManageLrqLoading(false);
+                    } else {
+                        loanManageLrqIframe.onload = function () {
+                            setLoanManageLrqLoading(false);
+                            loanManageLrqIframe.onload = null;
+                            loanManageLrqIframe.onerror = null;
+                        };
+                        loanManageLrqIframe.onerror = function () {
+                            setLoanManageLrqLoading(false);
+                            loanManageLrqIframe.onload = null;
+                            loanManageLrqIframe.onerror = null;
+                        };
+                        loanManageLrqIframe.src = nextSrc;
+                    }
+                } else if (tabId === 'requests') {
+                    setLoanManageLrqLoading(false);
+                }
+                if (tabId === 'transactions' && loanManageCurrentCustomerId && loanManageCtxIframe && loanManageCtxEmbedTmpl && loanManageCtxEmbedTmpl.indexOf('__CUSTOMER_ID__') !== -1) {
+                    var ctxNextSrc = loanManageCtxEmbedTmpl.replace('__CUSTOMER_ID__', String(loanManageCurrentCustomerId));
+                    setLoanManageCtxLoading(true);
+                    if (loanManageCtxIframe.src === ctxNextSrc) {
+                        setLoanManageCtxLoading(false);
+                    } else {
+                        loanManageCtxIframe.onload = function () {
+                            setLoanManageCtxLoading(false);
+                            loanManageCtxIframe.onload = null;
+                            loanManageCtxIframe.onerror = null;
+                        };
+                        loanManageCtxIframe.onerror = function () {
+                            setLoanManageCtxLoading(false);
+                            loanManageCtxIframe.onload = null;
+                            loanManageCtxIframe.onerror = null;
+                        };
+                        loanManageCtxIframe.src = ctxNextSrc;
+                    }
+                } else if (tabId === 'transactions') {
+                    setLoanManageCtxLoading(false);
+                }
             }
 
             function closeLoanManageModal() {
                 if (!loanManageOverlay) return;
                 destroyLoanSmsDayPicker();
+                setLoanManageLrqLoading(false);
+                setLoanManageCtxLoading(false);
+                if (loanManageLrqIframe) {
+                    loanManageLrqIframe.onload = null;
+                    loanManageLrqIframe.onerror = null;
+                    loanManageLrqIframe.src = 'about:blank';
+                }
+                if (loanManageCtxIframe) {
+                    loanManageCtxIframe.onload = null;
+                    loanManageCtxIframe.onerror = null;
+                    loanManageCtxIframe.src = 'about:blank';
+                }
                 loanManageOverlay.hidden = true;
                 loanManageOverlay.setAttribute('aria-hidden', 'true');
                 closeLoanInstallmentsModal();

@@ -6,29 +6,31 @@ namespace App\Http\Controllers\User;
 
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
-use App\Models\CustomerLoanFile;
-use App\Models\CustomerLoanInstallment;
-use App\Models\CustomerLoanInstallmentOnlinePaymentIntent;
+use App\Models\CustomerWalletOnlinePaymentIntent;
 use App\Services\Payment\CustomerTransactionLedgerService;
-use App\Services\Payment\InstallmentOnlinePaymentResolver;
 use App\Services\Payment\ZibalIpgClient;
+use App\Services\Wallet\CustomerWalletService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
-final class UserInstallmentOnlinePaymentController extends Controller
+final class UserWalletOnlinePaymentController extends Controller
 {
+    private const MIN_TOPUP_TOMAN = 10_000;
+
+    private const MAX_TOPUP_TOMAN = 500_000_000;
+
     public function start(
         Request $request,
-        InstallmentOnlinePaymentResolver $resolver,
         ZibalIpgClient $zibal,
         CustomerTransactionLedgerService $ledger,
+        CustomerWalletService $walletService,
     ): RedirectResponse {
         $validated = $request->validate([
-            'customer_loan_installment_id' => ['required', 'integer', 'min:1'],
+            'amount_toman' => ['required', 'integer', 'min:'.self::MIN_TOPUP_TOMAN, 'max:'.self::MAX_TOPUP_TOMAN],
         ], [], [
-            'customer_loan_installment_id' => 'قسط',
+            'amount_toman' => 'مبلغ شارژ',
         ]);
 
         $customer = Auth::guard('customer')->user();
@@ -48,70 +50,64 @@ final class UserInstallmentOnlinePaymentController extends Controller
             return $this->backWithPayFlash(false, 'درگاه پرداخت هنوز توسط مدیریت تکمیل نشده است.');
         }
 
-        $resolved = $resolver->resolveForCustomer($customer, (int) $validated['customer_loan_installment_id']);
-        if (! ($resolved['ok'] ?? false)) {
-            return $this->backWithPayFlash(false, (string) ($resolved['message'] ?? 'امکان پرداخت وجود ندارد.'));
+        $wallet = $walletService->ensureWallet($customer);
+        if ($wallet->is_locked) {
+            return $this->backWithPayFlash(false, 'کیف پول شما قفل است و امکان شارژ آنلاین وجود ندارد.');
         }
 
-        $amountToman = (int) $resolved['amount_toman'];
+        $amountToman = (int) $validated['amount_toman'];
         $amountRial = $amountToman * 10;
         if ($amountRial < 1000) {
-            return $this->backWithPayFlash(false, 'مبلغ این قسط برای پرداخت آنلاین از حداقل مجاز درگاه کمتر است.', $amountToman);
+            return $this->backWithPayFlash(false, 'مبلغ برای پرداخت آنلاین از حداقل مجاز درگاه کمتر است.', $amountToman);
         }
 
-        /** @var CustomerLoanInstallment $installment */
-        $installment = $resolved['installment'];
-        /** @var CustomerLoanFile $file */
-        $file = $resolved['file'];
-
-        $description = 'پرداخت قسط '.$installment->sequence.' — پرونده '.$file->loan_code;
+        $description = 'شارژ کیف پول — '.number_format($amountToman, 0, '.', ',').' تومان';
         $callbackUrl = route('payment.zibal.callback', absolute: true);
-        $orderId = 'ins-'.$installment->id.'-'.time();
+        $orderId = 'wlt-'.$customer->id.'-'.time();
 
-        $intent = CustomerLoanInstallmentOnlinePaymentIntent::query()->create([
+        $intent = CustomerWalletOnlinePaymentIntent::query()->create([
             'customer_id' => (int) $customer->id,
-            'customer_loan_installment_id' => (int) $installment->id,
             'expected_amount_toman' => $amountToman,
             'expected_amount_rial' => $amountRial,
             'track_id' => null,
-            'status' => CustomerLoanInstallmentOnlinePaymentIntent::STATUS_CREATED,
+            'status' => CustomerWalletOnlinePaymentIntent::STATUS_CREATED,
             'gateway_key' => 'zibal',
             'zibal_ref_number' => null,
             'failure_reason' => null,
         ]);
-        $ledger->syncFromInstallmentIntent($intent);
+        $ledger->syncFromWalletTopupIntent($intent);
 
         $req = $zibal->request($merchant, $amountRial, $callbackUrl, $description, $orderId);
         if (! $req['ok'] || $req['track_id'] === null) {
             $intent->update([
-                'status' => CustomerLoanInstallmentOnlinePaymentIntent::STATUS_FAILED,
+                'status' => CustomerWalletOnlinePaymentIntent::STATUS_FAILED,
                 'failure_reason' => $req['message'],
             ]);
-            $ledger->syncFromInstallmentIntent($intent->fresh());
+            $ledger->syncFromWalletTopupIntent($intent->fresh());
 
             return $this->backWithPayFlash(false, 'شروع پرداخت در درگاه ممکن نشد: '.$req['message'], $amountToman);
         }
 
         DB::transaction(function () use ($intent, $req): void {
-            $fresh = CustomerLoanInstallmentOnlinePaymentIntent::query()
+            $fresh = CustomerWalletOnlinePaymentIntent::query()
                 ->whereKey($intent->id)
                 ->lockForUpdate()
                 ->first();
             if ($fresh === null) {
                 return;
             }
-            if ($fresh->status !== CustomerLoanInstallmentOnlinePaymentIntent::STATUS_CREATED) {
+            if ($fresh->status !== CustomerWalletOnlinePaymentIntent::STATUS_CREATED) {
                 return;
             }
             $fresh->update([
                 'track_id' => $req['track_id'],
-                'status' => CustomerLoanInstallmentOnlinePaymentIntent::STATUS_REDIRECTED,
+                'status' => CustomerWalletOnlinePaymentIntent::STATUS_REDIRECTED,
             ]);
         });
 
-        $ledger->syncFromInstallmentIntent($intent->fresh());
+        $ledger->syncFromWalletTopupIntent($intent->fresh());
 
-        $request->session()->put('portal_pay_return_route', 'user.loans.index');
+        $request->session()->put('portal_pay_return_route', 'user.dashboard');
         $request->session()->save();
 
         $startUrl = 'https://gateway.zibal.ir/start/'.$req['track_id'];

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-use App\Http\Controllers\Admin\AdminCustomerLoginReportController;
 use App\Http\Controllers\Admin\AdminCustomerLoanRequestController;
-use App\Http\Controllers\Admin\AdminLoanRequestStatusDefinitionController;
-use App\Http\Controllers\Admin\AdminNotificationController;
+use App\Http\Controllers\Admin\AdminCustomerLoginReportController;
 use App\Http\Controllers\Admin\AdminCustomerTransactionController;
 use App\Http\Controllers\Admin\AdminDepositDeclarationController;
+use App\Http\Controllers\Admin\AdminLoanRequestStatusDefinitionController;
+use App\Http\Controllers\Admin\AdminNotificationController;
 use App\Http\Controllers\Admin\AppSettingsController;
 use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
 use App\Http\Controllers\Admin\Auth\AdminDashboardController;
@@ -224,6 +224,14 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::get('/customers/{customer}/loan-manage-modal-context', [CustomerController::class, 'loanManageModalContext'])
         ->middleware('throttle:60,1')
         ->name('customers.loan-manage-modal-context');
+
+    Route::get('/customers/{customer}/loan-requests-panel', [AdminCustomerLoanRequestController::class, 'customerEmbedPanel'])
+        ->middleware('throttle:60,1')
+        ->name('customers.loan-requests.embed');
+
+    Route::get('/customers/{customer}/customer-transactions-panel', [AdminCustomerTransactionController::class, 'customerEmbedPanel'])
+        ->middleware('throttle:60,1')
+        ->name('customers.customer-transactions.embed');
 
     Route::get('/customers/{customer}/loan-board-summary', [CustomerController::class, 'loanBoardSummary'])
         ->middleware('throttle:60,1')

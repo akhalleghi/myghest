@@ -5,9 +5,12 @@ declare(strict_types=1);
 use App\Http\Controllers\User\UserCustomerLoanRequestController;
 use App\Http\Controllers\User\UserDepositDeclarationController;
 use App\Http\Controllers\User\UserInstallmentOnlinePaymentController;
+use App\Http\Controllers\User\UserLoanFullSettlementOnlinePaymentController;
 use App\Http\Controllers\User\UserNotificationController;
-use App\Http\Controllers\User\UserPaymentTransactionsController;
 use App\Http\Controllers\User\UserPanelController;
+use App\Http\Controllers\User\UserPaymentTransactionsController;
+use App\Http\Controllers\User\UserWalletOnlinePaymentController;
+use App\Http\Middleware\ShareCustomerPortalOnlinePaymentFlags;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -21,7 +24,7 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware(['auth:customer'])->group(function (): void {
+Route::middleware(['auth:customer', ShareCustomerPortalOnlinePaymentFlags::class])->group(function (): void {
     Route::get('/dashboard', [UserPanelController::class, 'dashboard'])->name('dashboard');
     Route::get('/loans', [UserPanelController::class, 'loans'])->name('loans.index');
     Route::get('/payment-transactions', [UserPaymentTransactionsController::class, 'index'])
@@ -40,6 +43,14 @@ Route::middleware(['auth:customer'])->group(function (): void {
     Route::post('/installments/online-pay/start', [UserInstallmentOnlinePaymentController::class, 'start'])
         ->middleware('throttle:10,1')
         ->name('installments.online-pay.start');
+
+    Route::post('/loans/full-settlement/online-pay/start', [UserLoanFullSettlementOnlinePaymentController::class, 'start'])
+        ->middleware('throttle:5,1')
+        ->name('loans.full-settlement.online-pay.start');
+
+    Route::post('/wallet/online-topup/start', [UserWalletOnlinePaymentController::class, 'start'])
+        ->middleware('throttle:5,1')
+        ->name('wallet.online-topup.start');
 
     Route::post('/deposits/items/{deposit_declaration}/update', [UserDepositDeclarationController::class, 'update'])
         ->middleware('throttle:30,1')

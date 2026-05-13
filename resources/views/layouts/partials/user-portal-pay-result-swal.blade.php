@@ -4,11 +4,14 @@
     if (is_array($rawPortalPay) && array_key_exists('success', $rawPortalPay) && array_key_exists('message', $rawPortalPay)) {
         $tid = $rawPortalPay['track_id'] ?? null;
         $bid = $rawPortalPay['bank_ref'] ?? null;
+        $amtRaw = $rawPortalPay['amount_toman'] ?? null;
+        $amt = is_numeric($amtRaw) ? (int) $amtRaw : 0;
         $portalPaySwal = [
             'success' => (bool) $rawPortalPay['success'],
             'message' => (string) $rawPortalPay['message'],
             'track_id' => is_string($tid) && trim($tid) !== '' ? trim($tid) : null,
             'bank_ref' => is_string($bid) && trim($bid) !== '' ? trim($bid) : null,
+            'amount_toman' => $amt > 0 ? $amt : null,
         ];
     }
 @endphp
@@ -299,6 +302,20 @@
                     return '۰۱۲۳۴۵۶۷۸۹'[parseInt(d, 10)];
                 });
             }
+            function addThousandsCommas(digits) {
+                if (!digits) return '';
+                var rev = String(digits).split('').reverse().join('');
+                var parts = [];
+                for (var i = 0; i < rev.length; i += 3) {
+                    parts.push(rev.substr(i, 3).split('').reverse().join(''));
+                }
+                return parts.reverse().join(',');
+            }
+            function formatTomanDisplay(toman) {
+                var n = parseInt(toman, 10);
+                if (!Number.isFinite(n) || n < 1) return '—';
+                return faDigits(addThousandsCommas(String(n))) + ' تومان';
+            }
             function esc(s) {
                 if (s == null) return '';
                 var d = document.createElement('div');
@@ -314,6 +331,12 @@
                 var bank = payload.bank_ref != null && String(payload.bank_ref).trim() !== ''
                     ? faDigits(String(payload.bank_ref).trim())
                     : '—';
+                var amountLine = '';
+                if (payload.amount_toman != null && parseInt(payload.amount_toman, 10) > 0) {
+                    amountLine =
+                        '<div class="swal-pay-portal-row"><span class="swal-pay-portal-k">مبلغ پرداخت</span>' +
+                        '<span class="swal-pay-portal-v" dir="rtl">' + esc(formatTomanDisplay(payload.amount_toman)) + '</span></div>';
+                }
                 var msg = String(payload.message || '');
                 var title = ok ? 'پرداخت موفق' : 'پرداخت ناموفق';
                 var wrapClass = ok ? 'swal-pay-portal-wrap swal-pay-portal--ok' : 'swal-pay-portal-wrap swal-pay-portal--fail';
@@ -325,6 +348,7 @@
                     '<span class="swal-pay-portal-v" dir="ltr">' + track + '</span></div>' +
                     '<div class="swal-pay-portal-row"><span class="swal-pay-portal-k">شماره تراکنش بانکی</span>' +
                     '<span class="swal-pay-portal-v" dir="ltr">' + bank + '</span></div>' +
+                    amountLine +
                     '</div>' +
                     '<p class="swal-pay-portal-timer">بسته شدن خودکار تا <strong data-portal-pay-swal-timer="">۱۵</strong> ثانیه دیگر</p>' +
                     '</div>';

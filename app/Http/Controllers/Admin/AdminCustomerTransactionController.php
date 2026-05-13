@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Customer;
 use App\Models\CustomerTransaction;
 use App\Services\Admin\AdminCustomerTransactionListService;
 use App\Support\JalaliInputParser;
@@ -40,6 +41,47 @@ final class AdminCustomerTransactionController extends Controller
             'rowSnapshots' => $rowSnapshots,
             'kindLabels' => $this->kindLabelsFa(),
             'statusLabels' => $this->statusLabelsFa(),
+            'ctxListRouteName' => 'admin.customer-transactions.index',
+            'ctxListRouteParams' => [],
+            'ctxForcedCustomerId' => null,
+            'ctxEmbedCustomer' => null,
+        ]);
+    }
+
+    /**
+     * نمایش تراکنش‌های یک مشتری داخل iframe (مدال مدیریت وام‌ها) — مسیر و Blade مستقل از صفحهٔ فهرست عمومی.
+     */
+    public function customerEmbedPanel(Request $request, Customer $customer, AdminCustomerTransactionListService $list): View
+    {
+        $parsed = $this->parseListingFilters($request);
+        $filters = $parsed['filters'];
+        $filters['customer_id'] = (int) $customer->id;
+
+        $filterInputs = $parsed['filterInputs'];
+        $filterInputs['customer_id'] = (string) $customer->id;
+
+        /** @var LengthAwarePaginator<int, CustomerTransaction> $transactions */
+        $transactions = $list->paginate($filters);
+
+        $rowSnapshots = [];
+        foreach ($transactions as $tx) {
+            $rowSnapshots[$tx->id] = $this->buildRowSnapshot($tx);
+        }
+
+        $name = trim($customer->first_name.' '.$customer->last_name);
+
+        return view('admin.customer-transactions.customer_embed', [
+            'pageTitle' => 'تراکنش‌ها — '.($name !== '' ? $name : 'مشتری #'.$customer->id),
+            'transactions' => $transactions,
+            'filters' => $filters,
+            'filterInputs' => $filterInputs,
+            'rowSnapshots' => $rowSnapshots,
+            'kindLabels' => $this->kindLabelsFa(),
+            'statusLabels' => $this->statusLabelsFa(),
+            'ctxListRouteName' => 'admin.customers.customer-transactions.embed',
+            'ctxListRouteParams' => ['customer' => $customer],
+            'ctxForcedCustomerId' => (int) $customer->id,
+            'ctxEmbedCustomer' => $customer,
         ]);
     }
 
@@ -226,6 +268,7 @@ final class AdminCustomerTransactionController extends Controller
         return [
             CustomerTransaction::KIND_INSTALLMENT_ONLINE_PAYMENT => 'پرداخت قسط (درگاه)',
             CustomerTransaction::KIND_WALLET_TOPUP => 'شارژ کیف پول',
+            CustomerTransaction::KIND_FULL_SETTLEMENT_ONLINE_PAYMENT => 'تسویهٔ کلی بدهی (درگاه)',
         ];
     }
 

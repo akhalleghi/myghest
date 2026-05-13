@@ -94,7 +94,8 @@ final class CustomerWalletController extends Controller
                 auth('admin')->id(),
                 $request->ip(),
                 $request->userAgent(),
-                (string) $validated['request_id']
+                (string) $validated['request_id'],
+                null
             );
         } catch (RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
@@ -329,8 +330,8 @@ final class CustomerWalletController extends Controller
     }
 
     /**
-     * @param resource $out
-     * @param array<int, string> $cells
+     * @param  resource  $out
+     * @param  array<int, string>  $cells
      */
     private function writeExcelUnicodeRow($out, array $cells): void
     {

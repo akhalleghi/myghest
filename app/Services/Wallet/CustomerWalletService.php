@@ -59,13 +59,14 @@ final class CustomerWalletService
         ?int $adminId,
         ?string $ipAddress,
         ?string $userAgent,
-        ?string $requestUuid = null
+        ?string $requestUuid = null,
+        ?array $meta = null
     ): array {
         if ($amountToman <= 0) {
             throw new RuntimeException('مبلغ تراکنش باید بیشتر از صفر باشد.');
         }
 
-        return DB::transaction(function () use ($customer, $direction, $amountToman, $description, $adminId, $ipAddress, $userAgent, $requestUuid): array {
+        return DB::transaction(function () use ($customer, $direction, $amountToman, $description, $adminId, $ipAddress, $userAgent, $requestUuid, $meta): array {
             if ($requestUuid !== null && $requestUuid !== '') {
                 /** @var CustomerWalletTransaction|null $existingTx */
                 $existingTx = CustomerWalletTransaction::query()
@@ -120,7 +121,7 @@ final class CustomerWalletService
                 'actor_admin_id' => $adminId,
                 'ip_address' => $ipAddress,
                 'user_agent' => $userAgent !== null ? mb_substr($userAgent, 0, 500) : null,
-                'meta' => null,
+                'meta' => $meta,
                 'request_uuid' => $requestUuid !== '' ? $requestUuid : null,
                 'created_at' => now(),
             ]);

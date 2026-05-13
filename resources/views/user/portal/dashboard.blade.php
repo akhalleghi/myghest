@@ -161,8 +161,10 @@
                                         type="button"
                                         class="portal-loan__btn portal-loan__btn--settle"
                                         data-portal-settle-open
+                                        data-loan-file-id="{{ (int) $loan['id'] }}"
                                         data-remaining-fa="{{ $loan['remaining_amount_fa'] }}"
                                         data-late-fa="{{ $loan['late_fee_estimate_fa'] }}"
+                                        data-total-fa="{{ $loan['full_settlement_online_fa'] ?? '' }}"
                                     >
                                         <i class="fa-solid fa-hand-holding-dollar" aria-hidden="true"></i>
                                         تسویه کلی بدهی
@@ -316,15 +318,24 @@
                     <p class="portal-sum-card__value portal-sum-card__value--money">{{ $portalSummary['remaining_installments_fa'] }}</p>
                     <p class="portal-sum-card__hint">ماندهٔ تعهد (پس از تخفیف)</p>
                 </article>
-                <article class="portal-sum-card portal-sum-card--wallet">
+                <article
+                    class="portal-sum-card portal-sum-card--wallet"
+                    role="button"
+                    tabindex="0"
+                    data-portal-wallet-topup-open
+                    aria-haspopup="dialog"
+                    aria-controls="portal-wallet-topup-dialog"
+                    aria-labelledby="portal-dash-wallet-card-title"
+                    aria-describedby="portal-dash-wallet-card-hint"
+                >
                     <div class="portal-sum-card__head">
                         <span class="portal-sum-card__ico-wrap" aria-hidden="true">
                             <i class="fa-solid fa-wallet"></i>
                         </span>
-                        <h3 class="portal-sum-card__title">کیف پول</h3>
+                        <h3 class="portal-sum-card__title" id="portal-dash-wallet-card-title">کیف پول</h3>
                     </div>
                     <p class="portal-sum-card__value portal-sum-card__value--money">{{ $portalSummary['wallet_balance_fa'] }}</p>
-                    <p class="portal-sum-card__hint">موجودی قابل استفاده</p>
+                    <p class="portal-sum-card__hint" id="portal-dash-wallet-card-hint">موجودی قابل استفاده — برای شارژ کلیک کنید</p>
                 </article>
                 <article class="portal-sum-card portal-sum-card--tickets">
                     <div class="portal-sum-card__head">
@@ -342,8 +353,10 @@
 
     
 
-    <dialog id="portal-settle-dialog" class="portal-dialog" aria-labelledby="portal-settle-dialog-title">
+    <dialog id="portal-settle-dialog" class="portal-dialog portal-dialog--pay-inst" aria-labelledby="portal-settle-dialog-title">
         <div class="portal-dialog__inner">
+            @php($upPayReady = (bool) ($userOnlinePaymentReady ?? false))
+            @php($upFsPayUrl = $userLoanFullSettlementOnlinePayUrl ?? route('user.loans.full-settlement.online-pay.start'))
             <button type="button" class="portal-dialog__close" data-portal-dialog-close aria-label="بستن">&times;</button>
             <h3 id="portal-settle-dialog-title" class="portal-dialog__title">
                 <i class="fa-solid fa-hand-holding-dollar" aria-hidden="true"></i>
@@ -353,13 +366,24 @@
             <p class="portal-dialog__amount" id="portal-settle-remaining">—</p>
             <p class="portal-dialog__lead portal-dialog__lead--muted">برآورد جریمهٔ دیرکرد تا امروز:</p>
             <p class="portal-dialog__sub" id="portal-settle-late">—</p>
-            <p class="portal-dialog__hint">مبالغ برآوردی هستند. پرداخت آنلاین به‌زودی فعال می‌شود.</p>
-            <div class="portal-dialog__actions">
-                <button type="button" class="portal-loan__btn portal-loan__btn--primary portal-loan__btn--block" data-portal-settle-pay>
-                    <i class="fa-solid fa-credit-card" aria-hidden="true"></i>
-                    پرداخت
+            <p class="portal-dialog__lead portal-dialog__lead--muted">جمع قابل پرداخت در درگاه:</p>
+            <p class="portal-dialog__amount" id="portal-settle-total" style="margin-top:0.15rem">—</p>
+            <p class="portal-dialog__hint">مبلغ نهایی بر اساس وضعیت پرونده در لحظهٔ پرداخت محاسبه و از طریق درگاه فعال سیستم وصول می‌شود.</p>
+            <p class="portal-dialog__vpn-hint" id="portal-settle-vpn">
+                پیش از ورود به درگاه، از خاموش بودن VPN خود اطمینان حاصل نمایید.
+            </p>
+            <form class="portal-dialog__actions" method="post" action="{{ $upFsPayUrl }}" id="portal-settle-pay-form">
+                @csrf
+                <input type="hidden" name="customer_loan_file_id" id="portal-settle-loan-file-id" value="" required>
+                <input type="hidden" name="return_route" value="user.dashboard">
+                <button type="submit" class="portal-loan__btn portal-loan__btn--primary portal-loan__btn--block" id="portal-settle-pay-submit" @if(!$upPayReady) disabled title="درگاه پرداخت در تنظیمات مدیریت تکمیل نشده است." @endif>
+                    <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                    ورود به درگاه پرداخت
                 </button>
-            </div>
+                @unless($upPayReady)
+                    <p class="portal-dialog__hint" style="margin-top:0.45rem;text-align:center">درگاه پرداخت توسط مدیریت فعال نشده است؛ پس از تکمیل تنظیمات مالی ادمین دوباره تلاش کنید.</p>
+                @endunless
+            </form>
         </div>
     </dialog>
 @endsection
@@ -378,10 +402,16 @@
                 btn.addEventListener('click', function () {
                     var rem = btn.getAttribute('data-remaining-fa') || '—';
                     var late = btn.getAttribute('data-late-fa') || '—';
+                    var total = btn.getAttribute('data-total-fa') || '—';
+                    var lid = btn.getAttribute('data-loan-file-id') || '';
                     var elR = document.getElementById('portal-settle-remaining');
                     var elL = document.getElementById('portal-settle-late');
+                    var elT = document.getElementById('portal-settle-total');
+                    var hid = document.getElementById('portal-settle-loan-file-id');
                     if (elR) elR.textContent = rem;
                     if (elL) elL.textContent = late;
+                    if (elT) elT.textContent = total;
+                    if (hid) hid.value = lid;
                     if (typeof dialog.showModal === 'function') dialog.showModal();
                 });
             });
@@ -394,18 +424,18 @@
                 if (e.target === dialog) closeDialog();
             });
 
-            document.querySelectorAll('[data-portal-settle-pay]').forEach(function (b) {
-                b.addEventListener('click', function () {
-                    if (typeof window.AdminSwal !== 'undefined' && window.AdminSwal.fire) {
-                        window.AdminSwal.fire({
-                            icon: 'info',
-                            title: 'پرداخت آنلاین',
-                            text: 'امکان پرداخت آنلاین تسویه کلی به‌زودی فعال می‌شود؛ فعلاً از اعلام واریزی یا مراجعه حضوری استفاده کنید.',
-                        });
+            var settleForm = document.getElementById('portal-settle-pay-form');
+            if (settleForm) {
+                settleForm.addEventListener('submit', function (e) {
+                    var hid = document.getElementById('portal-settle-loan-file-id');
+                    if (!hid || String(hid.value || '').trim() === '') {
+                        e.preventDefault();
+                        if (window.AdminSwal && AdminSwal.fire) {
+                            AdminSwal.fire({ icon: 'warning', title: 'تسویه', text: 'پرونده انتخاب نشده است.' });
+                        }
                     }
-                    closeDialog();
                 });
-            });
+            }
         })();
     </script>
 @endpush

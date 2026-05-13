@@ -164,6 +164,13 @@ final class CustomerLoanPortalPresenter
             $creditorOverpayToman
         );
 
+        $fullSettlementOnlineToman = 0;
+        $fullSettlementOnlineFa = '';
+        if ($showSettleButton) {
+            $fullSettlementOnlineToman = $remainingAmount + (int) $snap['late_fee_so_far_toman'];
+            $fullSettlementOnlineFa = $this->formatMoneyFa($fullSettlementOnlineToman);
+        }
+
         return [
             'id' => (int) $file->id,
             'loan_code' => (string) $file->loan_code,
@@ -215,12 +222,62 @@ final class CustomerLoanPortalPresenter
             'total_repayable_fa' => $this->formatMoneyFa($totalRepayable),
             'progress_percent' => $progressPct,
             'show_settle_button' => $showSettleButton,
+            'full_settlement_online_toman' => $fullSettlementOnlineToman,
+            'full_settlement_online_fa' => $fullSettlementOnlineFa,
             'installments' => $installmentsOut,
         ];
     }
 
     /**
-     * @param Collection<int, CustomerLoanInstallment> $installments
+     * مبالغ تسویهٔ کلی آنلاین (ماندهٔ تعهد + برآورد جریمهٔ دیرکرد) در صورت امکان پرداخت.
+     *
+     * @return array{principal_toman: int, late_fee_toman: int, amount_toman: int}|null
+     */
+    public function fullSettlementOnlinePaymentQuote(CustomerLoanFile $file): ?array
+    {
+        $this->schedule->ensureSchedule($file);
+        $file->unsetRelation('installments');
+        $file->loadMissing([
+            'loanType',
+            'installments' => static function ($q): void {
+                $q->orderBy('sequence');
+            },
+            'installments.payments',
+        ]);
+
+        $isRevoked = $file->revoked_at !== null;
+
+        $totalRepayable = $this->finance->totalRepayableToman($file);
+        $snap = $this->finance->loanInstallmentFinancialSnapshot($file, $totalRepayable);
+        $discount = (int) ($file->discount_amount_toman ?? 0);
+        $scheduleRemaining = (int) $snap['schedule_remaining_toman'];
+
+        $signedRemaining = $file->is_settled ? 0 : ($scheduleRemaining - $discount);
+        $isCreditor = ! $isRevoked && $signedRemaining < 0;
+
+        $remainingAmount = $isCreditor ? 0 : max(0, $signedRemaining);
+
+        $showSettleButton = ! $isRevoked
+            && ! $file->is_settled
+            && ! $isCreditor
+            && $signedRemaining > 0;
+
+        if (! $showSettleButton) {
+            return null;
+        }
+
+        $lateFeeToman = (int) $snap['late_fee_so_far_toman'];
+        $amountToman = $remainingAmount + $lateFeeToman;
+
+        return [
+            'principal_toman' => $remainingAmount,
+            'late_fee_toman' => $lateFeeToman,
+            'amount_toman' => $amountToman,
+        ];
+    }
+
+    /**
+     * @param  Collection<int, CustomerLoanInstallment>  $installments
      */
     private function loanHasEarlyFullyPaidInstallment(Collection $installments): bool
     {
