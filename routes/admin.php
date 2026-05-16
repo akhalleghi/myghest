@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\AdminCustomerTransactionController;
 use App\Http\Controllers\Admin\AdminDepositDeclarationController;
 use App\Http\Controllers\Admin\AdminLoanRequestStatusDefinitionController;
 use App\Http\Controllers\Admin\AdminNotificationController;
+use App\Http\Controllers\Admin\AdminSupportTicketController;
 use App\Http\Controllers\Admin\AppSettingsController;
 use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
 use App\Http\Controllers\Admin\Auth\AdminDashboardController;
@@ -100,6 +101,34 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::get('/customer-transactions', [AdminCustomerTransactionController::class, 'index'])
         ->middleware('throttle:60,1')
         ->name('customer-transactions.index');
+
+    Route::get('/tickets', [AdminSupportTicketController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('tickets.index');
+
+    Route::get('/tickets/list', [AdminSupportTicketController::class, 'list'])
+        ->middleware('throttle:90,1')
+        ->name('tickets.list');
+
+    Route::get('/tickets/customers-search', [AdminSupportTicketController::class, 'customersSearch'])
+        ->middleware('throttle:90,1')
+        ->name('tickets.customers-search');
+
+    Route::post('/tickets', [AdminSupportTicketController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('tickets.store');
+
+    Route::post('/tickets/{ticket}/reply', [AdminSupportTicketController::class, 'reply'])
+        ->middleware('throttle:30,1')
+        ->name('tickets.reply');
+
+    Route::patch('/tickets/{ticket}/status', [AdminSupportTicketController::class, 'updateStatus'])
+        ->middleware('throttle:30,1')
+        ->name('tickets.status');
+
+    Route::get('/tickets/attachments/{attachment}', [AdminSupportTicketController::class, 'attachment'])
+        ->middleware('throttle:120,1')
+        ->name('tickets.attachment');
 
     Route::get('/customer-transactions/export', [AdminCustomerTransactionController::class, 'export'])
         ->middleware('throttle:15,1')

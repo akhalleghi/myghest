@@ -2270,6 +2270,7 @@
                     ['label' => 'داشبورد', 'href' => route('user.dashboard'), 'icon' => 'fa-gauge-high', 'route' => 'user.dashboard'],
                     ['label' => 'لیست وام‌ها', 'href' => route('user.loans.index'), 'icon' => 'fa-file-invoice-dollar', 'route' => 'user.loans.index'],
                     ['label' => 'اعلام واریزی‌ها', 'href' => route('user.deposits.index'), 'icon' => 'fa-money-bill-transfer', 'route' => 'user.deposits.index'],
+                    ['label' => 'تیکت‌ها', 'href' => route('user.tickets.index'), 'icon' => 'fa-ticket', 'route' => 'user.tickets.index'],
                     ['label' => 'درخواست وام', 'href' => route('user.loan-request'), 'icon' => 'fa-hand-holding-dollar', 'route' => 'user.loan-request'],
                     ['label' => 'تراکنش‌های من', 'href' => route('user.payment-transactions.index'), 'icon' => 'fa-receipt', 'route' => 'user.payment-transactions.index'],
                 ])

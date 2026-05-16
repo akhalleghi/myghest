@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Portal;
 
 use App\Models\Customer;
+use App\Services\Support\SupportTicketUserService;
 use Hekmatinasser\Jalali\Jalali;
 
 /**
@@ -12,8 +13,12 @@ use Hekmatinasser\Jalali\Jalali;
  */
 final class CustomerPortalSummaryBuilder
 {
+    public function __construct(
+        private readonly SupportTicketUserService $tickets,
+    ) {}
+
     /**
-     * @param array{loans?: list<array<string, mixed>>} $portalLoans
+     * @param  array{loans?: list<array<string, mixed>>}  $portalLoans
      * @return array<string, mixed>
      */
     public function build(Customer $customer, array $portalLoans): array
@@ -34,7 +39,7 @@ final class CustomerPortalSummaryBuilder
         }
 
         $walletToman = (int) ($customer->wallet?->balance_toman ?? 0);
-        $ticketsCount = 0;
+        $ticketsCount = $this->tickets->countActiveForCustomer($customer);
 
         return [
             'total_loans_principal_toman' => $sumPrincipal,

@@ -11,6 +11,7 @@ use App\Http\Controllers\User\UserLoanFullSettlementWalletPaymentController;
 use App\Http\Controllers\User\UserNotificationController;
 use App\Http\Controllers\User\UserPanelController;
 use App\Http\Controllers\User\UserPaymentTransactionsController;
+use App\Http\Controllers\User\UserSupportTicketController;
 use App\Http\Controllers\User\UserWalletOnlinePaymentController;
 use App\Http\Middleware\ShareCustomerPortalOnlinePaymentFlags;
 use Illuminate\Http\Request;
@@ -87,6 +88,23 @@ Route::middleware(['auth:customer', ShareCustomerPortalOnlinePaymentFlags::class
     Route::get('/loan-request/{customerLoanRequest}/documents/{customerLoanRequestDocument}/file', [UserCustomerLoanRequestController::class, 'documentFile'])
         ->middleware('throttle:120,1')
         ->name('loan-request.documents.file');
+
+    Route::get('/tickets', [UserSupportTicketController::class, 'page'])->name('tickets.index');
+    Route::get('/tickets/list', [UserSupportTicketController::class, 'list'])
+        ->middleware('throttle:60,1')
+        ->name('tickets.list');
+    Route::get('/tickets/attachments/{attachment}', [UserSupportTicketController::class, 'attachment'])
+        ->middleware('throttle:120,1')
+        ->name('tickets.attachment');
+    Route::get('/tickets/{ticket}', [UserSupportTicketController::class, 'show'])
+        ->middleware('throttle:60,1')
+        ->name('tickets.show');
+    Route::post('/tickets', [UserSupportTicketController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('tickets.store');
+    Route::post('/tickets/{ticket}/reply', [UserSupportTicketController::class, 'reply'])
+        ->middleware('throttle:30,1')
+        ->name('tickets.reply');
 
     Route::get('/notifications/{notification}/follow', [UserNotificationController::class, 'follow'])
         ->middleware('throttle:120,1')

@@ -347,7 +347,7 @@
                         <h3 class="portal-sum-card__title">تیکت‌ها</h3>
                     </div>
                     <p class="portal-sum-card__value">{{ $portalSummary['tickets_count_fa'] }}</p>
-                    <p class="portal-sum-card__hint">تیکت فعال — به‌زودی</p>
+                    <p class="portal-sum-card__hint">تیکت باز — <a href="{{ route('user.tickets.index') }}">مشاهده</a></p>
                 </article>
             </div>
         </section>
