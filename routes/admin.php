@@ -119,6 +119,14 @@ Route::middleware(['auth:admin'])->group(function (): void {
         ->middleware('throttle:20,1')
         ->name('reports.wallet-transactions-by-date.export-excel');
 
+    Route::get('/reports/loan-guarantees/data', [AdminReportsController::class, 'loanGuaranteesData'])
+        ->middleware('throttle:90,1')
+        ->name('reports.loan-guarantees.data');
+
+    Route::get('/reports/loan-guarantees/export-excel', [AdminReportsController::class, 'exportLoanGuaranteesExcel'])
+        ->middleware('throttle:20,1')
+        ->name('reports.loan-guarantees.export-excel');
+
     Route::get('/organizations', [OrganizationController::class, 'index'])
         ->middleware('throttle:60,1')
         ->name('organizations.index');

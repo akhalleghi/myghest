@@ -9,6 +9,7 @@ use App\Models\CustomerLoanInstallmentPayment;
 use App\Models\SmsTemplate;
 use App\Services\Admin\Reports\DepositsByDateReportService;
 use App\Services\Admin\Reports\InstallmentDueDatesByDateReportService;
+use App\Services\Admin\Reports\LoanGuaranteesReportService;
 use App\Services\Admin\Reports\MemberLoansByDateReportService;
 use App\Services\Admin\Reports\SettledMembersReportService;
 use App\Services\Admin\Reports\WalletTransactionsByDateReportService;
@@ -28,6 +29,7 @@ final class AdminReportsController extends Controller
         private readonly DepositsByDateReportService $depositsByDate,
         private readonly SettledMembersReportService $settledMembers,
         private readonly WalletTransactionsByDateReportService $walletTransactionsByDate,
+        private readonly LoanGuaranteesReportService $loanGuarantees,
     ) {}
 
     public function index(): View
@@ -43,6 +45,7 @@ final class AdminReportsController extends Controller
             'depositPaymentMethodOptions' => CustomerLoanInstallmentPayment::methodLabels(),
             'walletTransactionDirectionOptions' => WalletTransactionsByDateReportService::directionFilterOptions(),
             'walletTransactionSourceOptions' => WalletTransactionsByDateReportService::sourceFilterOptions(),
+            'guaranteeTypeFilterOptions' => LoanGuaranteesReportService::guaranteeTypeFilterOptions(),
             'reportCards' => [
                 [
                     'id' => 'member-loans-by-date',
@@ -82,6 +85,14 @@ final class AdminReportsController extends Controller
                     'description' => 'فهرست تراکنش‌های واریز و برداشت کیف پول اعضا بر اساس زمان ثبت، با درگاه و جزئیات پیگیری.',
                     'icon' => 'fa-wallet',
                     'accent' => '#0d9488',
+                    'enabled' => true,
+                ],
+                [
+                    'id' => 'loan-guarantees',
+                    'title' => 'گزارش تضامین',
+                    'description' => 'فهرست ضمانت‌های ثبت‌شده روی پرونده‌های وام، با جزئیات مشتری، مبلغ وام و اطلاعات ضامن.',
+                    'icon' => 'fa-shield-halved',
+                    'accent' => '#be123c',
                     'enabled' => true,
                 ],
             ],
@@ -510,6 +521,97 @@ final class AdminReportsController extends Controller
 
             foreach ($rows as $row) {
                 $this->writeExcelUnicodeRow($out, $this->walletTransactionsByDate->excelDataRow($row));
+            }
+
+            fclose($out);
+        }, $filename, $headers);
+    }
+
+    public function loanGuaranteesData(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'from_jdate' => ['nullable', 'string', 'max:20'],
+            'to_jdate' => ['nullable', 'string', 'max:20'],
+            'q' => ['nullable', 'string', 'max:200'],
+            'guarantee_type' => ['nullable', 'string', Rule::in(array_keys(LoanGuaranteesReportService::guaranteeTypeFilterOptions()))],
+            'settled' => ['nullable', 'string', 'in:yes,no'],
+        ]);
+
+        $range = $this->loanGuarantees->resolveDateRange(
+            isset($validated['from_jdate']) ? (string) $validated['from_jdate'] : null,
+            isset($validated['to_jdate']) ? (string) $validated['to_jdate'] : null,
+        );
+
+        $result = $this->loanGuarantees->fetchResult(
+            $range['from'],
+            $range['to'],
+            trim((string) ($validated['q'] ?? '')),
+            (string) ($validated['guarantee_type'] ?? ''),
+            (string) ($validated['settled'] ?? ''),
+        );
+
+        return response()->json([
+            'rows' => $result['rows'],
+            'summary' => $result['summary'],
+            'meta' => [
+                'from_jdate' => Jalali::enToFaNumbers(Jalali::instance($range['from'])->format('Y/m/d')),
+                'to_jdate' => Jalali::enToFaNumbers(Jalali::instance($range['to'])->format('Y/m/d')),
+                'count' => count($result['rows']),
+            ],
+        ]);
+    }
+
+    public function exportLoanGuaranteesExcel(Request $request): StreamedResponse
+    {
+        $validated = $request->validate([
+            'from_jdate' => ['nullable', 'string', 'max:20'],
+            'to_jdate' => ['nullable', 'string', 'max:20'],
+            'q' => ['nullable', 'string', 'max:200'],
+            'guarantee_type' => ['nullable', 'string', Rule::in(array_keys(LoanGuaranteesReportService::guaranteeTypeFilterOptions()))],
+            'settled' => ['nullable', 'string', 'in:yes,no'],
+        ]);
+
+        $range = $this->loanGuarantees->resolveDateRange(
+            isset($validated['from_jdate']) ? (string) $validated['from_jdate'] : null,
+            isset($validated['to_jdate']) ? (string) $validated['to_jdate'] : null,
+        );
+
+        $result = $this->loanGuarantees->fetchResult(
+            $range['from'],
+            $range['to'],
+            trim((string) ($validated['q'] ?? '')),
+            (string) ($validated['guarantee_type'] ?? ''),
+            (string) ($validated['settled'] ?? ''),
+        );
+
+        $filename = 'loan-guarantees-'
+            .Jalali::instance($range['from'])->format('Ymd')
+            .'-'
+            .Jalali::instance($range['to'])->format('Ymd')
+            .'-'
+            .now()->format('His')
+            .'.xls';
+
+        $headers = [
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-16LE',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ];
+
+        $rows = $result['rows'];
+
+        return response()->streamDownload(function () use ($rows): void {
+            $out = fopen('php://output', 'wb');
+            if (! is_resource($out)) {
+                return;
+            }
+
+            fwrite($out, "\xFF\xFE");
+            $this->writeExcelUnicodeRow($out, $this->loanGuarantees->excelHeaderRow());
+
+            foreach ($rows as $row) {
+                $this->writeExcelUnicodeRow($out, $this->loanGuarantees->excelDataRow($row));
             }
 
             fclose($out);

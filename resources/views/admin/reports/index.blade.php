@@ -536,6 +536,37 @@
         .rpt-table--wallet-tx .rpt-td--amount-deposit .rpt-num { color: #047857; }
         .rpt-table--wallet-tx .rpt-td--amount-withdraw .rpt-num { color: #b91c1c; }
 
+        .rpt-table--guarantees col.rpt-col-gr-loan { width: 16%; }
+        .rpt-table--guarantees col.rpt-col-gr-customer { width: 16%; }
+        .rpt-table--guarantees col.rpt-col-gr-amount { width: 11%; }
+        .rpt-table--guarantees col.rpt-col-gr-inst { width: 11%; }
+        .rpt-table--guarantees col.rpt-col-gr-type { width: 12%; }
+        .rpt-table--guarantees col.rpt-col-gr-detail { width: 34%; }
+
+        .rpt-table--guarantees .rpt-td--stack {
+            white-space: normal;
+            vertical-align: top;
+        }
+
+        .rpt-guarantee-highlight {
+            display: block;
+            color: #b91c1c;
+            font-weight: 800;
+            font-size: 0.68rem;
+            margin-bottom: 0.12rem;
+        }
+
+        html[data-theme="dark"] .rpt-guarantee-highlight { color: #f87171; }
+
+        .rpt-guarantee-summary {
+            margin: 0 0 0.55rem;
+            font-size: 0.68rem;
+            line-height: 1.5;
+            color: var(--muted);
+            font-weight: 600;
+            word-break: break-word;
+        }
+
         .rpt-quick-overlay {
             position: fixed;
             inset: 0;
@@ -1275,6 +1306,8 @@
         </div>
     </div>
 
+    @include('admin.reports.partials.modal-loan-guarantees')
+
     <div class="rpt-quick-overlay" id="rpt-quick-sms-overlay" hidden aria-hidden="true">
         <div class="rpt-quick-modal" role="dialog" aria-modal="true" aria-labelledby="rpt-quick-sms-title">
             <div class="rpt-quick-head">
@@ -1318,6 +1351,8 @@
             'settledMembersExportUrl' => route('admin.reports.settled-members.export-excel'),
             'walletTransactionsDataUrl' => route('admin.reports.wallet-transactions-by-date.data'),
             'walletTransactionsExportUrl' => route('admin.reports.wallet-transactions-by-date.export-excel'),
+            'loanGuaranteesDataUrl' => route('admin.reports.loan-guarantees.data'),
+            'loanGuaranteesExportUrl' => route('admin.reports.loan-guarantees.export-excel'),
             'customersBaseUrl' => url('admin/customers'),
             'csrf' => csrf_token(),
         ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!}

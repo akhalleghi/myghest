@@ -10,6 +10,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('customer_loan_full_settlement_online_payment_intents')) {
+            return;
+        }
+
         Schema::create('customer_loan_full_settlement_online_payment_intents', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('customer_id');
