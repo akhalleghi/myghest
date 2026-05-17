@@ -77,6 +77,83 @@ final class SupportTicketAdminService
     }
 
     /**
+     * @return LengthAwarePaginator<int, array<string, mixed>>
+     */
+    public function paginateReceivedForCustomer(int $customerId, ?string $search): LengthAwarePaginator
+    {
+        $query = SupportTicket::query()
+            ->where('created_by_customer_id', $customerId)
+            ->with([
+                'createdByCustomer',
+                'firstMessage.attachments',
+                'latestMessage',
+            ])
+            ->orderByDesc('last_message_at')
+            ->orderByDesc('id');
+
+        $this->applyCustomerEmbedSearch($query, $search);
+
+        return $query
+            ->paginate(self::PER_PAGE)
+            ->withQueryString()
+            ->through(fn (SupportTicket $t): array => $this->mapListRow($t, 'received'));
+    }
+
+    /**
+     * @return LengthAwarePaginator<int, array<string, mixed>>
+     */
+    public function paginateSentForCustomer(int $customerId, ?string $search): LengthAwarePaginator
+    {
+        $query = SupportTicket::query()
+            ->whereNotNull('created_by_admin_id')
+            ->whereHas('recipients', fn ($r) => $r->where('customer_id', $customerId))
+            ->with([
+                'createdByAdmin',
+                'firstMessage.attachments',
+                'latestMessage',
+                'recipients.customer',
+            ])
+            ->orderByDesc('last_message_at')
+            ->orderByDesc('id');
+
+        $this->applyCustomerEmbedSearch($query, $search);
+
+        return $query
+            ->paginate(self::PER_PAGE)
+            ->withQueryString()
+            ->through(fn (SupportTicket $t): array => $this->mapListRow($t, 'sent'));
+    }
+
+    public function countReceivedForCustomer(int $customerId): int
+    {
+        return SupportTicket::query()
+            ->where('created_by_customer_id', $customerId)
+            ->count();
+    }
+
+    public function countSentForCustomer(int $customerId): int
+    {
+        return SupportTicket::query()
+            ->whereNotNull('created_by_admin_id')
+            ->whereHas('recipients', fn ($r) => $r->where('customer_id', $customerId))
+            ->count();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array{ticket: SupportTicket, tickets_created: int, sms_result: array<string, mixed>|null}
+     */
+    public function sendFromAdminToCustomer(Admin $admin, Customer $customer, array $data, ?UploadedFile $attachment): array
+    {
+        $payload = array_merge($data, [
+            'recipient_mode' => SupportTicket::MODE_SINGLE,
+            'customer_ids' => [(int) $customer->id],
+        ]);
+
+        return $this->sendFromAdmin($admin, $payload, $attachment);
+    }
+
+    /**
      * @return array<int, array{id: int, text: string}>
      */
     public function searchCustomersForSelect(?string $term, int $limit = 40): array
@@ -473,6 +550,11 @@ final class SupportTicketAdminService
 
     private function applySearch(Builder $query, ?string $search): void
     {
+        $this->applyCustomerEmbedSearch($query, $search);
+    }
+
+    private function applyCustomerEmbedSearch(Builder $query, ?string $search): void
+    {
         $s = $search !== null ? trim($search) : '';
         if ($s === '') {
             return;
@@ -492,6 +574,10 @@ final class SupportTicketAdminService
                     $c->where('first_name', 'like', $like)
                         ->orWhere('last_name', 'like', $like)
                         ->orWhere('customer_code', 'like', $like);
+                })
+                ->orWhereHas('createdByAdmin', function ($a) use ($like): void {
+                    $a->where('name', 'like', $like)
+                        ->orWhere('username', 'like', $like);
                 });
         });
     }

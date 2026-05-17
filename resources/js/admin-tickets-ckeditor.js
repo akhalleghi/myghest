@@ -141,6 +141,38 @@ window.destroyUserTicketReplyEditor = function () {
     destroyTicketEditor('ut-reply-body');
 };
 
+window.initCtkEmbedComposeEditor = function () {
+    scheduleMount('ctk-compose-body');
+};
+
+window.initCtkEmbedReplyEditor = function () {
+    scheduleMount('ctk-reply-body');
+};
+
+window.syncCtkEmbedComposeEditor = function () {
+    const editor = ticketEditors['ctk-compose-body'];
+    const ta = document.getElementById('ctk-compose-body');
+    if (editor && ta) {
+        ta.value = editor.getData();
+    }
+};
+
+window.syncCtkEmbedReplyEditor = function () {
+    const editor = ticketEditors['ctk-reply-body'];
+    const ta = document.getElementById('ctk-reply-body');
+    if (editor && ta) {
+        ta.value = editor.getData();
+    }
+};
+
+window.destroyCtkEmbedComposeEditor = function () {
+    destroyTicketEditor('ctk-compose-body');
+};
+
+window.destroyCtkEmbedReplyEditor = function () {
+    destroyTicketEditor('ctk-reply-body');
+};
+
 /**
  * @param {string} elementId
  * @returns {boolean}

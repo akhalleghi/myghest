@@ -101,6 +101,7 @@ final class CustomerController extends Controller
                 ->values(),
             'loanManageLrqEmbedUrlTemplate' => $this->loanManageLoanRequestEmbedUrlTemplate(),
             'loanManageCtxEmbedUrlTemplate' => $this->loanManageCustomerTransactionsEmbedUrlTemplate(),
+            'loanManageTicketsEmbedUrlTemplate' => $this->loanManageTicketsEmbedUrlTemplate(),
         ]);
     }
 
@@ -122,6 +123,17 @@ final class CustomerController extends Controller
             return '';
         }
         $u = route('admin.customers.loan-requests.embed', ['customer' => $id]);
+
+        return preg_replace('#/'.preg_quote((string) $id, '#').'/#', '/__CUSTOMER_ID__/', $u, 1);
+    }
+
+    private function loanManageTicketsEmbedUrlTemplate(): string
+    {
+        $id = (int) Customer::query()->orderBy('id')->value('id');
+        if ($id < 1) {
+            return '';
+        }
+        $u = route('admin.customers.tickets.embed', ['customer' => $id]);
 
         return preg_replace('#/'.preg_quote((string) $id, '#').'/#', '/__CUSTOMER_ID__/', $u, 1);
     }

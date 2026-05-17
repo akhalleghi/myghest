@@ -34,7 +34,11 @@ return [
                 ['key' => 'customers.view', 'label' => 'مشاهده لیست و جزئیات', 'routes' => [
                     'admin.customers.index', 'admin.customers.edit-data', 'admin.customers.loan-manage-modal-context',
                     'admin.customers.loan-board-summary', 'admin.customers.loan-requests.embed',
-                    'admin.customers.customer-transactions.embed', 'admin.customers.sms-modal-preview',
+                    'admin.customers.customer-transactions.embed',
+                    'admin.customers.tickets.embed', 'admin.customers.tickets.list',
+                    'admin.customers.tickets.store', 'admin.customers.tickets.reply', 'admin.customers.tickets.status',
+                    'admin.tickets.attachment',
+                    'admin.customers.sms-modal-preview',
                     'admin.customers.sms-logs', 'admin.customers.guarantees-report',
                 ]],
                 ['key' => 'customers.export', 'label' => 'خروجی اکسل مشتریان', 'routes' => ['admin.customers.export-excel', 'admin.customers.sms-logs.export-excel', 'admin.customers.guarantees-report.export-excel']],

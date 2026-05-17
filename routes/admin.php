@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\AdminLoanRequestStatusDefinitionController;
 use App\Http\Controllers\Admin\AdminReportsController;
 use App\Http\Controllers\Admin\AdminNotificationController;
 use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\AdminCustomerSupportTicketController;
 use App\Http\Controllers\Admin\AdminSupportTicketController;
 use App\Http\Controllers\Admin\AppSettingsController;
 use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
@@ -362,6 +363,26 @@ Route::middleware(['auth:admin', 'admin.permission'])->group(function (): void {
     Route::get('/customers/{customer}/customer-transactions-panel', [AdminCustomerTransactionController::class, 'customerEmbedPanel'])
         ->middleware('throttle:60,1')
         ->name('customers.customer-transactions.embed');
+
+    Route::get('/customers/{customer}/tickets-panel', [AdminCustomerSupportTicketController::class, 'customerEmbedPanel'])
+        ->middleware('throttle:60,1')
+        ->name('customers.tickets.embed');
+
+    Route::get('/customers/{customer}/tickets/list', [AdminCustomerSupportTicketController::class, 'list'])
+        ->middleware('throttle:60,1')
+        ->name('customers.tickets.list');
+
+    Route::post('/customers/{customer}/tickets', [AdminCustomerSupportTicketController::class, 'store'])
+        ->middleware('throttle:30,1')
+        ->name('customers.tickets.store');
+
+    Route::post('/customers/{customer}/tickets/{ticket}/reply', [AdminCustomerSupportTicketController::class, 'reply'])
+        ->middleware('throttle:30,1')
+        ->name('customers.tickets.reply');
+
+    Route::patch('/customers/{customer}/tickets/{ticket}/status', [AdminCustomerSupportTicketController::class, 'updateStatus'])
+        ->middleware('throttle:30,1')
+        ->name('customers.tickets.status');
 
     Route::get('/customers/{customer}/loan-board-summary', [CustomerController::class, 'loanBoardSummary'])
         ->middleware('throttle:60,1')

@@ -16,6 +16,8 @@ function escHtml(s) {
 export const TICKET_DIALOG_IDS = [
     'tk-compose-dialog',
     'tk-detail-dialog',
+    'ctk-compose-dialog',
+    'ctk-detail-dialog',
     'ut-compose-dialog',
     'ut-detail-dialog',
 ];

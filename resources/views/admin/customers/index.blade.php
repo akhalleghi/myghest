@@ -685,7 +685,8 @@
             flex: 1 1 auto;
             min-height: 0;
         }
-        .loan-tab-panel[data-loan-panel="transactions"] {
+        .loan-tab-panel[data-loan-panel="transactions"],
+        .loan-tab-panel[data-loan-panel="tickets"] {
             display: flex;
             flex-direction: column;
             flex: 1 1 auto;
@@ -2130,7 +2131,21 @@
                     </div>
                 </div>
                 <div class="loan-tab-panel" data-loan-panel="tickets" hidden>
-                    <div class="loan-manage-placeholder">تیکت‌ها: این بخش به‌زودی با تیکت‌های پشتیبانی مشتری تکمیل می‌شود.</div>
+                    <div class="loan-lrq-embed-wrap">
+                        <div id="loan-manage-tickets-loading" class="loan-lrq-embed-loading" hidden aria-live="polite" aria-busy="false">
+                            <div class="loan-lrq-embed-loading-inner">
+                                <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+                                <span>در حال بارگذاری تیکت‌ها…</span>
+                            </div>
+                        </div>
+                        <iframe
+                            id="loan-manage-tickets-iframe"
+                            class="loan-lrq-embed-iframe"
+                            title="تیکت‌های مشتری"
+                            loading="lazy"
+                            referrerpolicy="same-origin"
+                        ></iframe>
+                    </div>
                 </div>
                     <div class="loan-tab-panel" data-loan-panel="guarantees" hidden>
                     <div class="loan-tab-panel-toolbar-row" dir="ltr">
@@ -3090,6 +3105,16 @@
             var loanManageCtxIframe = document.getElementById('loan-manage-ctx-iframe');
             var loanManageCtxLoading = document.getElementById('loan-manage-ctx-loading');
             var loanManageCtxEmbedTmpl = @json($loanManageCtxEmbedUrlTemplate ?? '');
+            var loanManageTicketsIframe = document.getElementById('loan-manage-tickets-iframe');
+            var loanManageTicketsLoading = document.getElementById('loan-manage-tickets-loading');
+            var loanManageTicketsEmbedTmpl = @json($loanManageTicketsEmbedUrlTemplate ?? '');
+
+            function setLoanManageTicketsLoading(show) {
+                if (!loanManageTicketsLoading) return;
+                loanManageTicketsLoading.hidden = !show;
+                loanManageTicketsLoading.setAttribute('aria-hidden', show ? 'false' : 'true');
+                loanManageTicketsLoading.setAttribute('aria-busy', show ? 'true' : 'false');
+            }
 
             function setLoanManageCtxLoading(show) {
                 if (!loanManageCtxLoading) return;
@@ -5593,6 +5618,27 @@
                 } else if (tabId === 'transactions') {
                     setLoanManageCtxLoading(false);
                 }
+                if (tabId === 'tickets' && loanManageCurrentCustomerId && loanManageTicketsIframe && loanManageTicketsEmbedTmpl && loanManageTicketsEmbedTmpl.indexOf('__CUSTOMER_ID__') !== -1) {
+                    var ticketsNextSrc = loanManageTicketsEmbedTmpl.replace('__CUSTOMER_ID__', String(loanManageCurrentCustomerId));
+                    setLoanManageTicketsLoading(true);
+                    if (loanManageTicketsIframe.src === ticketsNextSrc) {
+                        setLoanManageTicketsLoading(false);
+                    } else {
+                        loanManageTicketsIframe.onload = function () {
+                            setLoanManageTicketsLoading(false);
+                            loanManageTicketsIframe.onload = null;
+                            loanManageTicketsIframe.onerror = null;
+                        };
+                        loanManageTicketsIframe.onerror = function () {
+                            setLoanManageTicketsLoading(false);
+                            loanManageTicketsIframe.onload = null;
+                            loanManageTicketsIframe.onerror = null;
+                        };
+                        loanManageTicketsIframe.src = ticketsNextSrc;
+                    }
+                } else if (tabId === 'tickets') {
+                    setLoanManageTicketsLoading(false);
+                }
             }
 
             function closeLoanManageModal() {
@@ -5600,6 +5646,7 @@
                 destroyLoanSmsDayPicker();
                 setLoanManageLrqLoading(false);
                 setLoanManageCtxLoading(false);
+                setLoanManageTicketsLoading(false);
                 if (loanManageLrqIframe) {
                     loanManageLrqIframe.onload = null;
                     loanManageLrqIframe.onerror = null;
@@ -5609,6 +5656,11 @@
                     loanManageCtxIframe.onload = null;
                     loanManageCtxIframe.onerror = null;
                     loanManageCtxIframe.src = 'about:blank';
+                }
+                if (loanManageTicketsIframe) {
+                    loanManageTicketsIframe.onload = null;
+                    loanManageTicketsIframe.onerror = null;
+                    loanManageTicketsIframe.src = 'about:blank';
                 }
                 loanManageOverlay.hidden = true;
                 loanManageOverlay.setAttribute('aria-hidden', 'true');

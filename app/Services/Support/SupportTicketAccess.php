@@ -33,6 +33,31 @@ final class SupportTicketAccess
         }
     }
 
+    public function adminCanAccessTicketForCustomer(int $customerId, SupportTicket $ticket): bool
+    {
+        if ((int) $ticket->created_by_customer_id === $customerId) {
+            return true;
+        }
+
+        if ($ticket->created_by_admin_id !== null) {
+            return SupportTicketRecipient::query()
+                ->where('support_ticket_id', (int) $ticket->id)
+                ->where('customer_id', $customerId)
+                ->exists();
+        }
+
+        return false;
+    }
+
+    public function assertAdminCanAccessTicketForCustomer(int $customerId, SupportTicket $ticket): void
+    {
+        if (! $this->adminCanAccessTicketForCustomer($customerId, $ticket)) {
+            throw ValidationException::withMessages([
+                'ticket' => ['این تیکت به مشتری انتخاب‌شده تعلق ندارد.'],
+            ]);
+        }
+    }
+
     public function customerCanAccessAttachment(Customer $customer, SupportTicketAttachment $attachment): bool
     {
         $attachment->loadMissing('message.ticket');
