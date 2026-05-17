@@ -18,7 +18,6 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['guest.customer'])->group(function (): void {
     Route::get('/', [CustomerLoginController::class, 'create'])->name('customer.login');
     Route::post('/', [CustomerLoginController::class, 'store'])
-        ->middleware('throttle:10,1')
         ->name('customer.login.attempt');
 
     Route::prefix('auth')->name('customer.auth.')->group(function (): void {

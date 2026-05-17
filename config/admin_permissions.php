@@ -277,7 +277,11 @@ return [
                 ['key' => 'app_settings.ui', 'label' => 'ظاهر و نمایش', 'routes' => ['admin.app-settings.ui.update']],
                 ['key' => 'app_settings.notifications', 'label' => 'اعلان‌ها', 'routes' => []],
                 ['key' => 'app_settings.financial', 'label' => 'مالی و بانکی', 'routes' => ['admin.app-settings.financial.update']],
-                ['key' => 'app_settings.security', 'label' => 'امنیت', 'routes' => ['admin.app-settings.security.update']],
+                ['key' => 'app_settings.security', 'label' => 'امنیت', 'routes' => [
+                    'admin.app-settings.security.update',
+                    'admin.app-settings.login-blocks.index',
+                    'admin.app-settings.login-blocks.unblock',
+                ]],
             ],
         ],
         [

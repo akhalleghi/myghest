@@ -3,6 +3,7 @@
 use App\Http\Middleware\AdminFarsiLocale;
 use App\Http\Middleware\EnsureAdminGuest;
 use App\Http\Middleware\EnsureCustomerGuest;
+use App\Services\Auth\LoginAccessBlockService;
 use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -45,6 +46,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'guest.admin' => EnsureAdminGuest::class,
             'guest.customer' => EnsureCustomerGuest::class,
             'admin.permission' => \App\Http\Middleware\EnsureAdminHasPermission::class,
+            'portal.session' => \App\Http\Middleware\EnforcePortalSessionLifetime::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -52,6 +54,32 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($e->getStatusCode() !== 429) {
                 return null;
             }
+
+            $isLoginAttempt = $request->routeIs('admin.login.attempt', 'customer.login.attempt');
+            $blockedMessage = LoginAccessBlockService::BLOCKED_ACCOUNT_MESSAGE;
+
+            if ($isLoginAttempt) {
+                $wantsJson = $request->expectsJson()
+                    || $request->header('X-Login-Mode') === 'ajax'
+                    || $request->boolean('ajax');
+
+                if ($wantsJson) {
+                    return response()->json([
+                        'message' => $blockedMessage,
+                        'errors' => ['username' => [$blockedMessage]],
+                    ], 429);
+                }
+
+                $loginRoute = $request->routeIs('admin.*')
+                    ? route('admin.login')
+                    : route('customer.login');
+
+                return redirect()
+                    ->to($loginRoute)
+                    ->withInput($request->except('password', '_token'))
+                    ->withErrors(['username' => $blockedMessage]);
+            }
+
             if (! $request->expectsJson()) {
                 return null;
             }

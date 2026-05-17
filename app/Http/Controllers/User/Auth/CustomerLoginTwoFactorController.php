@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Controllers\User\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Services\Sms\PortalAdminSmsDispatcher;
+use App\Http\Middleware\EnforcePortalSessionLifetime;
+use App\Models\LoginAccessBlock;
 use App\Services\Auth\CustomerLoginLogService;
 use App\Services\Auth\CustomerLoginTwoFactorService;
+use App\Services\Auth\LoginAccessBlockService;
+use App\Services\Sms\PortalAdminSmsDispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,6 +22,7 @@ final class CustomerLoginTwoFactorController extends Controller
     public function __construct(
         private readonly CustomerLoginTwoFactorService $twoFactor,
         private readonly CustomerLoginLogService $loginLogService,
+        private readonly LoginAccessBlockService $loginAccessBlocks,
     ) {}
 
     public function resend(Request $request): JsonResponse
@@ -69,6 +73,13 @@ final class CustomerLoginTwoFactorController extends Controller
 
         Auth::guard('customer')->login($customer, $remember);
         $request->session()->regenerate();
+
+        $this->loginAccessBlocks->clearOnSuccessfulLogin(
+            $request,
+            LoginAccessBlock::GUARD_CUSTOMER,
+            (string) $customer->username,
+        );
+        EnforcePortalSessionLifetime::touchSession($request, LoginAccessBlock::GUARD_CUSTOMER);
 
         try {
             $this->loginLogService->recordSuccessfulLogin($customer, $request);

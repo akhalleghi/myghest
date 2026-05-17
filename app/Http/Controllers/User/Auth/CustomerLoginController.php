@@ -5,19 +5,20 @@ declare(strict_types=1);
 namespace App\Http\Controllers\User\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\EnforcePortalSessionLifetime;
 use App\Models\Customer;
+use App\Models\LoginAccessBlock;
 use App\Services\Admin\CaptchaService;
-use App\Services\Sms\PortalAdminSmsDispatcher;
 use App\Services\Auth\CustomerLoginLogService;
 use App\Services\Auth\CustomerLoginTwoFactorService;
+use App\Services\Auth\LoginAccessBlockService;
+use App\Services\Sms\PortalAdminSmsDispatcher;
 use App\Support\CustomerLoginSecuritySettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use RuntimeException;
@@ -26,6 +27,7 @@ final class CustomerLoginController extends Controller
 {
     public function __construct(
         private readonly CustomerLoginTwoFactorService $loginTwoFactor,
+        private readonly LoginAccessBlockService $loginAccessBlocks,
     ) {}
 
     public function create(): View
@@ -52,30 +54,28 @@ final class CustomerLoginController extends Controller
             'captcha.size' => 'کپچا باید ۵ کاراکتر باشد.',
         ]);
 
-        $this->ensureNotLockedOut($request);
+        $remember = (bool) $request->boolean('remember');
+        $username = $this->normalizeLoginUsername(trim($credentials['username']));
+
+        $this->loginAccessBlocks->ensureLoginAllowed($request, LoginAccessBlock::GUARD_CUSTOMER, $username);
 
         if (! CaptchaService::validate($credentials['captcha'], CaptchaService::PURPOSE_USER_LOGIN)) {
-            $this->hitFailedLoginThrottle($request);
+            $this->loginAccessBlocks->recordFailedAttempt($request, LoginAccessBlock::GUARD_CUSTOMER, $username);
             throw ValidationException::withMessages([
                 'captcha' => 'کد تأیید نادرست است؛ برای کد جدید روی تصویر کلیک کنید.',
             ]);
         }
 
-        $remember = (bool) $request->boolean('remember');
-        $username = $this->normalizeLoginUsername(trim($credentials['username']));
-
         /** @var Customer|null $customer */
         $customer = Customer::query()->where('username', $username)->first();
 
         if ($customer === null || ! Hash::check($credentials['password'], (string) $customer->password)) {
-            $this->hitFailedLoginThrottle($request);
+            $this->loginAccessBlocks->recordFailedAttempt($request, LoginAccessBlock::GUARD_CUSTOMER, $username);
 
             throw ValidationException::withMessages([
                 'username' => 'نام کاربری یا رمز عبور اشتباه است.',
             ]);
         }
-
-        RateLimiter::clear($this->throttleKey($request));
 
         if (CustomerLoginSecuritySettings::isTwoFactorEnabled()) {
             try {
@@ -110,8 +110,21 @@ final class CustomerLoginController extends Controller
                 ->with('login_2fa', $challenge);
         }
 
+        return $this->completeCustomerLogin($customer, $request, $remember, $username, $loginLogService);
+    }
+
+    private function completeCustomerLogin(
+        Customer $customer,
+        Request $request,
+        bool $remember,
+        string $username,
+        CustomerLoginLogService $loginLogService,
+    ): RedirectResponse|JsonResponse {
         Auth::guard('customer')->login($customer, $remember);
         $request->session()->regenerate();
+
+        $this->loginAccessBlocks->clearOnSuccessfulLogin($request, LoginAccessBlock::GUARD_CUSTOMER, $username);
+        EnforcePortalSessionLifetime::touchSession($request, LoginAccessBlock::GUARD_CUSTOMER);
 
         try {
             $loginLogService->recordSuccessfulLogin($customer, $request);
@@ -129,31 +142,6 @@ final class CustomerLoginController extends Controller
         }
 
         return redirect()->intended(route('user.dashboard'));
-    }
-
-    protected function throttleKey(Request $request): string
-    {
-        $username = Str::lower($this->normalizeLoginUsername(trim((string) $request->input('username'))));
-
-        return 'customer-login|'.sha1($username.'|'.$request->ip());
-    }
-
-    protected function ensureNotLockedOut(Request $request): void
-    {
-        $key = $this->throttleKey($request);
-
-        if (RateLimiter::tooManyAttempts($key, 12)) {
-            $seconds = RateLimiter::availableIn($key);
-
-            throw ValidationException::withMessages([
-                'username' => 'تلاش زیاد؛ لطفاً '.$seconds.' ثانیه بعد دوباره تلاش کنید.',
-            ]);
-        }
-    }
-
-    protected function hitFailedLoginThrottle(Request $request): void
-    {
-        RateLimiter::hit($this->throttleKey($request), 60 * 5);
     }
 
     protected function normalizeLoginUsername(string $value): string

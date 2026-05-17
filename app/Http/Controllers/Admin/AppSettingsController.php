@@ -7,7 +7,12 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Support\BankingHtmlSanitizer;
+use App\Models\LoginAccessBlock;
+use App\Services\Auth\LoginAccessBlockService;
+use App\Support\AdminLoginSecuritySettings;
 use App\Support\CustomerLoginSecuritySettings;
+use App\Support\PortalLoginSecuritySettings;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -15,6 +20,10 @@ use Illuminate\Support\Str;
 
 final class AppSettingsController extends Controller
 {
+    public function __construct(
+        private readonly LoginAccessBlockService $loginAccessBlocks,
+    ) {}
+
     public function updateBase(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -150,8 +159,18 @@ final class AppSettingsController extends Controller
     {
         $validated = $request->validate([
             'customer_login_two_factor_enabled' => ['required', 'string', 'in:0,1'],
+            'admin_login_two_factor_enabled' => ['required', 'string', 'in:0,1'],
+            'customer_login_session_lifetime_minutes' => ['required', 'integer', 'min:5', 'max:1440'],
+            'customer_login_max_failed_attempts' => ['required', 'integer', 'min:3', 'max:50'],
+            'admin_login_session_lifetime_minutes' => ['required', 'integer', 'min:5', 'max:1440'],
+            'admin_login_max_failed_attempts' => ['required', 'integer', 'min:3', 'max:50'],
         ], [], [
             'customer_login_two_factor_enabled' => 'تأیید دو مرحله‌ای ورود مشتریان',
+            'admin_login_two_factor_enabled' => 'تأیید دو مرحله‌ای ورود ادمین',
+            'customer_login_session_lifetime_minutes' => 'زمان نشست فعال مشتری',
+            'customer_login_max_failed_attempts' => 'تعداد تلاش ناموفق ورود مشتری',
+            'admin_login_session_lifetime_minutes' => 'زمان نشست فعال ادمین',
+            'admin_login_max_failed_attempts' => 'تعداد تلاش ناموفق ورود ادمین',
         ]);
 
         AppSetting::query()->updateOrCreate(
@@ -159,9 +178,62 @@ final class AppSettingsController extends Controller
             ['value' => $validated['customer_login_two_factor_enabled'] === '1' ? '1' : '0'],
         );
 
+        AppSetting::query()->updateOrCreate(
+            ['key' => AdminLoginSecuritySettings::SETTING_KEY],
+            ['value' => $validated['admin_login_two_factor_enabled'] === '1' ? '1' : '0'],
+        );
+
+        AppSetting::query()->updateOrCreate(
+            ['key' => PortalLoginSecuritySettings::CUSTOMER_SESSION_LIFETIME_KEY],
+            ['value' => (string) $validated['customer_login_session_lifetime_minutes']],
+        );
+
+        AppSetting::query()->updateOrCreate(
+            ['key' => PortalLoginSecuritySettings::CUSTOMER_MAX_FAILED_ATTEMPTS_KEY],
+            ['value' => (string) $validated['customer_login_max_failed_attempts']],
+        );
+
+        AppSetting::query()->updateOrCreate(
+            ['key' => PortalLoginSecuritySettings::ADMIN_SESSION_LIFETIME_KEY],
+            ['value' => (string) $validated['admin_login_session_lifetime_minutes']],
+        );
+
+        AppSetting::query()->updateOrCreate(
+            ['key' => PortalLoginSecuritySettings::ADMIN_MAX_FAILED_ATTEMPTS_KEY],
+            ['value' => (string) $validated['admin_login_max_failed_attempts']],
+        );
+
         return back()
             ->with('flash_success', 'تنظیمات امنیتی ذخیره شد.')
             ->with('open_app_settings_tab', 'security');
+    }
+
+    public function loginBlocks(Request $request): JsonResponse
+    {
+        $guard = $request->query('guard');
+        if (! is_string($guard) || ! in_array($guard, [LoginAccessBlock::GUARD_ADMIN, LoginAccessBlock::GUARD_CUSTOMER], true)) {
+            $guard = null;
+        }
+
+        return response()->json([
+            'items' => $this->loginAccessBlocks->listActiveBlocks($guard)->values(),
+        ]);
+    }
+
+    public function unblockLoginBlock(Request $request, LoginAccessBlock $block): JsonResponse
+    {
+        $admin = $request->user('admin');
+        if ($admin === null) {
+            return response()->json(['message' => 'دسترسی مجاز نیست.'], 403);
+        }
+
+        if (! $block->is_active) {
+            return response()->json(['message' => 'این مسدودیت قبلاً رفع شده است.'], 422);
+        }
+
+        $this->loginAccessBlocks->unblock((int) $block->id, (int) $admin->id);
+
+        return response()->json(['message' => 'مسدودیت با موفقیت رفع شد.']);
     }
 
     private function storePublicAsset(UploadedFile $file, string $prefix): string

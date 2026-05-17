@@ -1366,6 +1366,143 @@
             color: #fff;
         }
 
+        .app-settings-btn--secondary {
+            background: color-mix(in oklab, var(--bg-card) 88%, var(--primary-soft));
+            border-color: color-mix(in oklab, var(--primary) 35%, var(--border));
+            color: var(--primary-dark);
+            white-space: nowrap;
+        }
+
+        .app-settings-inline-action {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.45rem;
+        }
+
+        .app-settings-inline-action input[type="number"] {
+            flex: 1 1 5.5rem;
+            min-width: 4.5rem;
+        }
+
+        .login-blocks-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(2px);
+        }
+
+        .login-blocks-overlay[hidden] {
+            display: none !important;
+        }
+
+        .login-blocks-modal {
+            width: min(100%, 44rem);
+            max-height: min(88vh, 34rem);
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 0.9rem;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.2);
+            overflow: hidden;
+        }
+
+        .login-blocks-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.75rem;
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .login-blocks-title {
+            margin: 0;
+            font-size: 0.95rem;
+            font-weight: 800;
+        }
+
+        .login-blocks-subtitle {
+            margin: 0.28rem 0 0;
+            font-size: 0.72rem;
+            color: var(--muted);
+            line-height: 1.55;
+        }
+
+        .login-blocks-body {
+            padding: 0.75rem 1rem 1rem;
+            overflow: auto;
+        }
+
+        .login-blocks-msg {
+            margin: 0 0 0.55rem;
+            font-size: 0.74rem;
+            font-weight: 650;
+        }
+
+        .login-blocks-msg.is-ok { color: var(--primary-dark); }
+        .login-blocks-msg.is-err { color: #b91c1c; }
+
+        .login-blocks-table-wrap {
+            border: 1px solid var(--border);
+            border-radius: 0.65rem;
+            overflow: auto;
+        }
+
+        .login-blocks-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.74rem;
+        }
+
+        .login-blocks-table th,
+        .login-blocks-table td {
+            padding: 0.5rem 0.55rem;
+            border-bottom: 1px solid var(--border);
+            text-align: right;
+            vertical-align: middle;
+        }
+
+        .login-blocks-table th {
+            background: color-mix(in oklab, var(--bg-card) 85%, var(--primary-soft));
+            font-weight: 800;
+            color: var(--muted);
+        }
+
+        .login-blocks-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .login-blocks-empty td {
+            text-align: center;
+            color: var(--muted);
+            padding: 1.1rem 0.55rem;
+        }
+
+        .login-blocks-unblock-btn {
+            border: 1px solid color-mix(in oklab, #16a34a 40%, var(--border));
+            background: color-mix(in oklab, #dcfce7 70%, var(--bg-card));
+            color: #166534;
+            border-radius: 0.5rem;
+            padding: 0.28rem 0.55rem;
+            font-size: 0.7rem;
+            font-weight: 750;
+            font-family: inherit;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .login-blocks-unblock-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         @media (max-width: 860px) {
             .app-settings-modal {
                 width: min(100%, 760px);
@@ -2049,6 +2186,7 @@
             </div>
         </div>
     </div>
+    @include('layouts.admin.partials.app-settings-login-blocks-modal')
     @include('layouts.partials.theme-toggle-script')
     <script>
         (function () {
@@ -2419,12 +2557,167 @@
                 @elseif(session('open_app_settings_tab') === 'financial')
                 activateSettingsTab('financial');
                 openSettings();
-                @elseif($errors->has('customer_login_two_factor_enabled') || session('open_app_settings_tab') === 'security')
+                @elseif(
+                    $errors->has('customer_login_two_factor_enabled')
+                    || $errors->has('admin_login_two_factor_enabled')
+                    || $errors->has('customer_login_session_lifetime_minutes')
+                    || $errors->has('customer_login_max_failed_attempts')
+                    || $errors->has('admin_login_session_lifetime_minutes')
+                    || $errors->has('admin_login_max_failed_attempts')
+                    || session('open_app_settings_tab') === 'security'
+                )
                 activateSettingsTab('security');
                 openSettings();
                 @else
                 activateSettingsTab('base');
                 @endif
+
+                (function initLoginBlocksManager() {
+                    var overlay = document.getElementById('login-blocks-overlay');
+                    var tbody = document.getElementById('login-blocks-tbody');
+                    var subtitle = document.getElementById('login-blocks-subtitle');
+                    var msgEl = document.getElementById('login-blocks-msg');
+                    var closeBtn = document.getElementById('login-blocks-close');
+                    var currentGuard = 'customer';
+                    var blocksIndexUrl = @json(route('admin.app-settings.login-blocks.index', [], false));
+                    var unblockUrlTemplate = @json(route('admin.app-settings.login-blocks.unblock', ['block' => '__ID__'], false));
+
+                    if (!overlay || !tbody) return;
+
+                    function csrfToken() {
+                        var meta = document.querySelector('meta[name="csrf-token"]');
+                        return meta && meta.content ? meta.content : '';
+                    }
+
+                    function setMsg(text, kind) {
+                        if (!msgEl) return;
+                        if (!text) {
+                            msgEl.hidden = true;
+                            msgEl.textContent = '';
+                            msgEl.classList.remove('is-ok', 'is-err');
+                            return;
+                        }
+                        msgEl.hidden = false;
+                        msgEl.textContent = text;
+                        msgEl.classList.remove('is-ok', 'is-err');
+                        if (kind) msgEl.classList.add(kind);
+                    }
+
+                    function guardLabel(guard) {
+                        return guard === 'admin' ? 'ورود ادمین' : 'ورود مشتری';
+                    }
+
+                    function renderRows(items) {
+                        if (!items || !items.length) {
+                            tbody.innerHTML = '<tr class="login-blocks-empty"><td colspan="5">مسدودی فعالی ثبت نشده است.</td></tr>';
+                            return;
+                        }
+
+                        tbody.innerHTML = items.map(function (item) {
+                            var ip = item.ip_address ? String(item.ip_address) : '—';
+                            return '<tr data-block-id="' + item.id + '">' +
+                                '<td dir="ltr">' + String(item.username || '') + '</td>' +
+                                '<td dir="ltr">' + ip + '</td>' +
+                                '<td>' + String(item.failed_attempts || 0) + '</td>' +
+                                '<td>' + String(item.blocked_at_label || '—') + '</td>' +
+                                '<td><button type="button" class="login-blocks-unblock-btn" data-unblock-id="' + item.id + '">رفع مسدودیت</button></td>' +
+                                '</tr>';
+                        }).join('');
+                    }
+
+                    function loadBlocks() {
+                        tbody.innerHTML = '<tr class="login-blocks-empty"><td colspan="5">در حال بارگذاری…</td></tr>';
+                        setMsg('', '');
+                        var url = blocksIndexUrl + '?guard=' + encodeURIComponent(currentGuard);
+                        fetch(url, {
+                            credentials: 'same-origin',
+                            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                        })
+                            .then(function (res) {
+                                return res.json().then(function (data) {
+                                    return { ok: res.ok, data: data };
+                                });
+                            })
+                            .then(function (r) {
+                                if (!r.ok) {
+                                    renderRows([]);
+                                    setMsg('بارگذاری لیست مسدودی‌ها ممکن نشد.', 'is-err');
+                                    return;
+                                }
+                                renderRows(r.data && r.data.items ? r.data.items : []);
+                            })
+                            .catch(function () {
+                                renderRows([]);
+                                setMsg('ارتباط با سرور برقرار نشد.', 'is-err');
+                            });
+                    }
+
+                    function openBlocksModal(guard) {
+                        currentGuard = guard === 'admin' ? 'admin' : 'customer';
+                        if (subtitle) {
+                            subtitle.textContent = 'مسدودی‌های مربوط به «' + guardLabel(currentGuard) + '».';
+                        }
+                        overlay.hidden = false;
+                        overlay.setAttribute('aria-hidden', 'false');
+                        loadBlocks();
+                    }
+
+                    function closeBlocksModal() {
+                        overlay.hidden = true;
+                        overlay.setAttribute('aria-hidden', 'true');
+                        setMsg('', '');
+                    }
+
+                    document.querySelectorAll('[data-login-blocks-open]').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            openBlocksModal(btn.getAttribute('data-login-blocks-guard') || 'customer');
+                        });
+                    });
+
+                    if (closeBtn) closeBtn.addEventListener('click', closeBlocksModal);
+                    overlay.addEventListener('click', function (ev) {
+                        if (ev.target === overlay) closeBlocksModal();
+                    });
+
+                    tbody.addEventListener('click', function (ev) {
+                        var btn = ev.target.closest('[data-unblock-id]');
+                        if (!btn) return;
+                        var blockId = btn.getAttribute('data-unblock-id');
+                        if (!blockId) return;
+                        btn.disabled = true;
+                        setMsg('در حال رفع مسدودیت…', '');
+                        var url = unblockUrlTemplate.replace('__ID__', encodeURIComponent(blockId));
+                        fetch(url, {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                Accept: 'application/json',
+                                'Content-Type': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': csrfToken(),
+                            },
+                            body: JSON.stringify({}),
+                        })
+                            .then(function (res) {
+                                return res.json().then(function (data) {
+                                    return { ok: res.ok, data: data };
+                                });
+                            })
+                            .then(function (r) {
+                                if (r.ok) {
+                                    setMsg((r.data && r.data.message) || 'مسدودیت رفع شد.', 'is-ok');
+                                    loadBlocks();
+                                    return;
+                                }
+                                setMsg((r.data && r.data.message) || 'رفع مسدودیت ممکن نشد.', 'is-err');
+                                btn.disabled = false;
+                            })
+                            .catch(function () {
+                                setMsg('ارتباط با سرور برقرار نشد.', 'is-err');
+                                btn.disabled = false;
+                            });
+                    });
+                })();
 
                 var adminLogoutConfirmText = 'شما در حال خروج از سامانه هستید. مطمئنید؟';
                 document.querySelectorAll('form[data-admin-logout-form]').forEach(function (form) {

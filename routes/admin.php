@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\AppSettingsController;
 use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
 use App\Http\Controllers\Admin\Auth\AdminDashboardController;
 use App\Http\Controllers\Admin\Auth\AdminLoginController;
+use App\Http\Controllers\Admin\Auth\AdminLoginTwoFactorController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\CustomerWalletController;
 use App\Http\Controllers\Admin\GuarantorOtpController;
@@ -46,8 +47,15 @@ Route::middleware(['guest.admin'])->group(function (): void {
     | عملیات ارسال نام کاربری، رمز و کپچا؛ برای کاهش brute-force محدودیت نرخ دقیقه‌ای اعمال شده است.
     */
     Route::post('/login', [AdminLoginController::class, 'store'])
-        ->middleware('throttle:5,1')
         ->name('login.attempt');
+
+    Route::post('/login/verify-otp', [AdminLoginTwoFactorController::class, 'verify'])
+        ->middleware('throttle:30,1')
+        ->name('login.verify-otp');
+
+    Route::post('/login/resend-otp', [AdminLoginTwoFactorController::class, 'resend'])
+        ->middleware('throttle:20,1')
+        ->name('login.resend-otp');
 
     /*
     | تصویر کپچا بدون کش با محدودیت نرخ جداگانه.
@@ -65,7 +73,7 @@ Route::middleware(['guest.admin'])->group(function (): void {
 });
 
 // --- نشست احرازشده با گارد `admin`: پس از بررسی دیتابیس و فیلد فعال بودن حساب در کنترلر ---
-Route::middleware(['auth:admin'])->group(function (): void {
+Route::middleware(['auth:admin', 'portal.session:admin'])->group(function (): void {
 
     /*
     | خروج امن؛ نوع متد POST و CSRF اجباری است تا دستکاری پیوند GET ممکن نباشد.
@@ -73,7 +81,7 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::post('/logout', [AdminLoginController::class, 'destroy'])->name('logout');
 });
 
-Route::middleware(['auth:admin', 'admin.permission'])->group(function (): void {
+Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission'])->group(function (): void {
 
     /*
     | داشبورد موقت؛ ساخت صفحه‌های واقعی سیستم اقساط در گام بعدی خواهد بود.
@@ -643,6 +651,14 @@ Route::middleware(['auth:admin', 'admin.permission'])->group(function (): void {
     Route::post('/app-settings/security', [AppSettingsController::class, 'updateSecurity'])
         ->middleware('throttle:20,1')
         ->name('app-settings.security.update');
+
+    Route::get('/app-settings/login-blocks', [AppSettingsController::class, 'loginBlocks'])
+        ->middleware('throttle:60,1')
+        ->name('app-settings.login-blocks.index');
+
+    Route::post('/app-settings/login-blocks/{block}/unblock', [AppSettingsController::class, 'unblockLoginBlock'])
+        ->middleware('throttle:30,1')
+        ->name('app-settings.login-blocks.unblock');
 
     Route::get('/users', [AdminUserController::class, 'index'])
         ->middleware('throttle:60,1')

@@ -5,26 +5,41 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\Admin;
-use App\Services\Admin\CaptchaService;
+use App\Http\Middleware\EnforcePortalSessionLifetime;
 use App\Jobs\SendAdminLoginNotifySmsJob;
+use App\Models\Admin;
+use App\Models\LoginAccessBlock;
+use App\Services\Admin\CaptchaService;
+use App\Services\Auth\AdminLoginTwoFactorService;
+use App\Services\Auth\LoginAccessBlockService;
+use App\Support\AdminLoginSecuritySettings;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
+use RuntimeException;
 
 final class AdminLoginController extends Controller
 {
-    public function create()
+    public function __construct(
+        private readonly AdminLoginTwoFactorService $loginTwoFactor,
+        private readonly LoginAccessBlockService $loginAccessBlocks,
+    ) {}
+
+    public function create(): View
     {
-        return view('admin.auth.login');
+        return view('admin.auth.login', [
+            'adminLoginTwoFactorEnabled' => AdminLoginSecuritySettings::isTwoFactorEnabled(),
+        ]);
     }
 
     /**
      * @throws ValidationException
      */
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
         $credentials = $request->validate([
             'username' => ['required', 'string', 'min:3', 'max:64', 'regex:/^[a-zA-Z0-9._-]+$/'],
@@ -39,61 +54,64 @@ final class AdminLoginController extends Controller
             'captcha.size' => 'کپچا باید ۵ کاراکتر باشد.',
         ]);
 
-        $this->ensureNotLockedOutAdminLogin($request);
+        $remember = (bool) $request->boolean('remember');
+        $username = Str::lower($credentials['username']);
+
+        $this->loginAccessBlocks->ensureLoginAllowed($request, LoginAccessBlock::GUARD_ADMIN, $username);
 
         if (! CaptchaService::validate($credentials['captcha'])) {
-            $this->hitFailedAdminLoginThrottle($request);
+            $this->loginAccessBlocks->recordFailedAttempt($request, LoginAccessBlock::GUARD_ADMIN, $username);
             throw ValidationException::withMessages([
                 'captcha' => 'کد تأیید نادرست است؛ برای کد جدید روی تصویر کلیک کنید.',
             ]);
         }
 
-        $remember = (bool) $request->boolean('remember');
+        /** @var Admin|null $admin */
+        $admin = Admin::query()->where('username', $username)->first();
 
-        $username = Str::lower($credentials['username']);
-
-        if (
-            ! Auth::guard('admin')->attempt([
-                'username' => $username,
-                'password' => $credentials['password'],
-            ], $remember)
-        ) {
-            $this->hitFailedAdminLoginThrottle($request);
+        if ($admin === null || ! Hash::check($credentials['password'], (string) $admin->password)) {
+            $this->loginAccessBlocks->recordFailedAttempt($request, LoginAccessBlock::GUARD_ADMIN, $username);
 
             throw ValidationException::withMessages([
                 'username' => 'نام کاربری یا رمز عبور اشتباه است.',
             ]);
         }
 
-        /** @var Admin $admin */
-        $admin = Auth::guard('admin')->user();
-
         if (! $admin->is_active) {
-            Auth::guard('admin')->logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
-            $this->hitFailedAdminLoginThrottle($request);
+            $this->loginAccessBlocks->recordFailedAttempt($request, LoginAccessBlock::GUARD_ADMIN, $username);
 
             throw ValidationException::withMessages([
                 'username' => 'این حساب غیرفعال است.',
             ]);
         }
 
-        RateLimiter::clear($this->throttleKeyAdminLogin($request));
+        if (AdminLoginSecuritySettings::isTwoFactorEnabled()) {
+            try {
+                $challenge = $this->loginTwoFactor->beginChallenge($admin, $request, $remember);
+            } catch (RuntimeException $e) {
+                if ($e->getMessage() === 'no_mobile') {
+                    throw ValidationException::withMessages([
+                        'username' => 'ورود دو مرحله‌ای فعال است اما شماره موبایل معتبر در پروندهٔ این ادمین ثبت نشده است.',
+                    ]);
+                }
 
-        $admin->forceFill([
-            'login_count' => (int) $admin->login_count + 1,
-            'last_login_at' => now(),
-        ])->save();
+                throw ValidationException::withMessages([
+                    'username' => $e->getMessage() !== '' && $e->getMessage() !== 'sms_failed'
+                        ? $e->getMessage()
+                        : 'ارسال پیامک ورود ممکن نشد؛ لطفاً بعداً تلاش کنید.',
+                ]);
+            }
 
-        $request->session()->regenerate();
+            return redirect()
+                ->route('admin.login')
+                ->withInput($request->only('username', 'remember'))
+                ->with('login_2fa', $challenge);
+        }
 
-        SendAdminLoginNotifySmsJob::dispatchAfterResponse((int) $admin->id);
-
-        return redirect()->intended(route('admin.dashboard'));
+        return $this->completeAdminLogin($admin, $request, $remember, $username);
     }
 
-    public function destroy(Request $request)
+    public function destroy(Request $request): RedirectResponse
     {
         Auth::guard('admin')->logout();
 
@@ -103,28 +121,21 @@ final class AdminLoginController extends Controller
         return redirect()->route('admin.login');
     }
 
-    protected function throttleKeyAdminLogin(Request $request): string
+    private function completeAdminLogin(Admin $admin, Request $request, bool $remember, string $username): RedirectResponse
     {
-        $username = Str::lower((string) $request->input('username'));
+        Auth::guard('admin')->login($admin, $remember);
+        $request->session()->regenerate();
 
-        return 'admin-login|'.sha1($username.'|'.$request->ip());
-    }
+        $this->loginAccessBlocks->clearOnSuccessfulLogin($request, LoginAccessBlock::GUARD_ADMIN, $username);
+        EnforcePortalSessionLifetime::touchSession($request, LoginAccessBlock::GUARD_ADMIN);
 
-    protected function ensureNotLockedOutAdminLogin(Request $request): void
-    {
-        $key = $this->throttleKeyAdminLogin($request);
+        $admin->forceFill([
+            'login_count' => (int) $admin->login_count + 1,
+            'last_login_at' => now(),
+        ])->save();
 
-        if (RateLimiter::tooManyAttempts($key, 15)) {
-            $seconds = RateLimiter::availableIn($key);
+        SendAdminLoginNotifySmsJob::dispatchAfterResponse((int) $admin->id);
 
-            throw ValidationException::withMessages([
-                'username' => 'تلاش زیاد؛ لطفاً '.$seconds.' ثانیه بعد دوباره تلاش کنید.',
-            ]);
-        }
-    }
-
-    protected function hitFailedAdminLoginThrottle(Request $request): void
-    {
-        RateLimiter::hit($this->throttleKeyAdminLogin($request), 60 * 5);
+        return redirect()->intended(route('admin.dashboard'));
     }
 }

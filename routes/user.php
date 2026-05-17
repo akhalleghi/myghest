@@ -27,7 +27,7 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware(['auth:customer', ShareCustomerPortalOnlinePaymentFlags::class])->group(function (): void {
+Route::middleware(['auth:customer', 'portal.session:customer', ShareCustomerPortalOnlinePaymentFlags::class])->group(function (): void {
     Route::get('/dashboard', [UserPanelController::class, 'dashboard'])->name('dashboard');
     Route::get('/loans', [UserPanelController::class, 'loans'])->name('loans.index');
     Route::get('/payment-transactions', [UserPaymentTransactionsController::class, 'index'])
