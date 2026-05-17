@@ -10,6 +10,7 @@ use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanFullSettlementOnlinePaymentIntent;
 use App\Models\CustomerLoanInstallmentOnlinePaymentIntent;
 use App\Models\CustomerLoanInstallmentPayment;
+use App\Services\Sms\PortalAdminSmsDispatcher;
 use App\Models\CustomerWallet;
 use App\Models\CustomerWalletOnlinePaymentIntent;
 use App\Models\CustomerWalletTransaction;
@@ -228,7 +229,7 @@ final class InstallmentOnlinePaymentCompletionService
         $ref = trim((string) $verify['ref_number']);
         $note = 'پرداخت آنلاین (زیبال)'.($ref !== '' ? ' — مرجع: '.$ref : '');
 
-        CustomerLoanInstallmentPayment::query()->create([
+        $payment = CustomerLoanInstallmentPayment::query()->create([
             'customer_loan_installment_id' => (int) $installment->id,
             'payment_method' => CustomerLoanInstallmentPayment::METHOD_ONLINE,
             'amount_toman' => $paidToman,
@@ -237,6 +238,8 @@ final class InstallmentOnlinePaymentCompletionService
             'note' => $note,
             'recorded_by_admin_id' => null,
         ]);
+
+        PortalAdminSmsDispatcher::afterInstallmentPayment($payment);
 
         $installment->refresh();
         $this->syncer->syncFromPaymentRows($installment);
@@ -589,6 +592,8 @@ final class InstallmentOnlinePaymentCompletionService
             'failure_reason' => null,
         ]);
         $this->ledger->syncFromFullSettlementIntent($intent->fresh());
+
+        PortalAdminSmsDispatcher::afterFullSettlement((int) $intent->customer_id, (int) $file->id, $paidToman);
 
         return $this->redirectPortalPay($this->payResultPayload(
             true,

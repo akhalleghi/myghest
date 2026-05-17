@@ -268,7 +268,7 @@
         </div>
 
         @if ($loanRequests->hasPages())
-            <div class="lrq-pagination">{{ $loanRequests->links() }}</div>
+            @include('partials.list-pagination', ['paginator' => $loanRequests])
         @endif
 
         <div id="lrq-edit-overlay" class="lrq-modal-overlay" hidden aria-hidden="true">

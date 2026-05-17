@@ -24,7 +24,7 @@ final class AdminCustomerTransactionListService
      *     date_to?: Carbon|null
      * }  $filters
      */
-    public function paginate(array $filters): LengthAwarePaginator
+    public function paginate(array $filters, ?int $perPage = null): LengthAwarePaginator
     {
         $query = CustomerTransaction::query()
             ->with(['customer:id,customer_code,first_name,last_name,mobile,national_id'])
@@ -32,7 +32,9 @@ final class AdminCustomerTransactionListService
 
         $this->applyFilters($query, $filters);
 
-        return $query->paginate(self::PER_PAGE)->withQueryString();
+        $size = $perPage ?? self::PER_PAGE;
+
+        return $query->paginate($size)->withQueryString();
     }
 
     /**

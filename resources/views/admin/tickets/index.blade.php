@@ -269,10 +269,8 @@
             </div>
         </div>
 
-        <div id="tk-pagination-wrap" class="tk-pagination">
-            @if($rows->hasPages())
-                {{ $rows->links() }}
-            @endif
+        <div id="tk-pagination-wrap">
+            @include('partials.list-pagination', ['paginator' => $rows, 'standalone' => true])
         </div>
     </div>
 

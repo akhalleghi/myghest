@@ -21,7 +21,7 @@ final class CustomerOnlinePaymentTransactionsPresenter
     /**
      * @return LengthAwarePaginator<int, array<string, mixed>>
      */
-    public function paginateForCustomer(Customer $customer, ?string $search): LengthAwarePaginator
+    public function paginateForCustomer(Customer $customer, ?string $search, int $perPage = self::PER_PAGE): LengthAwarePaginator
     {
         $query = CustomerTransaction::query()
             ->where('customer_id', (int) $customer->id)
@@ -33,7 +33,7 @@ final class CustomerOnlinePaymentTransactionsPresenter
         }
 
         return $query
-            ->paginate(self::PER_PAGE)
+            ->paginate($perPage)
             ->withQueryString()
             ->through(fn (CustomerTransaction $tx): array => $this->mapRow($tx));
     }

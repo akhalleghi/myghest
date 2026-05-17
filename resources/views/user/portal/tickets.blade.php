@@ -3,6 +3,7 @@
 @section('title', $pageTitle)
 
 @push('head')
+    @include('partials.list-pagination-styles')
     @include('partials.support-ticket-chat-styles')
     <style>
         .ut-page { width: 100%; max-width: 100%; }
@@ -68,7 +69,7 @@
         .ut-detail-att { margin-top: 0.45rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
         .ut-detail-att a { font-size: 0.74rem; font-weight: 700; color: var(--primary-dark); text-decoration: none; }
         .ut-dialog-inner--detail { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-        .ut-pagination { margin-top: 0.75rem; display: flex; gap: 0.4rem; justify-content: center; flex-wrap: wrap; }
+        .ut-pagination-wrap { margin-top: 0.75rem; }
     </style>
 @endpush
 
@@ -115,7 +116,7 @@
             <div class="ut-cards" id="ut-cards"></div>
             <div class="ut-empty" id="ut-empty" hidden>تیکتی یافت نشد.</div>
         </div>
-        <div class="ut-pagination" id="ut-pagination" hidden></div>
+        <div id="ut-pagination-wrap" class="ut-pagination-wrap" hidden></div>
     </div>
 
     <dialog id="ut-compose-dialog">

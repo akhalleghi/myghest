@@ -127,16 +127,16 @@
         @endif
 
         <div class="au-toolbar">
-            <div class="au-search">
+            <form method="get" action="{{ route('admin.users.index') }}" class="au-search">
                 <input
                     type="search"
-                    id="au-table-search"
+                    name="q"
+                    value="{{ $searchQ ?? '' }}"
                     placeholder="جستجو در نام، نام کاربری، موبایل…"
                     autocomplete="off"
                     aria-label="جستجو در جدول کاربران"
-                    aria-controls="au-users-tbody"
                 >
-            </div>
+            </form>
             <button type="button" class="au-btn-add" id="au-add-btn">
                 <i class="fa-solid fa-user-plus" aria-hidden="true"></i>
                 افزودن کاربر
@@ -217,6 +217,7 @@
                     </tbody>
                 </table>
             </div>
+            @include('partials.list-pagination', ['paginator' => $admins])
         </div>
     </div>
 
@@ -365,7 +366,6 @@
             var hiddenId = document.getElementById('au-hidden-admin-id');
             var pwd = document.getElementById('au-password');
             var pwdConf = document.getElementById('au-password-confirmation');
-            var searchInput = document.getElementById('au-table-search');
             var tbody = document.getElementById('au-users-tbody');
 
             function openModal() {
@@ -504,16 +504,6 @@
             document.addEventListener('keydown', function (e) {
                 if (e.key === 'Escape' && modal && !modal.hidden) closeModal();
             });
-
-            if (searchInput && tbody) {
-                searchInput.addEventListener('input', function () {
-                    var q = (searchInput.value || '').trim().toLowerCase();
-                    tbody.querySelectorAll('.au-row').forEach(function (row) {
-                        var blob = (row.getAttribute('data-search') || '').toLowerCase();
-                        row.classList.toggle('au-row--hidden', q !== '' && blob.indexOf(q) === -1);
-                    });
-                });
-            }
 
             if (shouldOpen) {
                 var editId = @json($auEditingId ? (int) $auEditingId : null);

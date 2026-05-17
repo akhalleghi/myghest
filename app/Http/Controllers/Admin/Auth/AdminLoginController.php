@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Admin;
 use App\Services\Admin\CaptchaService;
+use App\Jobs\SendAdminLoginNotifySmsJob;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
@@ -86,6 +87,8 @@ final class AdminLoginController extends Controller
         ])->save();
 
         $request->session()->regenerate();
+
+        SendAdminLoginNotifySmsJob::dispatchAfterResponse((int) $admin->id);
 
         return redirect()->intended(route('admin.dashboard'));
     }

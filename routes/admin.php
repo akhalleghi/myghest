@@ -572,6 +572,38 @@ Route::middleware(['auth:admin', 'admin.permission'])->group(function (): void {
         ->middleware('throttle:20,1')
         ->name('sms.reminder-settings.update');
 
+    Route::post('/sms-management/admin-login-notify', [SmsManagementController::class, 'updateAdminLoginNotifySettings'])
+        ->middleware('throttle:20,1')
+        ->name('sms.admin-login-notify.update');
+
+    Route::post('/sms-management/admin-login-self-notify', [SmsManagementController::class, 'updateAdminLoginSelfNotifySettings'])
+        ->middleware('throttle:20,1')
+        ->name('sms.admin-login-self-notify.update');
+
+    Route::post('/sms-management/customer-login-notify-admin', [SmsManagementController::class, 'updateCustomerLoginNotifyAdminSettings'])
+        ->middleware('throttle:20,1')
+        ->name('sms.customer-login-notify-admin.update');
+
+    Route::post('/sms-management/customer-installment-payment-notify-admin', [SmsManagementController::class, 'updateCustomerInstallmentPaymentNotifyAdminSettings'])
+        ->middleware('throttle:20,1')
+        ->name('sms.customer-installment-payment-notify-admin.update');
+
+    Route::post('/sms-management/customer-full-settlement-notify-admin', [SmsManagementController::class, 'updateCustomerFullSettlementNotifyAdminSettings'])
+        ->middleware('throttle:20,1')
+        ->name('sms.customer-full-settlement-notify-admin.update');
+
+    Route::post('/sms-management/customer-deposit-declaration-notify-admin', [SmsManagementController::class, 'updateCustomerDepositDeclarationNotifyAdminSettings'])
+        ->middleware('throttle:20,1')
+        ->name('sms.customer-deposit-declaration-notify-admin.update');
+
+    Route::post('/sms-management/customer-support-ticket-notify-admin', [SmsManagementController::class, 'updateCustomerSupportTicketNotifyAdminSettings'])
+        ->middleware('throttle:20,1')
+        ->name('sms.customer-support-ticket-notify-admin.update');
+
+    Route::post('/sms-management/customer-loan-request-notify-admin', [SmsManagementController::class, 'updateCustomerLoanRequestNotifyAdminSettings'])
+        ->middleware('throttle:20,1')
+        ->name('sms.customer-loan-request-notify-admin.update');
+
     Route::post('/sms-management/templates', [SmsManagementController::class, 'storeTemplate'])
         ->middleware('throttle:30,1')
         ->name('sms.templates.store');

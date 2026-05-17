@@ -3,6 +3,7 @@
 @section('title', $pageTitle)
 
 @push('head')
+    @include('partials.list-pagination-styles')
     <link rel="stylesheet" href="{{ asset('vendor/persian-datepicker/persian-datepicker.min.css') }}">
     <style>
         .dep-page {
@@ -302,9 +303,7 @@
         .dep-req { color: #dc2626; }
         .dep-file-row { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
         .dep-file-prev { max-width: 100%; max-height: 8rem; border-radius: 0.45rem; border: 1px solid var(--border); }
-        .dep-pager { display: flex; justify-content: center; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.65rem; }
-        .dep-pager a, .dep-pager span { padding: 0.28rem 0.55rem; border-radius: 0.45rem; border: 1px solid var(--border); font-size: 0.72rem; font-weight: 700; text-decoration: none; color: var(--text); }
-        .dep-pager .active { background: var(--primary-soft); border-color: var(--primary); }
+        .dep-pagination-wrap { margin-top: 0.65rem; }
         @media (max-width: 720px) {
             .dep-desktop-only { display: none !important; }
             .dep-mobile-only { display: flex !important; }
@@ -356,7 +355,7 @@
             </table>
         </div>
         <div id="dep-cards" class="dep-cards dep-mobile-only" role="list" aria-live="polite"></div>
-        <nav class="dep-pager" id="dep-pager" aria-label="صفحه‌بندی"></nav>
+        <div id="dep-pagination-wrap" class="dep-pagination-wrap" aria-label="صفحه‌بندی"></div>
     </section>
 
     <dialog id="dep-dialog" class="portal-dialog portal-dialog--wide dep-dialog--form datepicker-portal-host" aria-labelledby="dep-dialog-title">
@@ -487,9 +486,10 @@
 
             var tbody = document.getElementById('dep-tbody');
             var cardsRoot = document.getElementById('dep-cards');
-            var pager = document.getElementById('dep-pager');
+            var pagerWrap = document.getElementById('dep-pagination-wrap');
             var searchInput = document.getElementById('dep-search-q');
             var currentPage = 1;
+            var currentPerPage = 15;
             var currentQ = '';
             var depLastRows = {};
 
@@ -538,10 +538,35 @@
                     '</article>';
             }
 
+            function bindDepPagination() {
+                if (!pagerWrap) return;
+                pagerWrap.querySelectorAll('a[href]').forEach(function (link) {
+                    if (link.dataset.depPagBound === '1') return;
+                    link.dataset.depPagBound = '1';
+                    link.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        try {
+                            var u = new URL(link.href, window.location.origin);
+                            loadPage(parseInt(u.searchParams.get('page'), 10) || 1);
+                        } catch (err) { /* noop */ }
+                    });
+                });
+                pagerWrap.querySelectorAll('.mg-per-page-form select[name="per_page"]').forEach(function (sel) {
+                    if (sel.dataset.depPagBound === '1') return;
+                    sel.dataset.depPagBound = '1';
+                    sel.addEventListener('change', function (e) {
+                        e.preventDefault();
+                        currentPerPage = parseInt(String(sel.value), 10) || 15;
+                        loadPage(1);
+                    });
+                });
+            }
+
             function loadPage(page) {
                 currentPage = page || 1;
                 var u = new URL(routes.list, window.location.origin);
                 u.searchParams.set('page', String(currentPage));
+                u.searchParams.set('per_page', String(currentPerPage));
                 if (currentQ) u.searchParams.set('q', currentQ);
                 tbody.innerHTML = '<tr><td colspan="6" class="dep-empty">در حال بارگذاری…</td></tr>';
                 if (cardsRoot) cardsRoot.innerHTML = '<p class="dep-empty" style="margin:0">در حال بارگذاری…</p>';
@@ -567,7 +592,7 @@
                             }).join('');
                             if (cardsRoot) cardsRoot.innerHTML = rows.map(buildCardHtml).join('');
                         }
-                        renderPager(data.meta || {});
+                        renderPaginationBar(data.pagination_html || '', data.meta || {});
                         bindRowActions();
                     })
                     .catch(function () {
@@ -576,23 +601,15 @@
                     });
             }
 
-            function renderPager(meta) {
-                if (!pager) return;
-                var last = meta.last_page || 1;
-                var cur = meta.current_page || 1;
-                if (last <= 1) { pager.innerHTML = ''; return; }
-                var parts = [];
-                for (var p = 1; p <= last; p++) {
-                    if (p === cur) parts.push('<span class="active">' + p + '</span>');
-                    else parts.push('<a href="#" data-page="' + p + '">' + p + '</a>');
+            function renderPaginationBar(html, meta) {
+                if (!pagerWrap) return;
+                var total = meta && meta.total ? meta.total : 0;
+                if (!total) {
+                    pagerWrap.innerHTML = '';
+                    return;
                 }
-                pager.innerHTML = parts.join('');
-                pager.querySelectorAll('a[data-page]').forEach(function (a) {
-                    a.addEventListener('click', function (e) {
-                        e.preventDefault();
-                        loadPage(parseInt(a.getAttribute('data-page'), 10) || 1);
-                    });
-                });
+                pagerWrap.innerHTML = html || '';
+                bindDepPagination();
             }
 
             var adminNoteDialog = document.getElementById('dep-admin-note-dialog');

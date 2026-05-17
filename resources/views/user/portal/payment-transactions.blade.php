@@ -3,6 +3,7 @@
 @section('title', $pageTitle)
 
 @push('head')
+    @include('partials.list-pagination-styles')
     <style>
         .portal-tx {
             width: 100%;
@@ -316,17 +317,6 @@
             </form>
         </header>
 
-        <p class="portal-tx__meta">
-            @if($rows->total() > 0)
-                <span class="portal-tx__meta-count">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $rows->total()) }} مورد</span>
-                @if($rows->lastPage() > 1)
-                    — صفحه {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $rows->currentPage()) }}
-                    از {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $rows->lastPage()) }}
-                @endif
-            @else
-                موردی یافت نشد.
-            @endif
-        </p>
 
         @if($rows->isEmpty())
             <div class="portal-tx__empty">
@@ -422,26 +412,7 @@
                 @endforeach
             </div>
 
-            @if($rows->lastPage() > 1)
-                <nav class="portal-tx__pager" aria-label="صفحه‌بندی نتایج">
-                    <div class="portal-tx__pager-inner">
-                        @if($rows->onFirstPage())
-                            <span class="is-disabled">قبلی</span>
-                        @else
-                            <a href="{{ $rows->previousPageUrl() }}" rel="prev">قبلی</a>
-                        @endif
-                        <span class="portal-tx__pager-meta">
-                            صفحه {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $rows->currentPage()) }}
-                            از {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $rows->lastPage()) }}
-                        </span>
-                        @if($rows->hasMorePages())
-                            <a href="{{ $rows->nextPageUrl() }}" rel="next">بعدی</a>
-                        @else
-                            <span class="is-disabled">بعدی</span>
-                        @endif
-                    </div>
-                </nav>
-            @endif
+            @include('partials.list-pagination', ['paginator' => $rows])
         @endif
     </section>
 @endsection

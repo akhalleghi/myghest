@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\User\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Services\Sms\PortalAdminSmsDispatcher;
 use App\Services\Auth\CustomerLoginLogService;
 use App\Services\Auth\CustomerLoginTwoFactorService;
 use Illuminate\Http\JsonResponse;
@@ -74,6 +75,8 @@ final class CustomerLoginTwoFactorController extends Controller
         } catch (\Throwable $e) {
             report($e);
         }
+
+        PortalAdminSmsDispatcher::afterCustomerLogin((int) $customer->id);
 
         return response()->json([
             'message' => 'ورود با موفقیت انجام شد.',

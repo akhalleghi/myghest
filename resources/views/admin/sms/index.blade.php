@@ -130,6 +130,85 @@
         .sms-actions-item--danger:hover { background: rgba(248, 113, 113, 0.14); }
         .sms-empty { text-align: center; padding: 1.25rem; color: var(--muted); font-size: 0.84rem; }
         .sms-pagination { padding: 0.65rem 0.8rem; }
+        .sms-notify-row { width: 100%; display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: center; }
+        .sms-notify-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+        .sms-notify-pick-btn { border: 1px solid rgba(37, 99, 235, 0.35); border-radius: 0.62rem; padding: 0.45rem 0.8rem; background: var(--primary-soft); color: var(--primary-dark); font-size: 0.76rem; font-weight: 800; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 0.35rem; }
+        .sms-notify-pick-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .sms-notify-message { width: 100%; min-height: 5.5rem; resize: vertical; border: 1px solid var(--border); border-radius: 0.62rem; padding: 0.55rem 0.65rem; background: var(--bg-card); color: var(--text); font-family: inherit; font-size: 0.82rem; line-height: 1.65; }
+        .sms-notify-preview { width: 100%; border: 1px dashed var(--border); border-radius: 0.62rem; padding: 0.55rem 0.65rem; background: color-mix(in oklab, var(--bg-card) 90%, var(--primary-soft)); font-size: 0.78rem; line-height: 1.7; color: var(--text); white-space: pre-wrap; }
+        .sms-notify-patterns { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem; }
+        .sms-notify-pattern { border: 1px solid rgba(124, 58, 237, 0.28); border-radius: 999px; padding: 0.2rem 0.5rem; font-size: 0.7rem; font-weight: 700; color: #7c3aed; background: rgba(124, 58, 237, 0.1); cursor: pointer; font-family: inherit; }
+        .sms-notify-fields.sms-reminder-hidden { display: none !important; }
+        .sms-notify-hub { display: grid; gap: 0.85rem; margin-bottom: 0.85rem; }
+        .sms-notify-hub__head { border: 1px solid var(--border); border-radius: 0.85rem; padding: 0.75rem 0.9rem; background: linear-gradient(180deg, color-mix(in oklab, var(--primary-soft) 55%, var(--bg-card)), var(--bg-card)); }
+        .sms-notify-hub__title { margin: 0; font-size: 0.92rem; font-weight: 900; color: var(--text); display: inline-flex; align-items: center; gap: 0.45rem; }
+        .sms-notify-hub__lead { margin: 0.35rem 0 0; font-size: 0.74rem; color: var(--muted); line-height: 1.65; }
+        .sms-notify-block { border: 1px solid var(--border); border-radius: 0.85rem; background: var(--bg-card); overflow: hidden; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+        .sms-notify-block.is-on { border-color: rgba(37, 99, 235, 0.38); box-shadow: 0 8px 22px rgba(37, 99, 235, 0.08); }
+        html[data-theme="dark"] .sms-notify-block.is-on { box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28); }
+        .sms-notify-block__head { display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.75rem 0.9rem; border-bottom: 1px solid var(--border); background: color-mix(in oklab, var(--bg-card) 92%, var(--primary-soft)); }
+        .sms-notify-block__icon { width: 2.1rem; height: 2.1rem; border-radius: 0.62rem; display: inline-flex; align-items: center; justify-content: center; background: var(--primary-soft); color: var(--primary-dark); flex-shrink: 0; }
+        .sms-notify-block__icon--self { background: rgba(16, 185, 129, 0.14); color: #047857; }
+        html[data-theme="dark"] .sms-notify-block__icon--self { color: #6ee7b7; }
+        .sms-notify-block__icon--customer { background: rgba(245, 158, 11, 0.16); color: #b45309; }
+        html[data-theme="dark"] .sms-notify-block__icon--customer { color: #fcd34d; }
+        .sms-notify-block__icon--installment { background: rgba(99, 102, 241, 0.14); color: #4338ca; }
+        html[data-theme="dark"] .sms-notify-block__icon--installment { color: #a5b4fc; }
+        .sms-notify-block__icon--settlement { background: rgba(14, 165, 233, 0.14); color: #0369a1; }
+        html[data-theme="dark"] .sms-notify-block__icon--settlement { color: #7dd3fc; }
+        .sms-notify-block__icon--deposit { background: rgba(20, 184, 166, 0.14); color: #0f766e; }
+        html[data-theme="dark"] .sms-notify-block__icon--deposit { color: #5eead4; }
+        .sms-notify-block__icon--ticket { background: rgba(236, 72, 153, 0.12); color: #be185d; }
+        html[data-theme="dark"] .sms-notify-block__icon--ticket { color: #f9a8d4; }
+        .sms-notify-block__icon--loan-request { background: rgba(139, 92, 246, 0.14); color: #6d28d9; }
+        html[data-theme="dark"] .sms-notify-block__icon--loan-request { color: #c4b5fd; }
+        .sms-notify-block__name { margin: 0; font-size: 0.84rem; font-weight: 800; color: var(--text); }
+        .sms-notify-block__desc { margin: 0.2rem 0 0; font-size: 0.72rem; color: var(--muted); line-height: 1.55; }
+        .sms-notify-block__form { display: flex; flex-direction: column; gap: 0.65rem; padding: 0.75rem 0.9rem 0.85rem; }
+        .sms-notify-block__toggle { margin: 0; }
+        .sms-notify-block__body { display: grid; gap: 0.65rem; padding-top: 0.15rem; }
+        .sms-notify-block__foot { padding-top: 0.35rem; border-top: 1px dashed var(--border); }
+        .sms-notify-preview-label { margin: 0.45rem 0 0.25rem; font-size: 0.72rem; font-weight: 700; color: var(--muted); }
+        .sms-notify-message-field { min-width: 100%; margin: 0; }
+        .sms-mini-modal-overlay { position: fixed; inset: 0; z-index: 1400; background: rgba(15, 23, 42, 0.52); display: grid; place-items: center; padding: 0.75rem; }
+        .sms-mini-modal-overlay[hidden] { display: none !important; }
+        .sms-mini-modal { width: min(640px, 100%); max-height: min(86vh, 720px); overflow: auto; border: 1px solid var(--border); border-radius: 0.95rem; background: var(--bg-card); box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22); }
+        .sms-mini-modal--wide { width: min(760px, 100%); }
+        .sms-mini-modal-head { padding: 0.72rem 0.85rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+        .sms-mini-modal-title { margin: 0; font-size: 0.88rem; font-weight: 800; color: var(--text); }
+        .sms-mini-modal-close { width: 2rem; height: 2rem; border: 0; border-radius: 0.55rem; background: var(--primary-soft); color: var(--primary-dark); cursor: pointer; }
+        .sms-mini-modal-body { padding: 0.75rem 0.85rem 0.9rem; }
+        .sms-mini-modal-foot { padding: 0.65rem 0.85rem; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 0.45rem; justify-content: flex-end; }
+        .sms-mini-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .sms-mini-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; min-width: 28rem; }
+        .sms-mini-table th, .sms-mini-table td { padding: 0.5rem 0.62rem; border-bottom: 1px solid var(--border); text-align: start; vertical-align: middle; }
+        .sms-mini-table th { background: var(--primary-soft); font-weight: 800; white-space: nowrap; }
+        .sms-mini-table td { color: var(--muted); font-weight: 600; }
+        .sms-mini-empty { text-align: center; padding: 0.85rem; color: var(--muted); font-size: 0.78rem; }
+        .sms-mini-btn { border: 1px solid var(--border); border-radius: 0.58rem; padding: 0.42rem 0.75rem; font-size: 0.76rem; font-weight: 700; cursor: pointer; font-family: inherit; background: var(--bg-card); color: var(--text); }
+        .sms-mini-btn--pri { border: none; background: linear-gradient(180deg, var(--primary), var(--primary-dark)); color: #fff; }
+        .sms-mini-btn--danger { color: #b91c1c; border-color: rgba(239, 68, 68, 0.35); }
+        .sms-picker-toolbar { display: flex; flex-wrap: wrap; gap: 0.45rem 0.65rem; align-items: center; justify-content: space-between; margin-bottom: 0.55rem; }
+        .sms-picker-search { flex: 1 1 14rem; display: flex; align-items: center; gap: 0.45rem; border: 1px solid var(--border); border-radius: 0.62rem; padding: 0.38rem 0.55rem; background: var(--bg-card); }
+        .sms-picker-search i { color: var(--muted); font-size: 0.82rem; }
+        .sms-picker-search input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font-family: inherit; font-size: 0.8rem; outline: none; }
+        .sms-picker-count { margin: 0; font-size: 0.72rem; font-weight: 700; color: var(--muted); white-space: nowrap; }
+        .sms-picker-list { display: grid; gap: 0.4rem; max-height: min(52vh, 420px); overflow: auto; padding-inline-end: 0.15rem; }
+        .sms-picker-item { display: grid; grid-template-columns: auto 1fr auto; gap: 0.55rem 0.65rem; align-items: center; border: 1px solid var(--border); border-radius: 0.72rem; padding: 0.55rem 0.65rem; cursor: pointer; background: var(--bg-card); transition: border-color 0.12s ease, background 0.12s ease; }
+        .sms-picker-item:hover { border-color: rgba(37, 99, 235, 0.35); background: var(--primary-soft); }
+        .sms-picker-item.is-selected { border-color: rgba(37, 99, 235, 0.45); background: color-mix(in oklab, var(--primary-soft) 70%, var(--bg-card)); }
+        .sms-picker-item.is-hidden { display: none !important; }
+        .sms-picker-item input { width: 1rem; height: 1rem; accent-color: var(--primary); }
+        .sms-picker-item__name { margin: 0; font-size: 0.8rem; font-weight: 800; color: var(--text); line-height: 1.45; }
+        .sms-picker-item__username { margin: 0.1rem 0 0; font-size: 0.72rem; color: var(--muted); font-weight: 600; }
+        .sms-picker-item__mobile { margin: 0; font-size: 0.74rem; font-weight: 700; color: var(--text); direction: ltr; text-align: end; white-space: nowrap; }
+        .sms-picker-item__badge { font-size: 0.66rem; font-weight: 800; border-radius: 999px; padding: 0.16rem 0.45rem; white-space: nowrap; }
+        .sms-picker-item__badge--ok { background: rgba(16, 185, 129, 0.14); color: #047857; }
+        .sms-picker-item__badge--bad { background: rgba(239, 68, 68, 0.12); color: #b91c1c; }
+        .sms-recipient-dup-hint { display: block; margin-top: 0.15rem; font-size: 0.68rem; font-weight: 700; color: #b45309; }
+        @media (max-width: 640px) {
+            .sms-mini-modal { width: 100%; border-radius: 0.85rem; }
+        }
     </style>
 @endpush
 
@@ -274,7 +353,7 @@
                     </tbody>
                 </table>
             </div>
-            <div class="sms-pagination">{{ $logs->links() }}</div>
+            @include('partials.list-pagination', ['paginator' => $logs])
         </div>
         </section>
 
@@ -622,6 +701,9 @@
                     </button>
                 </form>
             </div>
+
+            @include('admin.sms.partials.admin-login-notify-settings')
+
         </section>
     </div>
 
@@ -810,7 +892,11 @@
                     activateTab(btn.getAttribute('data-sms-tab'));
                 });
             });
-            activateTab(@json(($errors->has('title') || $errors->has('category') || $errors->has('body')) ? 'templates' : ($errors->any() ? 'settings' : session('sms_active_tab', 'reports'))));
+            activateTab(@json(
+                ($errors->has('title') || $errors->has('category') || $errors->has('body'))
+                    ? 'templates'
+                    : (($errors->any() || session('sms_active_tab') === 'settings') ? 'settings' : session('sms_active_tab', 'reports'))
+            ));
 
             var templateOverlay = document.getElementById('sms-template-modal-overlay');
             var templateOpenBtn = document.getElementById('sms-template-open-modal');
@@ -964,6 +1050,762 @@
             if (reminderMinuteSelect) reminderMinuteSelect.addEventListener('change', syncReminderTimeValue);
             syncReminderTimeValue();
             syncReminderVisibility();
+
+            var smsAdminPickerAdmins = @json($smsAdminPickerAdmins ?? []);
+            var smsLoginNotifyAppName = @json($appDisplayName ?? 'سامانه');
+            var adminLoginEnabled = document.getElementById('sms-admin-login-enabled');
+            var adminLoginFields = document.getElementById('sms-admin-login-fields');
+            var adminLoginMessage = document.getElementById('sms-admin-login-message');
+            var adminLoginPreview = document.getElementById('sms-admin-login-preview');
+            var adminLoginRecipientInputs = document.getElementById('sms-admin-login-recipient-inputs');
+            var adminLoginRecipientCount = document.getElementById('sms-admin-login-recipient-count');
+            var recipientsModal = document.getElementById('sms-admin-recipients-modal');
+            var pickerModal = document.getElementById('sms-admin-picker-modal');
+            var recipientsTbody = document.getElementById('sms-admin-recipients-tbody');
+            var recipientsEmpty = document.getElementById('sms-admin-recipients-empty');
+            var pickerList = document.getElementById('sms-admin-picker-list');
+            var pickerSearch = document.getElementById('sms-admin-picker-search');
+            var pickerCountEl = document.getElementById('sms-admin-picker-count');
+            var pickerNoResults = document.getElementById('sms-admin-picker-no-results');
+            var notifyForm = document.getElementById('sms-admin-login-notify-form');
+            var adminLoginSelfEnabled = document.getElementById('sms-admin-login-self-enabled');
+            var adminLoginSelfFields = document.getElementById('sms-admin-self-fields');
+            var adminLoginSelfMessage = document.getElementById('sms-admin-self-message');
+            var adminLoginSelfPreview = document.getElementById('sms-admin-self-preview');
+            var notifyBlockManagers = document.getElementById('sms-notify-block-managers');
+            var notifyBlockSelf = document.getElementById('sms-notify-block-self');
+            var draftRecipientIds = [];
+            var savedRecipientIds = [];
+            var pickerSelectionIds = [];
+            var pickerSearchQuery = '';
+
+            function escNotifyHtml(s) {
+                return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            }
+            function faNotifyDigits(n) {
+                var map = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+                return String(n).replace(/\d/g, function (d) { return map[parseInt(d, 10)]; });
+            }
+            function parseInitialRecipientIds() {
+                if (!adminLoginRecipientInputs) return [];
+                return Array.from(adminLoginRecipientInputs.querySelectorAll('input[name="recipient_admin_ids[]"]'))
+                    .map(function (input) { return parseInt(input.value, 10); })
+                    .filter(function (id) { return id > 0; });
+            }
+            function adminPickerById(id) {
+                for (var i = 0; i < smsAdminPickerAdmins.length; i++) {
+                    if (smsAdminPickerAdmins[i].id === id) return smsAdminPickerAdmins[i];
+                }
+                return null;
+            }
+            function mountSmsNotifyAdminPicker(cfg) {
+                var enabledEl = document.getElementById(cfg.enabledId);
+                var fieldsEl = document.getElementById(cfg.fieldsId);
+                var blockEl = document.getElementById(cfg.blockId);
+                var messageEl = document.getElementById(cfg.messageId);
+                var previewEl = document.getElementById(cfg.previewId);
+                var recipientInputs = document.getElementById(cfg.recipientInputsId);
+                var recipientCount = document.getElementById(cfg.recipientCountId);
+                var recipientsModal = document.getElementById(cfg.recipientsModalId);
+                var pickerModal = document.getElementById(cfg.pickerModalId);
+                var recipientsTbody = document.getElementById(cfg.recipientsTbodyId);
+                var recipientsEmpty = document.getElementById(cfg.recipientsEmptyId);
+                var pickerList = document.getElementById(cfg.pickerListId);
+                var pickerSearch = document.getElementById(cfg.pickerSearchId);
+                var pickerCountEl = document.getElementById(cfg.pickerCountId);
+                var pickerNoResults = document.getElementById(cfg.pickerNoResultsId);
+                var notifyForm = document.getElementById(cfg.notifyFormId);
+                var draftIds = [];
+                var savedIds = [];
+                var pickerSelectionIds = [];
+                var pickerSearchQuery = '';
+                var hiddenInputName = cfg.hiddenInputName;
+
+                function parseInitialIds() {
+                    if (!recipientInputs) return [];
+                    return Array.from(recipientInputs.querySelectorAll('input[name="' + hiddenInputName + '"]'))
+                        .map(function (input) { return parseInt(input.value, 10); })
+                        .filter(function (id) { return id > 0; });
+                }
+                function syncFieldsVisibility() {
+                    var enabled = !!(enabledEl && enabledEl.checked);
+                    if (fieldsEl) fieldsEl.classList.toggle('sms-reminder-hidden', !enabled);
+                    syncNotifyBlockOn(blockEl, enabled);
+                }
+                function renderPreview() {
+                    if (!previewEl || !messageEl) return;
+                    var tpl = messageEl.value || '';
+                    var text = cfg.renderPreview(tpl);
+                    previewEl.textContent = text.trim() !== ''
+                        ? text.trim()
+                        : 'پیش‌نمایش متن پیامک اینجا نمایش داده می‌شود.';
+                }
+                function renderRecipientsTable(ids) {
+                    if (!recipientsTbody) return;
+                    var html = '';
+                    var mobileMap = {};
+                    ids.forEach(function (id) {
+                        var admin = adminPickerById(id);
+                        if (!admin) return;
+                        var mobileNorm = normalizeNotifyMobile(admin.mobile);
+                        var dupHint = '';
+                        if (mobileNorm) {
+                            if (mobileMap[mobileNorm]) dupHint = '<span class="sms-recipient-dup-hint">شماره تکراری با ' + escNotifyHtml(mobileMap[mobileNorm]) + '</span>';
+                            else mobileMap[mobileNorm] = admin.full_name || admin.username;
+                        }
+                        var mobileLabel = mobileNorm ? faNotifyDigits(mobileNorm) : faNotifyDigits(admin.mobile || '—');
+                        html += '<tr data-admin-id="' + id + '">'
+                            + '<td>' + escNotifyHtml(admin.full_name || '—') + '</td>'
+                            + '<td>' + escNotifyHtml(admin.username || '—') + '</td>'
+                            + '<td dir="ltr" style="text-align:end">' + escNotifyHtml(mobileLabel)
+                            + (admin.mobile_valid === false ? ' <span class="sms-picker-item__badge sms-picker-item__badge--bad">نامعتبر</span>' : '')
+                            + dupHint + '</td>'
+                            + '<td><button type="button" class="sms-mini-btn sms-mini-btn--danger" data-sms-remove-recipient="' + id + '">حذف</button></td>'
+                            + '</tr>';
+                    });
+                    recipientsTbody.innerHTML = html;
+                    if (recipientsEmpty) recipientsEmpty.hidden = ids.length > 0;
+                    recipientsTbody.querySelectorAll('[data-sms-remove-recipient]').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            var rid = parseInt(btn.getAttribute('data-sms-remove-recipient'), 10);
+                            draftIds = draftIds.filter(function (x) { return x !== rid; });
+                            renderRecipientsTable(draftIds);
+                        });
+                    });
+                }
+                function renderPickerList(selectedIds) {
+                    if (!pickerList) return;
+                    var q = (pickerSearchQuery || '').trim().toLowerCase();
+                    var visible = 0;
+                    var html = '';
+                    smsAdminPickerAdmins.forEach(function (admin) {
+                        var blob = adminSearchBlob(admin);
+                        var matches = q === '' || blob.indexOf(q) !== -1;
+                        if (!matches) return;
+                        visible += 1;
+                        var checked = selectedIds.indexOf(admin.id) !== -1;
+                        var mobileNorm = normalizeNotifyMobile(admin.mobile);
+                        var mobileShown = mobileNorm ? faNotifyDigits(mobileNorm) : faNotifyDigits(admin.mobile || '—');
+                        var badge = admin.mobile_valid
+                            ? '<span class="sms-picker-item__badge sms-picker-item__badge--ok">قابل ارسال</span>'
+                            : '<span class="sms-picker-item__badge sms-picker-item__badge--bad">موبایل نامعتبر</span>';
+                        html += '<label class="sms-picker-item' + (checked ? ' is-selected' : '') + '" data-admin-id="' + admin.id + '">'
+                            + '<input type="checkbox" value="' + admin.id + '"' + (checked ? ' checked' : '') + '>'
+                            + '<div>'
+                            + '<p class="sms-picker-item__name">' + escNotifyHtml(admin.full_name || '—') + '</p>'
+                            + '<p class="sms-picker-item__username">@' + escNotifyHtml(admin.username || '—') + '</p>'
+                            + '</div>'
+                            + '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.2rem">'
+                            + '<p class="sms-picker-item__mobile">' + escNotifyHtml(mobileShown) + '</p>'
+                            + badge
+                            + '</div>'
+                            + '</label>';
+                    });
+                    pickerList.innerHTML = html;
+                    if (pickerNoResults) pickerNoResults.hidden = visible > 0;
+                    if (pickerCountEl) {
+                        pickerCountEl.textContent = faNotifyDigits(visible) + ' مورد نمایش · ' + faNotifyDigits(selectedIds.length) + ' انتخاب‌شده';
+                    }
+                    pickerList.querySelectorAll('.sms-picker-item input[type="checkbox"]').forEach(function (cb) {
+                        cb.addEventListener('change', function () {
+                            var id = parseInt(cb.value, 10);
+                            if (!id) return;
+                            if (cb.checked) {
+                                if (pickerSelectionIds.indexOf(id) === -1) pickerSelectionIds.push(id);
+                            } else {
+                                pickerSelectionIds = pickerSelectionIds.filter(function (x) { return x !== id; });
+                            }
+                            var label = cb.closest('.sms-picker-item');
+                            if (label) label.classList.toggle('is-selected', cb.checked);
+                            if (pickerCountEl) {
+                                pickerCountEl.textContent = faNotifyDigits(visible) + ' مورد نمایش · ' + faNotifyDigits(pickerSelectionIds.length) + ' انتخاب‌شده';
+                            }
+                        });
+                    });
+                }
+                function syncHiddenInputs(ids) {
+                    if (!recipientInputs) return;
+                    recipientInputs.innerHTML = ids.map(function (id) {
+                        return '<input type="hidden" name="' + hiddenInputName + '" value="' + id + '">';
+                    }).join('');
+                    if (recipientCount) {
+                        recipientCount.textContent = '(' + faNotifyDigits(ids.length) + ')';
+                    }
+                }
+
+                savedIds = parseInitialIds();
+                draftIds = savedIds.slice();
+                syncFieldsVisibility();
+                renderPreview();
+
+                if (enabledEl) enabledEl.addEventListener('change', syncFieldsVisibility);
+                if (messageEl) messageEl.addEventListener('input', renderPreview);
+                document.querySelectorAll(cfg.patternSelector).forEach(function (chip) {
+                    chip.addEventListener('click', function () {
+                        if (!messageEl) return;
+                        var token = chip.getAttribute(cfg.patternDataAttr) || '';
+                        var start = messageEl.selectionStart || 0;
+                        var end = messageEl.selectionEnd || 0;
+                        var val = messageEl.value || '';
+                        messageEl.value = val.slice(0, start) + token + val.slice(end);
+                        messageEl.focus();
+                        renderPreview();
+                    });
+                });
+                var openRecipientsBtn = document.getElementById(cfg.openRecipientsBtnId);
+                if (openRecipientsBtn) {
+                    openRecipientsBtn.addEventListener('click', function () {
+                        draftIds = savedIds.slice();
+                        renderRecipientsTable(draftIds);
+                        openNotifyModal(recipientsModal);
+                    });
+                }
+                var openPickerBtn = document.getElementById(cfg.openPickerBtnId);
+                if (openPickerBtn) {
+                    openPickerBtn.addEventListener('click', function () {
+                        pickerSearchQuery = '';
+                        if (pickerSearch) pickerSearch.value = '';
+                        pickerSelectionIds = draftIds.slice();
+                        renderPickerList(pickerSelectionIds);
+                        openNotifyModal(pickerModal);
+                    });
+                }
+                if (pickerSearch) {
+                    pickerSearch.addEventListener('input', function () {
+                        pickerSearchQuery = pickerSearch.value || '';
+                        renderPickerList(pickerSelectionIds);
+                    });
+                }
+                var pickerApplyBtn = document.getElementById(cfg.pickerApplyBtnId);
+                if (pickerApplyBtn) {
+                    pickerApplyBtn.addEventListener('click', function () {
+                        draftIds = pickerSelectionIds.slice().filter(function (id, idx, arr) {
+                            return id > 0 && arr.indexOf(id) === idx;
+                        });
+                        renderRecipientsTable(draftIds);
+                        syncHiddenInputs(draftIds);
+                        closeNotifyModal(pickerModal);
+                    });
+                }
+                var recipientsSaveBtn = document.getElementById(cfg.recipientsSaveBtnId);
+                if (recipientsSaveBtn) {
+                    recipientsSaveBtn.addEventListener('click', function () {
+                        savedIds = draftIds.slice();
+                        syncHiddenInputs(savedIds);
+                        closeNotifyModal(recipientsModal);
+                    });
+                }
+                if (notifyForm) {
+                    notifyForm.addEventListener('submit', function () {
+                        var ids = draftIds.length ? draftIds : savedIds;
+                        syncHiddenInputs(ids);
+                    });
+                }
+                document.querySelectorAll('[' + cfg.modalCloseAttr + ']').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        var which = btn.getAttribute(cfg.modalCloseAttr);
+                        if (which === 'recipients') {
+                            draftIds = savedIds.slice();
+                            closeNotifyModal(recipientsModal);
+                        } else if (which === 'picker') {
+                            closeNotifyModal(pickerModal);
+                        }
+                    });
+                });
+                [recipientsModal, pickerModal].forEach(function (overlay) {
+                    if (!overlay) return;
+                    overlay.addEventListener('click', function (event) {
+                        if (event.target !== overlay) return;
+                        if (overlay.id === cfg.recipientsModalId) {
+                            draftIds = savedIds.slice();
+                        }
+                        overlay.hidden = true;
+                    });
+                });
+            }
+            function syncNotifyBlockOn(blockEl, enabled) {
+                if (blockEl) blockEl.classList.toggle('is-on', !!enabled);
+            }
+            function syncAdminLoginFieldsVisibility() {
+                var enabled = !!(adminLoginEnabled && adminLoginEnabled.checked);
+                if (adminLoginFields) {
+                    adminLoginFields.classList.toggle('sms-reminder-hidden', !enabled);
+                }
+                syncNotifyBlockOn(notifyBlockManagers, enabled);
+            }
+            function syncAdminLoginSelfFieldsVisibility() {
+                var enabled = !!(adminLoginSelfEnabled && adminLoginSelfEnabled.checked);
+                if (adminLoginSelfFields) {
+                    adminLoginSelfFields.classList.toggle('sms-reminder-hidden', !enabled);
+                }
+                syncNotifyBlockOn(notifyBlockSelf, enabled);
+            }
+            function renderAdminLoginPreview() {
+                if (!adminLoginPreview || !adminLoginMessage) return;
+                var tpl = adminLoginMessage.value || '';
+                var text = tpl
+                    .replace(/\{admin_full_name\}/g, 'علی احمدی')
+                    .replace(/\{admin_name\}/g, 'علی احمدی')
+                    .replace(/\{admin_first_name\}/g, 'علی')
+                    .replace(/\{admin_last_name\}/g, 'احمدی')
+                    .replace(/\{admin_username\}/g, 'admin.demo')
+                    .replace(/\{app_name\}/g, smsLoginNotifyAppName);
+                adminLoginPreview.textContent = text.trim() !== ''
+                    ? text.trim()
+                    : 'پیش‌نمایش متن پیامک اینجا نمایش داده می‌شود.';
+            }
+            function renderAdminLoginSelfPreview() {
+                if (!adminLoginSelfPreview || !adminLoginSelfMessage) return;
+                var tpl = adminLoginSelfMessage.value || '';
+                var text = tpl
+                    .replace(/\{admin_full_name\}/g, 'علی احمدی')
+                    .replace(/\{admin_name\}/g, 'علی احمدی')
+                    .replace(/\{admin_first_name\}/g, 'علی')
+                    .replace(/\{admin_last_name\}/g, 'احمدی')
+                    .replace(/\{admin_username\}/g, 'admin.demo')
+                    .replace(/\{app_name\}/g, smsLoginNotifyAppName);
+                adminLoginSelfPreview.textContent = text.trim() !== ''
+                    ? text.trim()
+                    : 'پیش‌نمایش متن پیامک اینجا نمایش داده می‌شود.';
+            }
+            function normalizeNotifyMobile(raw) {
+                var digits = String(raw || '').replace(/\D+/g, '');
+                if (digits.indexOf('98') === 0 && digits.length === 12) digits = '0' + digits.slice(2);
+                if (digits.charAt(0) === '9' && digits.length === 10) digits = '0' + digits;
+                return /^09\d{9}$/.test(digits) ? digits : '';
+            }
+            function adminSearchBlob(admin) {
+                return [
+                    admin.full_name || '',
+                    admin.username || '',
+                    admin.mobile || '',
+                    normalizeNotifyMobile(admin.mobile),
+                ].join(' ').toLowerCase();
+            }
+            function renderRecipientsTable(ids) {
+                if (!recipientsTbody) return;
+                var html = '';
+                var mobileMap = {};
+                ids.forEach(function (id) {
+                    var admin = adminPickerById(id);
+                    if (!admin) return;
+                    var mobileNorm = normalizeNotifyMobile(admin.mobile);
+                    var dupHint = '';
+                    if (mobileNorm) {
+                        if (mobileMap[mobileNorm]) dupHint = '<span class="sms-recipient-dup-hint">شماره تکراری با ' + escNotifyHtml(mobileMap[mobileNorm]) + '</span>';
+                        else mobileMap[mobileNorm] = admin.full_name || admin.username;
+                    }
+                    var mobileLabel = mobileNorm ? faNotifyDigits(mobileNorm) : faNotifyDigits(admin.mobile || '—');
+                    html += '<tr data-admin-id="' + id + '">'
+                        + '<td>' + escNotifyHtml(admin.full_name || '—') + '</td>'
+                        + '<td>' + escNotifyHtml(admin.username || '—') + '</td>'
+                        + '<td dir="ltr" style="text-align:end">' + escNotifyHtml(mobileLabel)
+                        + (admin.mobile_valid === false ? ' <span class="sms-picker-item__badge sms-picker-item__badge--bad">نامعتبر</span>' : '')
+                        + dupHint + '</td>'
+                        + '<td><button type="button" class="sms-mini-btn sms-mini-btn--danger" data-sms-remove-recipient="' + id + '">حذف</button></td>'
+                        + '</tr>';
+                });
+                recipientsTbody.innerHTML = html;
+                if (recipientsEmpty) recipientsEmpty.hidden = ids.length > 0;
+                recipientsTbody.querySelectorAll('[data-sms-remove-recipient]').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        var rid = parseInt(btn.getAttribute('data-sms-remove-recipient'), 10);
+                        draftRecipientIds = draftRecipientIds.filter(function (x) { return x !== rid; });
+                        renderRecipientsTable(draftRecipientIds);
+                    });
+                });
+            }
+            function renderPickerList(selectedIds) {
+                if (!pickerList) return;
+                var q = (pickerSearchQuery || '').trim().toLowerCase();
+                var visible = 0;
+                var html = '';
+                smsAdminPickerAdmins.forEach(function (admin) {
+                    var blob = adminSearchBlob(admin);
+                    var matches = q === '' || blob.indexOf(q) !== -1;
+                    if (!matches) return;
+                    visible += 1;
+                    var checked = selectedIds.indexOf(admin.id) !== -1;
+                    var mobileNorm = normalizeNotifyMobile(admin.mobile);
+                    var mobileShown = mobileNorm ? faNotifyDigits(mobileNorm) : faNotifyDigits(admin.mobile || '—');
+                    var badge = admin.mobile_valid
+                        ? '<span class="sms-picker-item__badge sms-picker-item__badge--ok">قابل ارسال</span>'
+                        : '<span class="sms-picker-item__badge sms-picker-item__badge--bad">موبایل نامعتبر</span>';
+                    html += '<label class="sms-picker-item' + (checked ? ' is-selected' : '') + '" data-admin-id="' + admin.id + '">'
+                        + '<input type="checkbox" value="' + admin.id + '"' + (checked ? ' checked' : '') + '>'
+                        + '<div>'
+                        + '<p class="sms-picker-item__name">' + escNotifyHtml(admin.full_name || '—') + '</p>'
+                        + '<p class="sms-picker-item__username">@' + escNotifyHtml(admin.username || '—') + '</p>'
+                        + '</div>'
+                        + '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.2rem">'
+                        + '<p class="sms-picker-item__mobile">' + escNotifyHtml(mobileShown) + '</p>'
+                        + badge
+                        + '</div>'
+                        + '</label>';
+                });
+                pickerList.innerHTML = html;
+                if (pickerNoResults) pickerNoResults.hidden = visible > 0;
+                if (pickerCountEl) {
+                    pickerCountEl.textContent = faNotifyDigits(visible) + ' مورد نمایش · ' + faNotifyDigits(selectedIds.length) + ' انتخاب‌شده';
+                }
+                pickerList.querySelectorAll('.sms-picker-item input[type="checkbox"]').forEach(function (cb) {
+                    cb.addEventListener('change', function () {
+                        var id = parseInt(cb.value, 10);
+                        if (!id) return;
+                        if (cb.checked) {
+                            if (pickerSelectionIds.indexOf(id) === -1) pickerSelectionIds.push(id);
+                        } else {
+                            pickerSelectionIds = pickerSelectionIds.filter(function (x) { return x !== id; });
+                        }
+                        var label = cb.closest('.sms-picker-item');
+                        if (label) label.classList.toggle('is-selected', cb.checked);
+                        if (pickerCountEl) {
+                            pickerCountEl.textContent = faNotifyDigits(visible) + ' مورد نمایش · ' + faNotifyDigits(pickerSelectionIds.length) + ' انتخاب‌شده';
+                        }
+                    });
+                });
+            }
+            function syncRecipientHiddenInputs(ids) {
+                if (!adminLoginRecipientInputs) return;
+                adminLoginRecipientInputs.innerHTML = ids.map(function (id) {
+                    return '<input type="hidden" name="recipient_admin_ids[]" value="' + id + '">';
+                }).join('');
+                if (adminLoginRecipientCount) {
+                    adminLoginRecipientCount.textContent = '(' + faNotifyDigits(ids.length) + ')';
+                }
+            }
+            function openNotifyModal(el) { if (el) el.hidden = false; }
+            function closeNotifyModal(el) { if (el) el.hidden = true; }
+
+            savedRecipientIds = parseInitialRecipientIds();
+            draftRecipientIds = savedRecipientIds.slice();
+            syncAdminLoginFieldsVisibility();
+            syncAdminLoginSelfFieldsVisibility();
+            renderAdminLoginPreview();
+            renderAdminLoginSelfPreview();
+
+            if (adminLoginEnabled) {
+                adminLoginEnabled.addEventListener('change', syncAdminLoginFieldsVisibility);
+            }
+            if (adminLoginSelfEnabled) {
+                adminLoginSelfEnabled.addEventListener('change', syncAdminLoginSelfFieldsVisibility);
+            }
+            if (adminLoginMessage) {
+                adminLoginMessage.addEventListener('input', renderAdminLoginPreview);
+            }
+            if (adminLoginSelfMessage) {
+                adminLoginSelfMessage.addEventListener('input', renderAdminLoginSelfPreview);
+            }
+            document.querySelectorAll('[data-sms-login-pattern]').forEach(function (chip) {
+                chip.addEventListener('click', function () {
+                    if (!adminLoginMessage) return;
+                    var token = chip.getAttribute('data-sms-login-pattern') || '';
+                    var start = adminLoginMessage.selectionStart || 0;
+                    var end = adminLoginMessage.selectionEnd || 0;
+                    var val = adminLoginMessage.value || '';
+                    adminLoginMessage.value = val.slice(0, start) + token + val.slice(end);
+                    adminLoginMessage.focus();
+                    renderAdminLoginPreview();
+                });
+            });
+            document.querySelectorAll('[data-sms-self-pattern]').forEach(function (chip) {
+                chip.addEventListener('click', function () {
+                    if (!adminLoginSelfMessage) return;
+                    var token = chip.getAttribute('data-sms-self-pattern') || '';
+                    var start = adminLoginSelfMessage.selectionStart || 0;
+                    var end = adminLoginSelfMessage.selectionEnd || 0;
+                    var val = adminLoginSelfMessage.value || '';
+                    adminLoginSelfMessage.value = val.slice(0, start) + token + val.slice(end);
+                    adminLoginSelfMessage.focus();
+                    renderAdminLoginSelfPreview();
+                });
+            });
+            var openRecipientsBtn = document.getElementById('sms-admin-login-open-recipients');
+            if (openRecipientsBtn) {
+                openRecipientsBtn.addEventListener('click', function () {
+                    draftRecipientIds = savedRecipientIds.slice();
+                    renderRecipientsTable(draftRecipientIds);
+                    openNotifyModal(recipientsModal);
+                });
+            }
+            var openPickerBtn = document.getElementById('sms-admin-open-picker');
+            if (openPickerBtn) {
+                openPickerBtn.addEventListener('click', function () {
+                    pickerSearchQuery = '';
+                    if (pickerSearch) pickerSearch.value = '';
+                    pickerSelectionIds = draftRecipientIds.slice();
+                    renderPickerList(pickerSelectionIds);
+                    openNotifyModal(pickerModal);
+                });
+            }
+            if (pickerSearch) {
+                pickerSearch.addEventListener('input', function () {
+                    pickerSearchQuery = pickerSearch.value || '';
+                    renderPickerList(pickerSelectionIds);
+                });
+            }
+            var pickerApplyBtn = document.getElementById('sms-admin-picker-apply');
+            if (pickerApplyBtn) {
+                pickerApplyBtn.addEventListener('click', function () {
+                    draftRecipientIds = pickerSelectionIds.slice().filter(function (id, idx, arr) {
+                        return id > 0 && arr.indexOf(id) === idx;
+                    });
+                    renderRecipientsTable(draftRecipientIds);
+                    syncRecipientHiddenInputs(draftRecipientIds);
+                    closeNotifyModal(pickerModal);
+                });
+            }
+            var recipientsSaveBtn = document.getElementById('sms-admin-recipients-save');
+            if (recipientsSaveBtn) {
+                recipientsSaveBtn.addEventListener('click', function () {
+                    savedRecipientIds = draftRecipientIds.slice();
+                    syncRecipientHiddenInputs(savedRecipientIds);
+                    closeNotifyModal(recipientsModal);
+                });
+            }
+            if (notifyForm) {
+                notifyForm.addEventListener('submit', function () {
+                    var ids = draftRecipientIds.length ? draftRecipientIds : savedRecipientIds;
+                    syncRecipientHiddenInputs(ids);
+                });
+            }
+            document.querySelectorAll('[data-sms-admin-modal-close]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var which = btn.getAttribute('data-sms-admin-modal-close');
+                    if (which === 'recipients') {
+                        draftRecipientIds = savedRecipientIds.slice();
+                        closeNotifyModal(recipientsModal);
+                    } else if (which === 'picker') {
+                        closeNotifyModal(pickerModal);
+                    }
+                });
+            });
+            [recipientsModal, pickerModal].forEach(function (overlay) {
+                if (!overlay) return;
+                overlay.addEventListener('click', function (event) {
+                    if (event.target !== overlay) return;
+                    if (overlay.id === 'sms-admin-recipients-modal') {
+                        draftRecipientIds = savedRecipientIds.slice();
+                    }
+                    overlay.hidden = true;
+                });
+            });
+
+            mountSmsNotifyAdminPicker({
+                enabledId: 'sms-customer-installment-payment-notify-enabled',
+                fieldsId: 'sms-customer-installment-payment-notify-fields',
+                blockId: 'sms-notify-block-customer-installment-payment',
+                messageId: 'sms-customer-installment-payment-notify-message',
+                previewId: 'sms-customer-installment-payment-notify-preview',
+                recipientInputsId: 'sms-customer-installment-payment-notify-recipient-inputs',
+                recipientCountId: 'sms-customer-installment-payment-notify-recipient-count',
+                hiddenInputName: 'customer_installment_payment_recipient_admin_ids[]',
+                recipientsModalId: 'sms-customer-installment-payment-recipients-modal',
+                pickerModalId: 'sms-customer-installment-payment-picker-modal',
+                recipientsTbodyId: 'sms-customer-installment-payment-recipients-tbody',
+                recipientsEmptyId: 'sms-customer-installment-payment-recipients-empty',
+                pickerListId: 'sms-customer-installment-payment-picker-list',
+                pickerSearchId: 'sms-customer-installment-payment-picker-search',
+                pickerCountId: 'sms-customer-installment-payment-picker-count',
+                pickerNoResultsId: 'sms-customer-installment-payment-picker-no-results',
+                openRecipientsBtnId: 'sms-customer-installment-payment-notify-open-recipients',
+                openPickerBtnId: 'sms-customer-installment-payment-open-picker',
+                pickerApplyBtnId: 'sms-customer-installment-payment-picker-apply',
+                recipientsSaveBtnId: 'sms-customer-installment-payment-recipients-save',
+                notifyFormId: 'sms-customer-installment-payment-notify-form',
+                modalCloseAttr: 'data-sms-customer-installment-payment-modal-close',
+                patternDataAttr: 'data-sms-customer-installment-payment-pattern',
+                patternSelector: '[data-sms-customer-installment-payment-pattern]',
+                renderPreview: function (tpl) {
+                    return tpl
+                        .replace(/\{customer_full_name\}/g, 'رضا محمدی')
+                        .replace(/\{customer_name\}/g, 'رضا محمدی')
+                        .replace(/\{customer_first_name\}/g, 'رضا')
+                        .replace(/\{customer_last_name\}/g, 'محمدی')
+                        .replace(/\{customer_username\}/g, '1234567890')
+                        .replace(/\{installment_number\}/g, '۳')
+                        .replace(/\{installment_sequence\}/g, '۳')
+                        .replace(/\{installment_amount\}/g, '۱,۲۵۰,۰۰۰')
+                        .replace(/\{installment_amount_toman\}/g, '۱,۲۵۰,۰۰۰')
+                        .replace(/\{loan_number\}/g, 'LN-۱۰۲۴')
+                        .replace(/\{loan_code\}/g, 'LN-۱۰۲۴')
+                        .replace(/\{app_name\}/g, smsLoginNotifyAppName);
+                }
+            });
+
+            mountSmsNotifyAdminPicker({
+                enabledId: 'sms-customer-login-notify-enabled',
+                fieldsId: 'sms-customer-login-notify-fields',
+                blockId: 'sms-notify-block-customer-login',
+                messageId: 'sms-customer-login-notify-message',
+                previewId: 'sms-customer-login-notify-preview',
+                recipientInputsId: 'sms-customer-login-notify-recipient-inputs',
+                recipientCountId: 'sms-customer-login-notify-recipient-count',
+                hiddenInputName: 'customer_login_recipient_admin_ids[]',
+                recipientsModalId: 'sms-customer-login-recipients-modal',
+                pickerModalId: 'sms-customer-login-picker-modal',
+                recipientsTbodyId: 'sms-customer-login-recipients-tbody',
+                recipientsEmptyId: 'sms-customer-login-recipients-empty',
+                pickerListId: 'sms-customer-login-picker-list',
+                pickerSearchId: 'sms-customer-login-picker-search',
+                pickerCountId: 'sms-customer-login-picker-count',
+                pickerNoResultsId: 'sms-customer-login-picker-no-results',
+                openRecipientsBtnId: 'sms-customer-login-notify-open-recipients',
+                openPickerBtnId: 'sms-customer-login-open-picker',
+                pickerApplyBtnId: 'sms-customer-login-picker-apply',
+                recipientsSaveBtnId: 'sms-customer-login-recipients-save',
+                notifyFormId: 'sms-customer-login-notify-form',
+                modalCloseAttr: 'data-sms-customer-login-modal-close',
+                patternDataAttr: 'data-sms-customer-login-pattern',
+                patternSelector: '[data-sms-customer-login-pattern]',
+                renderPreview: function (tpl) {
+                    return tpl
+                        .replace(/\{customer_full_name\}/g, 'رضا محمدی')
+                        .replace(/\{customer_name\}/g, 'رضا محمدی')
+                        .replace(/\{customer_first_name\}/g, 'رضا')
+                        .replace(/\{customer_last_name\}/g, 'محمدی')
+                        .replace(/\{customer_username\}/g, '1234567890')
+                        .replace(/\{app_name\}/g, smsLoginNotifyAppName);
+                }
+            });
+
+            [
+                {
+                    enabledId: 'sms-customer-full-settlement-notify-enabled',
+                    fieldsId: 'sms-customer-full-settlement-notify-fields',
+                    blockId: 'sms-notify-block-full-settlement',
+                    messageId: 'sms-customer-full-settlement-notify-message',
+                    previewId: 'sms-customer-full-settlement-notify-preview',
+                    recipientInputsId: 'sms-customer-full-settlement-notify-recipient-inputs',
+                    recipientCountId: 'sms-customer-full-settlement-notify-recipient-count',
+                    hiddenInputName: 'customer_full_settlement_recipient_admin_ids[]',
+                    recipientsModalId: 'sms-customer-full-settlement-recipients-modal',
+                    pickerModalId: 'sms-customer-full-settlement-picker-modal',
+                    recipientsTbodyId: 'sms-customer-full-settlement-recipients-tbody',
+                    recipientsEmptyId: 'sms-customer-full-settlement-recipients-empty',
+                    pickerListId: 'sms-customer-full-settlement-picker-list',
+                    pickerSearchId: 'sms-customer-full-settlement-picker-search',
+                    pickerCountId: 'sms-customer-full-settlement-picker-count',
+                    pickerNoResultsId: 'sms-customer-full-settlement-picker-no-results',
+                    openRecipientsBtnId: 'sms-customer-full-settlement-notify-open-recipients',
+                    openPickerBtnId: 'sms-customer-full-settlement-open-picker',
+                    pickerApplyBtnId: 'sms-customer-full-settlement-picker-apply',
+                    recipientsSaveBtnId: 'sms-customer-full-settlement-recipients-save',
+                    notifyFormId: 'sms-customer-full-settlement-notify-form',
+                    modalCloseAttr: 'data-sms-customer-full-settlement-modal-close',
+                    patternDataAttr: 'data-sms-customer-full-settlement-pattern',
+                    patternSelector: '[data-sms-customer-full-settlement-pattern]',
+                    renderPreview: function (tpl) {
+                        return tpl
+                            .replace(/\{customer_full_name\}/g, 'رضا محمدی')
+                            .replace(/\{loan_number\}/g, 'LN-۱۰۲۴')
+                            .replace(/\{settlement_amount\}/g, '۱۵,۰۰۰,۰۰۰')
+                            .replace(/\{app_name\}/g, smsLoginNotifyAppName);
+                    }
+                },
+                {
+                    enabledId: 'sms-customer-deposit-declaration-notify-enabled',
+                    fieldsId: 'sms-customer-deposit-declaration-notify-fields',
+                    blockId: 'sms-notify-block-deposit-declaration',
+                    messageId: 'sms-customer-deposit-declaration-notify-message',
+                    previewId: 'sms-customer-deposit-declaration-notify-preview',
+                    recipientInputsId: 'sms-customer-deposit-declaration-notify-recipient-inputs',
+                    recipientCountId: 'sms-customer-deposit-declaration-notify-recipient-count',
+                    hiddenInputName: 'customer_deposit_declaration_recipient_admin_ids[]',
+                    recipientsModalId: 'sms-customer-deposit-declaration-recipients-modal',
+                    pickerModalId: 'sms-customer-deposit-declaration-picker-modal',
+                    recipientsTbodyId: 'sms-customer-deposit-declaration-recipients-tbody',
+                    recipientsEmptyId: 'sms-customer-deposit-declaration-recipients-empty',
+                    pickerListId: 'sms-customer-deposit-declaration-picker-list',
+                    pickerSearchId: 'sms-customer-deposit-declaration-picker-search',
+                    pickerCountId: 'sms-customer-deposit-declaration-picker-count',
+                    pickerNoResultsId: 'sms-customer-deposit-declaration-picker-no-results',
+                    openRecipientsBtnId: 'sms-customer-deposit-declaration-notify-open-recipients',
+                    openPickerBtnId: 'sms-customer-deposit-declaration-open-picker',
+                    pickerApplyBtnId: 'sms-customer-deposit-declaration-picker-apply',
+                    recipientsSaveBtnId: 'sms-customer-deposit-declaration-recipients-save',
+                    notifyFormId: 'sms-customer-deposit-declaration-notify-form',
+                    modalCloseAttr: 'data-sms-customer-deposit-declaration-modal-close',
+                    patternDataAttr: 'data-sms-customer-deposit-declaration-pattern',
+                    patternSelector: '[data-sms-customer-deposit-declaration-pattern]',
+                    renderPreview: function (tpl) {
+                        return tpl
+                            .replace(/\{customer_full_name\}/g, 'رضا محمدی')
+                            .replace(/\{installment_number\}/g, '۲')
+                            .replace(/\{deposit_amount\}/g, '۸۵۰,۰۰۰')
+                            .replace(/\{loan_number\}/g, 'LN-۱۰۲۴')
+                            .replace(/\{payment_method\}/g, 'واریز بانکی')
+                            .replace(/\{app_name\}/g, smsLoginNotifyAppName);
+                    }
+                },
+                {
+                    enabledId: 'sms-customer-support-ticket-notify-enabled',
+                    fieldsId: 'sms-customer-support-ticket-notify-fields',
+                    blockId: 'sms-notify-block-support-ticket',
+                    messageId: 'sms-customer-support-ticket-notify-message',
+                    previewId: 'sms-customer-support-ticket-notify-preview',
+                    recipientInputsId: 'sms-customer-support-ticket-notify-recipient-inputs',
+                    recipientCountId: 'sms-customer-support-ticket-notify-recipient-count',
+                    hiddenInputName: 'customer_support_ticket_recipient_admin_ids[]',
+                    recipientsModalId: 'sms-customer-support-ticket-recipients-modal',
+                    pickerModalId: 'sms-customer-support-ticket-picker-modal',
+                    recipientsTbodyId: 'sms-customer-support-ticket-recipients-tbody',
+                    recipientsEmptyId: 'sms-customer-support-ticket-recipients-empty',
+                    pickerListId: 'sms-customer-support-ticket-picker-list',
+                    pickerSearchId: 'sms-customer-support-ticket-picker-search',
+                    pickerCountId: 'sms-customer-support-ticket-picker-count',
+                    pickerNoResultsId: 'sms-customer-support-ticket-picker-no-results',
+                    openRecipientsBtnId: 'sms-customer-support-ticket-notify-open-recipients',
+                    openPickerBtnId: 'sms-customer-support-ticket-open-picker',
+                    pickerApplyBtnId: 'sms-customer-support-ticket-picker-apply',
+                    recipientsSaveBtnId: 'sms-customer-support-ticket-recipients-save',
+                    notifyFormId: 'sms-customer-support-ticket-notify-form',
+                    modalCloseAttr: 'data-sms-customer-support-ticket-modal-close',
+                    patternDataAttr: 'data-sms-customer-support-ticket-pattern',
+                    patternSelector: '[data-sms-customer-support-ticket-pattern]',
+                    renderPreview: function (tpl) {
+                        return tpl
+                            .replace(/\{customer_full_name\}/g, 'رضا محمدی')
+                            .replace(/\{ticket_subject\}/g, 'مشکل ورود به پنل')
+                            .replace(/\{ticket_id\}/g, '۱۲۴')
+                            .replace(/\{app_name\}/g, smsLoginNotifyAppName);
+                    }
+                },
+                {
+                    enabledId: 'sms-customer-loan-request-notify-enabled',
+                    fieldsId: 'sms-customer-loan-request-notify-fields',
+                    blockId: 'sms-notify-block-loan-request',
+                    messageId: 'sms-customer-loan-request-notify-message',
+                    previewId: 'sms-customer-loan-request-notify-preview',
+                    recipientInputsId: 'sms-customer-loan-request-notify-recipient-inputs',
+                    recipientCountId: 'sms-customer-loan-request-notify-recipient-count',
+                    hiddenInputName: 'customer_loan_request_recipient_admin_ids[]',
+                    recipientsModalId: 'sms-customer-loan-request-recipients-modal',
+                    pickerModalId: 'sms-customer-loan-request-picker-modal',
+                    recipientsTbodyId: 'sms-customer-loan-request-recipients-tbody',
+                    recipientsEmptyId: 'sms-customer-loan-request-recipients-empty',
+                    pickerListId: 'sms-customer-loan-request-picker-list',
+                    pickerSearchId: 'sms-customer-loan-request-picker-search',
+                    pickerCountId: 'sms-customer-loan-request-picker-count',
+                    pickerNoResultsId: 'sms-customer-loan-request-picker-no-results',
+                    openRecipientsBtnId: 'sms-customer-loan-request-notify-open-recipients',
+                    openPickerBtnId: 'sms-customer-loan-request-open-picker',
+                    pickerApplyBtnId: 'sms-customer-loan-request-picker-apply',
+                    recipientsSaveBtnId: 'sms-customer-loan-request-recipients-save',
+                    notifyFormId: 'sms-customer-loan-request-notify-form',
+                    modalCloseAttr: 'data-sms-customer-loan-request-modal-close',
+                    patternDataAttr: 'data-sms-customer-loan-request-pattern',
+                    patternSelector: '[data-sms-customer-loan-request-pattern]',
+                    renderPreview: function (tpl) {
+                        return tpl
+                            .replace(/\{customer_full_name\}/g, 'رضا محمدی')
+                            .replace(/\{loan_type\}/g, 'وام خرید کالا')
+                            .replace(/\{request_amount\}/g, '۵۰,۰۰۰,۰۰۰')
+                            .replace(/\{request_id\}/g, '۸۹')
+                            .replace(/\{app_name\}/g, smsLoginNotifyAppName);
+                    }
+                }
+            ].forEach(function (cfg) { mountSmsNotifyAdminPicker(cfg); });
 
             function initJalaliPicker() {
                 if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.pDatepicker) {

@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\Customer;
+use App\Support\ListPerPage;
 use App\Models\CustomerBankAccount;
 use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanGuarantee;
@@ -64,7 +65,7 @@ final class CustomerController extends Controller
                 });
             })
             ->latest('id')
-            ->paginate(20)
+            ->paginate(ListPerPage::resolve($request))
             ->withQueryString();
 
         return view('admin.customers.index', [

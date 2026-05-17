@@ -13,6 +13,7 @@ use App\Models\CustomerWalletTransaction;
 use App\Services\Loans\CustomerLoanPortalPresenter;
 use App\Services\Loans\LoanFullSettlementOnlinePrincipalAllocator;
 use App\Services\Loans\LoanInstallmentPaidAmountSyncer;
+use App\Services\Sms\PortalAdminSmsDispatcher;
 use App\Services\Wallet\CustomerWalletService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -145,7 +146,7 @@ final class PortalLoanWalletPaymentService
                 }
 
                 $note = 'پرداخت از کیف پول — تراکنش کیف '.$wtx->id;
-                CustomerLoanInstallmentPayment::query()->create([
+                $payment = CustomerLoanInstallmentPayment::query()->create([
                     'customer_loan_installment_id' => (int) $installment->id,
                     'payment_method' => CustomerLoanInstallmentPayment::METHOD_WALLET,
                     'amount_toman' => $amountToman,
@@ -154,6 +155,8 @@ final class PortalLoanWalletPaymentService
                     'note' => $note,
                     'recorded_by_admin_id' => null,
                 ]);
+
+                PortalAdminSmsDispatcher::afterInstallmentPayment($payment);
 
                 $installment->refresh();
                 $this->syncer->syncFromPaymentRows($installment);
@@ -298,6 +301,8 @@ final class PortalLoanWalletPaymentService
                 $wtx->save();
 
                 $this->ledger->syncFromWalletFullSettlementPayment($wtx, $file, $quote, $amountToman);
+
+                PortalAdminSmsDispatcher::afterFullSettlement((int) $customer->id, (int) $file->id, $amountToman);
 
                 return [
                     'ok' => true,

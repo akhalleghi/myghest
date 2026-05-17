@@ -1,3 +1,4 @@
+import { bindAjaxPagination } from './mg-pagination-ajax.js';
 import { SupportTicketUi, parseJsonResponse } from './support-ticket-ui.js';
 
 function getConfig() {
@@ -46,10 +47,12 @@ function bootCustomerTicketsEmbed() {
     const ticketApiBase = (cfg.ticketApiBase || '').replace(/\/$/, '');
     const csrf = cfg.csrf || '';
     const customerLabel = cfg.customerLabel || 'مشتری';
+    const embedUrlParams = new URLSearchParams(window.location.search);
     const listState = {
         tab: cfg.activeTab || 'received',
         q: cfg.searchQ || '',
-        page: Number(new URLSearchParams(window.location.search).get('page')) || 1,
+        page: Number(embedUrlParams.get('page')) || 1,
+        perPage: Number(embedUrlParams.get('per_page')) || 15,
     };
     let activeTicketId = null;
 
@@ -152,33 +155,19 @@ function bootCustomerTicketsEmbed() {
         root.innerHTML = html;
         if (pagWrap) {
             pagWrap.innerHTML = payload.pagination_html || '';
-        }
-        bindViewButtons();
-        bindPaginationLinks();
-    }
-
-    function bindPaginationLinks() {
-        const pagWrap = document.getElementById('ctk-pagination-wrap');
-        if (!pagWrap) {
-            return;
-        }
-        pagWrap.querySelectorAll('a[href]').forEach(function (link) {
-            if (link.dataset.ctkPagBound === '1') {
-                return;
-            }
-            link.dataset.ctkPagBound = '1';
-            link.addEventListener('click', function (e) {
-                e.preventDefault();
-                try {
-                    const u = new URL(link.href, window.location.origin);
-                    const page = Number(u.searchParams.get('page')) || 1;
+            bindAjaxPagination(pagWrap, {
+                onPage: function (page) {
                     listState.page = page;
                     refreshTicketsList();
-                } catch {
-                    /* noop */
-                }
+                },
+                onPerPage: function (perPage) {
+                    listState.perPage = perPage;
+                    listState.page = 1;
+                    refreshTicketsList();
+                },
             });
-        });
+        }
+        bindViewButtons();
     }
 
     function refreshTicketsList(options) {
@@ -195,7 +184,8 @@ function bootCustomerTicketsEmbed() {
         }
         let url = listUrl
             + '?tab=' + encodeURIComponent(listState.tab)
-            + '&page=' + encodeURIComponent(String(listState.page || 1));
+            + '&page=' + encodeURIComponent(String(listState.page || 1))
+            + '&per_page=' + encodeURIComponent(String(listState.perPage || 15));
         if (listState.q) {
             url += '&q=' + encodeURIComponent(listState.q);
         }

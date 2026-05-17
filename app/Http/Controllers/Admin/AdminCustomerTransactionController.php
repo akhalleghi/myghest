@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\CustomerTransaction;
 use App\Services\Admin\AdminCustomerTransactionListService;
 use App\Support\JalaliInputParser;
+use App\Support\ListPerPage;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -26,7 +27,7 @@ final class AdminCustomerTransactionController extends Controller
         $filters = $parsed['filters'];
 
         /** @var LengthAwarePaginator<int, CustomerTransaction> $transactions */
-        $transactions = $list->paginate($filters);
+        $transactions = $list->paginate($filters, ListPerPage::resolve($request));
 
         $rowSnapshots = [];
         foreach ($transactions as $tx) {
@@ -61,7 +62,7 @@ final class AdminCustomerTransactionController extends Controller
         $filterInputs['customer_id'] = (string) $customer->id;
 
         /** @var LengthAwarePaginator<int, CustomerTransaction> $transactions */
-        $transactions = $list->paginate($filters);
+        $transactions = $list->paginate($filters, ListPerPage::resolve($request));
 
         $rowSnapshots = [];
         foreach ($transactions as $tx) {

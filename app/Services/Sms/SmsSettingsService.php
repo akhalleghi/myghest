@@ -108,6 +108,320 @@ final class SmsSettingsService
         return in_array(trim($value), ['1', 'true', 'yes', 'on'], true);
     }
 
+    /**
+     * @return array{
+     *   enabled: string,
+     *   recipient_ids: list<int>,
+     *   message_template: string
+     * }
+     */
+    public function adminLoginNotifySettings(): array
+    {
+        $enabled = trim((string) (AppSetting::query()->where('key', 'sms_admin_login_notify_enabled')->value('value') ?? ''));
+        $template = AppSetting::query()->where('key', 'sms_admin_login_notify_message_template')->value('value');
+        $idsRaw = AppSetting::query()->where('key', 'sms_admin_login_notify_recipient_ids')->value('value');
+
+        return [
+            'enabled' => $enabled,
+            'recipient_ids' => $this->decodeAdminIdList($idsRaw),
+            'message_template' => is_scalar($template) ? trim((string) $template) : '',
+        ];
+    }
+
+    /**
+     * @param  array{
+     *   enabled?: string|int|bool|null,
+     *   recipient_ids?: list<int|string>|null,
+     *   message_template?: string|null
+     * }  $values
+     */
+    public function saveAdminLoginNotifySettings(array $values): void
+    {
+        $ids = [];
+        foreach ($values['recipient_ids'] ?? [] as $id) {
+            $intId = (int) $id;
+            if ($intId > 0) {
+                $ids[$intId] = $intId;
+            }
+        }
+
+        $this->saveMap([
+            'sms_admin_login_notify_enabled' => $values['enabled'] ?? '0',
+            'sms_admin_login_notify_recipient_ids' => json_encode(array_values($ids), JSON_UNESCAPED_UNICODE),
+            'sms_admin_login_notify_message_template' => $values['message_template'] ?? '',
+        ]);
+    }
+
+    /**
+     * @return array{enabled: string, message_template: string}
+     */
+    public function adminLoginSelfNotifySettings(): array
+    {
+        $enabled = trim((string) (AppSetting::query()->where('key', 'sms_admin_login_self_notify_enabled')->value('value') ?? ''));
+        $template = AppSetting::query()->where('key', 'sms_admin_login_self_notify_message_template')->value('value');
+
+        return [
+            'enabled' => $enabled,
+            'message_template' => is_scalar($template) ? trim((string) $template) : '',
+        ];
+    }
+
+    /**
+     * @param  array{enabled?: string|int|bool|null, message_template?: string|null}  $values
+     */
+    public function saveAdminLoginSelfNotifySettings(array $values): void
+    {
+        $this->saveMap([
+            'sms_admin_login_self_notify_enabled' => $values['enabled'] ?? '0',
+            'sms_admin_login_self_notify_message_template' => $values['message_template'] ?? '',
+        ]);
+    }
+
+    /**
+     * @return array{enabled: string, recipient_ids: list<int>, message_template: string}
+     */
+    public function customerLoginNotifyAdminSettings(): array
+    {
+        $enabled = trim((string) (AppSetting::query()->where('key', 'sms_customer_login_notify_admin_enabled')->value('value') ?? ''));
+        $template = AppSetting::query()->where('key', 'sms_customer_login_notify_admin_message_template')->value('value');
+        $idsRaw = AppSetting::query()->where('key', 'sms_customer_login_notify_admin_recipient_ids')->value('value');
+
+        return [
+            'enabled' => $enabled,
+            'recipient_ids' => $this->decodeAdminIdList($idsRaw),
+            'message_template' => is_scalar($template) ? trim((string) $template) : '',
+        ];
+    }
+
+    /**
+     * @param  array{
+     *   enabled?: string|int|bool|null,
+     *   recipient_ids?: list<int|string>|null,
+     *   message_template?: string|null
+     * }  $values
+     */
+    public function saveCustomerLoginNotifyAdminSettings(array $values): void
+    {
+        $ids = [];
+        foreach ($values['recipient_ids'] ?? [] as $id) {
+            $intId = (int) $id;
+            if ($intId > 0) {
+                $ids[$intId] = $intId;
+            }
+        }
+
+        $this->saveMap([
+            'sms_customer_login_notify_admin_enabled' => $values['enabled'] ?? '0',
+            'sms_customer_login_notify_admin_recipient_ids' => json_encode(array_values($ids), JSON_UNESCAPED_UNICODE),
+            'sms_customer_login_notify_admin_message_template' => $values['message_template'] ?? '',
+        ]);
+    }
+
+    /**
+     * @return array{enabled: string, recipient_ids: list<int>, message_template: string}
+     */
+    public function customerInstallmentPaymentNotifyAdminSettings(): array
+    {
+        $enabled = trim((string) (AppSetting::query()->where('key', 'sms_customer_installment_payment_notify_admin_enabled')->value('value') ?? ''));
+        $template = AppSetting::query()->where('key', 'sms_customer_installment_payment_notify_admin_message_template')->value('value');
+        $idsRaw = AppSetting::query()->where('key', 'sms_customer_installment_payment_notify_admin_recipient_ids')->value('value');
+
+        return [
+            'enabled' => $enabled,
+            'recipient_ids' => $this->decodeAdminIdList($idsRaw),
+            'message_template' => is_scalar($template) ? trim((string) $template) : '',
+        ];
+    }
+
+    /**
+     * @param  array{
+     *   enabled?: string|int|bool|null,
+     *   recipient_ids?: list<int|string>|null,
+     *   message_template?: string|null
+     * }  $values
+     */
+    public function saveCustomerInstallmentPaymentNotifyAdminSettings(array $values): void
+    {
+        $ids = [];
+        foreach ($values['recipient_ids'] ?? [] as $id) {
+            $intId = (int) $id;
+            if ($intId > 0) {
+                $ids[$intId] = $intId;
+            }
+        }
+
+        $this->saveMap([
+            'sms_customer_installment_payment_notify_admin_enabled' => $values['enabled'] ?? '0',
+            'sms_customer_installment_payment_notify_admin_recipient_ids' => json_encode(array_values($ids), JSON_UNESCAPED_UNICODE),
+            'sms_customer_installment_payment_notify_admin_message_template' => $values['message_template'] ?? '',
+        ]);
+    }
+
+    /**
+     * @return array{enabled: string, recipient_ids: list<int>, message_template: string}
+     */
+    public function customerFullSettlementNotifyAdminSettings(): array
+    {
+        return $this->readAdminRecipientNotifySettings(
+            'sms_customer_full_settlement_notify_admin_enabled',
+            'sms_customer_full_settlement_notify_admin_recipient_ids',
+            'sms_customer_full_settlement_notify_admin_message_template',
+        );
+    }
+
+    /**
+     * @param  array{enabled?: string|int|bool|null, recipient_ids?: list<int|string>|null, message_template?: string|null}  $values
+     */
+    public function saveCustomerFullSettlementNotifyAdminSettings(array $values): void
+    {
+        $this->saveAdminRecipientNotifySettings(
+            'sms_customer_full_settlement_notify_admin_enabled',
+            'sms_customer_full_settlement_notify_admin_recipient_ids',
+            'sms_customer_full_settlement_notify_admin_message_template',
+            $values,
+        );
+    }
+
+    /**
+     * @return array{enabled: string, recipient_ids: list<int>, message_template: string}
+     */
+    public function customerDepositDeclarationNotifyAdminSettings(): array
+    {
+        return $this->readAdminRecipientNotifySettings(
+            'sms_customer_deposit_declaration_notify_admin_enabled',
+            'sms_customer_deposit_declaration_notify_admin_recipient_ids',
+            'sms_customer_deposit_declaration_notify_admin_message_template',
+        );
+    }
+
+    /**
+     * @param  array{enabled?: string|int|bool|null, recipient_ids?: list<int|string>|null, message_template?: string|null}  $values
+     */
+    public function saveCustomerDepositDeclarationNotifyAdminSettings(array $values): void
+    {
+        $this->saveAdminRecipientNotifySettings(
+            'sms_customer_deposit_declaration_notify_admin_enabled',
+            'sms_customer_deposit_declaration_notify_admin_recipient_ids',
+            'sms_customer_deposit_declaration_notify_admin_message_template',
+            $values,
+        );
+    }
+
+    /**
+     * @return array{enabled: string, recipient_ids: list<int>, message_template: string}
+     */
+    public function customerSupportTicketNotifyAdminSettings(): array
+    {
+        return $this->readAdminRecipientNotifySettings(
+            'sms_customer_support_ticket_notify_admin_enabled',
+            'sms_customer_support_ticket_notify_admin_recipient_ids',
+            'sms_customer_support_ticket_notify_admin_message_template',
+        );
+    }
+
+    /**
+     * @param  array{enabled?: string|int|bool|null, recipient_ids?: list<int|string>|null, message_template?: string|null}  $values
+     */
+    public function saveCustomerSupportTicketNotifyAdminSettings(array $values): void
+    {
+        $this->saveAdminRecipientNotifySettings(
+            'sms_customer_support_ticket_notify_admin_enabled',
+            'sms_customer_support_ticket_notify_admin_recipient_ids',
+            'sms_customer_support_ticket_notify_admin_message_template',
+            $values,
+        );
+    }
+
+    /**
+     * @return array{enabled: string, recipient_ids: list<int>, message_template: string}
+     */
+    public function customerLoanRequestNotifyAdminSettings(): array
+    {
+        return $this->readAdminRecipientNotifySettings(
+            'sms_customer_loan_request_notify_admin_enabled',
+            'sms_customer_loan_request_notify_admin_recipient_ids',
+            'sms_customer_loan_request_notify_admin_message_template',
+        );
+    }
+
+    /**
+     * @param  array{enabled?: string|int|bool|null, recipient_ids?: list<int|string>|null, message_template?: string|null}  $values
+     */
+    public function saveCustomerLoanRequestNotifyAdminSettings(array $values): void
+    {
+        $this->saveAdminRecipientNotifySettings(
+            'sms_customer_loan_request_notify_admin_enabled',
+            'sms_customer_loan_request_notify_admin_recipient_ids',
+            'sms_customer_loan_request_notify_admin_message_template',
+            $values,
+        );
+    }
+
+    /**
+     * @return array{enabled: string, recipient_ids: list<int>, message_template: string}
+     */
+    private function readAdminRecipientNotifySettings(string $enabledKey, string $idsKey, string $templateKey): array
+    {
+        $enabled = trim((string) (AppSetting::query()->where('key', $enabledKey)->value('value') ?? ''));
+        $template = AppSetting::query()->where('key', $templateKey)->value('value');
+        $idsRaw = AppSetting::query()->where('key', $idsKey)->value('value');
+
+        return [
+            'enabled' => $enabled,
+            'recipient_ids' => $this->decodeAdminIdList($idsRaw),
+            'message_template' => is_scalar($template) ? trim((string) $template) : '',
+        ];
+    }
+
+    /**
+     * @param  array{enabled?: string|int|bool|null, recipient_ids?: list<int|string>|null, message_template?: string|null}  $values
+     */
+    private function saveAdminRecipientNotifySettings(
+        string $enabledKey,
+        string $idsKey,
+        string $templateKey,
+        array $values,
+    ): void {
+        $ids = [];
+        foreach ($values['recipient_ids'] ?? [] as $id) {
+            $intId = (int) $id;
+            if ($intId > 0) {
+                $ids[$intId] = $intId;
+            }
+        }
+
+        $this->saveMap([
+            $enabledKey => $values['enabled'] ?? '0',
+            $idsKey => json_encode(array_values($ids), JSON_UNESCAPED_UNICODE),
+            $templateKey => $values['message_template'] ?? '',
+        ]);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function decodeAdminIdList(mixed $raw): array
+    {
+        if (! is_string($raw) || trim($raw) === '') {
+            return [];
+        }
+
+        $decoded = json_decode(trim($raw), true);
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($decoded as $id) {
+            $intId = (int) $id;
+            if ($intId > 0) {
+                $ids[$intId] = $intId;
+            }
+        }
+
+        return array_values($ids);
+    }
+
     public function saveReminderSettings(array $values): void
     {
         $this->saveMap([

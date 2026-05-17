@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Loans;
 
 use App\Models\Admin;
+use App\Services\Sms\PortalAdminSmsDispatcher;
 use App\Models\Customer;
 use App\Models\CustomerLoanRequest;
 use App\Models\CustomerLoanRequestDocument;
@@ -122,6 +123,7 @@ final class CustomerLoanRequestSubmissionService
             );
 
             $this->notifyAdminsOfNewSubmission($request, $customer);
+            PortalAdminSmsDispatcher::afterLoanRequest((int) $request->id);
 
             return $request->load(['loanType', 'documents']);
         } catch (\Throwable $e) {

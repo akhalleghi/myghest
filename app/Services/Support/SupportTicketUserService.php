@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Support;
 
 use App\Models\Customer;
+use App\Services\Sms\PortalAdminSmsDispatcher;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketMessage;
 use App\Models\SupportTicketRecipient;
@@ -33,7 +34,7 @@ final class SupportTicketUserService
      *
      * @return LengthAwarePaginator<int, array<string, mixed>>
      */
-    public function paginateReceived(Customer $customer, ?string $search): LengthAwarePaginator
+    public function paginateReceived(Customer $customer, ?string $search, int $perPage = self::PER_PAGE): LengthAwarePaginator
     {
         $query = SupportTicket::query()
             ->whereNotNull('created_by_admin_id')
@@ -45,7 +46,7 @@ final class SupportTicketUserService
         $this->applySearch($query, $search);
 
         return $query
-            ->paginate(self::PER_PAGE)
+            ->paginate($perPage)
             ->withQueryString()
             ->through(fn (SupportTicket $t): array => $this->mapListRow($t, 'received'));
     }
@@ -55,7 +56,7 @@ final class SupportTicketUserService
      *
      * @return LengthAwarePaginator<int, array<string, mixed>>
      */
-    public function paginateSent(Customer $customer, ?string $search): LengthAwarePaginator
+    public function paginateSent(Customer $customer, ?string $search, int $perPage = self::PER_PAGE): LengthAwarePaginator
     {
         $query = SupportTicket::query()
             ->where('created_by_customer_id', (int) $customer->id)
@@ -66,7 +67,7 @@ final class SupportTicketUserService
         $this->applySearch($query, $search);
 
         return $query
-            ->paginate(self::PER_PAGE)
+            ->paginate($perPage)
             ->withQueryString()
             ->through(fn (SupportTicket $t): array => $this->mapListRow($t, 'sent'));
     }
@@ -84,7 +85,7 @@ final class SupportTicketUserService
             throw ValidationException::withMessages(['body_html' => ['متن تیکت الزامی است.']]);
         }
 
-        return DB::transaction(function () use ($customer, $subject, $bodyHtml, $attachment): SupportTicket {
+        $ticket = DB::transaction(function () use ($customer, $subject, $bodyHtml, $attachment): SupportTicket {
             $now = Carbon::now();
 
             $ticket = SupportTicket::query()->create([
@@ -108,6 +109,10 @@ final class SupportTicketUserService
 
             return $ticket->fresh(['firstMessage.attachments']);
         });
+
+        PortalAdminSmsDispatcher::afterSupportTicket((int) $ticket->id);
+
+        return $ticket;
     }
 
     /**

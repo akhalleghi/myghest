@@ -4,11 +4,23 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\UpdatesPortalAdminRecipientSmsSettings;
 use App\Http\Controllers\Controller;
+use App\Models\Admin;
+use App\Models\AppSetting;
 use App\Models\SmsLog;
 use App\Models\SmsPanelSetting;
 use App\Models\SmsTemplate;
+use App\Services\Sms\AdminLoginNotifySmsService;
+use App\Services\Sms\CustomerDepositDeclarationNotifyAdminSmsService;
+use App\Services\Sms\CustomerFullSettlementNotifyAdminSmsService;
+use App\Services\Sms\CustomerInstallmentPaymentNotifyAdminSmsService;
+use App\Services\Sms\CustomerLoanRequestNotifyAdminSmsService;
+use App\Services\Sms\CustomerLoginNotifyAdminSmsService;
+use App\Services\Sms\CustomerSupportTicketNotifyAdminSmsService;
 use App\Services\Sms\SmsPanelManager;
+use App\Support\IranMobile;
+use App\Support\ListPerPage;
 use App\Services\Sms\SmsSettingsService;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
@@ -23,6 +35,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class SmsManagementController extends Controller
 {
+    use UpdatesPortalAdminRecipientSmsSettings;
+
     public function __construct(
         private readonly SmsPanelManager $panelManager,
         private readonly SmsSettingsService $smsSettings,
@@ -42,8 +56,47 @@ final class SmsManagementController extends Controller
         $smsTemplates = SmsTemplate::query()->latest('id')->get();
         $scenarioTemplateIds = $this->smsSettings->scenarioTemplateIds();
         $smsReminderSettings = $this->smsSettings->reminderSettings();
+        $loginNotifyService = app(AdminLoginNotifySmsService::class);
+        $smsAdminLoginNotify = $this->smsSettings->adminLoginNotifySettings();
+        $smsAdminLoginSelfNotify = $this->smsSettings->adminLoginSelfNotifySettings();
+        $customerLoginNotifyService = app(CustomerLoginNotifyAdminSmsService::class);
+        $smsCustomerLoginNotifyAdmin = $this->smsSettings->customerLoginNotifyAdminSettings();
+        $adminLoginNotifyDefaultTemplate = $loginNotifyService->defaultMessageTemplate();
+        $adminLoginSelfNotifyDefaultTemplate = $loginNotifyService->defaultSelfMessageTemplate();
+        $customerLoginNotifyAdminDefaultTemplate = $customerLoginNotifyService->defaultMessageTemplate();
+        $installmentPaymentNotifyService = app(CustomerInstallmentPaymentNotifyAdminSmsService::class);
+        $smsCustomerInstallmentPaymentNotifyAdmin = $this->smsSettings->customerInstallmentPaymentNotifyAdminSettings();
+        $customerInstallmentPaymentNotifyAdminDefaultTemplate = $installmentPaymentNotifyService->defaultMessageTemplate();
+        $fullSettlementNotifyService = app(CustomerFullSettlementNotifyAdminSmsService::class);
+        $depositNotifyService = app(CustomerDepositDeclarationNotifyAdminSmsService::class);
+        $ticketNotifyService = app(CustomerSupportTicketNotifyAdminSmsService::class);
+        $loanRequestNotifyService = app(CustomerLoanRequestNotifyAdminSmsService::class);
+        $smsCustomerFullSettlementNotifyAdmin = $this->smsSettings->customerFullSettlementNotifyAdminSettings();
+        $smsCustomerDepositDeclarationNotifyAdmin = $this->smsSettings->customerDepositDeclarationNotifyAdminSettings();
+        $smsCustomerSupportTicketNotifyAdmin = $this->smsSettings->customerSupportTicketNotifyAdminSettings();
+        $smsCustomerLoanRequestNotifyAdmin = $this->smsSettings->customerLoanRequestNotifyAdminSettings();
+        $customerFullSettlementNotifyAdminDefaultTemplate = $fullSettlementNotifyService->defaultMessageTemplate();
+        $customerDepositDeclarationNotifyAdminDefaultTemplate = $depositNotifyService->defaultMessageTemplate();
+        $customerSupportTicketNotifyAdminDefaultTemplate = $ticketNotifyService->defaultMessageTemplate();
+        $customerLoanRequestNotifyAdminDefaultTemplate = $loanRequestNotifyService->defaultMessageTemplate();
 
-        $logs = $query->latest('sent_at')->paginate(20)->withQueryString();
+        $smsAdminPickerAdmins = Admin::query()
+            ->where('is_active', true)
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->orderBy('id')
+            ->get(['id', 'first_name', 'last_name', 'name', 'username', 'mobile'])
+            ->map(static fn (Admin $admin): array => [
+                'id' => (int) $admin->id,
+                'full_name' => $admin->fullName(),
+                'username' => (string) $admin->username,
+                'mobile' => (string) ($admin->mobile ?? ''),
+                'mobile_valid' => IranMobile::isValid((string) ($admin->mobile ?? '')),
+            ])
+            ->values()
+            ->all();
+
+        $logs = $query->latest('sent_at')->paginate(ListPerPage::resolve($request))->withQueryString();
 
         return view('admin.sms.index', [
             'logs' => $logs,
@@ -67,7 +120,377 @@ final class SmsManagementController extends Controller
             'smsTemplates' => $smsTemplates,
             'smsScenarioTemplateIds' => $scenarioTemplateIds,
             'smsReminderSettings' => $smsReminderSettings,
+            'smsAdminLoginNotify' => $smsAdminLoginNotify,
+            'smsAdminLoginSelfNotify' => $smsAdminLoginSelfNotify,
+            'smsCustomerLoginNotifyAdmin' => $smsCustomerLoginNotifyAdmin,
+            'smsAdminPickerAdmins' => $smsAdminPickerAdmins,
+            'adminLoginNotifyDefaultTemplate' => $adminLoginNotifyDefaultTemplate,
+            'adminLoginSelfNotifyDefaultTemplate' => $adminLoginSelfNotifyDefaultTemplate,
+            'customerLoginNotifyAdminDefaultTemplate' => $customerLoginNotifyAdminDefaultTemplate,
+            'smsCustomerInstallmentPaymentNotifyAdmin' => $smsCustomerInstallmentPaymentNotifyAdmin,
+            'customerInstallmentPaymentNotifyAdminDefaultTemplate' => $customerInstallmentPaymentNotifyAdminDefaultTemplate,
+            'smsCustomerFullSettlementNotifyAdmin' => $smsCustomerFullSettlementNotifyAdmin,
+            'smsCustomerDepositDeclarationNotifyAdmin' => $smsCustomerDepositDeclarationNotifyAdmin,
+            'smsCustomerSupportTicketNotifyAdmin' => $smsCustomerSupportTicketNotifyAdmin,
+            'smsCustomerLoanRequestNotifyAdmin' => $smsCustomerLoanRequestNotifyAdmin,
+            'customerFullSettlementNotifyAdminDefaultTemplate' => $customerFullSettlementNotifyAdminDefaultTemplate,
+            'customerDepositDeclarationNotifyAdminDefaultTemplate' => $customerDepositDeclarationNotifyAdminDefaultTemplate,
+            'customerSupportTicketNotifyAdminDefaultTemplate' => $customerSupportTicketNotifyAdminDefaultTemplate,
+            'customerLoanRequestNotifyAdminDefaultTemplate' => $customerLoanRequestNotifyAdminDefaultTemplate,
+            'appDisplayName' => $this->appDisplayName(),
         ]);
+    }
+
+    public function updateAdminLoginNotifySettings(Request $request): RedirectResponse
+    {
+        $enabled = $request->boolean('admin_login_notify_enabled');
+
+        $validated = $request->validate([
+            'admin_login_notify_enabled' => ['nullable', 'boolean'],
+            'recipient_admin_ids' => [
+                Rule::requiredIf(fn (): bool => $enabled),
+                'nullable',
+                'array',
+                'min:1',
+            ],
+            'recipient_admin_ids.*' => ['integer', 'exists:admins,id'],
+            'admin_login_notify_message' => [
+                Rule::requiredIf(fn (): bool => $enabled),
+                'nullable',
+                'string',
+                'max:500',
+            ],
+        ], [], [
+            'admin_login_notify_enabled' => 'ارسال پیامک ورود ادمین',
+            'recipient_admin_ids' => 'دریافت‌کنندگان',
+            'recipient_admin_ids.*' => 'شناسه ادمین',
+            'admin_login_notify_message' => 'متن پیامک',
+        ]);
+
+        $recipientIds = [];
+        if ($enabled) {
+            $rawIds = $validated['recipient_admin_ids'] ?? [];
+            $activeAdmins = Admin::query()
+                ->whereIn('id', $rawIds)
+                ->where('is_active', true)
+                ->get(['id', 'mobile']);
+
+            $recipientIds = $activeAdmins
+                ->map(static fn (Admin $admin): int => (int) $admin->id)
+                ->values()
+                ->all();
+
+            $hasDeliverableMobile = $activeAdmins->contains(
+                static fn (Admin $admin): bool => IranMobile::isValid((string) ($admin->mobile ?? ''))
+            );
+
+            if ($recipientIds === [] || ! $hasDeliverableMobile) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['recipient_admin_ids' => 'حداقل یک ادمین فعال با شماره موبایل معتبر انتخاب کنید.'])
+                    ->with('sms_active_tab', 'settings');
+            }
+        }
+
+        $message = strip_tags(trim((string) ($validated['admin_login_notify_message'] ?? '')));
+        if ($enabled && $message === '') {
+            return back()
+                ->withInput()
+                ->withErrors(['admin_login_notify_message' => 'متن پیامک را وارد کنید.'])
+                ->with('sms_active_tab', 'settings');
+        }
+
+        if (! $enabled) {
+            $existing = $this->smsSettings->adminLoginNotifySettings();
+            $recipientIds = $existing['recipient_ids'];
+            $message = $existing['message_template'] !== ''
+                ? $existing['message_template']
+                : app(AdminLoginNotifySmsService::class)->defaultMessageTemplate();
+        }
+
+        $this->smsSettings->saveAdminLoginNotifySettings([
+            'enabled' => $enabled ? '1' : '0',
+            'recipient_ids' => $recipientIds,
+            'message_template' => $message,
+        ]);
+
+        return redirect()
+            ->route('admin.sms.index')
+            ->with('flash_success', 'تنظیمات اعلان ورود به مدیران ذخیره شد.')
+            ->with('sms_active_tab', 'settings');
+    }
+
+    public function updateAdminLoginSelfNotifySettings(Request $request): RedirectResponse
+    {
+        $enabled = $request->boolean('admin_login_self_notify_enabled');
+
+        $validated = $request->validate([
+            'admin_login_self_notify_enabled' => ['nullable', 'boolean'],
+            'admin_login_self_notify_message' => [
+                Rule::requiredIf(fn (): bool => $enabled),
+                'nullable',
+                'string',
+                'max:500',
+            ],
+        ], [], [
+            'admin_login_self_notify_enabled' => 'پیامک ورود به خود ادمین',
+            'admin_login_self_notify_message' => 'متن پیامک',
+        ]);
+
+        $message = strip_tags(trim((string) ($validated['admin_login_self_notify_message'] ?? '')));
+        if ($enabled && $message === '') {
+            return back()
+                ->withInput()
+                ->withErrors(['admin_login_self_notify_message' => 'متن پیامک را وارد کنید.'])
+                ->with('sms_active_tab', 'settings');
+        }
+
+        if (! $enabled) {
+            $existing = $this->smsSettings->adminLoginSelfNotifySettings();
+            $message = $existing['message_template'] !== ''
+                ? $existing['message_template']
+                : app(AdminLoginNotifySmsService::class)->defaultSelfMessageTemplate();
+        }
+
+        $this->smsSettings->saveAdminLoginSelfNotifySettings([
+            'enabled' => $enabled ? '1' : '0',
+            'message_template' => $message,
+        ]);
+
+        return redirect()
+            ->route('admin.sms.index')
+            ->with('flash_success', 'تنظیمات پیامک ورود به خود ادمین ذخیره شد.')
+            ->with('sms_active_tab', 'settings');
+    }
+
+    public function updateCustomerLoginNotifyAdminSettings(Request $request): RedirectResponse
+    {
+        $enabled = $request->boolean('customer_login_notify_admin_enabled');
+
+        $validated = $request->validate([
+            'customer_login_notify_admin_enabled' => ['nullable', 'boolean'],
+            'customer_login_recipient_admin_ids' => [
+                Rule::requiredIf(fn (): bool => $enabled),
+                'nullable',
+                'array',
+                'min:1',
+            ],
+            'customer_login_recipient_admin_ids.*' => ['integer', 'exists:admins,id'],
+            'customer_login_notify_admin_message' => [
+                Rule::requiredIf(fn (): bool => $enabled),
+                'nullable',
+                'string',
+                'max:500',
+            ],
+        ], [], [
+            'customer_login_notify_admin_enabled' => 'ارسال پیامک ورود مشتری برای ادمین',
+            'customer_login_recipient_admin_ids' => 'دریافت‌کنندگان',
+            'customer_login_recipient_admin_ids.*' => 'شناسه ادمین',
+            'customer_login_notify_admin_message' => 'متن پیامک',
+        ]);
+
+        $recipientIds = [];
+        if ($enabled) {
+            $rawIds = $validated['customer_login_recipient_admin_ids'] ?? [];
+            $activeAdmins = Admin::query()
+                ->whereIn('id', $rawIds)
+                ->where('is_active', true)
+                ->get(['id', 'mobile']);
+
+            $recipientIds = $activeAdmins
+                ->map(static fn (Admin $admin): int => (int) $admin->id)
+                ->values()
+                ->all();
+
+            $hasDeliverableMobile = $activeAdmins->contains(
+                static fn (Admin $admin): bool => IranMobile::isValid((string) ($admin->mobile ?? ''))
+            );
+
+            if ($recipientIds === [] || ! $hasDeliverableMobile) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['customer_login_recipient_admin_ids' => 'حداقل یک ادمین فعال با شماره موبایل معتبر انتخاب کنید.'])
+                    ->with('sms_active_tab', 'settings');
+            }
+        }
+
+        $message = strip_tags(trim((string) ($validated['customer_login_notify_admin_message'] ?? '')));
+        if ($enabled && $message === '') {
+            return back()
+                ->withInput()
+                ->withErrors(['customer_login_notify_admin_message' => 'متن پیامک را وارد کنید.'])
+                ->with('sms_active_tab', 'settings');
+        }
+
+        if (! $enabled) {
+            $existing = $this->smsSettings->customerLoginNotifyAdminSettings();
+            $recipientIds = $existing['recipient_ids'];
+            $message = $existing['message_template'] !== ''
+                ? $existing['message_template']
+                : app(CustomerLoginNotifyAdminSmsService::class)->defaultMessageTemplate();
+        }
+
+        $this->smsSettings->saveCustomerLoginNotifyAdminSettings([
+            'enabled' => $enabled ? '1' : '0',
+            'recipient_ids' => $recipientIds,
+            'message_template' => $message,
+        ]);
+
+        return redirect()
+            ->route('admin.sms.index')
+            ->with('flash_success', 'تنظیمات پیامک ورود مشتری برای ادمین ذخیره شد.')
+            ->with('sms_active_tab', 'settings');
+    }
+
+    public function updateCustomerInstallmentPaymentNotifyAdminSettings(Request $request): RedirectResponse
+    {
+        $enabled = $request->boolean('customer_installment_payment_notify_admin_enabled');
+
+        $validated = $request->validate([
+            'customer_installment_payment_notify_admin_enabled' => ['nullable', 'boolean'],
+            'customer_installment_payment_recipient_admin_ids' => [
+                Rule::requiredIf(fn (): bool => $enabled),
+                'nullable',
+                'array',
+                'min:1',
+            ],
+            'customer_installment_payment_recipient_admin_ids.*' => ['integer', 'exists:admins,id'],
+            'customer_installment_payment_notify_admin_message' => [
+                Rule::requiredIf(fn (): bool => $enabled),
+                'nullable',
+                'string',
+                'max:500',
+            ],
+        ], [], [
+            'customer_installment_payment_notify_admin_enabled' => 'ارسال پیامک واریزی قسط مشتری',
+            'customer_installment_payment_recipient_admin_ids' => 'دریافت‌کنندگان',
+            'customer_installment_payment_recipient_admin_ids.*' => 'شناسه ادمین',
+            'customer_installment_payment_notify_admin_message' => 'متن پیامک',
+        ]);
+
+        $recipientIds = [];
+        if ($enabled) {
+            $rawIds = $validated['customer_installment_payment_recipient_admin_ids'] ?? [];
+            $activeAdmins = Admin::query()
+                ->whereIn('id', $rawIds)
+                ->where('is_active', true)
+                ->get(['id', 'mobile']);
+
+            $recipientIds = $activeAdmins
+                ->map(static fn (Admin $admin): int => (int) $admin->id)
+                ->values()
+                ->all();
+
+            $hasDeliverableMobile = $activeAdmins->contains(
+                static fn (Admin $admin): bool => IranMobile::isValid((string) ($admin->mobile ?? ''))
+            );
+
+            if ($recipientIds === [] || ! $hasDeliverableMobile) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['customer_installment_payment_recipient_admin_ids' => 'حداقل یک ادمین فعال با شماره موبایل معتبر انتخاب کنید.'])
+                    ->with('sms_active_tab', 'settings');
+            }
+        }
+
+        $message = strip_tags(trim((string) ($validated['customer_installment_payment_notify_admin_message'] ?? '')));
+        if ($enabled && $message === '') {
+            return back()
+                ->withInput()
+                ->withErrors(['customer_installment_payment_notify_admin_message' => 'متن پیامک را وارد کنید.'])
+                ->with('sms_active_tab', 'settings');
+        }
+
+        if (! $enabled) {
+            $existing = $this->smsSettings->customerInstallmentPaymentNotifyAdminSettings();
+            $recipientIds = $existing['recipient_ids'];
+            $message = $existing['message_template'] !== ''
+                ? $existing['message_template']
+                : app(CustomerInstallmentPaymentNotifyAdminSmsService::class)->defaultMessageTemplate();
+        }
+
+        $this->smsSettings->saveCustomerInstallmentPaymentNotifyAdminSettings([
+            'enabled' => $enabled ? '1' : '0',
+            'recipient_ids' => $recipientIds,
+            'message_template' => $message,
+        ]);
+
+        return redirect()
+            ->route('admin.sms.index')
+            ->with('flash_success', 'تنظیمات پیامک واریزی قسط مشتری ذخیره شد.')
+            ->with('sms_active_tab', 'settings');
+    }
+
+    public function updateCustomerFullSettlementNotifyAdminSettings(Request $request): RedirectResponse
+    {
+        return $this->updatePortalAdminRecipientSmsSettings(
+            $request,
+            $this->smsSettings,
+            'customer_full_settlement_notify_admin_enabled',
+            'customer_full_settlement_recipient_admin_ids',
+            'customer_full_settlement_notify_admin_message',
+            'ارسال پیامک تسویه یکجای وام',
+            fn (): array => $this->smsSettings->customerFullSettlementNotifyAdminSettings(),
+            fn (array $values) => $this->smsSettings->saveCustomerFullSettlementNotifyAdminSettings($values),
+            fn (): string => app(CustomerFullSettlementNotifyAdminSmsService::class)->defaultMessageTemplate(),
+            'تنظیمات پیامک تسویه یکجای وام ذخیره شد.',
+        );
+    }
+
+    public function updateCustomerDepositDeclarationNotifyAdminSettings(Request $request): RedirectResponse
+    {
+        return $this->updatePortalAdminRecipientSmsSettings(
+            $request,
+            $this->smsSettings,
+            'customer_deposit_declaration_notify_admin_enabled',
+            'customer_deposit_declaration_recipient_admin_ids',
+            'customer_deposit_declaration_notify_admin_message',
+            'ارسال پیامک اعلام واریزی مشتری',
+            fn (): array => $this->smsSettings->customerDepositDeclarationNotifyAdminSettings(),
+            fn (array $values) => $this->smsSettings->saveCustomerDepositDeclarationNotifyAdminSettings($values),
+            fn (): string => app(CustomerDepositDeclarationNotifyAdminSmsService::class)->defaultMessageTemplate(),
+            'تنظیمات پیامک اعلام واریزی مشتری ذخیره شد.',
+        );
+    }
+
+    public function updateCustomerSupportTicketNotifyAdminSettings(Request $request): RedirectResponse
+    {
+        return $this->updatePortalAdminRecipientSmsSettings(
+            $request,
+            $this->smsSettings,
+            'customer_support_ticket_notify_admin_enabled',
+            'customer_support_ticket_recipient_admin_ids',
+            'customer_support_ticket_notify_admin_message',
+            'ارسال پیامک ثبت تیکت مشتری',
+            fn (): array => $this->smsSettings->customerSupportTicketNotifyAdminSettings(),
+            fn (array $values) => $this->smsSettings->saveCustomerSupportTicketNotifyAdminSettings($values),
+            fn (): string => app(CustomerSupportTicketNotifyAdminSmsService::class)->defaultMessageTemplate(),
+            'تنظیمات پیامک ثبت تیکت مشتری ذخیره شد.',
+        );
+    }
+
+    public function updateCustomerLoanRequestNotifyAdminSettings(Request $request): RedirectResponse
+    {
+        return $this->updatePortalAdminRecipientSmsSettings(
+            $request,
+            $this->smsSettings,
+            'customer_loan_request_notify_admin_enabled',
+            'customer_loan_request_recipient_admin_ids',
+            'customer_loan_request_notify_admin_message',
+            'ارسال پیامک ثبت درخواست وام',
+            fn (): array => $this->smsSettings->customerLoanRequestNotifyAdminSettings(),
+            fn (array $values) => $this->smsSettings->saveCustomerLoanRequestNotifyAdminSettings($values),
+            fn (): string => app(CustomerLoanRequestNotifyAdminSmsService::class)->defaultMessageTemplate(),
+            'تنظیمات پیامک ثبت درخواست وام ذخیره شد.',
+        );
+    }
+
+    private function appDisplayName(): string
+    {
+        $value = AppSetting::query()->where('key', 'app_display_name')->value('value');
+        $name = is_scalar($value) ? trim((string) $value) : '';
+
+        return $name !== '' ? $name : 'سامانه';
     }
 
     public function updatePanelSettings(Request $request): RedirectResponse

@@ -18,6 +18,7 @@ use App\Services\Loans\AdminCustomerLoanRequestUpdateService;
 use App\Services\Loans\AdminLoanRequestEditModalPresenter;
 use App\Services\Loans\ConvertLoanRequestToLoanFileService;
 use App\Services\Loans\LoanRequestDocumentAdminWriter;
+use App\Support\ListPerPage;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Contracts\View\View;
@@ -50,7 +51,7 @@ final class AdminCustomerLoanRequestController extends Controller
 
         $query = $this->buildFilteredQuery($filters, $this->optionalCustomerFilterFromRequest($request));
 
-        $paginator = $query->paginate(25)->withQueryString();
+        $paginator = $query->paginate(ListPerPage::resolve($request))->withQueryString();
 
         $statusTitles = LoanRequestStatusDefinition::titlesByCode();
         $rows = $paginator->getCollection()->map(
@@ -97,7 +98,7 @@ final class AdminCustomerLoanRequestController extends Controller
 
         $query = $this->buildFilteredQuery($filters, (int) $customer->id);
 
-        $paginator = $query->paginate(25)->withQueryString();
+        $paginator = $query->paginate(ListPerPage::resolve($request))->withQueryString();
 
         $statusTitles = LoanRequestStatusDefinition::titlesByCode();
         $rows = $paginator->getCollection()->map(

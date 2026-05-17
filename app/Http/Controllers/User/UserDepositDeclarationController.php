@@ -8,6 +8,8 @@ use App\Http\Controllers\Controller;
 use App\Models\CustomerDepositDeclaration;
 use App\Services\Deposits\DepositDeclarationUserService;
 use App\Services\Loans\CustomerLoanPortalPresenter;
+use App\Support\ListPerPage;
+use App\Support\PaginationBar;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Contracts\View\View;
@@ -61,7 +63,8 @@ final class UserDepositDeclarationController extends Controller
         }
         $q = $request->query('q');
         $search = is_string($q) ? $q : null;
-        $rows = $this->deposits->paginateForCustomer($customer, $search, 15);
+        $perPage = ListPerPage::resolve($request);
+        $rows = $this->deposits->paginateForCustomer($customer, $search, $perPage);
 
         return response()->json([
             'data' => $rows->getCollection()->map(fn (CustomerDepositDeclaration $d): array => $this->mapRow($d)),
@@ -71,6 +74,7 @@ final class UserDepositDeclarationController extends Controller
                 'per_page' => $rows->perPage(),
                 'total' => $rows->total(),
             ],
+            'pagination_html' => PaginationBar::html($rows, true, true),
         ]);
     }
 

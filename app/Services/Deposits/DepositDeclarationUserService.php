@@ -6,6 +6,7 @@ namespace App\Services\Deposits;
 
 use App\Models\Customer;
 use App\Models\CustomerDepositDeclaration;
+use App\Services\Sms\PortalAdminSmsDispatcher;
 use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanInstallment;
 use App\Services\Loans\LoanInstallmentScheduleService;
@@ -72,7 +73,7 @@ final class DepositDeclarationUserService
 
         $path = $this->storeAttachment($customer, $attachment);
 
-        return CustomerDepositDeclaration::query()->create([
+        $declaration = CustomerDepositDeclaration::query()->create([
             'customer_id' => $customer->id,
             'customer_loan_file_id' => (int) $data['customer_loan_file_id'],
             'customer_loan_installment_id' => (int) $data['customer_loan_installment_id'],
@@ -84,6 +85,10 @@ final class DepositDeclarationUserService
             'attachment_path' => $path,
             'status' => CustomerDepositDeclaration::STATUS_PENDING,
         ]);
+
+        PortalAdminSmsDispatcher::afterDepositDeclaration($declaration);
+
+        return $declaration;
     }
 
     /**

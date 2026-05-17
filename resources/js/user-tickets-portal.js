@@ -1,3 +1,4 @@
+import { bindAjaxPagination } from './mg-pagination-ajax.js';
 import { SupportTicketUi, parseJsonResponse } from './support-ticket-ui.js';
 
 function getConfig() {
@@ -49,7 +50,7 @@ function bootUserTickets() {
         },
     };
     const csrf = cfg.csrf || '';
-    const state = { tab: 'received', q: '', page: 1, activeId: null };
+    const state = { tab: 'received', q: '', page: 1, perPage: 15, activeId: null };
 
     function esc(s) {
         return stUi.esc(s);
@@ -68,7 +69,10 @@ function bootUserTickets() {
         document.getElementById('ut-loading').hidden = false;
         document.getElementById('ut-table').hidden = true;
         document.getElementById('ut-empty').hidden = true;
-        let url = routes.list + '?tab=' + encodeURIComponent(state.tab) + '&page=' + state.page;
+        let url = routes.list
+            + '?tab=' + encodeURIComponent(state.tab)
+            + '&page=' + state.page
+            + '&per_page=' + encodeURIComponent(String(state.perPage || 15));
         if (state.q) {
             url += '&q=' + encodeURIComponent(state.q);
         }
@@ -77,7 +81,7 @@ function bootUserTickets() {
             .then(function (json) {
                 document.getElementById('ut-loading').hidden = true;
                 renderRows(json.data || []);
-                renderPagination(json.meta || {});
+                renderPagination(json.pagination_html || '', json.meta || {});
             })
             .catch(function (err) {
                 document.getElementById('ut-loading').textContent = err.message || 'خطا در بارگذاری.';
@@ -120,25 +124,30 @@ function bootUserTickets() {
         });
     }
 
-    function renderPagination(meta) {
-        const wrap = document.getElementById('ut-pagination');
-        wrap.innerHTML = '';
-        if (!meta || !meta.last_page || meta.last_page <= 1) {
+    function renderPagination(html, meta) {
+        const wrap = document.getElementById('ut-pagination-wrap');
+        if (!wrap) {
+            return;
+        }
+        const hasRows = meta && (meta.total || 0) > 0;
+        if (!hasRows) {
+            wrap.innerHTML = '';
             wrap.hidden = true;
             return;
         }
         wrap.hidden = false;
-        for (let p = 1; p <= meta.last_page; p++) {
-            const b = document.createElement('button');
-            b.type = 'button';
-            b.className = 'ut-btn' + (p === meta.current_page ? ' ut-btn--pri' : ' ut-btn--ghost');
-            b.textContent = String(p);
-            b.addEventListener('click', function () {
-                state.page = p;
+        wrap.innerHTML = html || '';
+        bindAjaxPagination(wrap, {
+            onPage: function (page) {
+                state.page = page;
                 loadList();
-            });
-            wrap.appendChild(b);
-        }
+            },
+            onPerPage: function (perPage) {
+                state.perPage = perPage;
+                state.page = 1;
+                loadList();
+            },
+        });
     }
 
     function renderDetail(t) {

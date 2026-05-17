@@ -6,6 +6,7 @@ namespace App\Http\Controllers\User;
 
 use App\Http\Controllers\Controller;
 use App\Services\Portal\CustomerOnlinePaymentTransactionsPresenter;
+use App\Support\ListPerPage;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,7 +23,7 @@ final class UserPaymentTransactionsController extends Controller
         ]);
 
         $q = isset($validated['q']) && is_string($validated['q']) ? $validated['q'] : null;
-        $rows = $presenter->paginateForCustomer($customer, $q);
+        $rows = $presenter->paginateForCustomer($customer, $q, ListPerPage::resolve($request));
 
         return view('user.portal.payment-transactions', [
             'pageTitle' => 'تراکنش‌های من',

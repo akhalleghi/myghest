@@ -32,7 +32,7 @@ final class SupportTicketAdminService
     /**
      * @return LengthAwarePaginator<int, array<string, mixed>>
      */
-    public function paginateReceived(?string $search): LengthAwarePaginator
+    public function paginateReceived(?string $search, int $perPage = self::PER_PAGE): LengthAwarePaginator
     {
         $query = SupportTicket::query()
             ->whereNotNull('created_by_customer_id')
@@ -47,7 +47,7 @@ final class SupportTicketAdminService
         $this->applySearch($query, $search);
 
         return $query
-            ->paginate(self::PER_PAGE)
+            ->paginate($perPage)
             ->withQueryString()
             ->through(fn (SupportTicket $t): array => $this->mapListRow($t, 'received'));
     }
@@ -55,7 +55,7 @@ final class SupportTicketAdminService
     /**
      * @return LengthAwarePaginator<int, array<string, mixed>>
      */
-    public function paginateSent(?string $search): LengthAwarePaginator
+    public function paginateSent(?string $search, int $perPage = self::PER_PAGE): LengthAwarePaginator
     {
         $query = SupportTicket::query()
             ->whereNotNull('created_by_admin_id')
@@ -71,7 +71,7 @@ final class SupportTicketAdminService
         $this->applySearch($query, $search);
 
         return $query
-            ->paginate(self::PER_PAGE)
+            ->paginate($perPage)
             ->withQueryString()
             ->through(fn (SupportTicket $t): array => $this->mapListRow($t, 'sent'));
     }
@@ -79,7 +79,7 @@ final class SupportTicketAdminService
     /**
      * @return LengthAwarePaginator<int, array<string, mixed>>
      */
-    public function paginateReceivedForCustomer(int $customerId, ?string $search): LengthAwarePaginator
+    public function paginateReceivedForCustomer(int $customerId, ?string $search, int $perPage = self::PER_PAGE): LengthAwarePaginator
     {
         $query = SupportTicket::query()
             ->where('created_by_customer_id', $customerId)
@@ -94,7 +94,7 @@ final class SupportTicketAdminService
         $this->applyCustomerEmbedSearch($query, $search);
 
         return $query
-            ->paginate(self::PER_PAGE)
+            ->paginate($perPage)
             ->withQueryString()
             ->through(fn (SupportTicket $t): array => $this->mapListRow($t, 'received'));
     }
@@ -102,7 +102,7 @@ final class SupportTicketAdminService
     /**
      * @return LengthAwarePaginator<int, array<string, mixed>>
      */
-    public function paginateSentForCustomer(int $customerId, ?string $search): LengthAwarePaginator
+    public function paginateSentForCustomer(int $customerId, ?string $search, int $perPage = self::PER_PAGE): LengthAwarePaginator
     {
         $query = SupportTicket::query()
             ->whereNotNull('created_by_admin_id')
@@ -119,7 +119,7 @@ final class SupportTicketAdminService
         $this->applyCustomerEmbedSearch($query, $search);
 
         return $query
-            ->paginate(self::PER_PAGE)
+            ->paginate($perPage)
             ->withQueryString()
             ->through(fn (SupportTicket $t): array => $this->mapListRow($t, 'sent'));
     }

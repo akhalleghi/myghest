@@ -11,6 +11,7 @@ use App\Services\Sms\Gateways\SepahanGostarGateway;
 use App\Services\Sms\SmsPanelManager;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -37,6 +38,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Carbon::setLocale((string) config('app.locale'));
+
+        Paginator::defaultView('vendor.pagination.myghest');
+        Paginator::defaultSimpleView('vendor.pagination.myghest');
 
         View::composer(['layouts.admin.app', 'layouts.admin.auth', 'layouts.admin.embed_iframe', 'layouts.user.app', 'errors.layout', 'errors.403'], function ($view): void {
             $displayName = AppSetting::query()

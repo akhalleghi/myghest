@@ -9,6 +9,8 @@ use App\Models\Customer;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketAttachment;
 use App\Services\Support\SupportTicketAdminService;
+use App\Support\ListPerPage;
+use App\Support\PaginationBar;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -36,9 +38,10 @@ final class AdminSupportTicketController extends Controller
             $search = null;
         }
 
+        $perPage = ListPerPage::resolve($request);
         $rows = $tab === 'sent'
-            ? $service->paginateSent($search)
-            : $service->paginateReceived($search);
+            ? $service->paginateSent($search, $perPage)
+            : $service->paginateReceived($search, $perPage);
 
         $rowSnapshots = [];
         foreach ($rows->items() as $row) {
@@ -76,9 +79,10 @@ final class AdminSupportTicketController extends Controller
             $search = null;
         }
 
+        $perPage = ListPerPage::resolve($request);
         $rows = $tab === 'sent'
-            ? $service->paginateSent($search)
-            : $service->paginateReceived($search);
+            ? $service->paginateSent($search, $perPage)
+            : $service->paginateReceived($search, $perPage);
 
         $rowSnapshots = [];
         foreach ($rows->items() as $row) {
@@ -94,9 +98,10 @@ final class AdminSupportTicketController extends Controller
             'meta' => [
                 'current_page' => $rows->currentPage(),
                 'last_page' => $rows->lastPage(),
+                'per_page' => $rows->perPage(),
                 'total' => $rows->total(),
             ],
-            'pagination_html' => (string) $rows->withQueryString()->links(),
+            'pagination_html' => PaginationBar::html($rows, true, true),
             'received_count' => SupportTicket::query()->whereNotNull('created_by_customer_id')->count(),
             'sent_count' => SupportTicket::query()->whereNotNull('created_by_admin_id')->count(),
             'active_tab' => $tab,

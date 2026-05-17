@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\CustomerLoginLog;
+use App\Support\ListPerPage;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Contracts\View\View;
@@ -33,7 +34,7 @@ final class AdminCustomerLoginReportController extends Controller
             })
             ->orderByDesc('logged_in_at')
             ->orderByDesc('id')
-            ->paginate(35)
+            ->paginate(ListPerPage::resolve($request))
             ->withQueryString();
 
         $rows = $logs->getCollection()->map(fn (CustomerLoginLog $log): array => $this->mapRow($log));

@@ -1,3 +1,4 @@
+import { bindAjaxPagination } from './mg-pagination-ajax.js';
 import { SupportTicketUi, parseJsonResponse } from './support-ticket-ui.js';
 
 function getConfig() {
@@ -46,10 +47,12 @@ function bootAdminTickets() {
     const ticketsAdminBase = cfg.ticketsAdminBase || '';
     const ticketsListUrl = cfg.ticketsListUrl || '';
     const csrf = cfg.csrf || '';
+    const urlParams = new URLSearchParams(window.location.search);
     const listState = {
         tab: cfg.activeTab || 'received',
         q: cfg.searchQ || '',
-        page: Number(new URLSearchParams(window.location.search).get('page')) || 1,
+        page: Number(urlParams.get('page')) || 1,
+        perPage: Number(urlParams.get('per_page')) || 15,
     };
     let $single = null;
     let $multi = null;
@@ -155,6 +158,17 @@ function bootAdminTickets() {
         root.innerHTML = html;
         if (pagWrap) {
             pagWrap.innerHTML = payload.pagination_html || '';
+            bindAjaxPagination(pagWrap, {
+                onPage: function (page) {
+                    listState.page = page;
+                    refreshTicketsList();
+                },
+                onPerPage: function (perPage) {
+                    listState.perPage = perPage;
+                    listState.page = 1;
+                    refreshTicketsList();
+                },
+            });
         }
         bindViewButtons();
     }
@@ -173,7 +187,8 @@ function bootAdminTickets() {
         }
         let url = ticketsListUrl
             + '?tab=' + encodeURIComponent(listState.tab)
-            + '&page=' + encodeURIComponent(String(listState.page || 1));
+            + '&page=' + encodeURIComponent(String(listState.page || 1))
+            + '&per_page=' + encodeURIComponent(String(listState.perPage || 15));
         if (listState.q) {
             url += '&q=' + encodeURIComponent(listState.q);
         }
@@ -198,6 +213,11 @@ function bootAdminTickets() {
                         pageUrl.searchParams.set('page', String(listState.page));
                     } else {
                         pageUrl.searchParams.delete('page');
+                    }
+                    if (listState.perPage && listState.perPage !== 15) {
+                        pageUrl.searchParams.set('per_page', String(listState.perPage));
+                    } else {
+                        pageUrl.searchParams.delete('per_page');
                     }
                     window.history.replaceState(null, '', pageUrl.toString());
                 }

@@ -9,6 +9,8 @@ use App\Models\Customer;
 use App\Models\SupportTicket;
 use App\Services\Support\SupportTicketAccess;
 use App\Services\Support\SupportTicketAdminService;
+use App\Support\ListPerPage;
+use App\Support\PaginationBar;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,9 +35,10 @@ final class AdminCustomerSupportTicketController extends Controller
 
         $search = $this->normalizeSearch($request->query('q'));
 
+        $perPage = ListPerPage::resolve($request);
         $rows = $tab === 'sent'
-            ? $this->service->paginateSentForCustomer((int) $customer->id, $search)
-            : $this->service->paginateReceivedForCustomer((int) $customer->id, $search);
+            ? $this->service->paginateSentForCustomer((int) $customer->id, $search, $perPage)
+            : $this->service->paginateReceivedForCustomer((int) $customer->id, $search, $perPage);
 
         $rowSnapshots = $this->buildSnapshots($rows->items(), $tab);
 
@@ -66,9 +69,10 @@ final class AdminCustomerSupportTicketController extends Controller
 
         $search = $this->normalizeSearch($request->query('q'));
 
+        $perPage = ListPerPage::resolve($request);
         $rows = $tab === 'sent'
-            ? $this->service->paginateSentForCustomer((int) $customer->id, $search)
-            : $this->service->paginateReceivedForCustomer((int) $customer->id, $search);
+            ? $this->service->paginateSentForCustomer((int) $customer->id, $search, $perPage)
+            : $this->service->paginateReceivedForCustomer((int) $customer->id, $search, $perPage);
 
         $rowSnapshots = $this->buildSnapshots($rows->items(), $tab);
 
@@ -78,9 +82,10 @@ final class AdminCustomerSupportTicketController extends Controller
             'meta' => [
                 'current_page' => $rows->currentPage(),
                 'last_page' => $rows->lastPage(),
+                'per_page' => $rows->perPage(),
                 'total' => $rows->total(),
             ],
-            'pagination_html' => (string) $rows->withQueryString()->links(),
+            'pagination_html' => PaginationBar::html($rows, true, true),
             'received_count' => $this->service->countReceivedForCustomer((int) $customer->id),
             'sent_count' => $this->service->countSentForCustomer((int) $customer->id),
             'active_tab' => $tab,

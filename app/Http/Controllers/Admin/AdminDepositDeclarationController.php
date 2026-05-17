@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\CustomerDepositDeclaration;
 use App\Services\Deposits\DepositDeclarationAdminService;
+use App\Support\ListPerPage;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Contracts\View\View;
@@ -25,7 +26,7 @@ final class AdminDepositDeclarationController extends Controller
         $q = $request->query('q');
         $search = is_string($q) ? $q : null;
 
-        $declarations = app(DepositDeclarationAdminService::class)->paginate($statusStr, $search, 20);
+        $declarations = app(DepositDeclarationAdminService::class)->paginate($statusStr, $search, ListPerPage::resolve($request));
 
         $rowSnapshots = [];
         foreach ($declarations as $dec) {

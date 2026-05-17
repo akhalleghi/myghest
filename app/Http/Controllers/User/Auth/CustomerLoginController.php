@@ -7,6 +7,7 @@ namespace App\Http\Controllers\User\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Services\Admin\CaptchaService;
+use App\Services\Sms\PortalAdminSmsDispatcher;
 use App\Services\Auth\CustomerLoginLogService;
 use App\Services\Auth\CustomerLoginTwoFactorService;
 use App\Support\CustomerLoginSecuritySettings;
@@ -117,6 +118,8 @@ final class CustomerLoginController extends Controller
         } catch (\Throwable $e) {
             report($e);
         }
+
+        PortalAdminSmsDispatcher::afterCustomerLogin((int) $customer->id);
 
         if ($this->expectsLoginJson($request)) {
             return response()->json([

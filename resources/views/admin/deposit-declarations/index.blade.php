@@ -342,9 +342,7 @@
             </table>
         </div>
 
-        <div class="dd-pagination">
-            {{ $declarations->links() }}
-        </div>
+        @include('partials.list-pagination', ['paginator' => $declarations])
     </div>
 
     <dialog id="dd-dialog" aria-labelledby="dd-dialog-title">

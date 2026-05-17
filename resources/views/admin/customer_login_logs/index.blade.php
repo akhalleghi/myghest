@@ -85,8 +85,6 @@
             </table>
         </div>
 
-        @if ($logs->hasPages())
-            <div class="cll-pagination">{{ $logs->links() }}</div>
-        @endif
+        @include('partials.list-pagination', ['paginator' => $logs])
     </div>
 @endsection

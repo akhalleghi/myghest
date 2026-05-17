@@ -150,9 +150,7 @@
             </table>
         </div>
 
-        <div class="ctx-pagination">
-            {{ $transactions->links() }}
-        </div>
+        @include('partials.list-pagination', ['paginator' => $transactions])
     </div>
 
     <dialog id="ctx-dialog" aria-labelledby="ctx-dialog-title">

@@ -1649,9 +1649,7 @@
                     </tbody>
                 </table>
             </div>
-            @if ($customers->hasPages())
-                <div class="cust-pagination">{{ $customers->links() }}</div>
-            @endif
+            @include('partials.list-pagination', ['paginator' => $customers])
         </div>
     </div>
 

@@ -9,6 +9,8 @@ use App\Models\SupportTicket;
 use App\Models\SupportTicketAttachment;
 use App\Services\Support\SupportTicketAccess;
 use App\Services\Support\SupportTicketUserService;
+use App\Support\ListPerPage;
+use App\Support\PaginationBar;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,9 +53,10 @@ final class UserSupportTicketController extends Controller
             $search = null;
         }
 
+        $perPage = ListPerPage::resolve($request);
         $rows = $tab === 'sent'
-            ? $this->tickets->paginateSent($customer, $search)
-            : $this->tickets->paginateReceived($customer, $search);
+            ? $this->tickets->paginateSent($customer, $search, $perPage)
+            : $this->tickets->paginateReceived($customer, $search, $perPage);
 
         return response()->json([
             'data' => $rows->items(),
@@ -63,6 +66,7 @@ final class UserSupportTicketController extends Controller
                 'per_page' => $rows->perPage(),
                 'total' => $rows->total(),
             ],
+            'pagination_html' => PaginationBar::html($rows, true, true),
         ]);
     }
 

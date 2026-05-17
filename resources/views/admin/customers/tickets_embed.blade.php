@@ -104,10 +104,8 @@
             </div>
         </div>
 
-        <div id="ctk-pagination-wrap" class="ctk-pagination">
-            @if($rows->hasPages())
-                {{ $rows->links() }}
-            @endif
+        <div id="ctk-pagination-wrap">
+            @include('partials.list-pagination', ['paginator' => $rows, 'standalone' => true])
         </div>
     </div>
 

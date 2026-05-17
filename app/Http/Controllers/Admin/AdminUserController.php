@@ -10,7 +10,9 @@ use App\Http\Requests\Admin\UpdateAdminUserRequest;
 use App\Models\Admin;
 use App\Services\Admin\AdminPermissionService;
 use App\Support\AdminPermissionRegistry;
+use App\Support\ListPerPage;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
@@ -21,20 +23,36 @@ final class AdminUserController extends Controller
         private readonly AdminPermissionRegistry $permissionRegistry,
     ) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         /** @var Admin $actor */
         $actor = Auth::guard('admin')->user();
 
-        $admins = Admin::query()->with('permissionGrants')->orderByDesc('id')->get();
+        $q = trim((string) $request->query('q', ''));
+
+        $admins = Admin::query()
+            ->with('permissionGrants')
+            ->when($q !== '', function ($query) use ($q): void {
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $q).'%';
+                $query->where(function ($w) use ($like): void {
+                    $w->where('name', 'like', $like)
+                        ->orWhere('username', 'like', $like)
+                        ->orWhere('mobile', 'like', $like);
+                });
+            })
+            ->orderByDesc('id')
+            ->paginate(ListPerPage::resolve($request))
+            ->withQueryString();
+
         $currentAdminId = (int) $actor->id;
 
-        $adminEditMap = $admins->mapWithKeys(
+        $adminEditMap = $admins->getCollection()->mapWithKeys(
             fn (Admin $admin): array => [$admin->id => $this->adminEditPayload($admin)]
         )->all();
 
         return view('admin.users.index', [
             'admins' => $admins,
+            'searchQ' => $q,
             'adminEditMap' => $adminEditMap,
             'currentAdminId' => $currentAdminId,
             'permissionTree' => $this->permissionRegistry->tree(),
