@@ -2054,34 +2054,7 @@
                             </div>
                         </form>
                     </section>
-                    <section class="app-settings-panel" data-settings-panel="security" hidden>
-                        <h4 class="app-settings-panel-title">امنیت</h4>
-                        <p class="app-settings-panel-subtitle">برای افزایش امنیت دسترسی‌ها، سیاست‌های ورود را تنظیم کنید.</p>
-                        <div class="app-settings-card">
-                            <h4>تنظیمات امنیتی</h4>
-                            <p class="app-settings-card-desc">این بخش برای کنترل ریسک نشست‌های کاربری و دسترسی‌ها طراحی شده است.</p>
-                            <div class="app-settings-row">
-                                <div class="app-settings-field">
-                                    <label>مدت انقضای نشست</label>
-                                    <select>
-                                        <option>30 دقیقه</option>
-                                        <option>60 دقیقه</option>
-                                    </select>
-                                </div>
-                                <div class="app-settings-field">
-                                    <label>ورود دو مرحله‌ای</label>
-                                    <select>
-                                        <option>غیرفعال</option>
-                                        <option>فعال</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="app-settings-actions">
-                            <button type="button" class="app-settings-btn">بازنشانی</button>
-                            <button type="button" class="app-settings-btn app-settings-btn--primary">ذخیره تغییرات</button>
-                        </div>
-                    </section>
+                    @include('layouts.admin.partials.app-settings-security-panel')
                 </div>
             </div>
         </div>
@@ -2455,6 +2428,9 @@
                 openSettings();
                 @elseif(session('open_app_settings_tab') === 'financial')
                 activateSettingsTab('financial');
+                openSettings();
+                @elseif($errors->has('customer_login_two_factor_enabled') || session('open_app_settings_tab') === 'security')
+                activateSettingsTab('security');
                 openSettings();
                 @else
                 activateSettingsTab('base');

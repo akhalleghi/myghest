@@ -582,4 +582,8 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::post('/app-settings/financial', [AppSettingsController::class, 'updateFinancial'])
         ->middleware('throttle:20,1')
         ->name('app-settings.financial.update');
+
+    Route::post('/app-settings/security', [AppSettingsController::class, 'updateSecurity'])
+        ->middleware('throttle:20,1')
+        ->name('app-settings.security.update');
 });

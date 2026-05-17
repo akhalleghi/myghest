@@ -88,6 +88,16 @@
         .hidden-step { display: none !important; }
         input[type="tel"] { font-variant-numeric: tabular-nums; }
         body.pwr-modal-open { overflow: hidden; touch-action: none; }
+        .login-2fa-mobile-hint {
+            margin: 0 0 0.65rem;
+            font-size: 0.78rem;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+        .login-2fa-code-input { text-align: center; letter-spacing: 0.12em; font-weight: 700; }
+        .login-2fa-actions { margin-top: 1rem; }
+        .login-2fa-resend:disabled { opacity: 0.65; cursor: not-allowed; }
+        .login-2fa-resend.is-waiting { border-style: dashed; }
     </style>
 @endpush
 
@@ -205,6 +215,9 @@
 @endsection
 
 @push('portals')
+    @if (!empty($customerLoginTwoFactorEnabled))
+        @include('user.auth.partials.login-two-factor-modal')
+    @endif
     <div class="pwr-modal" id="pwr-modal-forgot" role="dialog" aria-modal="true" aria-labelledby="pwr-modal-title" aria-hidden="true" hidden>
         <div class="pwr-modal__backdrop" id="pwr-modal-backdrop" tabindex="-1" aria-hidden="true"></div>
         <div class="pwr-modal__dialog" role="document">
@@ -612,6 +625,245 @@
                         });
                 });
             }
+
+            @if (!empty($customerLoginTwoFactorEnabled))
+            (function initLoginTwoFactor() {
+                var loginForm = document.getElementById('customer-login-form');
+                var modal2fa = document.getElementById('pwr-modal-login-2fa');
+                if (!loginForm || !modal2fa) return;
+
+                var backdrop2fa = document.getElementById('pwr-modal-login-2fa-backdrop');
+                var btnClose2fa = document.getElementById('pwr-modal-login-2fa-close');
+                var sub2fa = document.getElementById('pwr-modal-login-2fa-sub');
+                var mobileHint = document.getElementById('login-2fa-mobile-hint');
+                var codeInput = document.getElementById('login-2fa-code');
+                var msg2fa = document.getElementById('login-2fa-msg');
+                var btnVerify2fa = document.getElementById('login-2fa-verify');
+                var btnResend2fa = document.getElementById('login-2fa-resend');
+                var resendLabel = document.getElementById('login-2fa-resend-label');
+                var loginSession = null;
+                var resendTimer = null;
+                var resendSecondsLeft = 0;
+
+                function set2faMsg(text, kind) {
+                    if (!msg2fa) return;
+                    msg2fa.textContent = text || '';
+                    msg2fa.classList.remove('ok', 'err');
+                    if (kind) msg2fa.classList.add(kind);
+                }
+
+                function clearResendTimer() {
+                    if (resendTimer) {
+                        clearInterval(resendTimer);
+                        resendTimer = null;
+                    }
+                }
+
+                function updateResendButton() {
+                    if (!btnResend2fa || !resendLabel) return;
+                    if (resendSecondsLeft > 0) {
+                        btnResend2fa.disabled = true;
+                        btnResend2fa.classList.add('is-waiting');
+                        resendLabel.textContent = 'ارسال مجدد (' + resendSecondsLeft + ')';
+                    } else {
+                        btnResend2fa.disabled = !loginSession;
+                        btnResend2fa.classList.remove('is-waiting');
+                        resendLabel.textContent = 'ارسال مجدد';
+                    }
+                }
+
+                function startResendCountdown(seconds) {
+                    clearResendTimer();
+                    resendSecondsLeft = Math.max(0, parseInt(String(seconds || 60), 10) || 60);
+                    updateResendButton();
+                    resendTimer = setInterval(function () {
+                        resendSecondsLeft -= 1;
+                        if (resendSecondsLeft <= 0) {
+                            resendSecondsLeft = 0;
+                            clearResendTimer();
+                        }
+                        updateResendButton();
+                    }, 1000);
+                }
+
+                function openLogin2faModal(payload) {
+                    loginSession = payload && payload.login_session ? payload.login_session : null;
+                    var message = (payload && payload.message) || 'کد احراز هویت برای شما ارسال گردید.';
+                    if (sub2fa) sub2fa.textContent = message;
+                    if (mobileHint) {
+                        var masked = payload && payload.masked_mobile ? String(payload.masked_mobile) : '';
+                        if (masked) {
+                            mobileHint.textContent = 'ارسال به شماره: ' + masked;
+                            mobileHint.hidden = false;
+                        } else {
+                            mobileHint.textContent = '';
+                            mobileHint.hidden = true;
+                        }
+                    }
+                    if (codeInput) {
+                        codeInput.value = '';
+                    }
+                    set2faMsg('', '');
+                    startResendCountdown(payload && payload.resend_available_in != null ? payload.resend_available_in : 60);
+                    modal2fa.removeAttribute('hidden');
+                    modal2fa.classList.add('is-open');
+                    modal2fa.setAttribute('aria-hidden', 'false');
+                    document.body.classList.add('pwr-modal-open');
+                    if (codeInput) setTimeout(function () { codeInput.focus(); }, 60);
+                }
+
+                function closeLogin2faModal() {
+                    clearResendTimer();
+                    loginSession = null;
+                    resendSecondsLeft = 0;
+                    updateResendButton();
+                    modal2fa.classList.remove('is-open');
+                    modal2fa.setAttribute('aria-hidden', 'true');
+                    modal2fa.setAttribute('hidden', 'hidden');
+                    document.body.classList.remove('pwr-modal-open');
+                }
+
+                if (backdrop2fa) {
+                    backdrop2fa.addEventListener('click', closeLogin2faModal);
+                }
+                if (btnClose2fa) {
+                    btnClose2fa.addEventListener('click', closeLogin2faModal);
+                }
+                document.addEventListener('keydown', function (ev) {
+                    if (ev.key !== 'Escape') return;
+                    if (!modal2fa.classList.contains('is-open')) return;
+                    ev.preventDefault();
+                    closeLogin2faModal();
+                });
+
+                loginForm.addEventListener('submit', function (ev) {
+                    ev.preventDefault();
+                    var submitBtn = loginForm.querySelector('button[type="submit"]');
+                    if (submitBtn) submitBtn.disabled = true;
+                    set2faMsg('', '');
+                    var fd = new FormData(loginForm);
+                    var token = csrfToken();
+                    fetch(loginForm.action, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            Accept: 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-Login-Mode': 'ajax',
+                            'X-CSRF-TOKEN': token,
+                        },
+                        body: fd,
+                    })
+                        .then(function (res) {
+                            return res.json().then(function (data) {
+                                return { ok: res.ok, status: res.status, data: data };
+                            }).catch(function () {
+                                return { ok: false, status: res.status, data: {} };
+                            });
+                        })
+                        .then(function (r) {
+                            if (r.ok && r.data && r.data.requires_otp) {
+                                openLogin2faModal(r.data);
+                                refreshCaptcha(loginImg, loginInput, 'login');
+                                return;
+                            }
+                            if (r.ok && r.data && r.data.redirect) {
+                                window.location.href = r.data.redirect;
+                                return;
+                            }
+                            var m = firstValidationMessage(r.data) || 'ورود ناموفق بود.';
+                            if (typeof Swal !== 'undefined') {
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'خطا',
+                                    text: m,
+                                    confirmButtonText: 'باشه',
+                                    customClass: { popup: 'auth-swal-popup' },
+                                });
+                            } else {
+                                alert(m);
+                            }
+                            refreshCaptcha(loginImg, loginInput, 'login');
+                        })
+                        .catch(function () {
+                            set2faMsg('ارتباط با سرور برقرار نشد.', 'err');
+                        })
+                        .finally(function () {
+                            if (submitBtn) submitBtn.disabled = false;
+                        });
+                });
+
+                if (btnVerify2fa) {
+                    btnVerify2fa.addEventListener('click', function () {
+                        if (!loginSession) {
+                            set2faMsg('نشست ورود منقضی شده؛ دوباره تلاش کنید.', 'err');
+                            return;
+                        }
+                        var code = codeInput ? codeInput.value : '';
+                        set2faMsg('در حال بررسی…', '');
+                        btnVerify2fa.disabled = true;
+                        jsonPost(@json(route('customer.auth.login.verify-otp', [], false)), {
+                            login_session: loginSession,
+                            code: code,
+                        })
+                            .then(function (r) {
+                                var m = firstValidationMessage(r.data) || 'خطا';
+                                if (r.ok && r.data && r.data.redirect) {
+                                    window.location.href = r.data.redirect;
+                                    return;
+                                }
+                                set2faMsg(m, 'err');
+                            })
+                            .catch(function () {
+                                set2faMsg('ارتباط با سرور برقرار نشد.', 'err');
+                            })
+                            .finally(function () {
+                                btnVerify2fa.disabled = false;
+                            });
+                    });
+                }
+
+                if (codeInput) {
+                    codeInput.addEventListener('keydown', function (ev) {
+                        if (ev.key === 'Enter') {
+                            ev.preventDefault();
+                            if (btnVerify2fa) btnVerify2fa.click();
+                        }
+                    });
+                }
+
+                if (btnResend2fa) {
+                    btnResend2fa.addEventListener('click', function () {
+                        if (!loginSession || resendSecondsLeft > 0) return;
+                        set2faMsg('در حال ارسال مجدد…', '');
+                        btnResend2fa.disabled = true;
+                        jsonPost(@json(route('customer.auth.login.resend-otp', [], false)), {
+                            login_session: loginSession,
+                        })
+                            .then(function (r) {
+                                var m = firstValidationMessage(r.data) || 'خطا';
+                                if (r.ok) {
+                                    set2faMsg(m, 'ok');
+                                    startResendCountdown(
+                                        r.data && r.data.resend_available_in != null ? r.data.resend_available_in : 60
+                                    );
+                                } else {
+                                    set2faMsg(m, 'err');
+                                    updateResendButton();
+                                }
+                            })
+                            .catch(function () {
+                                set2faMsg('ارتباط با سرور برقرار نشد.', 'err');
+                                updateResendButton();
+                            });
+                    });
+                }
+
+                @if (session('login_2fa'))
+                openLogin2faModal(@json(session('login_2fa')));
+                @endif
+            })();
+            @endif
         })();
     </script>
 @endsection

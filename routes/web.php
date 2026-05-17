@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Payment\ZibalCallbackController;
 use App\Http\Controllers\User\Auth\CustomerCaptchaController;
 use App\Http\Controllers\User\Auth\CustomerLoginController;
+use App\Http\Controllers\User\Auth\CustomerLoginTwoFactorController;
 use App\Http\Controllers\User\Auth\CustomerPasswordForgotController;
 use Illuminate\Support\Facades\Route;
 
@@ -41,6 +42,14 @@ Route::middleware(['guest.customer'])->group(function (): void {
         Route::post('forgot/reset-password', [CustomerPasswordForgotController::class, 'resetPassword'])
             ->middleware('throttle:10,1')
             ->name('forgot.reset-password');
+
+        Route::post('login/verify-otp', [CustomerLoginTwoFactorController::class, 'verify'])
+            ->middleware('throttle:30,1')
+            ->name('login.verify-otp');
+
+        Route::post('login/resend-otp', [CustomerLoginTwoFactorController::class, 'resend'])
+            ->middleware('throttle:12,1')
+            ->name('login.resend-otp');
     });
 });
 

@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Support\BankingHtmlSanitizer;
+use App\Support\CustomerLoginSecuritySettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -143,6 +144,24 @@ final class AppSettingsController extends Controller
         return back()
             ->with('flash_success', 'تنظیمات مالی ذخیره شد.')
             ->with('open_app_settings_tab', 'financial');
+    }
+
+    public function updateSecurity(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'customer_login_two_factor_enabled' => ['required', 'string', 'in:0,1'],
+        ], [], [
+            'customer_login_two_factor_enabled' => 'تأیید دو مرحله‌ای ورود مشتریان',
+        ]);
+
+        AppSetting::query()->updateOrCreate(
+            ['key' => CustomerLoginSecuritySettings::SETTING_KEY],
+            ['value' => $validated['customer_login_two_factor_enabled'] === '1' ? '1' : '0'],
+        );
+
+        return back()
+            ->with('flash_success', 'تنظیمات امنیتی ذخیره شد.')
+            ->with('open_app_settings_tab', 'security');
     }
 
     private function storePublicAsset(UploadedFile $file, string $prefix): string

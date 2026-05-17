@@ -8,23 +8,36 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Services\Admin\CaptchaService;
 use App\Services\Auth\CustomerLoginLogService;
+use App\Services\Auth\CustomerLoginTwoFactorService;
+use App\Support\CustomerLoginSecuritySettings;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
+use RuntimeException;
 
 final class CustomerLoginController extends Controller
 {
-    public function create()
+    public function __construct(
+        private readonly CustomerLoginTwoFactorService $loginTwoFactor,
+    ) {}
+
+    public function create(): View
     {
-        return view('user.auth.login');
+        return view('user.auth.login', [
+            'customerLoginTwoFactorEnabled' => CustomerLoginSecuritySettings::isTwoFactorEnabled(),
+        ]);
     }
 
     /**
      * @throws ValidationException
      */
-    public function store(Request $request, CustomerLoginLogService $loginLogService)
+    public function store(Request $request, CustomerLoginLogService $loginLogService): RedirectResponse|JsonResponse
     {
         $credentials = $request->validate([
             'username' => ['required', 'string', 'min:3', 'max:64'],
@@ -48,15 +61,12 @@ final class CustomerLoginController extends Controller
         }
 
         $remember = (bool) $request->boolean('remember');
-
         $username = $this->normalizeLoginUsername(trim($credentials['username']));
 
-        if (
-            ! Auth::guard('customer')->attempt([
-                'username' => $username,
-                'password' => $credentials['password'],
-            ], $remember)
-        ) {
+        /** @var Customer|null $customer */
+        $customer = Customer::query()->where('username', $username)->first();
+
+        if ($customer === null || ! Hash::check($credentials['password'], (string) $customer->password)) {
             $this->hitFailedLoginThrottle($request);
 
             throw ValidationException::withMessages([
@@ -64,17 +74,55 @@ final class CustomerLoginController extends Controller
             ]);
         }
 
-        /** @var Customer $customer */
-        $customer = Auth::guard('customer')->user();
-
         RateLimiter::clear($this->throttleKey($request));
 
+        if (CustomerLoginSecuritySettings::isTwoFactorEnabled()) {
+            try {
+                $challenge = $this->loginTwoFactor->beginChallenge($customer, $request, $remember);
+            } catch (RuntimeException $e) {
+                if ($e->getMessage() === 'no_mobile') {
+                    throw ValidationException::withMessages([
+                        'username' => 'ورود دو مرحله‌ای فعال است اما شماره موبایل معتبر در پرونده ثبت نشده؛ با پشتیبانی تماس بگیرید.',
+                    ]);
+                }
+
+                throw ValidationException::withMessages([
+                    'username' => $e->getMessage() !== '' && $e->getMessage() !== 'sms_failed'
+                        ? $e->getMessage()
+                        : 'ارسال پیامک ورود ممکن نشد؛ لطفاً بعداً تلاش کنید.',
+                ]);
+            }
+
+            if ($this->expectsLoginJson($request)) {
+                return response()->json([
+                    'requires_otp' => true,
+                    'login_session' => $challenge['login_session'],
+                    'masked_mobile' => $challenge['masked_mobile'],
+                    'message' => $challenge['message'],
+                    'resend_available_in' => $challenge['resend_available_in'],
+                ]);
+            }
+
+            return redirect()
+                ->route('customer.login')
+                ->withInput($request->only('username', 'remember'))
+                ->with('login_2fa', $challenge);
+        }
+
+        Auth::guard('customer')->login($customer, $remember);
         $request->session()->regenerate();
 
         try {
             $loginLogService->recordSuccessfulLogin($customer, $request);
         } catch (\Throwable $e) {
             report($e);
+        }
+
+        if ($this->expectsLoginJson($request)) {
+            return response()->json([
+                'requires_otp' => false,
+                'redirect' => route('user.dashboard'),
+            ]);
         }
 
         return redirect()->intended(route('user.dashboard'));
@@ -113,5 +161,12 @@ final class CustomerLoginController extends Controller
         $step = str_replace($ar, $en, str_replace($fa, $en, $value));
 
         return trim($step);
+    }
+
+    private function expectsLoginJson(Request $request): bool
+    {
+        return $request->expectsJson()
+            || $request->header('X-Login-Mode') === 'ajax'
+            || $request->boolean('ajax');
     }
 }
