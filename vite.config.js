@@ -13,6 +13,7 @@ export default defineConfig({
                 'resources/js/support-ticket-ui.js',
                 'resources/js/admin-tickets-index.js',
                 'resources/js/user-tickets-portal.js',
+                'resources/js/admin-dashboard-charts.js',
             ],
             refresh: true,
         }),

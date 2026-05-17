@@ -7,13 +7,15 @@ namespace App\Http\Controllers\Admin\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\SmsLog;
 use App\Models\SmsPanelSetting;
+use App\Services\Admin\AdminDashboardStatisticsService;
 use Illuminate\View\View;
 
 final class AdminDashboardController extends Controller
 {
-    /**
-     * داشبورد مدیریت با لایوت کامل (سایدبار، هدر، کارت‌ها و جداول نمونه).
-     */
+    public function __construct(
+        private readonly AdminDashboardStatisticsService $dashboardStats,
+    ) {}
+
     public function __invoke(): View
     {
         $smsDeliveredToday = SmsLog::query()
@@ -32,9 +34,29 @@ final class AdminDashboardController extends Controller
             $smsPanelStatusLabel = 'نامتصل';
         }
 
+        $dashboard = $this->dashboardStats->build();
+        $summaryCards = $dashboard['summaryCards'];
+
+        foreach ($summaryCards as $index => $card) {
+            if (($card['widget_id'] ?? '') !== 'summary-sms-email') {
+                continue;
+            }
+            $summaryCards[$index]['lines'] = [
+                [
+                    'k' => 'ارسال موفق پیامک امروز',
+                    'v' => \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $smsDeliveredToday).' مورد',
+                ],
+                ['k' => 'وضعیت پنل پیامکی', 'v' => $smsPanelStatusLabel],
+            ];
+            break;
+        }
+
         return view('admin.dashboard', [
-            'smsDeliveredToday' => $smsDeliveredToday,
-            'smsPanelStatusLabel' => $smsPanelStatusLabel,
+            'systemStatRows' => $dashboard['systemStatRows'],
+            'summaryCards' => $summaryCards,
+            'tables' => $dashboard['tables'],
+            'installmentChart' => $dashboard['installmentChart'],
+            'newLoansChart' => $dashboard['newLoansChart'],
         ]);
     }
 }

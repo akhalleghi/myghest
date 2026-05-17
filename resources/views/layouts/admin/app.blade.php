@@ -1453,9 +1453,6 @@
                     ['label' => 'مدیریت پیامک', 'href' => route('admin.sms.index'), 'icon' => 'fa-envelope', 'route' => 'admin.sms.index'],
                     ['label' => 'درخواست وام‌ها', 'href' => route('admin.loan-requests.index'), 'icon' => 'fa-file-invoice', 'route' => 'admin.loan-requests.index'],
                     ['label' => 'گزارش ورود', 'href' => route('admin.customer-login-logs.index'), 'icon' => 'fa-right-to-bracket', 'route' => 'admin.customer-login-logs.index'],
-                    ['label' => 'نماینده‌ها', 'icon' => 'fa-user-tie', 'disabled' => true],
-                    ['label' => 'بازاریاب‌ها', 'icon' => 'fa-bullhorn', 'disabled' => true],
-                    ['label' => 'سفارش خریدها', 'icon' => 'fa-cart-shopping', 'disabled' => true],
                     ['label' => 'گزارش‌ها', 'icon' => 'fa-chart-column', 'disabled' => true],
                     ['label' => 'کاربران', 'icon' => 'fa-user-group', 'disabled' => true],
                 ])

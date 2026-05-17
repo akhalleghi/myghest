@@ -316,26 +316,131 @@
         }
 
         .chart-card .ch-b {
-            padding: 0.65rem;
+            padding: 0.55rem 0.65rem 0.7rem;
             background: var(--bg-card);
         }
 
-        .chart-card svg { width: 100%; height: auto; display: block; }
-
-        .chart-svg-surface {
-            fill: var(--primary-soft);
+        .dash-line-chart {
+            width: 100%;
+            min-height: 12.5rem;
         }
 
-        html[data-theme="dark"] .chart-svg-surface {
-            fill: #1e293b;
+        .dash-line-chart__wrap {
+            width: 100%;
         }
 
-        .chart-svg-label {
+        .dash-line-chart__plot {
+            position: relative;
+            width: 100%;
+            height: 12.5rem;
+            cursor: crosshair;
+            touch-action: pan-y;
+        }
+
+        .dash-line-chart__svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .dash-line-chart__grid-line {
+            stroke: rgba(148, 163, 184, 0.28);
+            stroke-width: 1;
+            vector-effect: non-scaling-stroke;
+        }
+
+        html[data-theme="dark"] .dash-line-chart__grid-line {
+            stroke: rgba(148, 163, 184, 0.18);
+        }
+
+        .dash-line-chart__axis-y,
+        .dash-line-chart__axis-x {
             fill: #64748b;
+            font-size: 10px;
+            font-family: IRANSans, Tahoma, sans-serif;
         }
 
-        html[data-theme="dark"] .chart-svg-label {
+        html[data-theme="dark"] .dash-line-chart__axis-y,
+        html[data-theme="dark"] .dash-line-chart__axis-x {
             fill: #94a3b8;
+        }
+
+        .dash-line-chart__line {
+            vector-effect: non-scaling-stroke;
+            filter: drop-shadow(0 2px 6px rgba(15, 23, 42, 0.12));
+        }
+
+        html[data-theme="dark"] .dash-line-chart__line {
+            filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.35));
+        }
+
+        .dash-line-chart__dot {
+            transition: r 0.12s ease, stroke-width 0.12s ease;
+        }
+
+        .dash-line-chart__crosshair {
+            vector-effect: non-scaling-stroke;
+            pointer-events: none;
+        }
+
+        .dash-line-chart__tooltip {
+            position: absolute;
+            z-index: 5;
+            min-width: 8.5rem;
+            max-width: 14rem;
+            padding: 0.55rem 0.65rem;
+            border-radius: 0.65rem;
+            border: 1px solid rgba(var(--tip-rgb, 37, 99, 235), 0.35);
+            background: var(--bg-card);
+            color: var(--text);
+            box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
+            pointer-events: none;
+            line-height: 1.45;
+        }
+
+        html[data-theme="dark"] .dash-line-chart__tooltip {
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42);
+        }
+
+        .dash-line-chart__tooltip::before {
+            content: '';
+            position: absolute;
+            inset-inline-start: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            border-radius: 0.65rem 0 0 0.65rem;
+            background: var(--tip-accent, var(--primary));
+        }
+
+        .dash-line-chart__tooltip-period {
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: var(--text);
+            margin-bottom: 0.2rem;
+        }
+
+        .dash-line-chart__tooltip-value {
+            font-size: 0.82rem;
+            font-weight: 800;
+            color: var(--tip-accent, var(--primary-dark));
+            direction: ltr;
+            text-align: end;
+            unicode-bidi: isolate;
+        }
+
+        .dash-line-chart__tooltip-meta {
+            margin-top: 0.28rem;
+            font-size: 0.65rem;
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        .dash-line-chart__empty {
+            padding: 2rem 1rem;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.82rem;
         }
 
         .dash-welcome-row {
@@ -604,18 +709,7 @@
                 آمار سیستم
             </div>
             <div class="card-body">
-                @php($systemStatRows = [
-                ['label' => 'تعداد مشتری', 'value' => '1'],
-                ['label' => 'تعداد پرونده وام', 'value' => '1'],
-                ['label' => 'تعداد وام تسویه', 'value' => '0'],
-                ['label' => 'مجموع خالص وام ها', 'value' => '6,000,000 تومان'],
-                ['label' => 'مجموع وام ها با احتساب بهره', 'value' => '6,360,000 تومان'],
-                ['label' => 'مجموع وام ها با احتساب بهره و دیرکرد', 'value' => '6,387,560 تومان'],
-                ['label' => 'مجموع وصول شده', 'value' => '3,000,000 تومان'],
-                ['label' => 'مجموع وصول نشده', 'value' => '3,387,560 تومان'],
-                ['label' => 'مجموع وصول نشده سررسید نشده', 'value' => '4,240,000 تومان'],
-                ])
-                @php($systemStatChunks = array_chunk($systemStatRows, (int) ceil(count($systemStatRows) / 2)))
+                @php($systemStatChunks = array_chunk($systemStatRows ?? [], (int) ceil(max(1, count($systemStatRows ?? [])) / 2)))
                 <div class="stat-sys">
                     @foreach ($systemStatChunks as $chunk)
                         <div class="stat-sys__col">
@@ -633,71 +727,8 @@
     </div>
 
     {{-- کارت‌های خلاصه --}}
-    @php($summaryCards = [
-        [
-            'widget_id' => 'summary-overdue',
-            'title' => 'اقساط سررسید شده و معوق ها',
-            'icon' => 'fa-calendar-xmark',
-            'c' => '#8b5cf6',
-            'clickable' => true,
-            'lines' => [
-                ['text' => '0 تومان', 'ltr' => true],
-                ['text' => '0 مورد'],
-            ],
-            'footer' => 'جهت مشاهده بر روی باکس کلیک کنید',
-        ],
-        [
-            'widget_id' => 'summary-deposit-notifications',
-            'title' => 'اعلام واریزی های جدید',
-            'icon' => 'fa-money-bill-transfer',
-            'c' => '#ec4899',
-            'clickable' => true,
-            'lines' => [
-                ['text' => '0 مورد'],
-            ],
-            'footer' => 'جهت مشاهده بر روی باکس کلیک کنید',
-        ],
-        [
-            'widget_id' => 'summary-loan-requests',
-            'title' => 'درخواست وام ها',
-            'icon' => 'fa-file-circle-check',
-            'c' => '#06b6d4',
-            'clickable' => true,
-            'lines' => [
-                ['k' => 'در انتظار بررسی کارشناس', 'v' => '0'],
-                ['k' => 'بررسی مجدد کارشناس', 'v' => '0'],
-                ['k' => 'درخواست های جدید امروز', 'v' => '0'],
-            ],
-            'footer' => 'جهت مشاهده بر روی باکس کلیک کنید',
-        ],
-        [
-            'widget_id' => 'summary-sms-email',
-            'title' => 'وضعیت پیامک',
-            'icon' => 'fa-paper-plane',
-            'c' => '#f97316',
-            'clickable' => true,
-            'href' => route('admin.sms.index'),
-            'lines' => [
-                ['k' => 'ارسال موفق پیامک امروز', 'v' => \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) ($smsDeliveredToday ?? 0)).' مورد'],
-                ['k' => 'وضعیت پنل پیامکی', 'v' => (string) ($smsPanelStatusLabel ?? 'تنظیم نشده')],
-            ],
-            'footer' => 'جهت مشاهده بر روی باکس کلیک کنید',
-        ],
-        [
-            'widget_id' => 'summary-counterparty-matured',
-            'title' => 'سررسید شده های طرف حساب',
-            'icon' => 'fa-user-clock',
-            'c' => '#2563eb',
-            'clickable' => true,
-            'lines' => [
-                ['text' => '0 تومان', 'ltr' => true],
-                ['text' => '0 مورد'],
-            ],
-            'footer' => 'جهت مشاهده بر روی باکس کلیک کنید',
-        ],
-    ])
     <div class="quick-grid">
-        @foreach ($summaryCards as $qk)
+        @foreach ($summaryCards ?? [] as $qk)
             <div
                 class="dash-widget"
                 data-dash-widget="{{ $qk['widget_id'] }}"
@@ -743,25 +774,7 @@
         @endforeach
     </div>
 
-    @php($tables = [
-        ['widget_id' => 'tbl-online-installments', 'title' => 'واریز قسط‌های آنلاین', 'color' => '#6366f1', 'rows' => [
-            ['۱۴۰۴/۱۲/۰۲', '۲٬۵۰۰٬۰۰۰', '—', '۱۵٬۲۰۰٬۰۰۰', 'واریز قسط آنلاین'],
-            ['۱۴۰۴/۱۲/۰۱', '۱٬۸۰۰٬۰۰۰', '—', '۱۲٬۷۰۰٬۰۰۰', 'درگاه بانکی'],
-        ]],
-        ['widget_id' => 'tbl-bank-transactions', 'title' => 'تراکنش‌های بانک', 'color' => '#06b6d4', 'rows' => [
-            ['۱۴۰۴/۱۱/۲۸', '۵٬۰۰۰٬۰۰۰', '—', '۴۲٬۰۰۰٬۰۰۰', 'واریز توده‌ای'],
-            ['۱۴۰۴/۱۱/۲۷', '—', '۱٬۲۰۰٬۰۰۰', '۳۷٬۰۰۰٬۰۰۰', 'برداشت کارمزد'],
-        ]],
-        ['widget_id' => 'tbl-fund-transactions', 'title' => 'تراکنش‌های صندوق', 'color' => '#10b981', 'rows' => [
-            ['۱۴۰۴/۱۱/۲۵', '۳۰۰٬۰۰۰', '—', '۲٬۱۰۰٬۰۰۰', 'دریافت نقدی'],
-            ['۱۴۰۴/۱۱/۲۴', '—', '۱۵۰٬۰۰۰', '۱٬۸۰۰٬۰۰۰', 'پرداخت هزینه'],
-        ]],
-        ['widget_id' => 'tbl-special-box', 'title' => 'جعبه‌شکن / تراکنش ویژه', 'color' => '#ec4899', 'rows' => [
-            ['۱۴۰۴/۱۱/۲۰', '۸۰۰٬۰۰۰', '—', '۹۵۰٬۰۰۰', 'تسهیم دوره‌ای'],
-            ['۱۴۰۴/۱۱/۱۹', '—', '۲۰۰٬۰۰۰', '۱۵۰٬۰۰۰', 'اصلاح سند'],
-        ]],
-    ])
-    @foreach ($tables as $tb)
+    @foreach ($tables ?? [] as $tb)
         <div
             class="dash-widget"
             data-dash-widget="{{ $tb['widget_id'] }}"
@@ -787,19 +800,23 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($tb['rows'] as $r)
+                        @forelse ($tb['rows'] as $r)
                             <tr>
                                 @foreach ($r as $cell)
-                                    <td>{{ $cell }}</td>
+                                    <td><span class="stat-sys__val-ltr">{{ $cell }}</span></td>
                                 @endforeach
                             </tr>
-                        @endforeach
+                        @empty
+                            <tr>
+                                <td colspan="5" style="text-align:center;color:var(--muted);">رکوردی یافت نشد.</td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>
             <div class="tbl-foot">
-                <span><i class="fa-solid fa-list" style="margin-inline-end:0.25rem;opacity:0.75" aria-hidden="true"></i> ردیف در هر صفحه: ۱۰</span>
-                <span><i class="fa-regular fa-file-lines" style="margin-inline-end:0.25rem;opacity:0.75" aria-hidden="true"></i> صفحه ۱ از ۱</span>
+                <span><i class="fa-solid fa-list" style="margin-inline-end:0.25rem;opacity:0.75" aria-hidden="true"></i> نمایش آخرین {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers('10') }} ردیف</span>
+                <span><i class="fa-regular fa-file-lines" style="margin-inline-end:0.25rem;opacity:0.75" aria-hidden="true"></i> تعداد: {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) ($tb['row_count'] ?? count($tb['rows'] ?? []))) }}</span>
             </div>
         </div>
         </div>
@@ -813,25 +830,7 @@
                 آمار اقساط (۱۲ ماه اخیر)
             </div>
             <div class="ch-b">
-                <svg viewBox="0 0 420 140" role="img" aria-label="نمودار اقساط">
-                    <rect class="chart-svg-surface" width="420" height="140"/>
-                    <polyline fill="none" stroke="#0ea5e9" stroke-width="2.5"
-                        points="20,100 55,88 90,95 125,72 160,80 195,55 230,62 265,48 300,52 335,40 370,35 405,28"/>
-                    <g class="chart-svg-label" font-size="10" font-family="IRANSans, sans-serif">
-                        <text x="12" y="132">فروردین</text>
-                        <text x="52" y="132">اردیبهشت</text>
-                        <text x="92" y="132">خرداد</text>
-                        <text x="132" y="132">تیر</text>
-                        <text x="168" y="132">مرداد</text>
-                        <text x="200" y="132">شهریور</text>
-                        <text x="238" y="132">مهر</text>
-                        <text x="276" y="132">آبان</text>
-                        <text x="312" y="132">آذر</text>
-                        <text x="348" y="132">دی</text>
-                        <text x="380" y="132">بهمن</text>
-                        <text x="408" y="132">اسفند</text>
-                    </g>
-                </svg>
+                <div id="dash-chart-installments" class="dash-line-chart" aria-hidden="false"></div>
             </div>
         </div>
         </div>
@@ -842,25 +841,7 @@
                 آمار وام‌های جدید (۱۲ ماه اخیر)
             </div>
             <div class="ch-b">
-                <svg viewBox="0 0 420 140" role="img" aria-label="نمودار وام جدید">
-                    <rect class="chart-svg-surface" width="420" height="140"/>
-                    <polyline fill="none" stroke="#22c55e" stroke-width="2.5"
-                        points="20,95 55,90 90,85 125,70 160,65 195,58 230,50 265,55 300,42 335,38 370,32 405,25"/>
-                    <g class="chart-svg-label" font-size="10" font-family="IRANSans, sans-serif">
-                        <text x="12" y="132">فروردین</text>
-                        <text x="52" y="132">اردیبهشت</text>
-                        <text x="92" y="132">خرداد</text>
-                        <text x="132" y="132">تیر</text>
-                        <text x="168" y="132">مرداد</text>
-                        <text x="200" y="132">شهریور</text>
-                        <text x="238" y="132">مهر</text>
-                        <text x="276" y="132">آبان</text>
-                        <text x="312" y="132">آذر</text>
-                        <text x="348" y="132">دی</text>
-                        <text x="380" y="132">بهمن</text>
-                        <text x="408" y="132">اسفند</text>
-                    </g>
-                </svg>
+                <div id="dash-chart-new-loans" class="dash-line-chart" aria-hidden="false"></div>
             </div>
         </div>
         </div>
@@ -889,9 +870,17 @@
             </div>
         </div>
     @endauth
+
+    <script type="application/json" id="dash-charts-config">
+        {!! json_encode([
+            'installments' => $installmentChart ?? ['series' => []],
+            'new_loans' => $newLoansChart ?? ['series' => []],
+        ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!}
+    </script>
 @endsection
 
 @push('scripts')
+    @vite(['resources/js/admin-dashboard-charts.js'])
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     var STORAGE_KEY = 'myghest_dashboard_widgets_v1';
