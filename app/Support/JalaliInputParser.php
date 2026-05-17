@@ -19,9 +19,23 @@ final class JalaliInputParser
         $value = self::toEnglishDigits($value);
 
         try {
-            $j = Jalali::parseFormat('Y/m/d', $value);
+            $timezone = (string) config('app.timezone', 'Asia/Tehran');
+            $j = Jalali::parseFormat('Y/m/d', $value, $timezone);
+            [$gregorianYear, $gregorianMonth, $gregorianDay] = Jalali::jalaliToGregorian(
+                (int) $j->year,
+                (int) $j->month,
+                (int) $j->day,
+            );
 
-            return Carbon::createFromTimestamp($j->getTimestamp())->startOfDay();
+            return Carbon::create(
+                $gregorianYear,
+                $gregorianMonth,
+                $gregorianDay,
+                0,
+                0,
+                0,
+                $timezone,
+            )->startOfDay();
         } catch (\Throwable) {
             return null;
         }

@@ -14,6 +14,7 @@ export default defineConfig({
                 'resources/js/admin-tickets-index.js',
                 'resources/js/user-tickets-portal.js',
                 'resources/js/admin-dashboard-charts.js',
+                'resources/js/admin-reports.js',
             ],
             refresh: true,
         }),

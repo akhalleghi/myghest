@@ -8092,6 +8092,10 @@
                     var id = parseInt(String(data.id || 0), 10);
                     if (!id) return;
                     openLoanManageModal(id, String(data.name || ''), String(data.mobile || ''));
+                    var loanInstOpen = parseInt(params.get('open_loan_installments') || '0', 10);
+                    if (loanInstOpen > 0) {
+                        openLoanInstallmentsModal(loanInstOpen);
+                    }
                     if (window.history && window.history.replaceState) {
                         window.history.replaceState({}, document.title, window.location.pathname);
                     }

@@ -110,6 +110,13 @@ final class CustomerWalletService
             $wallet->balance_toman = $newBalance;
             $wallet->save();
 
+            $meta = is_array($meta) ? $meta : [];
+            if ($adminId !== null && $adminId > 0) {
+                $meta['channel'] = 'admin';
+            } elseif (! isset($meta['channel'])) {
+                $meta['channel'] = 'portal';
+            }
+
             /** @var CustomerWalletTransaction $tx */
             $tx = CustomerWalletTransaction::query()->create([
                 'wallet_id' => $wallet->id,

@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\AdminCustomerLoginReportController;
 use App\Http\Controllers\Admin\AdminCustomerTransactionController;
 use App\Http\Controllers\Admin\AdminDepositDeclarationController;
 use App\Http\Controllers\Admin\AdminLoanRequestStatusDefinitionController;
+use App\Http\Controllers\Admin\AdminReportsController;
 use App\Http\Controllers\Admin\AdminNotificationController;
 use App\Http\Controllers\Admin\AdminSupportTicketController;
 use App\Http\Controllers\Admin\AppSettingsController;
@@ -73,6 +74,50 @@ Route::middleware(['auth:admin'])->group(function (): void {
     | داشبورد موقت؛ ساخت صفحه‌های واقعی سیستم اقساط در گام بعدی خواهد بود.
     */
     Route::get('/', AdminDashboardController::class)->name('dashboard');
+
+    Route::get('/reports', [AdminReportsController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('reports.index');
+
+    Route::get('/reports/member-loans-by-date/data', [AdminReportsController::class, 'memberLoansByDateData'])
+        ->middleware('throttle:90,1')
+        ->name('reports.member-loans-by-date.data');
+
+    Route::get('/reports/member-loans-by-date/export-excel', [AdminReportsController::class, 'exportMemberLoansByDateExcel'])
+        ->middleware('throttle:20,1')
+        ->name('reports.member-loans-by-date.export-excel');
+
+    Route::get('/reports/installment-due-by-date/data', [AdminReportsController::class, 'installmentDueByDateData'])
+        ->middleware('throttle:90,1')
+        ->name('reports.installment-due-by-date.data');
+
+    Route::get('/reports/installment-due-by-date/export-excel', [AdminReportsController::class, 'exportInstallmentDueByDateExcel'])
+        ->middleware('throttle:20,1')
+        ->name('reports.installment-due-by-date.export-excel');
+
+    Route::get('/reports/deposits-by-date/data', [AdminReportsController::class, 'depositsByDateData'])
+        ->middleware('throttle:90,1')
+        ->name('reports.deposits-by-date.data');
+
+    Route::get('/reports/deposits-by-date/export-excel', [AdminReportsController::class, 'exportDepositsByDateExcel'])
+        ->middleware('throttle:20,1')
+        ->name('reports.deposits-by-date.export-excel');
+
+    Route::get('/reports/settled-members/data', [AdminReportsController::class, 'settledMembersData'])
+        ->middleware('throttle:90,1')
+        ->name('reports.settled-members.data');
+
+    Route::get('/reports/settled-members/export-excel', [AdminReportsController::class, 'exportSettledMembersExcel'])
+        ->middleware('throttle:20,1')
+        ->name('reports.settled-members.export-excel');
+
+    Route::get('/reports/wallet-transactions-by-date/data', [AdminReportsController::class, 'walletTransactionsByDateData'])
+        ->middleware('throttle:90,1')
+        ->name('reports.wallet-transactions-by-date.data');
+
+    Route::get('/reports/wallet-transactions-by-date/export-excel', [AdminReportsController::class, 'exportWalletTransactionsByDateExcel'])
+        ->middleware('throttle:20,1')
+        ->name('reports.wallet-transactions-by-date.export-excel');
 
     Route::get('/organizations', [OrganizationController::class, 'index'])
         ->middleware('throttle:60,1')
@@ -153,6 +198,50 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::get('/customer-login-logs', [AdminCustomerLoginReportController::class, 'index'])
         ->middleware('throttle:60,1')
         ->name('customer-login-logs.index');
+
+    Route::get('/reports', [AdminReportsController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('reports.index');
+
+    Route::get('/reports/member-loans-by-date/data', [AdminReportsController::class, 'memberLoansByDateData'])
+        ->middleware('throttle:90,1')
+        ->name('reports.member-loans-by-date.data');
+
+    Route::get('/reports/member-loans-by-date/export-excel', [AdminReportsController::class, 'exportMemberLoansByDateExcel'])
+        ->middleware('throttle:20,1')
+        ->name('reports.member-loans-by-date.export-excel');
+
+    Route::get('/reports/installment-due-by-date/data', [AdminReportsController::class, 'installmentDueByDateData'])
+        ->middleware('throttle:90,1')
+        ->name('reports.installment-due-by-date.data');
+
+    Route::get('/reports/installment-due-by-date/export-excel', [AdminReportsController::class, 'exportInstallmentDueByDateExcel'])
+        ->middleware('throttle:20,1')
+        ->name('reports.installment-due-by-date.export-excel');
+
+    Route::get('/reports/deposits-by-date/data', [AdminReportsController::class, 'depositsByDateData'])
+        ->middleware('throttle:90,1')
+        ->name('reports.deposits-by-date.data');
+
+    Route::get('/reports/deposits-by-date/export-excel', [AdminReportsController::class, 'exportDepositsByDateExcel'])
+        ->middleware('throttle:20,1')
+        ->name('reports.deposits-by-date.export-excel');
+
+    Route::get('/reports/settled-members/data', [AdminReportsController::class, 'settledMembersData'])
+        ->middleware('throttle:90,1')
+        ->name('reports.settled-members.data');
+
+    Route::get('/reports/settled-members/export-excel', [AdminReportsController::class, 'exportSettledMembersExcel'])
+        ->middleware('throttle:20,1')
+        ->name('reports.settled-members.export-excel');
+
+    Route::get('/reports/wallet-transactions-by-date/data', [AdminReportsController::class, 'walletTransactionsByDateData'])
+        ->middleware('throttle:90,1')
+        ->name('reports.wallet-transactions-by-date.data');
+
+    Route::get('/reports/wallet-transactions-by-date/export-excel', [AdminReportsController::class, 'exportWalletTransactionsByDateExcel'])
+        ->middleware('throttle:20,1')
+        ->name('reports.wallet-transactions-by-date.export-excel');
 
     Route::get('/loan-requests', [AdminCustomerLoanRequestController::class, 'index'])
         ->middleware('throttle:60,1')
