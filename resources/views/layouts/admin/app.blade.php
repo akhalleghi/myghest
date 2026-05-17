@@ -1454,7 +1454,7 @@
                     ['label' => 'درخواست وام‌ها', 'href' => route('admin.loan-requests.index'), 'icon' => 'fa-file-invoice', 'route' => 'admin.loan-requests.index'],
                     ['label' => 'گزارش ورود', 'href' => route('admin.customer-login-logs.index'), 'icon' => 'fa-right-to-bracket', 'route' => 'admin.customer-login-logs.index'],
                     ['label' => 'گزارش‌ها', 'href' => route('admin.reports.index'), 'icon' => 'fa-chart-column', 'route' => 'admin.reports.index'],
-                    ['label' => 'کاربران', 'icon' => 'fa-user-group', 'disabled' => true],
+                    ['label' => 'کاربران', 'href' => route('admin.users.index'), 'icon' => 'fa-user-group', 'route' => 'admin.users.index'],
                 ])
                 @foreach ($nav as $item)
                     @if(! empty($item['disabled']))

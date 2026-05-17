@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\AdminDepositDeclarationController;
 use App\Http\Controllers\Admin\AdminLoanRequestStatusDefinitionController;
 use App\Http\Controllers\Admin\AdminReportsController;
 use App\Http\Controllers\Admin\AdminNotificationController;
+use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminSupportTicketController;
 use App\Http\Controllers\Admin\AppSettingsController;
 use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
@@ -586,4 +587,20 @@ Route::middleware(['auth:admin'])->group(function (): void {
     Route::post('/app-settings/security', [AppSettingsController::class, 'updateSecurity'])
         ->middleware('throttle:20,1')
         ->name('app-settings.security.update');
+
+    Route::get('/users', [AdminUserController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('users.index');
+
+    Route::post('/users', [AdminUserController::class, 'store'])
+        ->middleware('throttle:30,1')
+        ->name('users.store');
+
+    Route::put('/users/{admin}', [AdminUserController::class, 'update'])
+        ->middleware('throttle:30,1')
+        ->name('users.update');
+
+    Route::delete('/users/{admin}', [AdminUserController::class, 'destroy'])
+        ->middleware('throttle:30,1')
+        ->name('users.destroy');
 });

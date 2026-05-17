@@ -88,6 +88,26 @@ final class SmsSettingsService
      *   overdue_template_id:int|string|null
      * }  $values
      */
+    public function reminderLastDispatchDate(): ?string
+    {
+        $value = AppSetting::query()->where('key', 'sms_reminder_last_dispatch_date')->value('value');
+
+        return is_scalar($value) && trim((string) $value) !== '' ? trim((string) $value) : null;
+    }
+
+    public function markReminderDispatchedToday(): void
+    {
+        AppSetting::query()->updateOrCreate(
+            ['key' => 'sms_reminder_last_dispatch_date'],
+            ['value' => now()->toDateString()]
+        );
+    }
+
+    public function isSettingEnabled(string $value): bool
+    {
+        return in_array(trim($value), ['1', 'true', 'yes', 'on'], true);
+    }
+
     public function saveReminderSettings(array $values): void
     {
         $this->saveMap([

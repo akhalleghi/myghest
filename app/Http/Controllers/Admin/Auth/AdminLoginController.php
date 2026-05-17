@@ -80,6 +80,11 @@ final class AdminLoginController extends Controller
 
         RateLimiter::clear($this->throttleKeyAdminLogin($request));
 
+        $admin->forceFill([
+            'login_count' => (int) $admin->login_count + 1,
+            'last_login_at' => now(),
+        ])->save();
+
         $request->session()->regenerate();
 
         return redirect()->intended(route('admin.dashboard'));

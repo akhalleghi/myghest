@@ -17,24 +17,24 @@ final class RawSmsDispatcher
 
     /**
      * @param  array<string, mixed>  $extraMeta
-     * @return array{ok: bool, message: string}
+     * @return array{ok: bool, message: string, sms_log_id: int|null}
      */
     public function send(string $recipient, string $messageText, string $type = 'customer-credentials', array $extraMeta = []): array
     {
         $active = SmsPanelSetting::query()->where('is_active', true)->first();
         if ($active === null) {
-            return ['ok' => false, 'message' => 'پیامک ارسال نشد (پنل پیامک فعال نیست).'];
+            return ['ok' => false, 'message' => 'پیامک ارسال نشد (پنل پیامک فعال نیست).', 'sms_log_id' => null];
         }
 
         $providerOptions = $this->panelManager->providerOptions();
         $providerKey = $active->provider;
         if (! isset($providerOptions[$providerKey])) {
-            return ['ok' => false, 'message' => 'پیامک ارسال نشد (پنل پیامک پیکربندی نشده).'];
+            return ['ok' => false, 'message' => 'پیامک ارسال نشد (پنل پیامک پیکربندی نشده).', 'sms_log_id' => null];
         }
 
         $password = $this->decryptPasswordOrEmpty((string) $active->password);
         if ($password === '') {
-            return ['ok' => false, 'message' => 'پیامک ارسال نشد (رمز پنل ذخیره نشده).'];
+            return ['ok' => false, 'message' => 'پیامک ارسال نشد (رمز پنل ذخیره نشده).', 'sms_log_id' => null];
         }
 
         $gateway = $this->panelManager->gateway($providerKey);
@@ -49,7 +49,7 @@ final class RawSmsDispatcher
             ]
         );
 
-        SmsLog::query()->create([
+        $log = SmsLog::query()->create([
             'sms_panel' => (string) ($providerOptions[$providerKey] ?? $providerKey),
             'status' => $result->ok ? SmsLog::STATUS_DELIVERED : SmsLog::STATUS_UNDELIVERED,
             'sent_at' => now(),
@@ -69,6 +69,7 @@ final class RawSmsDispatcher
             'message' => $result->ok
                 ? 'پیامک ارسال شد.'
                 : 'عملیات انجام شد اما ارسال پیامک ناموفق بود: '.$result->message,
+            'sms_log_id' => (int) $log->id,
         ];
     }
 

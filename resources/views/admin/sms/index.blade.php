@@ -482,6 +482,10 @@
                     تنظیمات پیامک‌های یادآوری
                 </div>
                 <p class="sms-panel-select-sub">ابتدا فعال‌سازی پیامک یادآوری را تعیین کنید. در صورت فعال‌سازی، سایر تنظیمات نمایش داده می‌شوند.</p>
+                <p class="sms-panel-select-sub" style="margin-top:0.35rem;color:#64748b;font-size:0.85rem;">
+                    برای ارسال خودکار سر ساعت انتخابی، زمان‌باز Laravel را روی سرور فعال کنید:
+                    <code style="font-size:0.8rem;">* * * * * php {{ base_path('artisan') }} schedule:run</code>
+                </p>
 
                 <form method="post" action="{{ route('admin.sms.reminder-settings.update') }}" class="sms-settings-form">
                     @csrf
