@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Admin;
 use App\Models\AppSetting;
+use App\Services\Admin\AdminPermissionService;
 use App\Models\Customer;
 use App\Models\CustomerDepositDeclaration;
 use App\Services\Sms\Gateways\SepahanGostarGateway;
@@ -37,7 +38,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Carbon::setLocale((string) config('app.locale'));
 
-        View::composer(['layouts.admin.app', 'layouts.admin.auth', 'layouts.admin.embed_iframe', 'layouts.user.app'], function ($view): void {
+        View::composer(['layouts.admin.app', 'layouts.admin.auth', 'layouts.admin.embed_iframe', 'layouts.user.app', 'errors.layout', 'errors.403'], function ($view): void {
             $displayName = AppSetting::query()
                 ->where('key', 'app_display_name')
                 ->value('value');
@@ -114,6 +115,8 @@ class AppServiceProvider extends ServiceProvider
             $pendingDepositBadge = '';
             $loanNotifs = collect();
             $loanUnreadCount = 0;
+            $adminNavItems = [];
+            $adminCanOpenAppSettings = false;
             if (Auth::guard('admin')->check()) {
                 $pendingDepositCount = (int) CustomerDepositDeclaration::query()
                     ->where('status', CustomerDepositDeclaration::STATUS_PENDING)
@@ -126,6 +129,9 @@ class AppServiceProvider extends ServiceProvider
 
                 $admin = Auth::guard('admin')->user();
                 if ($admin instanceof Admin) {
+                    $permissions = app(AdminPermissionService::class);
+                    $adminNavItems = $permissions->visibleNavigationItems($admin);
+                    $adminCanOpenAppSettings = $permissions->canOpenAppSettings($admin);
                     $loanNotifs = $this->loadRecentNotifications($admin::class, (int) $admin->getKey());
                     $loanUnreadCount = (int) DatabaseNotification::query()
                         ->where('notifiable_type', $admin::class)
@@ -143,6 +149,8 @@ class AppServiceProvider extends ServiceProvider
             $view->with('adminLoanNotifications', $loanNotifs);
             $view->with('adminLoanNotificationsUnreadCount', $loanUnreadCount);
             $view->with('adminNotificationsBadgeUnified', $unifiedBadge);
+            $view->with('adminNavItems', $adminNavItems);
+            $view->with('adminCanOpenAppSettings', $adminCanOpenAppSettings);
         });
 
         View::composer('layouts.user.app', function ($view): void {

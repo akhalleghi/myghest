@@ -77,6 +77,28 @@
         .au-btn { font-family: inherit; font-size: 0.82rem; font-weight: 700; padding: 0.52rem 1rem; border-radius: 0.65rem; cursor: pointer; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); }
         .au-btn--primary { border: none; background: linear-gradient(180deg, var(--primary), var(--primary-dark)); color: #fff; }
         .au-errs--modal { margin: 0 0 1rem; }
+        .au-modal__box--wide { width: min(100%, 52rem); }
+        .au-perm-note { margin: 0 0 0.65rem; font-size: 0.78rem; color: var(--muted); line-height: 1.55; }
+        .au-perm-note--warn { color: #b45309; font-weight: 600; }
+        html[data-theme="dark"] .au-perm-note--warn { color: #fbbf24; }
+        .au-perm-toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.65rem; }
+        .au-perm-search { flex: 1 1 10rem; min-width: 0; padding: 0.48rem 0.65rem; border-radius: 0.6rem; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); font-family: inherit; font-size: 0.82rem; }
+        .au-perm-toolbar-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+        .au-perm-btn { font-family: inherit; font-size: 0.72rem; font-weight: 700; padding: 0.38rem 0.6rem; border-radius: 0.55rem; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); cursor: pointer; }
+        .au-perm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .au-perm-tree-wrap { max-height: min(48vh, 420px); overflow: auto; border: 1px solid var(--border); border-radius: 0.75rem; padding: 0.5rem 0.35rem; background: var(--bg-card); }
+        .au-perm-tree, .au-perm-children { list-style: none; margin: 0; padding: 0; }
+        .au-perm-children { padding-inline-start: 0.35rem; }
+        .au-perm-node { margin: 0.12rem 0; }
+        .au-perm-node--hidden { display: none !important; }
+        .au-perm-node-row { display: flex; align-items: center; gap: 0.35rem; padding: 0.28rem 0.35rem; padding-inline-start: calc(0.35rem + var(--au-depth, 0) * 1.1rem); border-radius: 0.45rem; }
+        .au-perm-node-row:hover { background: rgba(37, 99, 235, 0.05); }
+        .au-perm-toggle { width: 1.65rem; height: 1.65rem; border: none; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; flex-shrink: 0; }
+        .au-perm-toggle--spacer { width: 1.65rem; flex-shrink: 0; }
+        .au-perm-check { display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.8rem; font-weight: 600; color: var(--text); flex: 1; min-width: 0; }
+        .au-perm-check.is-disabled { opacity: 0.55; cursor: not-allowed; }
+        .au-perm-check input { accent-color: var(--primary); width: 1rem; height: 1rem; flex-shrink: 0; }
+        .au-perm-label { line-height: 1.45; }
     </style>
 @endpush
 
@@ -89,7 +111,7 @@
     @endphp
     <div class="au-page">
         <h1 class="au-title">کاربران</h1>
-        <p class="au-sub">مدیریت حساب‌های دسترسی به پنل ادمین؛ تعریف دسترسی‌ها در مرحله بعد تکمیل می‌شود.</p>
+        <p class="au-sub">مدیریت حساب‌های دسترسی به پنل ادمین و تعیین دسترسی ریزبه‌ریز به بخش‌های سامانه.</p>
 
         @if (session('flash_success'))
             <div class="au-flash" role="status">{{ session('flash_success') }}</div>
@@ -173,6 +195,7 @@
                                             type="button"
                                             class="au-ops-btn au-ops-btn--danger"
                                             data-au-delete="{{ $admin->id }}"
+                                            data-au-delete-label="{{ $admin->fullName() }}"
                                             title="حذف"
                                             aria-label="حذف"
                                             @if ($admin->id === $currentAdminId) disabled style="opacity:0.45;cursor:not-allowed" @endif
@@ -198,7 +221,7 @@
     </div>
 
     <div id="au-user-modal" class="au-modal" hidden aria-hidden="true">
-        <div class="au-modal__box" role="dialog" aria-modal="true" aria-labelledby="au-modal-title">
+        <div class="au-modal__box au-modal__box--wide" role="dialog" aria-modal="true" aria-labelledby="au-modal-title">
             <div class="au-modal__head">
                 <h2 class="au-modal__title" id="au-modal-title">{{ $auEditingId ? 'ویرایش کاربر' : 'افزودن کاربر' }}</h2>
                 <button type="button" class="au-modal__close" id="au-modal-close" aria-label="بستن">
@@ -306,7 +329,12 @@
                     </div>
 
                     <div class="au-tab-panel" data-au-panel="permissions" role="tabpanel">
-                        <p class="au-tab-panel--placeholder">متن تستی — بخش دسترسی‌ها در مرحله بعد پیاده‌سازی می‌شود.</p>
+                        @include('admin.users.partials.permission-tree', [
+                            'permissionTree' => $permissionTree,
+                            'canAssignPermissions' => $canAssignPermissions,
+                            'assignablePermissionKeys' => $assignablePermissionKeys,
+                            'restrictAssignable' => $restrictAssignable,
+                        ])
                     </div>
                 </div>
 
@@ -328,6 +356,8 @@
             var updateUrlTemplate = @json($auUpdateUrlTemplate);
             var storeUrl = @json(route('admin.users.store'));
             var shouldOpen = @json($auShouldOpenModal);
+            var currentAdminId = @json($currentAdminId);
+            var canAssignPermissions = @json($canAssignPermissions);
 
             var modal = document.getElementById('au-user-modal');
             var form = document.getElementById('au-user-form');
@@ -363,6 +393,16 @@
                 });
             }
 
+            function applyPermissionTree(d, userId) {
+                if (typeof window.auPermTreeApplyKeys === 'function') {
+                    window.auPermTreeApplyKeys((d && d.permission_keys) ? d.permission_keys : []);
+                }
+                var readonly = !canAssignPermissions || userId === currentAdminId;
+                if (typeof window.auPermTreeSetReadonly === 'function') {
+                    window.auPermTreeSetReadonly(readonly);
+                }
+            }
+
             function resetToCreate() {
                 if (!form) return;
                 form.action = storeUrl;
@@ -374,6 +414,7 @@
                 form.reset();
                 var activeChk = document.getElementById('au-is-active');
                 if (activeChk) activeChk.checked = true;
+                applyPermissionTree(null, 0);
                 setTab('profile');
             }
 
@@ -398,6 +439,7 @@
                 if (pwdConf) { pwdConf.required = false; pwdConf.value = ''; }
                 var activeChk = document.getElementById('au-is-active');
                 if (activeChk) activeChk.checked = !!d.is_active;
+                applyPermissionTree(d, id);
                 setTab('profile');
             }
 
@@ -420,8 +462,31 @@
                     if (btn.disabled) return;
                     var id = btn.getAttribute('data-au-delete');
                     if (!id) return;
-                    if (!window.confirm('این کاربر حذف شود؟')) return;
-                    document.getElementById('au-del-' + id)?.submit();
+                    var form = document.getElementById('au-del-' + id);
+                    if (!form) return;
+
+                    var label = (btn.getAttribute('data-au-delete-label') || '').trim();
+                    var confirmText = label !== ''
+                        ? 'کاربر «' + label + '» حذف شود؟ این عمل قابل بازگشت نیست.'
+                        : 'این کاربر حذف شود؟ این عمل قابل بازگشت نیست.';
+
+                    if (window.AdminSwal && typeof AdminSwal.confirm === 'function') {
+                        AdminSwal.confirm({
+                            title: 'حذف کاربر',
+                            text: confirmText,
+                            confirmButtonText: 'بله، حذف شود',
+                            cancelButtonText: 'انصراف',
+                        }).then(function (result) {
+                            if (result && result.isConfirmed) {
+                                form.submit();
+                            }
+                        });
+                        return;
+                    }
+
+                    if (window.confirm(confirmText)) {
+                        form.submit();
+                    }
                 });
             });
 
@@ -459,4 +524,5 @@
             }
         })();
     </script>
+    @vite(['resources/js/admin-permission-tree.js'])
 @endpush

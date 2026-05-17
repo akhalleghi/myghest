@@ -1443,19 +1443,7 @@
             </div>
             <nav class="sidebar-nav">
                 <div class="nav-section-label">منو</div>
-                @php($nav = [
-                    ['label' => 'داشبورد', 'href' => route('admin.dashboard'), 'icon' => 'fa-gauge-high', 'route' => 'admin.dashboard'],
-                    ['label' => 'تعریف انواع وام', 'href' => route('admin.loan-types.index'), 'icon' => 'fa-money-bill-transfer', 'route' => 'admin.loan-types.index'],
-                    ['label' => 'لیست مشتریان', 'href' => route('admin.customers.index'), 'icon' => 'fa-users', 'route' => 'admin.customers.index'],
-                    ['label' => 'اعلام واریزها', 'href' => route('admin.deposit-declarations.index'), 'icon' => 'fa-building-columns', 'route' => 'admin.deposit-declarations.index'],
-                    ['label' => 'تراکنش‌ها', 'href' => route('admin.customer-transactions.index'), 'icon' => 'fa-receipt', 'route' => 'admin.customer-transactions.index'],
-                    ['label' => 'تیکت‌ها', 'href' => route('admin.tickets.index'), 'icon' => 'fa-ticket', 'route' => 'admin.tickets.index'],
-                    ['label' => 'مدیریت پیامک', 'href' => route('admin.sms.index'), 'icon' => 'fa-envelope', 'route' => 'admin.sms.index'],
-                    ['label' => 'درخواست وام‌ها', 'href' => route('admin.loan-requests.index'), 'icon' => 'fa-file-invoice', 'route' => 'admin.loan-requests.index'],
-                    ['label' => 'گزارش ورود', 'href' => route('admin.customer-login-logs.index'), 'icon' => 'fa-right-to-bracket', 'route' => 'admin.customer-login-logs.index'],
-                    ['label' => 'گزارش‌ها', 'href' => route('admin.reports.index'), 'icon' => 'fa-chart-column', 'route' => 'admin.reports.index'],
-                    ['label' => 'کاربران', 'href' => route('admin.users.index'), 'icon' => 'fa-user-group', 'route' => 'admin.users.index'],
-                ])
+                @php($nav = $adminNavItems ?? [])
                 @foreach ($nav as $item)
                     @if(! empty($item['disabled']))
                         <span class="nav-link nav-link--disabled js-drawer-close-on-nav">
@@ -1484,10 +1472,12 @@
             </div>
 
             <div class="sidebar-foot">
+                @if ($adminCanOpenAppSettings ?? true)
                 <button type="button" id="app-settings-open" aria-haspopup="dialog" aria-controls="app-settings-modal">
                     <i class="fa-solid fa-sliders" aria-hidden="true"></i>
                     تنظیمات برنامه
                 </button>
+                @endif
                 <button type="button" disabled title="به‌زودی">
                     <i class="fa-solid fa-database" aria-hidden="true"></i>
                     پشتیبان‌گیری و بازیابی

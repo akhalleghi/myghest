@@ -30,6 +30,7 @@ class AdminSeeder extends Seeder
             'email' => $email,
             'password' => Hash::make($password),
             'is_active' => true,
+            'is_super_admin' => true,
         ];
 
         if ($existing instanceof Admin) {

@@ -44,6 +44,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'guest.admin' => EnsureAdminGuest::class,
             'guest.customer' => EnsureCustomerGuest::class,
+            'admin.permission' => \App\Http\Middleware\EnsureAdminHasPermission::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

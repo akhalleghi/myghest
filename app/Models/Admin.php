@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -21,6 +24,7 @@ class Admin extends Authenticatable
         'mobile',
         'password',
         'is_active',
+        'is_super_admin',
         'login_count',
         'last_login_at',
     ];
@@ -41,9 +45,23 @@ class Admin extends Authenticatable
         return [
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'is_super_admin' => 'boolean',
             'login_count' => 'integer',
             'last_login_at' => 'datetime',
         ];
+    }
+
+    /**
+     * @return HasMany<AdminPermissionGrant, $this>
+     */
+    public function permissionGrants(): HasMany
+    {
+        return $this->hasMany(AdminPermissionGrant::class);
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return (bool) $this->is_super_admin;
     }
 
     public function fullName(): string

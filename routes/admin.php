@@ -70,6 +70,9 @@ Route::middleware(['auth:admin'])->group(function (): void {
     | خروج امن؛ نوع متد POST و CSRF اجباری است تا دستکاری پیوند GET ممکن نباشد.
     */
     Route::post('/logout', [AdminLoginController::class, 'destroy'])->name('logout');
+});
+
+Route::middleware(['auth:admin', 'admin.permission'])->group(function (): void {
 
     /*
     | داشبورد موقت؛ ساخت صفحه‌های واقعی سیستم اقساط در گام بعدی خواهد بود.

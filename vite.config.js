@@ -15,6 +15,7 @@ export default defineConfig({
                 'resources/js/user-tickets-portal.js',
                 'resources/js/admin-dashboard-charts.js',
                 'resources/js/admin-reports.js',
+                'resources/js/admin-permission-tree.js',
             ],
             refresh: true,
         }),

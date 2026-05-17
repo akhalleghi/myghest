@@ -8,18 +8,26 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreAdminUserRequest;
 use App\Http\Requests\Admin\UpdateAdminUserRequest;
 use App\Models\Admin;
-use Hekmatinasser\Jalali\Jalali;
+use App\Services\Admin\AdminPermissionService;
+use App\Support\AdminPermissionRegistry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
 
 final class AdminUserController extends Controller
 {
+    public function __construct(
+        private readonly AdminPermissionService $permissions,
+        private readonly AdminPermissionRegistry $permissionRegistry,
+    ) {}
+
     public function index(): View
     {
-        $admins = Admin::query()->orderByDesc('id')->get();
-        $currentAdminId = (int) Auth::guard('admin')->id();
+        /** @var Admin $actor */
+        $actor = Auth::guard('admin')->user();
+
+        $admins = Admin::query()->with('permissionGrants')->orderByDesc('id')->get();
+        $currentAdminId = (int) $actor->id;
 
         $adminEditMap = $admins->mapWithKeys(
             fn (Admin $admin): array => [$admin->id => $this->adminEditPayload($admin)]
@@ -29,15 +37,21 @@ final class AdminUserController extends Controller
             'admins' => $admins,
             'adminEditMap' => $adminEditMap,
             'currentAdminId' => $currentAdminId,
+            'permissionTree' => $this->permissionRegistry->tree(),
+            'canAssignPermissions' => $this->permissions->canAssignPermissions($actor),
+            'assignablePermissionKeys' => $this->permissions->assignablePermissionKeysFor($actor),
+            'restrictAssignable' => ! $actor->isSuperAdmin(),
         ]);
     }
 
     public function store(StoreAdminUserRequest $request): RedirectResponse
     {
+        /** @var Admin $actor */
+        $actor = Auth::guard('admin')->user();
         $validated = $request->validated();
         $username = (string) $validated['username'];
 
-        Admin::query()->create([
+        $newAdmin = Admin::query()->create([
             'name' => $this->composeDisplayName($validated['first_name'], $validated['last_name']),
             'first_name' => $validated['first_name'],
             'last_name' => $validated['last_name'],
@@ -46,7 +60,11 @@ final class AdminUserController extends Controller
             'mobile' => $validated['mobile'],
             'password' => $validated['password'],
             'is_active' => $validated['is_active'] ?? false,
+            'is_super_admin' => false,
         ]);
+
+        $permissionKeys = is_array($validated['permission_keys'] ?? null) ? $validated['permission_keys'] : [];
+        $this->permissions->syncPermissions($newAdmin, $permissionKeys, $actor);
 
         return redirect()
             ->route('admin.users.index')
@@ -55,15 +73,24 @@ final class AdminUserController extends Controller
 
     public function update(Admin $admin, UpdateAdminUserRequest $request): RedirectResponse
     {
+        /** @var Admin $actor */
+        $actor = Auth::guard('admin')->user();
         $validated = $request->validated();
-        $currentId = (int) Auth::guard('admin')->id();
+        $currentId = (int) $actor->id;
+
+        if ($admin->isSuperAdmin() && ! $actor->isSuperAdmin()) {
+            return redirect()
+                ->route('admin.users.index')
+                ->withErrors(['update' => 'ویرایش مدیر ارشد سیستم مجاز نیست.'])
+                ->withInput();
+        }
 
         if ($admin->id === $currentId && ! ($validated['is_active'] ?? false)) {
-        return redirect()
-            ->route('admin.users.index')
-            ->withErrors(['is_active' => 'نمی‌توانید حساب خود را غیرفعال کنید.'])
-            ->withInput()
-            ->with('au_open_modal', true);
+            return redirect()
+                ->route('admin.users.index')
+                ->withErrors(['is_active' => 'نمی‌توانید حساب خود را غیرفعال کنید.'])
+                ->withInput()
+                ->with('au_open_modal', true);
         }
 
         $admin->name = $this->composeDisplayName($validated['first_name'], $validated['last_name']);
@@ -79,6 +106,9 @@ final class AdminUserController extends Controller
 
         $admin->save();
 
+        $permissionKeys = is_array($validated['permission_keys'] ?? null) ? $validated['permission_keys'] : [];
+        $this->permissions->syncPermissions($admin, $permissionKeys, $actor);
+
         return redirect()
             ->route('admin.users.index')
             ->with('flash_success', 'اطلاعات کاربر به‌روزرسانی شد.');
@@ -86,10 +116,25 @@ final class AdminUserController extends Controller
 
     public function destroy(Admin $admin): RedirectResponse
     {
+        /** @var Admin $actor */
+        $actor = Auth::guard('admin')->user();
+
+        if ($admin->isSuperAdmin() && ! $actor->isSuperAdmin()) {
+            return redirect()
+                ->route('admin.users.index')
+                ->withErrors(['delete' => 'حذف مدیر ارشد سیستم مجاز نیست.']);
+        }
+
         if ($admin->id === (int) Auth::guard('admin')->id()) {
             return redirect()
                 ->route('admin.users.index')
                 ->withErrors(['delete' => 'حذف حساب کاربری خودتان مجاز نیست.']);
+        }
+
+        if ($admin->isSuperAdmin()) {
+            return redirect()
+                ->route('admin.users.index')
+                ->withErrors(['delete' => 'حذف مدیر ارشد سیستم مجاز نیست.']);
         }
 
         if (Admin::query()->count() <= 1) {
@@ -117,6 +162,8 @@ final class AdminUserController extends Controller
             'last_name' => $admin->last_name ?? '',
             'mobile' => $admin->mobile ?? '',
             'is_active' => (bool) $admin->is_active,
+            'is_super_admin' => (bool) $admin->is_super_admin,
+            'permission_keys' => $this->permissions->permissionKeysFor($admin),
         ];
     }
 

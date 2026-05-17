@@ -676,6 +676,7 @@
                 <i class="fa-regular fa-face-smile" style="margin-inline-end:0.35rem;opacity:0.9" aria-hidden="true"></i>
                 سلام، {{ auth('admin')->user()->name }}
             </h1>
+            @if (! empty($allowedDashboardWidgetIds))
             <div class="dash-toolbar">
                 <button
                     type="button"
@@ -690,6 +691,7 @@
                     <span class="dash-widget-btn__label">انتخاب کارت‌های صفحه</span>
                 </button>
             </div>
+            @endif
         </div>
         <!-- <p class="dash-sub">
             نام کاربری: <strong>{{ auth('admin')->user()->username }}</strong>
@@ -699,6 +701,15 @@
         <p class="dash-sub">نشست نامعتبر است.</p>
     @endauth
 
+    @php($dashCan = static fn (string $id): bool => ! empty($allowedDashboardWidgetIds[$id] ?? false))
+
+    @if (empty($allowedDashboardWidgetIds))
+        <div class="card" style="margin-top:1rem;padding:1.25rem 1.5rem;color:var(--muted,#64748b);">
+            <p style="margin:0;">برای این حساب هیچ کارت داشبوردی تعریف نشده است. از بخش <strong>کاربران ادمین → دسترسی‌ها</strong> کارت‌های موردنظر را فعال کنید.</p>
+        </div>
+    @endif
+
+    @if ($dashCan('system-stats'))
     {{-- آمار سیستم (کارت بزرگ) --}}
     <div class="dash-widget" data-dash-widget="system-stats" data-dash-title="آمار سیستم" data-dash-group="general">
         <div class="card">
@@ -725,10 +736,12 @@
             </div>
         </div>
     </div>
+    @endif
 
     {{-- کارت‌های خلاصه --}}
     <div class="quick-grid">
         @foreach ($summaryCards ?? [] as $qk)
+            @if ($dashCan($qk['widget_id'] ?? ''))
             <div
                 class="dash-widget"
                 data-dash-widget="{{ $qk['widget_id'] }}"
@@ -771,10 +784,12 @@
             </a>
             @endif
             </div>
+            @endif
         @endforeach
     </div>
 
     @foreach ($tables ?? [] as $tb)
+        @if ($dashCan($tb['widget_id'] ?? ''))
         <div
             class="dash-widget"
             data-dash-widget="{{ $tb['widget_id'] }}"
@@ -820,9 +835,12 @@
             </div>
         </div>
         </div>
+        @endif
     @endforeach
 
+    @if ($dashCan('chart-installments-12m') || $dashCan('chart-new-loans-12m'))
     <div class="charts-row">
+        @if ($dashCan('chart-installments-12m'))
         <div class="dash-widget" data-dash-widget="chart-installments-12m" data-dash-title="آمار اقساط (۱۲ ماه اخیر)" data-dash-group="charts">
         <div class="chart-card">
             <div class="ch-h" style="background:linear-gradient(90deg,#0ea5e9,#0284c7);">
@@ -834,6 +852,8 @@
             </div>
         </div>
         </div>
+        @endif
+        @if ($dashCan('chart-new-loans-12m'))
         <div class="dash-widget" data-dash-widget="chart-new-loans-12m" data-dash-title="آمار وام‌های جدید (۱۲ ماه اخیر)" data-dash-group="charts">
         <div class="chart-card">
             <div class="ch-h" style="background:linear-gradient(90deg,#22c55e,#15803d);">
@@ -845,7 +865,9 @@
             </div>
         </div>
         </div>
+        @endif
     </div>
+    @endif
 
     @auth('admin')
         <div id="dash-widget-overlay" class="dash-widget-overlay" hidden aria-hidden="true">

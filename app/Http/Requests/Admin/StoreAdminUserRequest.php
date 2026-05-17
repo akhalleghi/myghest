@@ -26,6 +26,8 @@ final class StoreAdminUserRequest extends FormRequest
             'mobile' => ['required', 'string', 'regex:/^09\d{9}$/'],
             'password' => ['required', 'string', 'min:8', 'max:255', 'confirmed'],
             'is_active' => ['sometimes', 'boolean'],
+            'permission_keys' => ['nullable', 'array'],
+            'permission_keys.*' => ['string', 'max:120'],
         ];
     }
 

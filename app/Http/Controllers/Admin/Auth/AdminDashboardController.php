@@ -5,15 +5,19 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Admin;
 use App\Models\SmsLog;
 use App\Models\SmsPanelSetting;
 use App\Services\Admin\AdminDashboardStatisticsService;
+use App\Services\Admin\AdminPermissionService;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 final class AdminDashboardController extends Controller
 {
     public function __construct(
         private readonly AdminDashboardStatisticsService $dashboardStats,
+        private readonly AdminPermissionService $permissions,
     ) {}
 
     public function __invoke(): View
@@ -51,12 +55,17 @@ final class AdminDashboardController extends Controller
             break;
         }
 
+        /** @var Admin $admin */
+        $admin = Auth::guard('admin')->user();
+        $allowedWidgetIds = array_fill_keys($this->permissions->allowedDashboardWidgetIds($admin), true);
+
         return view('admin.dashboard', [
             'systemStatRows' => $dashboard['systemStatRows'],
             'summaryCards' => $summaryCards,
             'tables' => $dashboard['tables'],
             'installmentChart' => $dashboard['installmentChart'],
             'newLoansChart' => $dashboard['newLoansChart'],
+            'allowedDashboardWidgetIds' => $allowedWidgetIds,
         ]);
     }
 }
