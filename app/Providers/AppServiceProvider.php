@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\CustomerDepositDeclaration;
 use App\Services\Sms\Gateways\SepahanGostarGateway;
 use App\Services\Sms\SmsPanelManager;
+use App\Services\Ui\LoginBackgroundService;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Pagination\Paginator;
@@ -30,6 +31,8 @@ class AppServiceProvider extends ServiceProvider
                 new SepahanGostarGateway,
             ]);
         });
+
+        $this->app->singleton(LoginBackgroundService::class);
     }
 
     /**
@@ -112,6 +115,14 @@ class AppServiceProvider extends ServiceProvider
                 'bankingInfoShowInUserPanel',
                 is_string($bankingShowInUserPanel) && $bankingShowInUserPanel === '1'
             );
+
+            $loginPageBackgroundUrl = null;
+            if (request()->routeIs('admin.login', 'admin.login.attempt')) {
+                $loginPageBackgroundUrl = app(LoginBackgroundService::class)->resolveUrl(LoginBackgroundService::CONTEXT_ADMIN);
+            } elseif (request()->routeIs('customer.login', 'customer.login.attempt')) {
+                $loginPageBackgroundUrl = app(LoginBackgroundService::class)->resolveUrl(LoginBackgroundService::CONTEXT_CUSTOMER);
+            }
+            $view->with('loginPageBackgroundUrl', $loginPageBackgroundUrl);
         });
 
         View::composer('layouts.admin.app', function ($view): void {
@@ -155,6 +166,13 @@ class AppServiceProvider extends ServiceProvider
             $view->with('adminNotificationsBadgeUnified', $unifiedBadge);
             $view->with('adminNavItems', $adminNavItems);
             $view->with('adminCanOpenAppSettings', $adminCanOpenAppSettings);
+
+            $loginBackgrounds = app(LoginBackgroundService::class);
+            $view->with('loginBgPickerStates', [
+                LoginBackgroundService::CONTEXT_ADMIN => $loginBackgrounds->pickerState(LoginBackgroundService::CONTEXT_ADMIN),
+                LoginBackgroundService::CONTEXT_CUSTOMER => $loginBackgrounds->pickerState(LoginBackgroundService::CONTEXT_CUSTOMER),
+            ]);
+            $view->with('loginBgCollageUrls', $loginBackgrounds->previewCollageUrls());
         });
 
         View::composer('layouts.user.app', function ($view): void {

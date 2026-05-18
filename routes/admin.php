@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminCustomerSupportTicketController;
 use App\Http\Controllers\Admin\AdminSupportTicketController;
 use App\Http\Controllers\Admin\AppSettingsController;
+use App\Http\Controllers\Admin\LoginBackgroundSettingsController;
 use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
 use App\Http\Controllers\Admin\Auth\AdminDashboardController;
 use App\Http\Controllers\Admin\Auth\AdminLoginController;
@@ -643,6 +644,21 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission'])->g
     Route::post('/app-settings/ui', [AppSettingsController::class, 'updateUi'])
         ->middleware('throttle:20,1')
         ->name('app-settings.ui.update');
+
+    Route::post('/app-settings/login-backgrounds/{context}/preference', [LoginBackgroundSettingsController::class, 'updatePreference'])
+        ->whereIn('context', ['admin', 'customer'])
+        ->middleware('throttle:30,1')
+        ->name('app-settings.login-background.preference.update');
+
+    Route::post('/app-settings/login-backgrounds/{context}/upload', [LoginBackgroundSettingsController::class, 'upload'])
+        ->whereIn('context', ['admin', 'customer'])
+        ->middleware('throttle:20,1')
+        ->name('app-settings.login-background.upload');
+
+    Route::delete('/app-settings/login-backgrounds/{context}', [LoginBackgroundSettingsController::class, 'destroy'])
+        ->whereIn('context', ['admin', 'customer'])
+        ->middleware('throttle:30,1')
+        ->name('app-settings.login-background.destroy');
 
     Route::post('/app-settings/financial', [AppSettingsController::class, 'updateFinancial'])
         ->middleware('throttle:20,1')

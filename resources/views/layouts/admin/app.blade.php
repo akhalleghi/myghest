@@ -1503,6 +1503,256 @@
             cursor: not-allowed;
         }
 
+        .app-login-bg-card {
+            margin-top: 0.85rem;
+        }
+
+        .app-login-bg-preview {
+            margin: 0.75rem 0 0.85rem;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            min-height: 7.5rem;
+            background: color-mix(in oklab, var(--bg-card) 88%, var(--primary-soft));
+        }
+
+        .app-login-bg-preview-fixed img {
+            display: block;
+            width: 100%;
+            height: 8.5rem;
+            object-fit: cover;
+        }
+
+        .app-login-bg-preview-random {
+            position: relative;
+            min-height: 8.5rem;
+            display: grid;
+            place-items: center;
+        }
+
+        .app-login-bg-preview-collage,
+        .app-login-bg-tile-collage {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 2px;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            inset: 0;
+        }
+
+        .app-login-bg-preview-collage span,
+        .app-login-bg-tile-collage span {
+            background-size: cover;
+            background-position: center;
+        }
+
+        .app-login-bg-preview-collage-fallback {
+            background: color-mix(in oklab, var(--primary-soft) 65%, var(--border));
+        }
+
+        .app-login-bg-preview-random-ico,
+        .app-login-bg-tile-random-ico {
+            position: relative;
+            z-index: 2;
+            width: 2.65rem;
+            height: 2.65rem;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            background: rgba(255, 255, 255, 0.92);
+            color: var(--primary-dark);
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.18);
+            font-size: 1.05rem;
+        }
+
+        .app-login-bg-preview-label {
+            position: absolute;
+            inset-inline: 0;
+            bottom: 0.55rem;
+            z-index: 2;
+            text-align: center;
+            font-size: 0.72rem;
+            font-weight: 750;
+            color: #fff;
+            text-shadow: 0 1px 8px rgba(15, 23, 42, 0.55);
+        }
+
+        .app-login-bg-upload {
+            display: block;
+            margin-bottom: 0.85rem;
+            cursor: pointer;
+        }
+
+        .app-login-bg-upload-inner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.95rem 0.75rem;
+            border: 1.5px dashed color-mix(in oklab, var(--primary) 35%, var(--border));
+            border-radius: 0.72rem;
+            background: color-mix(in oklab, var(--bg-card) 92%, var(--primary-soft));
+            color: var(--muted);
+            font-size: 0.74rem;
+            text-align: center;
+            line-height: 1.55;
+            transition: border-color 0.12s ease, background 0.12s ease;
+        }
+
+        .app-login-bg-upload.is-dragover .app-login-bg-upload-inner,
+        .app-login-bg-upload:hover .app-login-bg-upload-inner {
+            border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+            background: color-mix(in oklab, var(--primary-soft) 45%, var(--bg-card));
+        }
+
+        .app-login-bg-upload-inner i {
+            color: var(--primary);
+            font-size: 1.15rem;
+        }
+
+        .app-login-bg-upload-hint {
+            font-size: 0.68rem;
+            opacity: 0.9;
+        }
+
+        .app-login-bg-msg {
+            margin: 0 0 0.65rem;
+            font-size: 0.74rem;
+            font-weight: 650;
+        }
+
+        .app-login-bg-msg.is-ok { color: var(--primary-dark); }
+        .app-login-bg-msg.is-err { color: #b91c1c; }
+
+        .app-login-bg-section {
+            margin-bottom: 0.9rem;
+        }
+
+        .app-login-bg-section-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin-bottom: 0.55rem;
+        }
+
+        .app-login-bg-section-title {
+            font-size: 0.78rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .app-login-bg-show-all {
+            border: none;
+            background: transparent;
+            color: var(--primary-dark);
+            font: inherit;
+            font-size: 0.72rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.28rem;
+            padding: 0.2rem 0.35rem;
+            border-radius: 0.45rem;
+        }
+
+        .app-login-bg-show-all:hover {
+            background: color-mix(in oklab, var(--primary-soft) 55%, transparent);
+        }
+
+        .app-login-bg-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0.55rem;
+        }
+
+        .app-login-bg-grid.is-collapsed .app-login-bg-tile:nth-child(n+6) {
+            display: none;
+        }
+
+        .app-login-bg-tile-wrap {
+            position: relative;
+        }
+
+        .app-login-bg-tile {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            border-radius: 0.62rem;
+            border: 2px solid transparent;
+            padding: 0;
+            cursor: pointer;
+            background-size: cover;
+            background-position: center;
+            background-color: color-mix(in oklab, var(--border) 40%, var(--bg-card));
+            overflow: hidden;
+            transition: border-color 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
+        }
+
+        .app-login-bg-tile:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+        }
+
+        .app-login-bg-tile.is-selected {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 25%, transparent);
+        }
+
+        .app-login-bg-tile--random {
+            background: color-mix(in oklab, var(--bg-card) 85%, var(--primary-soft));
+        }
+
+        .app-login-bg-tile-label {
+            position: absolute;
+            inset-inline: 0;
+            bottom: 0.28rem;
+            z-index: 2;
+            font-size: 0.62rem;
+            font-weight: 800;
+            color: #fff;
+            text-shadow: 0 1px 6px rgba(15, 23, 42, 0.65);
+        }
+
+        .app-login-bg-delete {
+            position: absolute;
+            top: 0.28rem;
+            inset-inline-start: 0.28rem;
+            z-index: 3;
+            width: 1.45rem;
+            height: 1.45rem;
+            border: none;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.72);
+            color: #fff;
+            cursor: pointer;
+            display: grid;
+            place-items: center;
+            font-size: 0.72rem;
+            opacity: 0;
+            transition: opacity 0.12s ease;
+        }
+
+        .app-login-bg-tile-wrap:hover .app-login-bg-delete,
+        .app-login-bg-delete:focus-visible {
+            opacity: 1;
+        }
+
+        .app-login-bg-custom-empty {
+            margin: 0 0 0.75rem;
+            font-size: 0.72rem;
+            color: var(--muted);
+        }
+
+        .app-login-bg-actions {
+            margin-top: 0.35rem;
+            padding-top: 0;
+        }
+
         @media (max-width: 860px) {
             .app-settings-modal {
                 width: min(100%, 760px);
@@ -1536,6 +1786,10 @@
                 grid-template-columns: 1fr;
             }
 
+            .app-login-bg-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
             .app-settings-actions {
                 justify-content: stretch;
             }
@@ -1545,7 +1799,7 @@
             }
         }
     </style>
-    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/admin-financial-ckeditor.js'])
+    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/admin-financial-ckeditor.js', 'resources/js/admin-login-backgrounds.js'])
     @include('layouts.partials.sweetalert2-css')
     @stack('head')
 </head>
@@ -2051,6 +2305,17 @@
                                 <button type="submit" class="app-settings-btn app-settings-btn--primary">ذخیره تغییرات</button>
                             </div>
                         </form>
+
+                        @include('layouts.admin.partials.app-settings-login-background', [
+                            'loginBgContext' => 'admin',
+                            'loginBgTitle' => 'پیش‌زمینه صفحه لاگین ادمین',
+                            'loginBgDescription' => 'تصویر پس‌زمینهٔ صفحه ورود به پنل مدیریت. می‌توانید یک تصویر ثابت انتخاب کنید یا حالت تصادفی را فعال کنید تا در هر بار باز شدن صفحه، تصویری متفاوت نمایش داده شود.',
+                        ])
+                        @include('layouts.admin.partials.app-settings-login-background', [
+                            'loginBgContext' => 'customer',
+                            'loginBgTitle' => 'پیش‌زمینه صفحه لاگین مشتریان',
+                            'loginBgDescription' => 'تصویر پس‌زمینهٔ صفحه ورود مشتریان. تصاویر پیش‌فرض همیشه در دسترس هستند و امکان افزودن تصویر اختصاصی نیز وجود دارد.',
+                        ])
                     </section>
                     <section class="app-settings-panel" data-settings-panel="notifications" hidden>
                         <h4 class="app-settings-panel-title">اعلان‌ها</h4>

@@ -274,7 +274,12 @@ return [
             'label' => 'تنظیمات برنامه',
             'children' => [
                 ['key' => 'app_settings.base', 'label' => 'اطلاعات پایه', 'routes' => ['admin.app-settings.base.update']],
-                ['key' => 'app_settings.ui', 'label' => 'ظاهر و نمایش', 'routes' => ['admin.app-settings.ui.update']],
+                ['key' => 'app_settings.ui', 'label' => 'ظاهر و نمایش', 'routes' => [
+                    'admin.app-settings.ui.update',
+                    'admin.app-settings.login-background.preference.update',
+                    'admin.app-settings.login-background.upload',
+                    'admin.app-settings.login-background.destroy',
+                ]],
                 ['key' => 'app_settings.notifications', 'label' => 'اعلان‌ها', 'routes' => []],
                 ['key' => 'app_settings.financial', 'label' => 'مالی و بانکی', 'routes' => ['admin.app-settings.financial.update']],
                 ['key' => 'app_settings.security', 'label' => 'امنیت', 'routes' => [

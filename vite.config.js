@@ -17,6 +17,7 @@ export default defineConfig({
                 'resources/js/admin-dashboard-charts.js',
                 'resources/js/admin-reports.js',
                 'resources/js/admin-permission-tree.js',
+                'resources/js/admin-login-backgrounds.js',
             ],
             refresh: true,
         }),

@@ -85,11 +85,19 @@
             line-height: 1.55;
         }
 
+        body.auth-has-login-bg {
+            background: var(--login-bg-image) center / cover no-repeat fixed;
+        }
+
         html[data-theme="dark"] body {
             background:
                 radial-gradient(900px 520px at 12% -8%, rgba(37, 99, 235, 0.12), transparent 55%),
                 radial-gradient(640px 400px at 108% 6%, rgba(14, 165, 233, 0.06), transparent),
                 linear-gradient(180deg, var(--page-top), var(--page-bottom));
+        }
+
+        html[data-theme="dark"] body.auth-has-login-bg {
+            background: var(--login-bg-image) center / cover no-repeat fixed;
         }
 
         .auth-theme-fab {
@@ -397,7 +405,7 @@
     </style>
     @stack('head')
 </head>
-<body>
+<body @class(['auth-has-login-bg' => !empty($loginPageBackgroundUrl)]) @if(!empty($loginPageBackgroundUrl)) style="--login-bg-image: url('{{ $loginPageBackgroundUrl }}')" @endif>
     <button type="button" class="auth-theme-fab" id="myghest-theme-toggle" data-myghest-theme-toggle title="حالت روشن / تیره" aria-label="تغییر حالت روشن و تیره">
         <span class="auth-theme-slot" aria-hidden="true">
             <i class="fa-solid fa-moon" data-theme-icon="moon"></i>
