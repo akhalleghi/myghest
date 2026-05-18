@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\AdminNotificationController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminCustomerSupportTicketController;
 use App\Http\Controllers\Admin\AdminSupportTicketController;
+use App\Http\Controllers\Admin\AdminDatabaseBackupController;
 use App\Http\Controllers\Admin\AppSettingsController;
 use App\Http\Controllers\Admin\LoginBackgroundSettingsController;
 use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
@@ -675,6 +676,28 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission'])->g
     Route::post('/app-settings/login-blocks/{block}/unblock', [AppSettingsController::class, 'unblockLoginBlock'])
         ->middleware('throttle:30,1')
         ->name('app-settings.login-blocks.unblock');
+
+    Route::get('/backups', [AdminDatabaseBackupController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('backups.index');
+
+    Route::post('/backups/restore', [AdminDatabaseBackupController::class, 'restore'])
+        ->middleware('throttle:admin-backup-restore')
+        ->name('backups.restore');
+
+    Route::post('/backups', [AdminDatabaseBackupController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('backups.store');
+
+    Route::get('/backups/{backup}/download', [AdminDatabaseBackupController::class, 'download'])
+        ->where('backup', 'backup_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{6}\.(sql|sqlite)')
+        ->middleware('throttle:30,1')
+        ->name('backups.download');
+
+    Route::delete('/backups/{backup}', [AdminDatabaseBackupController::class, 'destroy'])
+        ->where('backup', 'backup_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{6}\.(sql|sqlite)')
+        ->middleware('throttle:30,1')
+        ->name('backups.destroy');
 
     Route::get('/users', [AdminUserController::class, 'index'])
         ->middleware('throttle:60,1')

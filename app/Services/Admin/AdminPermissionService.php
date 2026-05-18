@@ -453,4 +453,33 @@ final class AdminPermissionService
 
         return false;
     }
+
+    public function canOpenDatabaseBackups(Admin $admin): bool
+    {
+        if ($admin->isSuperAdmin()) {
+            return true;
+        }
+
+        return $this->hasPermissionWithPrefix($admin, 'backup.');
+    }
+
+    public function canCreateDatabaseBackup(Admin $admin): bool
+    {
+        return $admin->isSuperAdmin() || $this->hasPermission($admin, 'backup.create');
+    }
+
+    public function canDownloadDatabaseBackup(Admin $admin): bool
+    {
+        return $admin->isSuperAdmin() || $this->hasPermission($admin, 'backup.download');
+    }
+
+    public function canDeleteDatabaseBackup(Admin $admin): bool
+    {
+        return $admin->isSuperAdmin() || $this->hasPermission($admin, 'backup.delete');
+    }
+
+    public function canRestoreDatabaseBackup(Admin $admin): bool
+    {
+        return $admin->isSuperAdmin() || $this->hasPermission($admin, 'backup.restore');
+    }
 }

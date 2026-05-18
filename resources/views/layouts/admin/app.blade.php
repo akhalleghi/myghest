@@ -79,7 +79,8 @@
             overflow: hidden;
         }
 
-        body.admin-app.app-settings-open {
+        body.admin-app.app-settings-open,
+        body.admin-app.db-backup-open {
             overflow: hidden;
         }
 
@@ -949,6 +950,382 @@
             display: none !important;
         }
 
+        .db-backup-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1450;
+            background: rgba(15, 23, 42, 0.52);
+            backdrop-filter: blur(2px);
+            display: grid;
+            place-items: center;
+            padding: 1rem;
+        }
+
+        .db-backup-overlay[hidden] {
+            display: none !important;
+        }
+
+        .db-backup-modal {
+            width: min(920px, 100%);
+            max-height: min(88vh, 720px);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 1.05rem;
+            box-shadow: 0 30px 72px rgba(15, 23, 42, 0.24);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .db-backup-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.65rem;
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(180deg, rgba(37, 99, 235, 0.06), transparent 85%);
+        }
+
+        .db-backup-title {
+            margin: 0;
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .db-backup-subtitle {
+            margin: 0.12rem 0 0;
+            font-size: 0.74rem;
+            color: var(--muted);
+        }
+
+        .db-backup-close {
+            width: 2rem;
+            height: 2rem;
+            border: none;
+            border-radius: 0.55rem;
+            background: var(--primary-soft);
+            color: var(--primary-dark);
+            cursor: pointer;
+        }
+
+        .db-backup-tabs-wrap {
+            display: flex;
+            justify-content: center;
+            padding: 0.65rem 1rem 0;
+            border-bottom: 1px solid var(--border);
+            background: color-mix(in oklab, var(--bg-card) 92%, var(--primary-soft));
+        }
+
+        .db-backup-tabs {
+            display: inline-flex;
+            gap: 0.35rem;
+            padding: 0.2rem;
+            border-radius: 999px;
+            background: var(--bg-page);
+            border: 1px solid var(--border);
+        }
+
+        .db-backup-tab {
+            border: none;
+            border-radius: 999px;
+            padding: 0.45rem 1.1rem;
+            font-size: 0.8rem;
+            font-weight: 700;
+            font-family: inherit;
+            color: var(--muted);
+            background: transparent;
+            cursor: pointer;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+
+        .db-backup-tab.is-active {
+            background: var(--primary-soft);
+            color: var(--primary-dark);
+        }
+
+        .db-backup-body {
+            padding: 1rem 1.05rem 1.1rem;
+            overflow-y: auto;
+            min-height: 0;
+            flex: 1;
+        }
+
+        .db-backup-panel[hidden] {
+            display: none !important;
+        }
+
+        .db-backup-lead {
+            margin: 0 0 0.75rem;
+            font-size: 0.84rem;
+            color: var(--text);
+            line-height: 1.65;
+        }
+
+        .db-backup-lead--muted {
+            color: var(--muted);
+        }
+
+        .db-backup-action-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.65rem;
+            margin-bottom: 1rem;
+        }
+
+        .db-backup-create-btn {
+            border: none;
+            border-radius: 0.65rem;
+            padding: 0.55rem 1.15rem;
+            font-size: 0.8rem;
+            font-weight: 700;
+            font-family: inherit;
+            color: #fff;
+            background: linear-gradient(180deg, var(--primary), var(--primary-dark));
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .db-backup-create-btn:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+        }
+
+        .db-backup-status {
+            font-size: 0.76rem;
+            font-weight: 700;
+        }
+
+        .db-backup-status--success { color: #047857; }
+        .db-backup-status--error { color: #b91c1c; }
+        .db-backup-status--info { color: var(--muted); }
+
+        .db-backup-table-title {
+            margin: 0 0 0.55rem;
+            font-size: 0.86rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .db-backup-table-wrap {
+            border: 1px solid var(--border);
+            border-radius: 0.85rem;
+            overflow: auto;
+        }
+
+        .db-backup-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.78rem;
+        }
+
+        .db-backup-table th,
+        .db-backup-table td {
+            padding: 0.55rem 0.65rem;
+            border-bottom: 1px solid var(--border);
+            text-align: start;
+            vertical-align: middle;
+        }
+
+        .db-backup-table th {
+            background: color-mix(in oklab, var(--bg-card) 88%, var(--primary-soft));
+            font-weight: 800;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+
+        .db-backup-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .db-backup-filename {
+            max-width: 16rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 0.72rem;
+            direction: ltr;
+            text-align: left;
+        }
+
+        .db-backup-download-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            color: var(--primary-dark);
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .db-backup-download-link:hover {
+            text-decoration: underline;
+        }
+
+        .db-backup-delete-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.28rem 0.55rem;
+            border-radius: 0.45rem;
+            border: 1px solid rgba(185, 28, 28, 0.35);
+            background: rgba(254, 242, 242, 0.9);
+            color: #b91c1c;
+            font-size: 0.72rem;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .db-backup-delete-btn:hover:not(:disabled) {
+            background: #fee2e2;
+            border-color: #b91c1c;
+        }
+
+        .db-backup-delete-btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .db-backup-restore-row-btn,
+        .db-backup-restore-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.28rem 0.55rem;
+            border-radius: 0.45rem;
+            border: 1px solid rgba(37, 99, 235, 0.35);
+            background: rgba(239, 246, 255, 0.95);
+            color: #1d4ed8;
+            font-size: 0.72rem;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .db-backup-restore-btn {
+            padding: 0.45rem 0.85rem;
+            font-size: 0.78rem;
+        }
+
+        .db-backup-restore-row-btn:hover:not(:disabled),
+        .db-backup-restore-btn:hover:not(:disabled) {
+            background: #dbeafe;
+            border-color: #1d4ed8;
+        }
+
+        .db-backup-restore-row-btn:disabled,
+        .db-backup-restore-btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .db-backup-warning {
+            display: flex;
+            gap: 0.65rem;
+            align-items: flex-start;
+            padding: 0.75rem 0.85rem;
+            margin-bottom: 1rem;
+            border-radius: 0.55rem;
+            border: 1px solid rgba(217, 119, 6, 0.35);
+            background: #fffbeb;
+            color: #92400e;
+            font-size: 0.78rem;
+            line-height: 1.65;
+        }
+
+        .db-backup-warning i {
+            margin-top: 0.15rem;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .db-backup-restore-block {
+            margin-bottom: 1rem;
+        }
+
+        .db-backup-restore-heading {
+            margin: 0 0 0.35rem;
+            font-size: 0.82rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .db-backup-restore-select,
+        .db-backup-restore-confirm-input,
+        .db-backup-file-input {
+            width: 100%;
+            max-width: 100%;
+            margin-top: 0.35rem;
+            padding: 0.45rem 0.55rem;
+            border: 1px solid var(--border);
+            border-radius: 0.45rem;
+            font-family: inherit;
+            font-size: 0.78rem;
+            background: var(--bg-card);
+            color: var(--text);
+        }
+
+        .db-backup-confirm-label {
+            display: block;
+            font-size: 0.78rem;
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .db-backup-db-name {
+            display: inline-block;
+            margin-top: 0.25rem;
+            padding: 0.1rem 0.35rem;
+            border-radius: 0.3rem;
+            background: rgba(0, 0, 0, 0.06);
+            font-size: 0.76rem;
+            direction: ltr;
+        }
+
+        .db-backup-empty,
+        .db-backup-error,
+        .db-backup-table-loading td {
+            text-align: center;
+            color: var(--muted);
+            padding: 1.2rem 0.5rem !important;
+        }
+
+        .db-backup-error {
+            color: #b91c1c;
+        }
+
+        .db-backup-placeholder {
+            text-align: center;
+            padding: 2.5rem 1rem;
+            color: var(--muted);
+        }
+
+        .db-backup-placeholder i {
+            font-size: 2rem;
+            color: var(--primary);
+            margin-bottom: 0.65rem;
+        }
+
+        .db-backup-placeholder h4 {
+            margin: 0 0 0.35rem;
+            font-size: 0.9rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .db-backup-placeholder p {
+            margin: 0;
+            font-size: 0.8rem;
+            line-height: 1.7;
+            max-width: 28rem;
+            margin-inline: auto;
+        }
+
         .app-settings-card {
             border: 1px solid var(--border);
             border-radius: 0.85rem;
@@ -1799,7 +2176,7 @@
             }
         }
     </style>
-    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/admin-financial-ckeditor.js', 'resources/js/admin-login-backgrounds.js'])
+    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/admin-financial-ckeditor.js', 'resources/js/admin-login-backgrounds.js', 'resources/js/admin-database-backup.js'])
     @include('layouts.partials.sweetalert2-css')
     @stack('head')
 </head>
@@ -1868,10 +2245,12 @@
                     تنظیمات برنامه
                 </button>
                 @endif
-                <button type="button" disabled title="به‌زودی">
+                @if ($adminCanOpenDatabaseBackups ?? false)
+                <button type="button" id="db-backup-open" aria-haspopup="dialog" aria-controls="db-backup-modal">
                     <i class="fa-solid fa-database" aria-hidden="true"></i>
                     پشتیبان‌گیری و بازیابی
                 </button>
+                @endif
             </div>
         </aside>
 
@@ -2466,6 +2845,9 @@
         </div>
     </div>
     @include('layouts.admin.partials.app-settings-login-blocks-modal')
+    @if($adminCanOpenDatabaseBackups ?? false)
+        @include('layouts.admin.partials.database-backup-modal')
+    @endif
     @include('layouts.partials.theme-toggle-script')
     <script>
         (function () {

@@ -18,6 +18,7 @@ export default defineConfig({
                 'resources/js/admin-reports.js',
                 'resources/js/admin-permission-tree.js',
                 'resources/js/admin-login-backgrounds.js',
+                'resources/js/admin-database-backup.js',
             ],
             refresh: true,
         }),

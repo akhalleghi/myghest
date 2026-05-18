@@ -15,8 +15,11 @@ use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Collection;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -41,6 +44,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        RateLimiter::for('admin-backup-restore', function (Request $request) {
+            $key = $request->user('admin')?->getAuthIdentifier() ?? $request->ip();
+
+            return Limit::perMinute(12)->by('admin-backup-restore:'.$key);
+        });
+
         Blade::if('adminCan', function (string $permissionKey): bool {
             $admin = Auth::guard('admin')->user();
             if (! $admin instanceof Admin) {
@@ -152,6 +161,13 @@ class AppServiceProvider extends ServiceProvider
             $adminNavItems = [];
             $adminCanOpenAppSettings = false;
             $adminAppSettingsPanels = [];
+            $adminCanOpenDatabaseBackups = false;
+            $adminCanBackupView = false;
+            $adminCanBackupCreate = false;
+            $adminCanBackupDownload = false;
+            $adminCanBackupDelete = false;
+            $adminCanBackupRestore = false;
+            $adminBackupDatabaseName = '';
             if (Auth::guard('admin')->check()) {
                 $pendingDepositCount = (int) CustomerDepositDeclaration::query()
                     ->where('status', CustomerDepositDeclaration::STATUS_PENDING)
@@ -168,6 +184,13 @@ class AppServiceProvider extends ServiceProvider
                     $adminNavItems = $permissions->visibleNavigationItems($admin);
                     $adminCanOpenAppSettings = $permissions->canOpenAppSettings($admin);
                     $adminAppSettingsPanels = $permissions->allowedAppSettingsPanels($admin);
+                    $adminCanOpenDatabaseBackups = $permissions->canOpenDatabaseBackups($admin);
+                    $adminCanBackupView = $admin->isSuperAdmin() || $permissions->hasPermission($admin, 'backup.view');
+                    $adminCanBackupCreate = $permissions->canCreateDatabaseBackup($admin);
+                    $adminCanBackupDownload = $permissions->canDownloadDatabaseBackup($admin);
+                    $adminCanBackupDelete = $permissions->canDeleteDatabaseBackup($admin);
+                    $adminCanBackupRestore = $permissions->canRestoreDatabaseBackup($admin);
+                    $adminBackupDatabaseName = \App\Services\Admin\DatabaseBackupService::defaultDatabaseName();
                     $loanNotifs = $this->loadRecentNotifications($admin::class, (int) $admin->getKey());
                     $loanUnreadCount = (int) DatabaseNotification::query()
                         ->where('notifiable_type', $admin::class)
@@ -189,6 +212,13 @@ class AppServiceProvider extends ServiceProvider
             $view->with('adminCanOpenAppSettings', $adminCanOpenAppSettings);
             $view->with('adminAppSettingsPanels', $adminAppSettingsPanels);
             $view->with('adminAppSettingsActivePanel', array_key_first($adminAppSettingsPanels) ?: 'base');
+            $view->with('adminCanOpenDatabaseBackups', $adminCanOpenDatabaseBackups);
+            $view->with('adminCanBackupView', $adminCanBackupView);
+            $view->with('adminCanBackupCreate', $adminCanBackupCreate);
+            $view->with('adminCanBackupDownload', $adminCanBackupDownload);
+            $view->with('adminCanBackupDelete', $adminCanBackupDelete);
+            $view->with('adminCanBackupRestore', $adminCanBackupRestore);
+            $view->with('adminBackupDatabaseName', $adminBackupDatabaseName);
 
             $loginBackgrounds = app(LoginBackgroundService::class);
             $view->with('loginBgPickerStates', [
