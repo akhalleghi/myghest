@@ -169,11 +169,17 @@ return [
                     'label' => 'تنظیمات پنل پیامک',
                     'children' => [
                         ['key' => 'sms.settings.panel', 'label' => 'اتصال و تست پنل', 'routes' => [
+                            'admin.sms.index',
                             'admin.sms.panel-settings.update', 'admin.sms.panel-test.send',
                         ]],
-                        ['key' => 'sms.settings.scenarios', 'label' => 'قالب‌های سناریویی', 'routes' => ['admin.sms.scenario-templates.update']],
-                        ['key' => 'sms.settings.reminders', 'label' => 'یادآوری اقساط', 'routes' => ['admin.sms.reminder-settings.update']],
+                        ['key' => 'sms.settings.scenarios', 'label' => 'قالب‌های سناریویی', 'routes' => [
+                            'admin.sms.index', 'admin.sms.scenario-templates.update',
+                        ]],
+                        ['key' => 'sms.settings.reminders', 'label' => 'یادآوری اقساط', 'routes' => [
+                            'admin.sms.index', 'admin.sms.reminder-settings.update',
+                        ]],
                         ['key' => 'sms.settings.messages', 'label' => 'تنظیمات پیامک‌ها', 'routes' => [
+                            'admin.sms.index',
                             'admin.sms.admin-login-notify.update',
                             'admin.sms.admin-login-self-notify.update',
                             'admin.sms.customer-login-notify-admin.update',
@@ -295,6 +301,64 @@ return [
             'children' => [
                 ['key' => 'notifications.view', 'label' => 'مشاهده و پیگیری', 'routes' => ['admin.notifications.follow']],
                 ['key' => 'notifications.mark_read', 'label' => 'علامت‌خوانده‌شده', 'routes' => ['admin.notifications.mark-all-read']],
+            ],
+        ],
+    ],
+
+    /*
+    | صفحات مرکزی (hub): تب‌ها و پنل‌های UI از روی همان کلیدهای درخت دسترسی کنترل می‌شوند.
+    */
+    'section_hubs' => [
+        'sms' => [
+            'route' => 'admin.sms.index',
+            'permission_prefix' => 'sms.',
+            'tabs' => [
+                'reports' => [
+                    'label' => 'گزارش پیامک‌ها',
+                    'permissions' => ['sms.reports'],
+                ],
+                'templates' => [
+                    'label' => 'الگوهای پیامک',
+                    'any_prefix' => 'sms.templates.',
+                ],
+                'settings' => [
+                    'label' => 'تنظیمات پنل',
+                    'any_prefix' => 'sms.settings.',
+                ],
+            ],
+            'features' => [
+                'reports.export' => ['permissions' => ['sms.reports']],
+                'reports.destroy' => ['permissions' => ['sms.reports']],
+                'templates.view' => ['permissions' => ['sms.templates.view']],
+                'templates.create' => ['permissions' => ['sms.templates.create']],
+                'templates.update' => ['permissions' => ['sms.templates.update']],
+                'templates.delete' => ['permissions' => ['sms.templates.delete']],
+                'settings.panel' => ['permissions' => ['sms.settings.panel']],
+                'settings.scenarios' => ['permissions' => ['sms.settings.scenarios']],
+                'settings.reminders' => ['permissions' => ['sms.settings.reminders']],
+                'settings.messages' => ['permissions' => ['sms.settings.messages']],
+            ],
+        ],
+        'reports' => [
+            'route' => 'admin.reports.index',
+            'permission_prefix' => 'reports.',
+            'cards' => [
+                'member-loans-by-date' => ['permissions' => ['reports.member_loans']],
+                'installment-due-by-date' => ['permissions' => ['reports.installment_due']],
+                'deposits-by-date' => ['permissions' => ['reports.deposits']],
+                'settled-members' => ['permissions' => ['reports.settled_members']],
+                'wallet-transactions-by-date' => ['permissions' => ['reports.wallet_transactions']],
+                'loan-guarantees' => ['permissions' => ['reports.loan_guarantees']],
+            ],
+        ],
+        'app_settings' => [
+            'permission_prefix' => 'app_settings.',
+            'panels' => [
+                'base' => ['label' => 'تنظیمات بنیان', 'permissions' => ['app_settings.base']],
+                'ui' => ['label' => 'ظاهر و تجربه کاربری', 'permissions' => ['app_settings.ui']],
+                'notifications' => ['label' => 'اعلان‌ها', 'permissions' => ['app_settings.notifications']],
+                'financial' => ['label' => 'تنظیمات مالی', 'permissions' => ['app_settings.financial']],
+                'security' => ['label' => 'امنیت', 'permissions' => ['app_settings.security']],
             ],
         ],
     ],

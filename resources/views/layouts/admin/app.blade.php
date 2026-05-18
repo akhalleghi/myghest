@@ -1834,8 +1834,7 @@
             </div>
             <nav class="sidebar-nav">
                 <div class="nav-section-label">منو</div>
-                @php($nav = $adminNavItems ?? [])
-                @foreach ($nav as $item)
+                @foreach ($adminNavItems ?? [] as $item)
                     @if(! empty($item['disabled']))
                         <span class="nav-link nav-link--disabled js-drawer-close-on-nav">
                             <i class="fa-solid {{ $item['icon'] }} nav-ico" aria-hidden="true"></i>
@@ -2004,9 +2003,11 @@
     </div>
 
     @if(auth()->guard('admin')->check())
-        @php($adminPendingDep = (int) ($adminPendingDepositDeclarationsCount ?? 0))
-        @php($adminLoanNotifs = $adminLoanNotifications ?? collect())
-        @php($adminLoanUnread = (int) ($adminLoanNotificationsUnreadCount ?? 0))
+        @php
+            $adminPendingDep = (int) ($adminPendingDepositDeclarationsCount ?? 0);
+            $adminLoanNotifs = $adminLoanNotifications ?? collect();
+            $adminLoanUnread = (int) ($adminLoanNotificationsUnreadCount ?? 0);
+        @endphp
         <div id="admin-notif-overlay" class="admin-notif-overlay" hidden aria-hidden="true"></div>
         <div
             id="admin-notif-flyout"
@@ -2086,30 +2087,34 @@
                 </button>
             </div>
             <div class="app-settings-body">
+                @php
+                    $adminAppSettingsPanels = $adminAppSettingsPanels ?? [];
+                    $adminAppSettingsActivePanel = $adminAppSettingsActivePanel ?? array_key_first($adminAppSettingsPanels);
+                    $appSettingsPanelIcons = [
+                        'base' => 'fa-solid fa-sliders',
+                        'ui' => 'fa-solid fa-palette',
+                        'notifications' => 'fa-regular fa-bell',
+                        'financial' => 'fa-solid fa-coins',
+                        'security' => 'fa-solid fa-shield-halved',
+                    ];
+                @endphp
                 <aside class="app-settings-menu" aria-label="دسته‌بندی تنظیمات">
-                    <button type="button" class="app-settings-menu-btn is-active" data-settings-tab="base">
-                        <i class="fa-solid fa-sliders" aria-hidden="true"></i>
-                        تنظیمات بنیان
-                    </button>
-                    <button type="button" class="app-settings-menu-btn" data-settings-tab="ui">
-                        <i class="fa-solid fa-palette" aria-hidden="true"></i>
-                        ظاهر و تجربه کاربری
-                    </button>
-                    <button type="button" class="app-settings-menu-btn" data-settings-tab="notifications">
-                        <i class="fa-regular fa-bell" aria-hidden="true"></i>
-                        اعلان‌ها
-                    </button>
-                    <button type="button" class="app-settings-menu-btn" data-settings-tab="financial">
-                        <i class="fa-solid fa-coins" aria-hidden="true"></i>
-                        تنظیمات مالی
-                    </button>
-                    <button type="button" class="app-settings-menu-btn" data-settings-tab="security">
-                        <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
-                        امنیت
-                    </button>
+                    @forelse($adminAppSettingsPanels as $panelId => $panelLabel)
+                        <button
+                            type="button"
+                            class="app-settings-menu-btn @if($panelId === $adminAppSettingsActivePanel) is-active @endif"
+                            data-settings-tab="{{ $panelId }}"
+                        >
+                            <i class="{{ $appSettingsPanelIcons[$panelId] ?? 'fa-solid fa-circle' }}" aria-hidden="true"></i>
+                            {{ $panelLabel }}
+                        </button>
+                    @empty
+                        <p class="app-settings-note" style="padding:0.5rem;">هیچ بخشی از تنظیمات برنامه برای شما فعال نیست.</p>
+                    @endforelse
                 </aside>
                 <div class="app-settings-content">
-                    <section class="app-settings-panel" data-settings-panel="base">
+                    @if(isset($adminAppSettingsPanels['base']))
+                    <section class="app-settings-panel" data-settings-panel="base" @if($adminAppSettingsActivePanel !== 'base') hidden @endif>
                         <h4 class="app-settings-panel-title">تنظیمات بنیان</h4>
                         <p class="app-settings-panel-subtitle">پارامترهای اصلی سامانه که رفتار کلی را تعیین می‌کنند.</p>
                         <div class="app-settings-card">
@@ -2130,7 +2135,9 @@
                             </form>
                         </div>
                     </section>
-                    <section class="app-settings-panel" data-settings-panel="ui" hidden>
+                    @endif
+                    @if(isset($adminAppSettingsPanels['ui']))
+                    <section class="app-settings-panel" data-settings-panel="ui" @if($adminAppSettingsActivePanel !== 'ui') hidden @endif>
                         <h4 class="app-settings-panel-title">ظاهر و تجربه کاربری</h4>
                         <p class="app-settings-panel-subtitle">نمایش و خوانایی پنل را مطابق ترجیح تیم تنظیم کنید.</p>
                         <form method="post" action="{{ route('admin.app-settings.ui.update') }}" enctype="multipart/form-data">
@@ -2317,7 +2324,9 @@
                             'loginBgDescription' => 'تصویر پس‌زمینهٔ صفحه ورود مشتریان. تصاویر پیش‌فرض همیشه در دسترس هستند و امکان افزودن تصویر اختصاصی نیز وجود دارد.',
                         ])
                     </section>
-                    <section class="app-settings-panel" data-settings-panel="notifications" hidden>
+                    @endif
+                    @if(isset($adminAppSettingsPanels['notifications']))
+                    <section class="app-settings-panel" data-settings-panel="notifications" @if($adminAppSettingsActivePanel !== 'notifications') hidden @endif>
                         <h4 class="app-settings-panel-title">اعلان‌ها</h4>
                         <p class="app-settings-panel-subtitle">قوانین ارسال اطلاع‌رسانی برای کاربران و مدیران را مدیریت کنید.</p>
                         <div class="app-settings-card">
@@ -2345,7 +2354,9 @@
                             <button type="button" class="app-settings-btn app-settings-btn--primary">ذخیره تغییرات</button>
                         </div>
                     </section>
-                    <section class="app-settings-panel" data-settings-panel="financial" hidden>
+                    @endif
+                    @if(isset($adminAppSettingsPanels['financial']))
+                    <section class="app-settings-panel" data-settings-panel="financial" @if($adminAppSettingsActivePanel !== 'financial') hidden @endif>
                         <h4 class="app-settings-panel-title">تنظیمات مالی</h4>
                         <p class="app-settings-panel-subtitle">توضیحات بانکی برای کاربران و درگاه پرداخت.</p>
 
@@ -2446,7 +2457,10 @@
                             </div>
                         </form>
                     </section>
+                    @endif
+                    @if(isset($adminAppSettingsPanels['security']))
                     @include('layouts.admin.partials.app-settings-security-panel')
+                    @endif
                 </div>
             </div>
         </div>
@@ -2677,9 +2691,19 @@
                 var appSettingsOverlay = document.getElementById('app-settings-overlay');
                 var appSettingsClose = document.getElementById('app-settings-close');
                 var settingsTabs = Array.from(document.querySelectorAll('[data-settings-tab]'));
-                var settingsPanels = Array.from(document.querySelectorAll('[data-settings-panel]'));
+                var settingsPanels = Array.from(document.querySelectorAll('#app-settings-modal [data-settings-panel]'));
+                var serverSettingsPanel = @json($adminAppSettingsActivePanel ?? null);
 
                 function activateSettingsTab(tabId) {
+                    if (!tabId || settingsPanels.length === 0) {
+                        return;
+                    }
+                    var hasPanel = settingsPanels.some(function (panelEl) {
+                        return panelEl.getAttribute('data-settings-panel') === tabId;
+                    });
+                    if (!hasPanel) {
+                        tabId = settingsPanels[0].getAttribute('data-settings-panel');
+                    }
                     settingsTabs.forEach(function (tabBtn) {
                         var active = tabBtn.getAttribute('data-settings-tab') === tabId;
                         tabBtn.classList.toggle('is-active', active);
@@ -2708,7 +2732,13 @@
 
                 if (appSettingsOpen) {
                     appSettingsOpen.addEventListener('click', function () {
-                        activateSettingsTab('base');
+                        if (settingsPanels.length === 1) {
+                            settingsPanels[0].hidden = false;
+                        } else if (serverSettingsPanel) {
+                            activateSettingsTab(serverSettingsPanel);
+                        } else if (settingsPanels[0]) {
+                            activateSettingsTab(settingsPanels[0].getAttribute('data-settings-panel'));
+                        }
                         openSettings();
                     });
                 }

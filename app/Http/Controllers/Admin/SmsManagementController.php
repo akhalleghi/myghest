@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Admin\Concerns\UpdatesPortalAdminRecipientSmsSettings;
 use App\Http\Controllers\Controller;
 use App\Models\Admin;
+use App\Services\Admin\AdminPermissionService;
 use App\Models\AppSetting;
 use App\Models\SmsLog;
 use App\Models\SmsPanelSetting;
@@ -27,6 +28,8 @@ use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -40,10 +43,25 @@ final class SmsManagementController extends Controller
     public function __construct(
         private readonly SmsPanelManager $panelManager,
         private readonly SmsSettingsService $smsSettings,
+        private readonly AdminPermissionService $permissions,
     ) {}
 
     public function index(Request $request): View
     {
+        /** @var Admin $admin */
+        $admin = Auth::guard('admin')->user();
+        $sessionTab = $request->session()->pull('sms_active_tab');
+        $sessionTab = is_string($sessionTab) && $sessionTab !== '' ? $sessionTab : null;
+        $hub = $this->permissions->resolveHubPage(
+            $admin,
+            'sms',
+            $this->resolveSmsPreferredTab($request),
+            $sessionTab,
+        );
+        $smsAllowedTabs = $hub['tabs'];
+        $smsUiFeatures = $hub['features'];
+        $smsActiveTab = $hub['active_tab'];
+
         $filters = $this->resolveFilters($request);
         $query = $this->buildFilteredQuery($filters['from'], $filters['to'], $filters['status'], $filters['search']);
         $providerOptions = $this->panelManager->providerOptions();
@@ -96,9 +114,15 @@ final class SmsManagementController extends Controller
             ->values()
             ->all();
 
-        $logs = $query->latest('sent_at')->paginate(ListPerPage::resolve($request))->withQueryString();
+        $canSmsReports = isset($smsAllowedTabs['reports']);
+        $logs = $canSmsReports
+            ? $query->latest('sent_at')->paginate(ListPerPage::resolve($request))->withQueryString()
+            : new LengthAwarePaginator([], 0, ListPerPage::resolve($request));
 
         return view('admin.sms.index', [
+            'smsAllowedTabs' => $smsAllowedTabs,
+            'smsActiveTab' => $smsActiveTab,
+            'smsUiFeatures' => $smsUiFeatures,
             'logs' => $logs,
             'status' => $filters['status'],
             'search' => $filters['search'],
@@ -1136,5 +1160,28 @@ final class SmsManagementController extends Controller
             'body' => $body,
             'tokens' => $tokens,
         ];
+    }
+
+    private function resolveSmsPreferredTab(Request $request): ?string
+    {
+        if (
+            $request->old('title') !== null
+            || $request->old('category') !== null
+            || $request->old('body') !== null
+        ) {
+            return 'templates';
+        }
+
+        $settingsKeys = [
+            'provider', 'username', 'sender_number', 'password', 'test_recipient', 'test_message',
+            'tpl_installment_thanks_id', 'tpl_login_id', 'reminder_enabled', 'admin_login_notify_enabled',
+        ];
+        foreach ($settingsKeys as $key) {
+            if ($request->old($key) !== null) {
+                return 'settings';
+            }
+        }
+
+        return null;
     }
 }

@@ -6,8 +6,8 @@ namespace App\Support;
 
 final class AdminPermissionRegistry
 {
-    /** @var array<string, string>|null */
-    private static ?array $routeToPermission = null;
+    /** @var array<string, list<string>>|null */
+    private static ?array $routeToPermissions = null;
 
     /** @var array<string, true>|null */
     private static ?array $allKeys = null;
@@ -88,12 +88,12 @@ final class AdminPermissionRegistry
     }
 
     /**
-     * @return array<string, string>
+     * @return array<string, list<string>>
      */
     public function routeToPermissionMap(): array
     {
-        if (self::$routeToPermission !== null) {
-            return self::$routeToPermission;
+        if (self::$routeToPermissions !== null) {
+            return self::$routeToPermissions;
         }
 
         $map = [];
@@ -107,24 +107,42 @@ final class AdminPermissionRegistry
                 return;
             }
             foreach ($routes as $routeName) {
-                if (is_string($routeName) && $routeName !== '') {
-                    $map[$routeName] = $key;
+                if (! is_string($routeName) || $routeName === '') {
+                    continue;
+                }
+                if (! isset($map[$routeName])) {
+                    $map[$routeName] = [];
+                }
+                if (! in_array($key, $map[$routeName], true)) {
+                    $map[$routeName][] = $key;
                 }
             }
         });
 
-        self::$routeToPermission = $map;
+        $map = app(AdminSectionHubRegistry::class)->augmentRouteMapWithHubs($map, $this);
+
+        self::$routeToPermissions = $map;
 
         return $map;
     }
 
-    public function permissionForRoute(?string $routeName): ?string
+    /**
+     * @return list<string>
+     */
+    public function permissionsForRoute(?string $routeName): array
     {
         if ($routeName === null || $routeName === '') {
-            return null;
+            return [];
         }
 
-        return $this->routeToPermissionMap()[$routeName] ?? null;
+        return $this->routeToPermissionMap()[$routeName] ?? [];
+    }
+
+    public function permissionForRoute(?string $routeName): ?string
+    {
+        $keys = $this->permissionsForRoute($routeName);
+
+        return $keys[0] ?? null;
     }
 
     /**

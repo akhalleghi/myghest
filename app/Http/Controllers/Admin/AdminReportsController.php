@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Admin;
 use App\Models\CustomerLoanInstallmentPayment;
+use App\Services\Admin\AdminPermissionService;
 use App\Models\SmsTemplate;
 use App\Services\Admin\Reports\DepositsByDateReportService;
 use App\Services\Admin\Reports\InstallmentDueDatesByDateReportService;
@@ -17,6 +19,7 @@ use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -30,12 +33,70 @@ final class AdminReportsController extends Controller
         private readonly SettledMembersReportService $settledMembers,
         private readonly WalletTransactionsByDateReportService $walletTransactionsByDate,
         private readonly LoanGuaranteesReportService $loanGuarantees,
+        private readonly AdminPermissionService $permissions,
     ) {}
 
     public function index(): View
     {
+        /** @var Admin $admin */
+        $admin = Auth::guard('admin')->user();
         $today = Carbon::today();
         $jToday = Jalali::instance($today);
+
+        $reportCards = [
+                [
+                    'id' => 'member-loans-by-date',
+                    'title' => 'وام‌های اعضا بر اساس تاریخ',
+                    'description' => 'فهرست پرونده‌های وام بر اساس تاریخ شروع قرارداد، با جزئیات پرداخت، مانده و پیامک.',
+                    'icon' => 'fa-hand-holding-dollar',
+                    'accent' => '#2563eb',
+                    'enabled' => $this->permissions->canAccessUiCard($admin, 'reports', 'member-loans-by-date'),
+                ],
+                [
+                    'id' => 'installment-due-by-date',
+                    'title' => 'سررسید اقساط بر اساس تاریخ',
+                    'description' => 'فهرست اقساط بر اساس تاریخ سررسید، با جزئیات واریز، نحوه پرداخت و پیامک.',
+                    'icon' => 'fa-calendar-days',
+                    'accent' => '#7c3aed',
+                    'enabled' => $this->permissions->canAccessUiCard($admin, 'reports', 'installment-due-by-date'),
+                ],
+                [
+                    'id' => 'deposits-by-date',
+                    'title' => 'واریزها بر اساس تاریخ',
+                    'description' => 'فهرست واریزی‌های ثبت‌شده بر اساس تاریخ واریز، با جزئیات قسط و پرونده.',
+                    'icon' => 'fa-money-bill-transfer',
+                    'accent' => '#059669',
+                    'enabled' => $this->permissions->canAccessUiCard($admin, 'reports', 'deposits-by-date'),
+                ],
+                [
+                    'id' => 'settled-members',
+                    'title' => 'اعضای تسویه‌کننده وام',
+                    'description' => 'فهرست اعضایی که حداقل یک پروندهٔ وام را تسویه کرده‌اند، با مجموع وام و تاریخ آخرین تسویه.',
+                    'icon' => 'fa-user-check',
+                    'accent' => '#d97706',
+                    'enabled' => $this->permissions->canAccessUiCard($admin, 'reports', 'settled-members'),
+                ],
+                [
+                    'id' => 'wallet-transactions-by-date',
+                    'title' => 'واریز/برداشت کیف پول',
+                    'description' => 'فهرست تراکنش‌های واریز و برداشت کیف پول اعضا بر اساس زمان ثبت، با درگاه و جزئیات پیگیری.',
+                    'icon' => 'fa-wallet',
+                    'accent' => '#0d9488',
+                    'enabled' => $this->permissions->canAccessUiCard($admin, 'reports', 'wallet-transactions-by-date'),
+                ],
+                [
+                    'id' => 'loan-guarantees',
+                    'title' => 'گزارش تضامین',
+                    'description' => 'فهرست ضمانت‌های ثبت‌شده روی پرونده‌های وام، با جزئیات مشتری، مبلغ وام و اطلاعات ضامن.',
+                    'icon' => 'fa-shield-halved',
+                    'accent' => '#be123c',
+                    'enabled' => $this->permissions->canAccessUiCard($admin, 'reports', 'loan-guarantees'),
+                ],
+        ];
+
+        if (! collect($reportCards)->contains(static fn (array $card): bool => ! empty($card['enabled']))) {
+            abort(403, 'شما به هیچ گزارشی دسترسی ندارید.');
+        }
 
         return view('admin.reports.index', [
             'pageTitle' => 'گزارش‌ها',
@@ -46,56 +107,7 @@ final class AdminReportsController extends Controller
             'walletTransactionDirectionOptions' => WalletTransactionsByDateReportService::directionFilterOptions(),
             'walletTransactionSourceOptions' => WalletTransactionsByDateReportService::sourceFilterOptions(),
             'guaranteeTypeFilterOptions' => LoanGuaranteesReportService::guaranteeTypeFilterOptions(),
-            'reportCards' => [
-                [
-                    'id' => 'member-loans-by-date',
-                    'title' => 'وام‌های اعضا بر اساس تاریخ',
-                    'description' => 'فهرست پرونده‌های وام بر اساس تاریخ شروع قرارداد، با جزئیات پرداخت، مانده و پیامک.',
-                    'icon' => 'fa-hand-holding-dollar',
-                    'accent' => '#2563eb',
-                    'enabled' => true,
-                ],
-                [
-                    'id' => 'installment-due-by-date',
-                    'title' => 'سررسید اقساط بر اساس تاریخ',
-                    'description' => 'فهرست اقساط بر اساس تاریخ سررسید، با جزئیات واریز، نحوه پرداخت و پیامک.',
-                    'icon' => 'fa-calendar-days',
-                    'accent' => '#7c3aed',
-                    'enabled' => true,
-                ],
-                [
-                    'id' => 'deposits-by-date',
-                    'title' => 'واریزها بر اساس تاریخ',
-                    'description' => 'فهرست واریزی‌های ثبت‌شده بر اساس تاریخ واریز، با جزئیات قسط و پرونده.',
-                    'icon' => 'fa-money-bill-transfer',
-                    'accent' => '#059669',
-                    'enabled' => true,
-                ],
-                [
-                    'id' => 'settled-members',
-                    'title' => 'اعضای تسویه‌کننده وام',
-                    'description' => 'فهرست اعضایی که حداقل یک پروندهٔ وام را تسویه کرده‌اند، با مجموع وام و تاریخ آخرین تسویه.',
-                    'icon' => 'fa-user-check',
-                    'accent' => '#d97706',
-                    'enabled' => true,
-                ],
-                [
-                    'id' => 'wallet-transactions-by-date',
-                    'title' => 'واریز/برداشت کیف پول',
-                    'description' => 'فهرست تراکنش‌های واریز و برداشت کیف پول اعضا بر اساس زمان ثبت، با درگاه و جزئیات پیگیری.',
-                    'icon' => 'fa-wallet',
-                    'accent' => '#0d9488',
-                    'enabled' => true,
-                ],
-                [
-                    'id' => 'loan-guarantees',
-                    'title' => 'گزارش تضامین',
-                    'description' => 'فهرست ضمانت‌های ثبت‌شده روی پرونده‌های وام، با جزئیات مشتری، مبلغ وام و اطلاعات ضامن.',
-                    'icon' => 'fa-shield-halved',
-                    'accent' => '#be123c',
-                    'enabled' => true,
-                ],
-            ],
+            'reportCards' => $reportCards,
         ]);
     }
 

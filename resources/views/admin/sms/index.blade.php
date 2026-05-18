@@ -213,17 +213,30 @@
 @endpush
 
 @section('content')
+    @php
+        $smsAllowedTabs = $smsAllowedTabs ?? [];
+        $smsUiFeatures = $smsUiFeatures ?? [];
+        $smsActiveTab = $smsActiveTab ?? array_key_first($smsAllowedTabs);
+        $smsFeat = static fn (string $key): bool => ! empty($smsUiFeatures[$key]);
+    @endphp
     <div class="sms-page">
         <h1 class="sms-title">مدیریت پیامک</h1>
-        <p class="sms-sub">گزارش ارسال پیامک‌ها، جستجو و فیلتر وضعیت، و بازهٔ زمانی روزانه/دلخواه.</p>
+        @php
+            $smsTabLabels = array_values($smsAllowedTabs);
+            $smsPageSubtitle = count($smsAllowedTabs) === 1 && isset($smsAllowedTabs['settings'])
+                ? 'تنظیمات اتصال پنل، تست ارسال و سایر گزینه‌های پیامکی که به آن‌ها دسترسی دارید.'
+                : (count($smsAllowedTabs) === 1 && isset($smsAllowedTabs['templates'])
+                    ? 'مدیریت الگوهای پیامک مطابق دسترسی‌های تعریف‌شده برای شما.'
+                    : (count($smsAllowedTabs) === 1 && isset($smsAllowedTabs['reports'])
+                        ? 'گزارش ارسال پیامک‌ها، جستجو و فیلتر وضعیت، و بازهٔ زمانی روزانه/دلخواه.'
+                        : 'بخش‌های پیامکی که به آن‌ها دسترسی دارید: '.implode('، ', $smsTabLabels).'.'));
+        @endphp
+        <p class="sms-sub">{{ $smsPageSubtitle }}</p>
 
-        <div class="sms-tabs" role="tablist" aria-label="تب‌های مدیریت پیامک">
-            <button type="button" class="sms-tab is-active" role="tab" aria-selected="true" data-sms-tab="reports">گزارش پیامک‌ها</button>
-            <button type="button" class="sms-tab" role="tab" aria-selected="false" data-sms-tab="templates">الگوهای پیامک</button>
-            <button type="button" class="sms-tab" role="tab" aria-selected="false" data-sms-tab="settings">تنظیمات پنل</button>
-        </div>
+        @include('admin.sms.partials.tabs-nav')
 
-        <section class="sms-tab-panel" data-sms-panel="reports">
+        @if(isset($smsAllowedTabs['reports']))
+        <section class="sms-tab-panel" data-sms-panel="reports" @if($smsActiveTab !== 'reports') hidden @endif>
         <div class="sms-date-toolbar">
             <div class="sms-day-nav">
                 <a class="sms-day-btn" href="{{ request()->fullUrlWithQuery(['mode' => 'day', 'date' => $prevDate]) }}">روز قبل</a>
@@ -270,6 +283,7 @@
                     @if ($status !== '')<input type="hidden" name="status" value="{{ $status }}">@endif
                     <input type="search" name="q" value="{{ $search }}" placeholder="جستجو در متن، دریافت‌کننده، نوع یا پنل...">
                     <button type="submit"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></button>
+                    @if($smsFeat('reports.export'))
                     <a
                         class="sms-export-btn"
                         href="{{ route('admin.sms.export-excel', request()->query()) }}"
@@ -277,6 +291,7 @@
                         <i class="fa-solid fa-file-excel" aria-hidden="true"></i>
                         خروجی اکسل
                     </a>
+                    @endif
                 </form>
             </div>
         </div>
@@ -332,6 +347,7 @@
                                                 <i class="fa-regular fa-eye" aria-hidden="true"></i>
                                                 جزئیات
                                             </button>
+                                            @if($smsFeat('reports.destroy'))
                                             <form method="post" action="{{ route('admin.sms.destroy', $log) }}" data-sms-delete-form>
                                                 @csrf
                                                 @method('DELETE')
@@ -340,6 +356,7 @@
                                                     حذف
                                                 </button>
                                             </form>
+                                            @endif
                                         </div>
                                     </div>
                                 </td>
@@ -356,17 +373,23 @@
             @include('partials.list-pagination', ['paginator' => $logs])
         </div>
         </section>
+        @endif
 
-        <section class="sms-tab-panel" data-sms-panel="templates" hidden>
+        @if(isset($smsAllowedTabs['templates']))
+        <section class="sms-tab-panel" data-sms-panel="templates" @if($smsActiveTab !== 'templates') hidden @endif>
             <div class="sms-template-toolbar">
                 <p class="sms-template-toolbar-note">قالب‌های آماده و سفارشی را مدیریت کنید. پترن‌ها در زمان ارسال با داده واقعی جایگزین می‌شوند. قالب سیستمی «احراز هویت موبایل ضامن (سازمانی)» برای پیامک کد تأیید ضمانت در پرونده وام استفاده می‌شود و از همین تب قابل ویرایش است.</p>
+                @if($smsFeat('templates.create'))
                 <button type="button" class="sms-template-add-btn" id="sms-template-open-modal">
                     <i class="fa-solid fa-plus" aria-hidden="true"></i>
                     افزودن الگو جدید
                 </button>
+                @endif
             </div>
 
-            @if($smsTemplates->isEmpty())
+            @if(! $smsFeat('templates.view'))
+                <div class="sms-template-empty">شما به مشاهدهٔ الگوها دسترسی ندارید.</div>
+            @elseif($smsTemplates->isEmpty())
                 <div class="sms-template-empty">هنوز قالب پیامکی ثبت نشده است.</div>
             @else
                 <div class="sms-template-list">
@@ -386,10 +409,8 @@
                                 <p class="sms-template-item-body">{{ $tpl->body }}</p>
                             </div>
                             <div class="sms-template-item-actions">
-                                <button
-                                    type="button"
-                                    class="sms-template-action-btn"
-                                    data-template-edit
+                                @if($smsFeat('templates.update'))
+                                <button type="button" class="sms-template-action-btn" data-template-edit
                                     data-template-id="{{ $tpl->id }}"
                                     data-template-title="{{ $tpl->title }}"
                                     data-template-category="{{ $tpl->category }}"
@@ -398,7 +419,8 @@
                                     <i class="fa-regular fa-pen-to-square" aria-hidden="true"></i>
                                     ویرایش
                                 </button>
-                                @unless($tpl->is_system)
+                                @endif
+                                @if($smsFeat('templates.delete') && ! $tpl->is_system)
                                     <form method="post" action="{{ route('admin.sms.templates.destroy', $tpl) }}" data-template-delete-form>
                                         @csrf
                                         @method('DELETE')
@@ -407,15 +429,18 @@
                                             حذف
                                         </button>
                                     </form>
-                                @endunless
+                                @endif
                             </div>
                         </article>
                     @endforeach
                 </div>
             @endif
         </section>
+        @endif
 
-        <section class="sms-tab-panel" data-sms-panel="settings" hidden>
+        @if(isset($smsAllowedTabs['settings']))
+        <section class="sms-tab-panel" data-sms-panel="settings" @if($smsActiveTab !== 'settings') hidden @endif>
+            @if($smsFeat('settings.panel'))
             <div class="sms-panel-select-card">
                 <div class="sms-panel-select-head">
                     <i class="fa-solid fa-tower-cell" aria-hidden="true"></i>
@@ -464,7 +489,9 @@
                     </button>
                 </form>
             </div>
+            @endif
 
+            @if($smsFeat('settings.panel'))
             <div class="sms-panel-select-card">
                 <div class="sms-panel-select-head">
                     <i class="fa-solid fa-vial-circle-check" aria-hidden="true"></i>
@@ -490,7 +517,9 @@
                     </button>
                 </form>
             </div>
+            @endif
 
+            @if($smsFeat('settings.scenarios'))
             <div class="sms-panel-select-card">
                 <div class="sms-panel-select-head">
                     <i class="fa-solid fa-list-check" aria-hidden="true"></i>
@@ -554,7 +583,9 @@
                     </button>
                 </form>
             </div>
+            @endif
 
+            @if($smsFeat('settings.reminders'))
             <div class="sms-panel-select-card">
                 <div class="sms-panel-select-head">
                     <i class="fa-solid fa-bell" aria-hidden="true"></i>
@@ -701,12 +732,26 @@
                     </button>
                 </form>
             </div>
+            @endif
 
+            @if($smsFeat('settings.messages'))
             @include('admin.sms.partials.admin-login-notify-settings')
+            @endif
+
+            @if(
+                ! $smsFeat('settings.panel')
+                && ! $smsFeat('settings.scenarios')
+                && ! $smsFeat('settings.reminders')
+                && ! $smsFeat('settings.messages')
+            )
+                <div class="sms-template-empty">در این بخش هنوز زیرمجوز مشخصی برای حساب شما فعال نشده است. از مدیر بخواهید یکی از گزینه‌های «تنظیمات پنل پیامک» (اتصال پنل، سناریو، یادآوری یا پیام‌ها) را تیک بزند.</div>
+            @endif
 
         </section>
+        @endif
     </div>
 
+    @if($smsFeat('templates.create') || $smsFeat('templates.update'))
     <div class="sms-template-modal-overlay" id="sms-template-modal-overlay" @if(! ($errors->has('title') || $errors->has('category') || $errors->has('body'))) hidden @endif>
         <div class="sms-template-modal" role="dialog" aria-modal="true" aria-labelledby="sms-template-modal-title">
             <div class="sms-template-modal-head">
@@ -762,6 +807,7 @@
             </div>
         </div>
     </div>
+    @endif
 @endsection
 
 @push('scripts')
@@ -876,8 +922,18 @@
             });
 
             var tabButtons = Array.from(document.querySelectorAll('[data-sms-tab]'));
-            var tabPanels = Array.from(document.querySelectorAll('[data-sms-panel]'));
+            var tabPanels = Array.from(document.querySelectorAll('.sms-page [data-sms-panel]'));
+            var serverActiveTab = @json($smsActiveTab);
             function activateTab(tabId) {
+                if (!tabId || tabPanels.length === 0) {
+                    return;
+                }
+                var hasPanel = tabPanels.some(function (tabPanel) {
+                    return tabPanel.getAttribute('data-sms-panel') === tabId;
+                });
+                if (!hasPanel) {
+                    tabId = tabPanels[0].getAttribute('data-sms-panel');
+                }
                 tabButtons.forEach(function (btn) {
                     var isActive = btn.getAttribute('data-sms-tab') === tabId;
                     btn.classList.toggle('is-active', isActive);
@@ -892,11 +948,13 @@
                     activateTab(btn.getAttribute('data-sms-tab'));
                 });
             });
-            activateTab(@json(
-                ($errors->has('title') || $errors->has('category') || $errors->has('body'))
-                    ? 'templates'
-                    : (($errors->any() || session('sms_active_tab') === 'settings') ? 'settings' : session('sms_active_tab', 'reports'))
-            ));
+            if (tabPanels.length === 1) {
+                tabPanels[0].hidden = false;
+            } else if (serverActiveTab) {
+                activateTab(serverActiveTab);
+            } else if (tabPanels[0]) {
+                activateTab(tabPanels[0].getAttribute('data-sms-panel'));
+            }
 
             var templateOverlay = document.getElementById('sms-template-modal-overlay');
             var templateOpenBtn = document.getElementById('sms-template-open-modal');

@@ -10,7 +10,7 @@
     $adminMaxAttempts = old('admin_login_max_failed_attempts', PortalLoginSecuritySettings::maxFailedAttempts(LoginAccessBlock::GUARD_ADMIN));
 @endphp
 
-<section class="app-settings-panel" data-settings-panel="security" hidden>
+<section class="app-settings-panel" data-settings-panel="security" @if(($adminAppSettingsActivePanel ?? '') !== 'security') hidden @endif>
     <h4 class="app-settings-panel-title">امنیت</h4>
     <p class="app-settings-panel-subtitle">برای افزایش امنیت دسترسی‌ها، سیاست‌های ورود و نشست را تنظیم کنید.</p>
     <form method="post" action="{{ route('admin.app-settings.security.update') }}">

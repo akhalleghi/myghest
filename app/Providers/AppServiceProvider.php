@@ -16,6 +16,7 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -40,6 +41,24 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Blade::if('adminCan', function (string $permissionKey): bool {
+            $admin = Auth::guard('admin')->user();
+            if (! $admin instanceof Admin) {
+                return false;
+            }
+
+            return app(AdminPermissionService::class)->hasPermission($admin, $permissionKey);
+        });
+
+        Blade::if('adminCanPrefix', function (string $prefix): bool {
+            $admin = Auth::guard('admin')->user();
+            if (! $admin instanceof Admin) {
+                return false;
+            }
+
+            return app(AdminPermissionService::class)->hasPermissionWithPrefix($admin, $prefix);
+        });
+
         Carbon::setLocale((string) config('app.locale'));
 
         Paginator::defaultView('vendor.pagination.myghest');
@@ -132,6 +151,7 @@ class AppServiceProvider extends ServiceProvider
             $loanUnreadCount = 0;
             $adminNavItems = [];
             $adminCanOpenAppSettings = false;
+            $adminAppSettingsPanels = [];
             if (Auth::guard('admin')->check()) {
                 $pendingDepositCount = (int) CustomerDepositDeclaration::query()
                     ->where('status', CustomerDepositDeclaration::STATUS_PENDING)
@@ -147,6 +167,7 @@ class AppServiceProvider extends ServiceProvider
                     $permissions = app(AdminPermissionService::class);
                     $adminNavItems = $permissions->visibleNavigationItems($admin);
                     $adminCanOpenAppSettings = $permissions->canOpenAppSettings($admin);
+                    $adminAppSettingsPanels = $permissions->allowedAppSettingsPanels($admin);
                     $loanNotifs = $this->loadRecentNotifications($admin::class, (int) $admin->getKey());
                     $loanUnreadCount = (int) DatabaseNotification::query()
                         ->where('notifiable_type', $admin::class)
@@ -166,6 +187,8 @@ class AppServiceProvider extends ServiceProvider
             $view->with('adminNotificationsBadgeUnified', $unifiedBadge);
             $view->with('adminNavItems', $adminNavItems);
             $view->with('adminCanOpenAppSettings', $adminCanOpenAppSettings);
+            $view->with('adminAppSettingsPanels', $adminAppSettingsPanels);
+            $view->with('adminAppSettingsActivePanel', array_key_first($adminAppSettingsPanels) ?: 'base');
 
             $loginBackgrounds = app(LoginBackgroundService::class);
             $view->with('loginBgPickerStates', [
