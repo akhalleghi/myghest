@@ -81,4 +81,18 @@ final class AdminPermissionHubTest extends TestCase
             app(AdminPermissionRegistry::class)->permissionsForRoute('admin.sms.index'),
         );
     }
+
+    public function test_permission_tree_includes_backup_under_app_settings(): void
+    {
+        $registry = app(AdminPermissionRegistry::class);
+        $appSettings = collect($registry->tree())->firstWhere('key', 'app_settings');
+        $this->assertIsArray($appSettings);
+
+        $backupGroup = collect($appSettings['children'] ?? [])->firstWhere('key', 'backup');
+        $this->assertIsArray($backupGroup);
+        $this->assertSame('پشتیبان‌گیری و بازیابی', $backupGroup['label'] ?? null);
+
+        $this->assertContains('backup.view', $registry->leafKeysUnder('backup'));
+        $this->assertContains('backup.restore', $registry->permissionsForRoute('admin.backups.restore'));
+    }
 }

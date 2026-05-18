@@ -9,7 +9,11 @@
         || str_starts_with($key, 'dashboard.card.');
     $includeInForm = ! $hasChildren && ($hasRoutes || $isMeta);
     $checked = in_array($key, $oldKeys, true);
-    $canAssign = empty($restrictAssignable) || isset($assignableSet[$key]);
+    $canAssign = app(\App\Support\AdminPermissionRegistry::class)->isAssignableInTree(
+        $key,
+        $assignableSet,
+        ! empty($restrictAssignable),
+    );
 @endphp
 <li class="au-perm-node" role="treeitem" data-perm-key="{{ e($key) }}" data-perm-label="{{ e(mb_strtolower($label, 'UTF-8')) }}">
     <div class="au-perm-node-row" style="--au-depth: {{ (int) $depth }}">

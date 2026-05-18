@@ -293,6 +293,17 @@ return [
                     'admin.app-settings.login-blocks.index',
                     'admin.app-settings.login-blocks.unblock',
                 ]],
+                [
+                    'key' => 'backup',
+                    'label' => 'پشتیبان‌گیری و بازیابی',
+                    'children' => [
+                        ['key' => 'backup.view', 'label' => 'مشاهده لیست بکاپ‌ها', 'routes' => ['admin.backups.index']],
+                        ['key' => 'backup.create', 'label' => 'ایجاد بکاپ', 'routes' => ['admin.backups.index', 'admin.backups.store']],
+                        ['key' => 'backup.download', 'label' => 'دانلود بکاپ', 'routes' => ['admin.backups.download']],
+                        ['key' => 'backup.delete', 'label' => 'حذف بکاپ', 'routes' => ['admin.backups.destroy']],
+                        ['key' => 'backup.restore', 'label' => 'بازگردانی بکاپ', 'routes' => ['admin.backups.restore']],
+                    ],
+                ],
             ],
         ],
         [
@@ -301,17 +312,6 @@ return [
             'children' => [
                 ['key' => 'notifications.view', 'label' => 'مشاهده و پیگیری', 'routes' => ['admin.notifications.follow']],
                 ['key' => 'notifications.mark_read', 'label' => 'علامت‌خوانده‌شده', 'routes' => ['admin.notifications.mark-all-read']],
-            ],
-        ],
-        [
-            'key' => 'backup',
-            'label' => 'پشتیبان‌گیری و بازیابی',
-            'children' => [
-                ['key' => 'backup.view', 'label' => 'مشاهده لیست بکاپ‌ها', 'routes' => ['admin.backups.index']],
-                ['key' => 'backup.create', 'label' => 'ایجاد بکاپ', 'routes' => ['admin.backups.index', 'admin.backups.store']],
-                ['key' => 'backup.download', 'label' => 'دانلود بکاپ', 'routes' => ['admin.backups.download']],
-                ['key' => 'backup.delete', 'label' => 'حذف بکاپ', 'routes' => ['admin.backups.destroy']],
-                ['key' => 'backup.restore', 'label' => 'بازگردانی بکاپ', 'routes' => ['admin.backups.restore']],
             ],
         ],
     ],

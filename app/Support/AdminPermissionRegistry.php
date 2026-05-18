@@ -203,6 +203,30 @@ final class AdminPermissionRegistry
     }
 
     /**
+     * آیا گره (یا حداقل یک برگ زیر آن) در UI دسترسی‌ها برای این ادمین قابل انتساب است؟
+     *
+     * @param  array<string, true>  $assignableSet
+     */
+    public function isAssignableInTree(string $nodeKey, array $assignableSet, bool $restrictAssignable): bool
+    {
+        if (! $restrictAssignable) {
+            return true;
+        }
+
+        if (isset($assignableSet[$nodeKey])) {
+            return true;
+        }
+
+        foreach ($this->leafKeysUnder($nodeKey) as $leafKey) {
+            if (isset($assignableSet[$leafKey])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @return array<string, list<string>>
      */
     private function descendantLeavesCache(): array
