@@ -2250,7 +2250,7 @@
                     <div class="cust-field">
                         <label for="loan-installment-amount">مبلغ هر قسط (تومان) <span class="req">*</span></label>
                         <input id="loan-installment-amount" name="installment_amount_toman" inputmode="numeric" required>
-                        <span class="loan-interest-note" id="loan-installment-help">به‌صورت خودکار محاسبه می‌شود؛ قابل ویرایش است.</span>
+                        <span class="loan-interest-note" id="loan-installment-help">به‌صورت خودکار محاسبه می‌شود (رند تا ۱۰٬۰۰۰ تومان)؛ قابل ویرایش است.</span>
                     </div>
                     <div class="cust-field">
                         <label for="loan-down-payment">مبلغ پیش پرداخت</label>
@@ -2987,6 +2987,7 @@
             var guarantorOtpSendUrl = @json(route('admin.guarantor-otp.send'));
             var guarantorOtpVerifyUrl = @json(route('admin.guarantor-otp.verify'));
             var loanCreationOtpEnabled = @json($loanCreationOtpEnabled ?? false);
+            var loanInstallmentRounding = @json($loanInstallmentRounding ?? ['step_toman' => 10000, 'remainder_target' => 'last', 'remainder_target_label' => 'قسط آخر']);
             var loanCreationOtpVerified = false;
             var guaranteeReturnOtpEnabled = @json($guaranteeReturnOtpEnabled ?? false);
             var guaranteeReturnOtpVerified = false;
@@ -3399,6 +3400,7 @@
             var loanSettledJdateInput = document.getElementById('loan-settled-jdate');
             var loanCreateSubmitting = false;
             var loanInstallmentAutoDirty = false;
+            var loanDownPaymentAutoDirty = false;
             var loanFormMode = 'create';
             var loanEditingFileId = null;
             var loanSmsOverlay = document.getElementById('loan-sms-overlay');
@@ -3591,6 +3593,56 @@
                     ? (amount * rateFactor * (months / 12))
                     : (amount * rateFactor * months);
                 return Math.max(0, Math.round(profit));
+            }
+
+            function allocateLoanInstallmentAmounts(amountToman, profitToman, downPaymentToman, installmentsCount, roundingConfig) {
+                var cfg = roundingConfig || loanInstallmentRounding || {};
+                var step = Number(cfg.step_toman || 10000);
+                var target = String(cfg.remainder_target || 'last');
+                var amount = Number(amountToman || 0);
+                var profit = Number(profitToman || 0);
+                var downPayment = Math.max(0, Number(downPaymentToman || 0));
+                var count = parseInt(String(installmentsCount || '0'), 10);
+                var payable = Math.max(0, (amount + profit) - downPayment);
+
+                function buildSchedule(payableAmount, downPay) {
+                    if (!Number.isFinite(count) || count < 1 || payableAmount < 1) {
+                        return { base: 0, amounts: [], remainder: 0, adjustedDownPayment: downPay, payable: payableAmount, sum: 0 };
+                    }
+                    var raw = Math.floor(payableAmount / count);
+                    var base = Math.floor(raw / step) * step;
+                    if (base < 1) base = raw;
+                    var amounts = [];
+                    var i;
+                    for (i = 0; i < count; i++) amounts.push(base);
+                    var remainder = payableAmount - (base * count);
+                    if (remainder > 0) {
+                        if (target === 'first') {
+                            amounts[0] = base + remainder;
+                        } else if (target !== 'down_payment') {
+                            amounts[count - 1] = base + remainder;
+                        }
+                    }
+                    var sum = amounts.reduce(function (acc, val) { return acc + val; }, 0);
+                    return { base: base, amounts: amounts, remainder: Math.max(0, remainder), adjustedDownPayment: downPay, payable: payableAmount, sum: sum };
+                }
+
+                var schedule = buildSchedule(payable, downPayment);
+                if (target === 'down_payment' && schedule.remainder > 0) {
+                    downPayment += schedule.remainder;
+                    payable = Math.max(0, (amount + profit) - downPayment);
+                    schedule = buildSchedule(payable, downPayment);
+                }
+
+                return schedule;
+            }
+
+            function loanInstallmentRoundingNote(allocation) {
+                if (!allocation || !allocation.remainder || allocation.remainder <= 0) return '';
+                if (String((loanInstallmentRounding && loanInstallmentRounding.remainder_target) || 'last') === 'down_payment') {
+                    return ' | مبلغ خرد ' + formatToman(allocation.remainder) + ' به پیش‌پرداخت اضافه می‌شود';
+                }
+                return ' | مبلغ خرد ' + formatToman(allocation.remainder) + ' به ' + String((loanInstallmentRounding && loanInstallmentRounding.remainder_target_label) || 'قسط آخر') + ' اضافه می‌شود';
             }
 
             function activeInterestRatePercent() {
@@ -5262,14 +5314,19 @@
                 var interestRate = activeInterestRatePercent();
                 var profitMethod = String((lt && lt.profit_calculation_method) || 'monthly');
                 var profit = loanProfitToman(amount, interestRate, profitMethod, count, intervalCount, intervalUnit);
-                var payableAfterDownPayment = Math.max(0, (amount + profit) - downPayment);
-                if ((force || !loanInstallmentAutoDirty) && payableAfterDownPayment > 0 && count > 0) {
-                    var calculated = Math.floor(payableAfterDownPayment / count);
-                    loanInstallmentAmountInput.value = formatThousandsInputValue(String(calculated));
+                var allocation = allocateLoanInstallmentAmounts(amount, profit, downPayment, count, loanInstallmentRounding);
+                if ((force || !loanInstallmentAutoDirty) && allocation.base > 0) {
+                    loanInstallmentAmountInput.value = formatThousandsInputValue(String(allocation.base));
+                }
+                if ((force || !loanDownPaymentAutoDirty) && loanDownPaymentInput && String((loanInstallmentRounding && loanInstallmentRounding.remainder_target) || '') === 'down_payment') {
+                    loanDownPaymentInput.value = formatThousandsInputValue(String(allocation.adjustedDownPayment || 0));
                 }
                 var installment = parseThousandsInput(loanInstallmentAmountInput.value);
-                var sum = installment * count;
-                loanTotalCheck.textContent = 'اصل وام: ' + formatToman(amount) + ' | نرخ بهره: ' + String(interestRate) + '% | بهره تخمینی: ' + formatToman(profit) + ' | قابل بازپرداخت: ' + formatToman(payableAfterDownPayment) + ' | جمع اقساط: ' + formatToman(sum);
+                var sum = allocation.sum > 0 ? allocation.sum : (installment * count);
+                var payableAfterDownPayment = allocation.payable > 0
+                    ? allocation.payable
+                    : Math.max(0, (amount + profit) - downPayment);
+                loanTotalCheck.textContent = 'اصل وام: ' + formatToman(amount) + ' | نرخ بهره: ' + String(interestRate) + '% | بهره تخمینی: ' + formatToman(profit) + ' | قابل بازپرداخت: ' + formatToman(payableAfterDownPayment) + ' | جمع اقساط: ' + formatToman(sum) + loanInstallmentRoundingNote(allocation);
                 loanTotalCheck.style.color = sum > payableAfterDownPayment ? '#b91c1c' : 'var(--muted)';
             }
 
@@ -5278,6 +5335,7 @@
                 loanFormMode = 'create';
                 loanEditingFileId = null;
                 loanInstallmentAutoDirty = false;
+                loanDownPaymentAutoDirty = false;
                 loanCreateForm.reset();
                 if (loanCustomerNameInput) {
                     loanCustomerNameInput.value = loanManageCurrentCustomerName || '—';
@@ -5320,6 +5378,7 @@
                 loanFormMode = 'edit';
                 loanEditingFileId = Number(row.id || 0);
                 loanInstallmentAutoDirty = false;
+                loanDownPaymentAutoDirty = false;
                 clearAllLoanFieldErrors();
                 loanCreateForm.reset();
                 var titleEl = document.getElementById('loan-create-title');
@@ -7667,6 +7726,12 @@
                     syncLoanInstallmentCalculation(false);
                 });
             }
+            if (loanDownPaymentInput) {
+                loanDownPaymentInput.addEventListener('input', function () {
+                    loanDownPaymentAutoDirty = true;
+                    syncLoanInstallmentCalculation(false);
+                });
+            }
             if (loanCustomInterestRateInput) {
                 loanCustomInterestRateInput.addEventListener('input', function () {
                     syncLoanInstallmentCalculation(true);
@@ -7843,8 +7908,24 @@
                     var calculatedProfit = selectedLoanType
                         ? loanProfitToman(payload.amount_toman, selectedInterestRate, String(selectedLoanType.profit_calculation_method || 'monthly'), payload.installments_count, payload.installment_interval_count, payload.installment_interval_unit)
                         : 0;
-                    var payableCap = Math.max(0, (payload.amount_toman + calculatedProfit) - payload.down_payment_toman);
-                    if ((payload.installment_amount_toman * payload.installments_count) > payableCap) {
+                    var loanAllocation = allocateLoanInstallmentAmounts(
+                        payload.amount_toman,
+                        calculatedProfit,
+                        payload.down_payment_toman,
+                        payload.installments_count,
+                        loanInstallmentRounding
+                    );
+                    if (loanFormMode === 'create') {
+                        payload.installment_amount_toman = loanAllocation.base;
+                        payload.down_payment_toman = loanAllocation.adjustedDownPayment;
+                    }
+                    var payableCap = loanAllocation.payable > 0
+                        ? loanAllocation.payable
+                        : Math.max(0, (payload.amount_toman + calculatedProfit) - payload.down_payment_toman);
+                    var installmentSum = loanAllocation.sum > 0
+                        ? loanAllocation.sum
+                        : (payload.installment_amount_toman * payload.installments_count);
+                    if (installmentSum > payableCap) {
                         setLoanFieldError(loanInstallmentAmountInput, 'مبلغ هر قسط زیاد است؛ جمع اقساط از مبلغ وام بیشتر شده.');
                         if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('جمع مبلغ اقساط نباید از مبلغ قابل بازپرداخت (اصل + بهره - پیش‌پرداخت) بیشتر باشد.');
                         return;

@@ -10,6 +10,7 @@ use App\Models\Customer;
 use App\Support\GuaranteeReturnOtpSettings;
 use App\Support\ListPerPage;
 use App\Support\LoanCreationOtpSettings;
+use App\Support\LoanInstallmentRoundingSettings;
 use App\Support\PrivateStoragePaths;
 use App\Models\CustomerBankAccount;
 use App\Models\CustomerLoanFile;
@@ -25,6 +26,7 @@ use App\Models\SmsTemplate;
 use App\Rules\IranNationalId;
 use App\Services\Admin\RawSmsDispatcher;
 use App\Services\Loans\LoanFileFinanceCalculator;
+use App\Services\Loans\LoanInstallmentAmountAllocator;
 use App\Services\Loans\LoanInstallmentScheduleService;
 use App\Services\Sms\SmsPanelManager;
 use App\Services\Sms\SmsSettingsService;
@@ -108,6 +110,7 @@ final class CustomerController extends Controller
             'loanManageTicketsEmbedUrlTemplate' => $this->loanManageTicketsEmbedUrlTemplate(),
             'loanCreationOtpEnabled' => LoanCreationOtpSettings::isEnabled(),
             'guaranteeReturnOtpEnabled' => GuaranteeReturnOtpSettings::isEnabled(),
+            'loanInstallmentRounding' => LoanInstallmentRoundingSettings::clientConfig(),
         ]);
     }
 
@@ -916,10 +919,21 @@ final class CustomerController extends Controller
             $intervalCount,
             $intervalUnit
         );
-        $payableAfterDownPayment = max(0, ($amount + $calculatedProfit) - $downPayment);
-        $sumInstallments = $installmentAmount * $installmentsCount;
+        $allocation = app(LoanInstallmentAmountAllocator::class)->allocateForLoanFile(
+            $amount,
+            $calculatedProfit,
+            $downPayment,
+            $installmentsCount,
+        );
+        $downPayment = (int) $allocation['adjusted_down_payment_toman'];
+        $installmentAmount = (int) $allocation['base_amount_toman'];
+        $payableAfterDownPayment = (int) $allocation['payable_after_down_payment_toman'];
+        $sumInstallments = array_sum($allocation['amounts_toman']);
         if ($sumInstallments > $payableAfterDownPayment) {
             return response()->json(['message' => 'مجموع مبلغ اقساط از مبلغ قابل بازپرداخت (با احتساب بهره نوع وام) بیشتر است.'], 422);
+        }
+        if ($installmentAmount < 1) {
+            return response()->json(['message' => 'مبلغ هر قسط پس از رندسازی معتبر نیست.'], 422);
         }
 
         $loanFile = DB::transaction(function () use (

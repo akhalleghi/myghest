@@ -15,6 +15,11 @@ use Illuminate\Support\Facades\DB;
  */
 final class LoanInstallmentScheduleService
 {
+    public function __construct(
+        private readonly LoanFileFinanceCalculator $calculator,
+        private readonly LoanInstallmentAmountAllocator $allocator,
+    ) {}
+
     public function ensureSchedule(CustomerLoanFile $file): void
     {
         if ($file->revoked_at !== null) {
@@ -30,12 +35,18 @@ final class LoanInstallmentScheduleService
             return;
         }
 
+        $payable = $this->calculator->totalRepayableToman($file);
+        $allocation = $this->allocator->allocate($payable, $n);
+        $amounts = $allocation['amounts_toman'];
+        if ($amounts === []) {
+            return;
+        }
+
         $start = Carbon::parse($file->loan_start_date)->startOfDay();
         $intervalCount = max(1, (int) $file->installment_interval_count);
         $unit = (string) $file->installment_interval_unit;
-        $amount = (int) $file->installment_amount_toman;
 
-        DB::transaction(function () use ($file, $n, $start, $intervalCount, $unit, $amount): void {
+        DB::transaction(function () use ($file, $n, $start, $intervalCount, $unit, $amounts): void {
             for ($i = 1; $i <= $n; $i++) {
                 $due = $start->copy();
                 if ($unit === LoanType::GAP_WEEKLY) {
@@ -46,7 +57,7 @@ final class LoanInstallmentScheduleService
                 CustomerLoanInstallment::query()->create([
                     'customer_loan_file_id' => $file->id,
                     'sequence' => $i,
-                    'amount_toman' => $amount,
+                    'amount_toman' => (int) ($amounts[$i - 1] ?? 0),
                     'due_date' => $due->toDateString(),
                     'paid_amount_toman' => 0,
                     'paid_at' => null,

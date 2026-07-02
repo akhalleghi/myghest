@@ -14,12 +14,14 @@ use App\Support\AdminLoginSecuritySettings;
 use App\Support\CustomerLoginSecuritySettings;
 use App\Support\GuaranteeReturnOtpSettings;
 use App\Support\LoanCreationOtpSettings;
+use App\Support\LoanInstallmentRoundingSettings;
 use App\Support\PortalLoginSecuritySettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 final class AppSettingsController extends Controller
 {
@@ -197,9 +199,11 @@ final class AppSettingsController extends Controller
         $validated = $request->validate([
             'loan_creation_customer_otp_enabled' => ['required', 'string', 'in:0,1'],
             'guarantee_return_customer_otp_enabled' => ['required', 'string', 'in:0,1'],
+            'loan_installment_remainder_target' => ['required', 'string', Rule::in(LoanInstallmentRoundingSettings::remainderTargetOptions())],
         ], [], [
             'loan_creation_customer_otp_enabled' => 'تایید پیامکی ایجاد وام',
             'guarantee_return_customer_otp_enabled' => 'تایید پیامکی عودت ضمانت',
+            'loan_installment_remainder_target' => 'محل لحاظ مبلغ خرد اقساط',
         ]);
 
         AppSetting::query()->updateOrCreate(
@@ -210,6 +214,11 @@ final class AppSettingsController extends Controller
         AppSetting::query()->updateOrCreate(
             ['key' => GuaranteeReturnOtpSettings::SETTING_KEY],
             ['value' => $validated['guarantee_return_customer_otp_enabled'] === '1' ? '1' : '0'],
+        );
+
+        AppSetting::query()->updateOrCreate(
+            ['key' => LoanInstallmentRoundingSettings::SETTING_KEY_REMAINDER_TARGET],
+            ['value' => (string) $validated['loan_installment_remainder_target']],
         );
 
         return back()

@@ -267,6 +267,11 @@ return [
                 ['key' => 'reports.loan_guarantees', 'label' => 'گزارش تضامین', 'routes' => [
                     'admin.reports.loan-guarantees.data', 'admin.reports.loan-guarantees.export-excel',
                 ]],
+                ['key' => 'reports.loan_interest_fees', 'label' => 'گزارش بهره و کارمزد وام', 'routes' => [
+                    'admin.reports.loan-interest-fees.data',
+                    'admin.reports.loan-interest-fees.customers-search',
+                    'admin.reports.loan-interest-fees.export-excel',
+                ]],
             ],
         ],
         [
@@ -376,6 +381,7 @@ return [
                 'settled-members' => ['permissions' => ['reports.settled_members']],
                 'wallet-transactions-by-date' => ['permissions' => ['reports.wallet_transactions']],
                 'loan-guarantees' => ['permissions' => ['reports.loan_guarantees']],
+                'loan-interest-fees' => ['permissions' => ['reports.loan_interest_fees']],
             ],
         ],
         'app_settings' => [

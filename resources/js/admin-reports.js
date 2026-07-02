@@ -2304,6 +2304,537 @@ function rptInitLoanGuaranteesReport(cfg) {
     return { openModal: openModal, closeModal: closeModal, overlay: overlay };
 }
 
+function rptInitLoanInterestFeesReport(cfg) {
+    var overlay = document.getElementById('rpt-modal-loan-interest-fees');
+    if (!overlay) {
+        return;
+    }
+
+    var form = document.getElementById('rpt-lif-date-form');
+    var tbody = document.getElementById('rpt-lif-tbody');
+    var meta = document.getElementById('rpt-lif-meta');
+    var summaryEl = document.getElementById('rpt-lif-summary');
+    var searchInput = document.getElementById('rpt-lif-search');
+    var settledSelect = document.getElementById('rpt-lif-settled');
+    var fromInput = document.getElementById('rpt-lif-from');
+    var toInput = document.getElementById('rpt-lif-to');
+    var exportExcelLink = document.getElementById('rpt-lif-export-excel');
+    var customerIdInput = document.getElementById('rpt-lif-customer-id');
+    var customerSearchInput = document.getElementById('rpt-lif-customer-search');
+    var customerClearBtn = document.getElementById('rpt-lif-customer-clear');
+    var customerSuggest = document.getElementById('rpt-lif-customer-suggest');
+
+    function openModalShell() {
+        overlay.hidden = false;
+        overlay.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+        rptInitDatePickers('rpt-lif-from', 'rpt-lif-to');
+    }
+
+    function closeModalShell() {
+        overlay.hidden = true;
+        overlay.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+        hideCustomerSuggest();
+    }
+
+    if (!form || !tbody) {
+        return { openModal: openModalShell, closeModal: closeModalShell, overlay: overlay };
+    }
+
+    function rptTd(tr, className, dataLabel) {
+        var td = document.createElement('td');
+        if (className) {
+            td.className = className;
+        }
+        if (dataLabel) {
+            td.setAttribute('data-label', dataLabel);
+        }
+        tr.appendChild(td);
+
+        return td;
+    }
+
+    function rptStackLinkCell(tr, cellClass, href, title, lines, dataLabel) {
+        var td = rptTd(tr, 'rpt-td--stack ' + (cellClass || ''), dataLabel);
+        var stack = document.createElement('div');
+        stack.className = 'rpt-cell-stack';
+        var link = document.createElement('a');
+        link.className = 'rpt-link';
+        link.href = href;
+        link.textContent = title;
+        stack.appendChild(link);
+        lines.forEach(function (line) {
+            if (!line || !line.text) {
+                return;
+            }
+            var span = document.createElement('span');
+            if (line.ltr) {
+                span.className = 'rpt-val-ltr';
+            }
+            span.textContent = line.text;
+            stack.appendChild(span);
+        });
+        td.appendChild(stack);
+    }
+
+    function rptNumCell(tr, value, extraClass, dataLabel, amountClass) {
+        var td = rptTd(tr, 'rpt-td--num ' + (extraClass || ''), dataLabel);
+        var span = document.createElement('span');
+        span.className = 'rpt-val-ltr rpt-num' + (amountClass ? ' ' + amountClass : '');
+        span.textContent = rptFormatAmount(value);
+        td.appendChild(span);
+
+        return td;
+    }
+
+    function hideCustomerSuggest() {
+        if (!customerSuggest) {
+            return;
+        }
+        customerSuggest.hidden = true;
+        customerSuggest.replaceChildren();
+    }
+
+    function syncCustomerClearBtn() {
+        if (!customerClearBtn || !customerIdInput) {
+            return;
+        }
+        var hasFilter = String(customerIdInput.value || '').trim() !== '';
+        customerClearBtn.hidden = !hasFilter;
+    }
+
+    function clearCustomerFilter() {
+        if (customerIdInput) {
+            customerIdInput.value = '';
+        }
+        if (customerSearchInput) {
+            customerSearchInput.value = '';
+            customerSearchInput.placeholder = 'همه مشتریان — برای فیلتر یک مشتری جستجو کنید…';
+        }
+        hideCustomerSuggest();
+        syncCustomerClearBtn();
+    }
+
+    function selectCustomer(id, text) {
+        if (customerIdInput) {
+            customerIdInput.value = String(id);
+        }
+        if (customerSearchInput) {
+            customerSearchInput.value = text;
+        }
+        hideCustomerSuggest();
+        syncCustomerClearBtn();
+        loadData();
+    }
+
+    function renderCustomerSuggest(results) {
+        if (!customerSuggest) {
+            return;
+        }
+        customerSuggest.replaceChildren();
+        if (!results.length) {
+            var emptyBtn = document.createElement('button');
+            emptyBtn.type = 'button';
+            emptyBtn.textContent = 'موردی یافت نشد';
+            emptyBtn.disabled = true;
+            customerSuggest.appendChild(emptyBtn);
+            customerSuggest.hidden = false;
+
+            return;
+        }
+        results.forEach(function (item) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = item.text || '';
+            btn.addEventListener('click', function () {
+                selectCustomer(item.id, item.text || '');
+            });
+            customerSuggest.appendChild(btn);
+        });
+        customerSuggest.hidden = false;
+    }
+
+    var customerSearchTimer;
+    function fetchCustomerSuggestions(term) {
+        if (!cfg.loanInterestFeesCustomersUrl) {
+            return;
+        }
+        var url = new URL(cfg.loanInterestFeesCustomersUrl, window.location.origin);
+        url.searchParams.set('q', term);
+        fetch(url.toString(), {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        })
+            .then(function (r) {
+                if (!r.ok) {
+                    throw new Error('bad');
+                }
+
+                return r.json();
+            })
+            .then(function (data) {
+                renderCustomerSuggest(Array.isArray(data.results) ? data.results : []);
+            })
+            .catch(function () {
+                hideCustomerSuggest();
+            });
+    }
+
+    function rptUpdateExportUrl() {
+        if (!exportExcelLink || !cfg.loanInterestFeesExportUrl) {
+            return;
+        }
+        var url = new URL(cfg.loanInterestFeesExportUrl, window.location.origin);
+        if (fromInput && String(fromInput.value || '').trim()) {
+            url.searchParams.set('from_jdate', String(fromInput.value).trim());
+        }
+        if (toInput && String(toInput.value || '').trim()) {
+            url.searchParams.set('to_jdate', String(toInput.value).trim());
+        }
+        if (searchInput && String(searchInput.value || '').trim()) {
+            url.searchParams.set('q', String(searchInput.value).trim());
+        }
+        if (customerIdInput && String(customerIdInput.value || '').trim()) {
+            url.searchParams.set('customer_id', String(customerIdInput.value).trim());
+        }
+        if (settledSelect && String(settledSelect.value || '')) {
+            url.searchParams.set('settled', String(settledSelect.value));
+        }
+        exportExcelLink.href = url.toString();
+    }
+
+    var allRows = [];
+    var summaryCache = null;
+    var serverSearch = '';
+    var serverSettled = '';
+    var serverCustomerId = '';
+
+    function openModal() {
+        openModalShell();
+        rptUpdateExportUrl();
+        syncCustomerClearBtn();
+    }
+
+    function closeModal() {
+        closeModalShell();
+    }
+
+    function updateSummary(shownCount) {
+        if (!summaryEl) {
+            return;
+        }
+        var sum = summaryCache;
+        if (!sum || typeof sum !== 'object') {
+            summaryEl.hidden = true;
+            summaryEl.textContent = '';
+
+            return;
+        }
+        var parts = [];
+        parts.push('پرونده: ' + rptFaNum(sum.loan_count || 0));
+        parts.push('اصل: ' + rptFormatAmount(sum.principal_total || 0));
+        parts.push('بهره: ' + rptFormatAmount(sum.profit_total || 0));
+        parts.push('پیش‌پرداخت: ' + rptFormatAmount(sum.down_payment_total || 0));
+        parts.push('قابل بازپرداخت: ' + rptFormatAmount(sum.repayable_total || 0));
+        parts.push('تخفیف: ' + rptFormatAmount(sum.discount_total || 0));
+        parts.push('پرداختی: ' + rptFormatAmount(sum.paid_total || 0));
+        parts.push('مانده: ' + rptFormatAmount(sum.remaining_total || 0));
+        var q = searchInput ? String(searchInput.value || '').trim() : '';
+        if (q !== '' && typeof shownCount === 'number' && allRows.length > 0 && shownCount !== allRows.length) {
+            parts.push('نمایش: ' + rptFaNum(shownCount) + ' از ' + rptFaNum(allRows.length));
+        }
+        summaryEl.textContent = parts.join(' · ');
+        summaryEl.hidden = false;
+    }
+
+    function renderRows(rows) {
+        tbody.replaceChildren();
+
+        if (!rows.length) {
+            var emptyTr = document.createElement('tr');
+            var emptyTd = document.createElement('td');
+            emptyTd.colSpan = 12;
+            emptyTd.className = 'rpt-empty';
+            emptyTd.textContent = 'رکوردی یافت نشد.';
+            emptyTr.appendChild(emptyTd);
+            tbody.appendChild(emptyTr);
+            updateSummary(0);
+
+            return;
+        }
+
+        rows.forEach(function (row) {
+            var tr = document.createElement('tr');
+            tr.className = 'rpt-data-row';
+
+            rptStackLinkCell(
+                tr,
+                'rpt-td--customer',
+                row.customer_manage_url || '#',
+                row.customer_name || '—',
+                [
+                    {
+                        text:
+                            row.customer_national_id && row.customer_national_id !== '—'
+                                ? 'کد ملی: ' + rptFaNum(row.customer_national_id)
+                                : '',
+                    },
+                    {
+                        text:
+                            row.customer_mobile && row.customer_mobile !== '—'
+                                ? 'موبایل: ' + rptFaNum(row.customer_mobile)
+                                : '',
+                        ltr: true,
+                    },
+                ],
+                'مشتری'
+            );
+
+            rptStackLinkCell(
+                tr,
+                'rpt-td--loan',
+                row.loan_manage_url || '#',
+                'شماره وام: ' + rptFaNum(row.loan_code || '—'),
+                [{ text: row.loan_type_title || '' }],
+                'پرونده وام'
+            );
+
+            rptNumCell(tr, row.principal_toman, 'rpt-td--amount', 'اصل');
+            rptNumCell(tr, row.profit_toman, '', 'بهره', 'rpt-amt-profit');
+            rptNumCell(tr, row.down_payment_toman, '', 'پیش‌پرداخت', 'rpt-amt-fee');
+            rptNumCell(tr, row.total_repayable_toman, '', 'قابل بازپرداخت', 'rpt-amt-total');
+
+            var tdRate = rptTd(tr, 'rpt-td--stack', 'نرخ و روش');
+            var rateStack = document.createElement('div');
+            rateStack.className = 'rpt-cell-stack rpt-cell-stack--amount';
+            var rateSpan = document.createElement('span');
+            rateSpan.className = 'rpt-val-ltr';
+            rateSpan.textContent = row.effective_interest_rate_label || '—';
+            rateStack.appendChild(rateSpan);
+            var methodSpan = document.createElement('span');
+            methodSpan.textContent = row.profit_calculation_method_label || '—';
+            rateStack.appendChild(methodSpan);
+            tdRate.appendChild(rateStack);
+
+            rptNumCell(tr, row.paid_amount_toman, '', 'پرداختی');
+            rptNumCell(tr, row.remaining_amount_toman, '', 'مانده');
+
+            var discount = Number(row.discount_toman || 0);
+            if (discount > 0) {
+                rptNumCell(tr, discount, '', 'تخفیف');
+            } else {
+                var tdDiscount = rptTd(tr, 'rpt-td--num', 'تخفیف');
+                tdDiscount.textContent = '—';
+            }
+
+            var tdSettled = rptTd(tr, '', 'تسویه');
+            tdSettled.textContent = row.is_settled_label || '—';
+
+            var tdStart = rptTd(tr, '', 'شروع');
+            tdStart.textContent = row.loan_start_jdate || '—';
+
+            tbody.appendChild(tr);
+        });
+
+        updateSummary(rows.length);
+    }
+
+    function rowHaystack(row) {
+        return [
+            row.loan_code,
+            row.loan_type_title,
+            row.loan_title,
+            row.customer_name,
+            row.customer_national_id,
+            row.customer_mobile,
+            row.profit_calculation_method_label,
+            row.effective_interest_rate_label,
+        ]
+            .join(' ')
+            .toLowerCase();
+    }
+
+    function applyClientFilters() {
+        var q = searchInput ? String(searchInput.value || '').trim().toLowerCase() : '';
+
+        var filtered = allRows.filter(function (row) {
+            if (!q) {
+                return true;
+            }
+
+            return rowHaystack(row).indexOf(q) !== -1;
+        });
+
+        renderRows(filtered);
+        if (meta) {
+            meta.textContent =
+                'نمایش ' + rptFaNum(filtered.length) + ' از ' + rptFaNum(allRows.length) + ' پرونده';
+        }
+        rptUpdateExportUrl();
+    }
+
+    function loadData() {
+        var fromVal = fromInput ? String(fromInput.value || '').trim() : '';
+        var toVal = toInput ? String(toInput.value || '').trim() : '';
+        serverSearch = searchInput ? String(searchInput.value || '').trim() : '';
+        serverSettled = settledSelect ? String(settledSelect.value || '') : '';
+        serverCustomerId = customerIdInput ? String(customerIdInput.value || '').trim() : '';
+
+        tbody.innerHTML = '<tr><td colspan="12" class="rpt-empty">در حال بارگذاری…</td></tr>';
+        if (meta) {
+            meta.textContent = 'در حال دریافت اطلاعات…';
+        }
+        if (summaryEl) {
+            summaryEl.hidden = true;
+            summaryEl.textContent = '';
+        }
+
+        var url = new URL(cfg.loanInterestFeesDataUrl || '', window.location.origin);
+        url.searchParams.set('from_jdate', fromVal);
+        url.searchParams.set('to_jdate', toVal);
+        if (serverSearch) {
+            url.searchParams.set('q', serverSearch);
+        }
+        if (serverCustomerId) {
+            url.searchParams.set('customer_id', serverCustomerId);
+        }
+        if (serverSettled) {
+            url.searchParams.set('settled', serverSettled);
+        }
+
+        fetch(url.toString(), {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        })
+            .then(function (r) {
+                if (!r.ok) {
+                    throw new Error('bad');
+                }
+
+                return r.json();
+            })
+            .then(function (data) {
+                allRows = Array.isArray(data.rows) ? data.rows : [];
+                summaryCache = data.summary && typeof data.summary === 'object' ? data.summary : null;
+                if (meta && data.meta) {
+                    var metaParts = [
+                        'بازه: ' + String(data.meta.from_jdate || '') + ' تا ' + String(data.meta.to_jdate || ''),
+                        rptFaNum(data.meta.count || allRows.length) + ' پرونده',
+                    ];
+                    if (serverCustomerId && customerSearchInput && String(customerSearchInput.value || '').trim()) {
+                        metaParts.push('مشتری: ' + String(customerSearchInput.value).trim());
+                    }
+                    meta.textContent = metaParts.join(' — ');
+                }
+                if (searchInput) {
+                    searchInput.value = serverSearch;
+                }
+                if (settledSelect) {
+                    settledSelect.value = serverSettled;
+                }
+                applyClientFilters();
+            })
+            .catch(function () {
+                tbody.innerHTML =
+                    '<tr><td colspan="12" class="rpt-empty" style="color:#b91c1c;">خطا در دریافت گزارش.</td></tr>';
+                if (meta) {
+                    meta.textContent = 'خطا در دریافت اطلاعات.';
+                }
+                summaryCache = null;
+                if (summaryEl) {
+                    summaryEl.hidden = true;
+                }
+            });
+    }
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        loadData();
+    });
+
+    if (searchInput) {
+        var searchTimer;
+        searchInput.addEventListener('input', function () {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(applyClientFilters, 280);
+        });
+    }
+
+    if (customerSearchInput) {
+        customerSearchInput.addEventListener('input', function () {
+            var term = String(customerSearchInput.value || '').trim();
+            if (customerIdInput && String(customerIdInput.value || '').trim() !== '') {
+                customerIdInput.value = '';
+                syncCustomerClearBtn();
+            }
+            clearTimeout(customerSearchTimer);
+            if (term.length < 1) {
+                hideCustomerSuggest();
+                return;
+            }
+            customerSearchTimer = setTimeout(function () {
+                fetchCustomerSuggestions(term);
+            }, 280);
+        });
+
+        customerSearchInput.addEventListener('focus', function () {
+            var term = String(customerSearchInput.value || '').trim();
+            if (term.length > 0 && (!customerIdInput || !String(customerIdInput.value || '').trim())) {
+                fetchCustomerSuggestions(term);
+            }
+        });
+    }
+
+    if (customerClearBtn) {
+        customerClearBtn.addEventListener('click', function () {
+            clearCustomerFilter();
+            loadData();
+        });
+    }
+
+    document.addEventListener('click', function (e) {
+        if (!customerSuggest || customerSuggest.hidden) {
+            return;
+        }
+        var picker = customerSearchInput ? customerSearchInput.closest('.rpt-customer-picker') : null;
+        if (picker && !picker.contains(e.target)) {
+            hideCustomerSuggest();
+        }
+    });
+
+    if (fromInput) {
+        fromInput.addEventListener('change', rptUpdateExportUrl);
+    }
+    if (toInput) {
+        toInput.addEventListener('change', rptUpdateExportUrl);
+    }
+
+    if (settledSelect) {
+        settledSelect.addEventListener('change', function () {
+            loadData();
+        });
+    }
+
+    document.querySelectorAll('[data-rpt-open="loan-interest-fees"]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            openModal();
+        });
+    });
+
+    overlay.querySelectorAll('[data-rpt-modal-close]').forEach(function (btn) {
+        btn.addEventListener('click', closeModal);
+    });
+
+    overlay.addEventListener('click', function (e) {
+        if (e.target === overlay) {
+            closeModal();
+        }
+    });
+
+    return { openModal: openModal, closeModal: closeModal, overlay: overlay };
+}
+
 function rptInitReportsPage() {
     var cfg = rptParseConfig();
     var memberLoans = rptInitMemberLoansReport(cfg);
@@ -2312,6 +2843,7 @@ function rptInitReportsPage() {
     var settledMembers = rptInitSettledMembersReport(cfg);
     var walletTransactions = rptInitWalletTransactionsByDateReport(cfg);
     var loanGuarantees = rptInitLoanGuaranteesReport(cfg);
+    var loanInterestFees = rptInitLoanInterestFeesReport(cfg);
     var reportRegistry = {
         'member-loans-by-date': memberLoans,
         'installment-due-by-date': installmentDue,
@@ -2319,6 +2851,7 @@ function rptInitReportsPage() {
         'settled-members': settledMembers,
         'wallet-transactions-by-date': walletTransactions,
         'loan-guarantees': loanGuarantees,
+        'loan-interest-fees': loanInterestFees,
     };
     rptBindReportCardOpens(reportRegistry);
     rptBindReportEscapeHandlers([
@@ -2328,6 +2861,7 @@ function rptInitReportsPage() {
         settledMembers,
         walletTransactions,
         loanGuarantees,
+        loanInterestFees,
     ]);
     rptInitQuickSms(cfg);
 }

@@ -144,6 +144,18 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission'])->g
         ->middleware('throttle:20,1')
         ->name('reports.loan-guarantees.export-excel');
 
+    Route::get('/reports/loan-interest-fees/data', [AdminReportsController::class, 'loanInterestFeesData'])
+        ->middleware('throttle:90,1')
+        ->name('reports.loan-interest-fees.data');
+
+    Route::get('/reports/loan-interest-fees/customers-search', [AdminReportsController::class, 'loanInterestFeesCustomersSearch'])
+        ->middleware('throttle:90,1')
+        ->name('reports.loan-interest-fees.customers-search');
+
+    Route::get('/reports/loan-interest-fees/export-excel', [AdminReportsController::class, 'exportLoanInterestFeesExcel'])
+        ->middleware('throttle:20,1')
+        ->name('reports.loan-interest-fees.export-excel');
+
     Route::get('/organizations', [OrganizationController::class, 'index'])
         ->middleware('throttle:60,1')
         ->name('organizations.index');

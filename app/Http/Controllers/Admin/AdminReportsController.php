@@ -12,6 +12,7 @@ use App\Models\SmsTemplate;
 use App\Services\Admin\Reports\DepositsByDateReportService;
 use App\Services\Admin\Reports\InstallmentDueDatesByDateReportService;
 use App\Services\Admin\Reports\LoanGuaranteesReportService;
+use App\Services\Admin\Reports\LoanInterestFeesReportService;
 use App\Services\Admin\Reports\MemberLoansByDateReportService;
 use App\Services\Admin\Reports\SettledMembersReportService;
 use App\Services\Admin\Reports\WalletTransactionsByDateReportService;
@@ -33,6 +34,7 @@ final class AdminReportsController extends Controller
         private readonly SettledMembersReportService $settledMembers,
         private readonly WalletTransactionsByDateReportService $walletTransactionsByDate,
         private readonly LoanGuaranteesReportService $loanGuarantees,
+        private readonly LoanInterestFeesReportService $loanInterestFees,
         private readonly AdminPermissionService $permissions,
     ) {}
 
@@ -91,6 +93,14 @@ final class AdminReportsController extends Controller
                     'icon' => 'fa-shield-halved',
                     'accent' => '#be123c',
                     'enabled' => $this->permissions->canAccessUiCard($admin, 'reports', 'loan-guarantees'),
+                ],
+                [
+                    'id' => 'loan-interest-fees',
+                    'title' => 'بهره و کارمزد وام',
+                    'description' => 'تحلیل مالی پرونده‌های وام: اصل، بهره، پیش‌پرداخت، قابل بازپرداخت و مانده — برای یک مشتری یا همه.',
+                    'icon' => 'fa-percent',
+                    'accent' => '#4f46e5',
+                    'enabled' => $this->permissions->canAccessUiCard($admin, 'reports', 'loan-interest-fees'),
                 ],
         ];
 
@@ -624,6 +634,119 @@ final class AdminReportsController extends Controller
 
             foreach ($rows as $row) {
                 $this->writeExcelUnicodeRow($out, $this->loanGuarantees->excelDataRow($row));
+            }
+
+            fclose($out);
+        }, $filename, $headers);
+    }
+
+    public function loanInterestFeesData(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'from_jdate' => ['nullable', 'string', 'max:20'],
+            'to_jdate' => ['nullable', 'string', 'max:20'],
+            'q' => ['nullable', 'string', 'max:200'],
+            'customer_id' => ['nullable', 'integer', 'min:1'],
+            'settled' => ['nullable', 'string', 'in:yes,no'],
+        ]);
+
+        $range = $this->loanInterestFees->resolveDateRange(
+            isset($validated['from_jdate']) ? (string) $validated['from_jdate'] : null,
+            isset($validated['to_jdate']) ? (string) $validated['to_jdate'] : null,
+        );
+
+        $customerId = isset($validated['customer_id']) ? (int) $validated['customer_id'] : null;
+
+        $result = $this->loanInterestFees->fetchResult(
+            $range['from'],
+            $range['to'],
+            trim((string) ($validated['q'] ?? '')),
+            $customerId,
+            (string) ($validated['settled'] ?? ''),
+        );
+
+        return response()->json([
+            'rows' => $result['rows'],
+            'summary' => $result['summary'],
+            'meta' => [
+                'from_jdate' => Jalali::enToFaNumbers(Jalali::instance($range['from'])->format('Y/m/d')),
+                'to_jdate' => Jalali::enToFaNumbers(Jalali::instance($range['to'])->format('Y/m/d')),
+                'count' => count($result['rows']),
+                'customer_id' => $customerId,
+            ],
+        ]);
+    }
+
+    public function loanInterestFeesCustomersSearch(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'q' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $term = trim((string) ($validated['q'] ?? ''));
+        $results = $this->loanInterestFees->searchCustomersForSelect($term !== '' ? $term : null);
+
+        return response()->json([
+            'results' => array_map(static fn (array $row): array => [
+                'id' => $row['id'],
+                'text' => $row['text'],
+            ], $results),
+        ]);
+    }
+
+    public function exportLoanInterestFeesExcel(Request $request): StreamedResponse
+    {
+        $validated = $request->validate([
+            'from_jdate' => ['nullable', 'string', 'max:20'],
+            'to_jdate' => ['nullable', 'string', 'max:20'],
+            'q' => ['nullable', 'string', 'max:200'],
+            'customer_id' => ['nullable', 'integer', 'min:1'],
+            'settled' => ['nullable', 'string', 'in:yes,no'],
+        ]);
+
+        $range = $this->loanInterestFees->resolveDateRange(
+            isset($validated['from_jdate']) ? (string) $validated['from_jdate'] : null,
+            isset($validated['to_jdate']) ? (string) $validated['to_jdate'] : null,
+        );
+
+        $customerId = isset($validated['customer_id']) ? (int) $validated['customer_id'] : null;
+
+        $result = $this->loanInterestFees->fetchResult(
+            $range['from'],
+            $range['to'],
+            trim((string) ($validated['q'] ?? '')),
+            $customerId,
+            (string) ($validated['settled'] ?? ''),
+        );
+
+        $filename = 'loan-interest-fees-'
+            .Jalali::instance($range['from'])->format('Ymd')
+            .'-'
+            .Jalali::instance($range['to'])->format('Ymd')
+            .'-'
+            .now()->format('His')
+            .'.xls';
+
+        $headers = [
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-16LE',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ];
+
+        $rows = $result['rows'];
+
+        return response()->streamDownload(function () use ($rows): void {
+            $out = fopen('php://output', 'wb');
+            if (! is_resource($out)) {
+                return;
+            }
+
+            fwrite($out, "\xFF\xFE");
+            $this->writeExcelUnicodeRow($out, $this->loanInterestFees->excelHeaderRow());
+
+            foreach ($rows as $row) {
+                $this->writeExcelUnicodeRow($out, $this->loanInterestFees->excelDataRow($row));
             }
 
             fclose($out);

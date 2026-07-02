@@ -1,6 +1,7 @@
 @php
     use App\Support\GuaranteeReturnOtpSettings;
     use App\Support\LoanCreationOtpSettings;
+    use App\Support\LoanInstallmentRoundingSettings;
 @endphp
 
 <section class="app-settings-panel" data-settings-panel="loans" @if(($adminAppSettingsActivePanel ?? '') !== 'loans') hidden @endif>
@@ -37,6 +38,24 @@
                     <option value="1" @selected(old('guarantee_return_customer_otp_enabled', GuaranteeReturnOtpSettings::isEnabled() ? '1' : '0') === '1')>فعال</option>
                 </select>
                 @error('guarantee_return_customer_otp_enabled')
+                    <div class="app-settings-error">{{ $message }}</div>
+                @enderror
+            </div>
+        </div>
+        <div class="app-settings-card">
+            <h4>رندسازی مبلغ اقساط</h4>
+            <p class="app-settings-card-desc">
+                هنگام ثبت وام جدید، مبلغ پایهٔ هر قسط تا نزدیک‌ترین ۱۰٬۰۰۰ تومان پایین‌تر رند می‌شود.
+                مبلغ خرد باقی‌مانده طبق گزینهٔ زیر به قسط اول، قسط آخر یا پیش‌پرداخت اضافه می‌شود.
+            </p>
+            <div class="app-settings-field">
+                <label for="loan-installment-remainder-target">محل لحاظ مبلغ خرد اقساط</label>
+                <select id="loan-installment-remainder-target" name="loan_installment_remainder_target" required>
+                    <option value="{{ LoanInstallmentRoundingSettings::REMAINDER_LAST }}" @selected(old('loan_installment_remainder_target', LoanInstallmentRoundingSettings::remainderTarget()) === LoanInstallmentRoundingSettings::REMAINDER_LAST)>قسط آخر</option>
+                    <option value="{{ LoanInstallmentRoundingSettings::REMAINDER_FIRST }}" @selected(old('loan_installment_remainder_target', LoanInstallmentRoundingSettings::remainderTarget()) === LoanInstallmentRoundingSettings::REMAINDER_FIRST)>قسط اول</option>
+                    <option value="{{ LoanInstallmentRoundingSettings::REMAINDER_DOWN_PAYMENT }}" @selected(old('loan_installment_remainder_target', LoanInstallmentRoundingSettings::remainderTarget()) === LoanInstallmentRoundingSettings::REMAINDER_DOWN_PAYMENT)>پیش‌پرداخت</option>
+                </select>
+                @error('loan_installment_remainder_target')
                     <div class="app-settings-error">{{ $message }}</div>
                 @enderror
             </div>

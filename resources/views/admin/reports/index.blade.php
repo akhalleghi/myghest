@@ -567,6 +567,91 @@
             word-break: break-word;
         }
 
+        .rpt-customer-picker {
+            position: relative;
+        }
+
+        .rpt-customer-picker input[type="search"] {
+            width: 100%;
+            padding-inline-end: 2rem;
+        }
+
+        .rpt-customer-clear {
+            position: absolute;
+            inset-inline-end: 0.35rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 1.45rem;
+            height: 1.45rem;
+            border: none;
+            border-radius: 999px;
+            background: var(--primary-soft);
+            color: var(--primary-dark);
+            cursor: pointer;
+            font-size: 0.95rem;
+            line-height: 1;
+        }
+
+        .rpt-customer-suggest {
+            position: absolute;
+            inset-inline: 0;
+            top: calc(100% + 0.2rem);
+            z-index: 5;
+            max-height: 12rem;
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 0.62rem;
+            background: var(--bg-card);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+        }
+
+        .rpt-customer-suggest button {
+            display: block;
+            width: 100%;
+            border: none;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+            background: transparent;
+            color: var(--text);
+            text-align: right;
+            padding: 0.45rem 0.55rem;
+            font-family: inherit;
+            font-size: 0.74rem;
+            cursor: pointer;
+        }
+
+        .rpt-customer-suggest button:last-child {
+            border-bottom: none;
+        }
+
+        .rpt-customer-suggest button:hover,
+        .rpt-customer-suggest button:focus {
+            background: var(--primary-soft);
+        }
+
+        .rpt-table--interest-fees col.rpt-col-lif-customer { width: 11%; }
+        .rpt-table--interest-fees col.rpt-col-lif-loan { width: 12%; }
+        .rpt-table--interest-fees col.rpt-col-lif-principal { width: 7.5%; }
+        .rpt-table--interest-fees col.rpt-col-lif-profit { width: 7.5%; }
+        .rpt-table--interest-fees col.rpt-col-lif-fee { width: 7.5%; }
+        .rpt-table--interest-fees col.rpt-col-lif-repayable { width: 8%; }
+        .rpt-table--interest-fees col.rpt-col-lif-rate { width: 9%; }
+        .rpt-table--interest-fees col.rpt-col-lif-paid { width: 7%; }
+        .rpt-table--interest-fees col.rpt-col-lif-remain { width: 7%; }
+        .rpt-table--interest-fees col.rpt-col-lif-discount { width: 6%; }
+        .rpt-table--interest-fees col.rpt-col-lif-settled { width: 4.5%; }
+        .rpt-table--interest-fees col.rpt-col-lif-start { width: 6%; }
+
+        .rpt-table--interest-fees .rpt-td--stack {
+            white-space: normal;
+            vertical-align: top;
+        }
+
+        .rpt-amt-profit { color: #7c3aed; font-weight: 800; }
+        html[data-theme="dark"] .rpt-amt-profit { color: #c4b5fd; }
+
+        .rpt-amt-fee { color: #b45309; font-weight: 800; }
+        html[data-theme="dark"] .rpt-amt-fee { color: #fbbf24; }
+
         .rpt-quick-overlay {
             position: fixed;
             inset: 0;
@@ -1307,6 +1392,7 @@
     </div>
 
     @include('admin.reports.partials.modal-loan-guarantees')
+    @include('admin.reports.partials.modal-loan-interest-fees')
 
     <div class="rpt-quick-overlay" id="rpt-quick-sms-overlay" hidden aria-hidden="true">
         <div class="rpt-quick-modal" role="dialog" aria-modal="true" aria-labelledby="rpt-quick-sms-title">
@@ -1353,6 +1439,9 @@
             'walletTransactionsExportUrl' => route('admin.reports.wallet-transactions-by-date.export-excel'),
             'loanGuaranteesDataUrl' => route('admin.reports.loan-guarantees.data'),
             'loanGuaranteesExportUrl' => route('admin.reports.loan-guarantees.export-excel'),
+            'loanInterestFeesDataUrl' => route('admin.reports.loan-interest-fees.data'),
+            'loanInterestFeesExportUrl' => route('admin.reports.loan-interest-fees.export-excel'),
+            'loanInterestFeesCustomersUrl' => route('admin.reports.loan-interest-fees.customers-search'),
             'customersBaseUrl' => url('admin/customers'),
             'csrf' => csrf_token(),
         ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!}
