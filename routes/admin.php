@@ -21,7 +21,9 @@ use App\Http\Controllers\Admin\Auth\AdminLoginController;
 use App\Http\Controllers\Admin\Auth\AdminLoginTwoFactorController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\CustomerWalletController;
+use App\Http\Controllers\Admin\GuaranteeReturnOtpController;
 use App\Http\Controllers\Admin\GuarantorOtpController;
+use App\Http\Controllers\Admin\LoanCreationOtpController;
 use App\Http\Controllers\Admin\LoanTypeController;
 use App\Http\Controllers\Admin\OrganizationController;
 use App\Http\Controllers\Admin\SmsManagementController;
@@ -414,6 +416,14 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission'])->g
         ->middleware('throttle:60,1')
         ->name('customers.sms-modal-preview');
 
+    Route::post('/customers/{customer}/loan-creation-otp/send', [LoanCreationOtpController::class, 'send'])
+        ->middleware('throttle:30,1')
+        ->name('customers.loan-creation-otp.send');
+
+    Route::post('/customers/{customer}/loan-creation-otp/verify', [LoanCreationOtpController::class, 'verify'])
+        ->middleware('throttle:60,1')
+        ->name('customers.loan-creation-otp.verify');
+
     Route::post('/customers/{customer}/loan-files', [CustomerController::class, 'storeLoan'])
         ->middleware('throttle:20,1')
         ->name('customers.loan-files.store');
@@ -497,6 +507,18 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission'])->g
     Route::get('/customers/{customer}/loan-files/{loanFile}/guarantees', [CustomerController::class, 'loanGuarantees'])
         ->middleware('throttle:60,1')
         ->name('customers.loan-files.guarantees.index');
+
+    Route::post('/customers/{customer}/loan-files/{loanFile}/guarantee-return-otp/send', [GuaranteeReturnOtpController::class, 'send'])
+        ->middleware('throttle:30,1')
+        ->name('customers.loan-files.guarantee-return-otp.send');
+
+    Route::post('/customers/{customer}/loan-files/{loanFile}/guarantee-return-otp/verify', [GuaranteeReturnOtpController::class, 'verify'])
+        ->middleware('throttle:60,1')
+        ->name('customers.loan-files.guarantee-return-otp.verify');
+
+    Route::get('/customers/{customer}/loan-files/{loanFile}/guarantees/{guarantee}/return-document', [CustomerController::class, 'loanGuaranteeReturnDocument'])
+        ->middleware('throttle:60,1')
+        ->name('customers.loan-files.guarantees.return-document');
 
     Route::post('/customers/{customer}/loan-files/{loanFile}/guarantees', [CustomerController::class, 'storeLoanGuarantee'])
         ->middleware('throttle:20,1')
@@ -664,6 +686,10 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission'])->g
     Route::post('/app-settings/financial', [AppSettingsController::class, 'updateFinancial'])
         ->middleware('throttle:20,1')
         ->name('app-settings.financial.update');
+
+    Route::post('/app-settings/loans', [AppSettingsController::class, 'updateLoans'])
+        ->middleware('throttle:20,1')
+        ->name('app-settings.loans.update');
 
     Route::post('/app-settings/security', [AppSettingsController::class, 'updateSecurity'])
         ->middleware('throttle:20,1')

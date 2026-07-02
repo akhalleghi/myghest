@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\CustomerDepositDeclaration;
 use App\Services\Deposits\DepositDeclarationAdminService;
+use App\Support\PrivateStoragePaths;
 use App\Support\ListPerPage;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
@@ -45,15 +46,17 @@ final class AdminDepositDeclarationController extends Controller
     public function attachment(Request $request, CustomerDepositDeclaration $deposit_declaration): StreamedResponse
     {
         $path = $deposit_declaration->attachment_path;
-        if ($path === null || $path === '' || ! Storage::disk('public')->exists($path)) {
+        $location = is_string($path) && $path !== '' ? PrivateStoragePaths::readableLocation($path) : null;
+        if ($location === null) {
             abort(404);
         }
 
         $download = $request->query('download') === '1';
-        $name = basename(str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $path)) ?: 'attachment';
-        $mime = (string) (Storage::disk('public')->mimeType($path) ?: 'application/octet-stream');
+        $name = basename(str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $location['path'])) ?: 'attachment';
+        $disk = Storage::disk($location['disk']);
+        $mime = (string) ($disk->mimeType($location['path']) ?: 'application/octet-stream');
 
-        return Storage::disk('public')->response($path, $name, [
+        return $disk->response($location['path'], $name, [
             'Content-Type' => $mime,
             'Content-Disposition' => ($download ? 'attachment' : 'inline').'; filename="'.$name.'"',
         ]);
@@ -98,7 +101,7 @@ final class AdminDepositDeclarationController extends Controller
         $d->loadMissing(['customer', 'loanFile.loanType', 'installment', 'reviewedByAdmin']);
         $dep = Carbon::parse($d->deposited_at)->startOfDay();
         $path = $d->attachment_path;
-        $hasFile = $path !== null && $path !== '' && Storage::disk('public')->exists($path);
+        $hasFile = is_string($path) && $path !== '' && PrivateStoragePaths::readableLocation($path) !== null;
         $kind = 'none';
         if ($hasFile) {
             $ext = strtolower((string) pathinfo((string) $path, PATHINFO_EXTENSION));

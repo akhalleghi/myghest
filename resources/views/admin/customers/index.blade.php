@@ -1036,6 +1036,13 @@
         }
         .loan-guarantee-guarantor-otp-btn:disabled { opacity: 0.55; cursor: not-allowed; }
         .loan-guarantee-guarantor-otp-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.25rem; }
+        .loan-creation-otp-section { border: 1px dashed rgba(37, 99, 235, 0.28); border-radius: 0.65rem; padding: 0.65rem 0.75rem; background: rgba(37, 99, 235, 0.04); }
+        .loan-creation-otp-verified { font-size: 0.74rem; font-weight: 800; color: #15803d; margin-top: 0.35rem; }
+        .loan-creation-otp-btn {
+            border: 1px solid rgba(37, 99, 235, 0.35); background: var(--primary-soft); color: var(--primary-dark);
+            border-radius: 0.55rem; padding: 0.38rem 0.72rem; font-size: 0.76rem; font-weight: 800; cursor: pointer; font-family: inherit;
+        }
+        .loan-creation-otp-btn:disabled { opacity: 0.55; cursor: not-allowed; }
         .loan-guarantee-guarantor-verify-msg { font-size: 0.72rem; font-weight: 700; margin-top: 0.35rem; min-height: 1.1rem; }
         .loan-guarantee-guarantor-verify-msg.is-ok { color: #15803d; }
         .loan-guarantee-guarantor-verify-msg.is-err { color: #b91c1c; }
@@ -1745,6 +1752,11 @@
                             @error('mobile')<div class="cust-field-error">{{ $message }}</div>@enderror
                         </div>
                         <div class="cust-field">
+                            <label for="cust-mobile2">موبایل دوم</label>
+                            <input id="cust-mobile2" name="mobile2" type="text" inputmode="numeric" value="{{ old('mobile2') }}" placeholder="09123456789" autocomplete="tel">
+                            @error('mobile2')<div class="cust-field-error">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="cust-field">
                             <label for="cust-phone">تلفن ثابت</label>
                             <input id="cust-phone" name="phone_landline" type="text" value="{{ old('phone_landline') }}">
                             @error('phone_landline')<div class="cust-field-error">{{ $message }}</div>@enderror
@@ -2270,6 +2282,24 @@
                     <div class="cust-field cust-field--full">
                         <div class="loan-interest-note" id="loan-total-check">جمع اقساط: 0 تومان</div>
                     </div>
+                    <div class="cust-field cust-field--full loan-extra-box loan-creation-otp-section" id="loan-creation-otp-section" hidden>
+                        <label>احراز هویت مشتری با پیامک <span class="req">*</span></label>
+                        <p class="loan-interest-note" style="margin-top:0.2rem">برای ثبت پرونده وام، ارسال و تایید کد به موبایل مشتری الزامی است.</p>
+                        <div class="loan-interest-note" style="margin-top:0.25rem">موبایل مشتری: <strong id="loan-creation-otp-mobile-view">—</strong></div>
+                        <div style="margin-top:0.45rem">
+                            <button type="button" class="loan-creation-otp-btn" id="loan-creation-otp-send">ارسال کد تایید</button>
+                        </div>
+                        <div id="loan-creation-otp-panel" class="cust-field" style="margin-top:0.5rem;padding:0;border:0;" hidden>
+                            <label for="loan-creation-otp-code">کد پیامک‌شده</label>
+                            <div class="loan-guarantee-guarantor-otp-actions">
+                                <input id="loan-creation-otp-code" type="text" inputmode="numeric" maxlength="8" placeholder="کد ۶ رقمی" style="max-width:11rem;">
+                                <button type="button" class="loan-file-btn" id="loan-creation-otp-verify">تایید کد</button>
+                            </div>
+                        </div>
+                        <div id="loan-creation-otp-verified" class="loan-creation-otp-verified" hidden>احراز مشتری انجام شد.</div>
+                        <input type="hidden" id="loan-creation-verification-token" value="" autocomplete="off">
+                        <input type="hidden" id="loan-creation-otp-session" value="" autocomplete="off">
+                    </div>
                     <div class="cust-actions cust-field--full" style="margin-top:0.2rem;">
                         <button type="button" class="cust-cancel" id="loan-create-cancel">انصراف</button>
                         <button type="submit" class="cust-submit">ثبت وام</button>
@@ -2663,12 +2693,6 @@
                                         وصول شده؟
                                     </label>
                                 </div>
-                                <div class="cust-field" style="grid-column: 1 / -1;">
-                                    <label class="loan-guarantee-check-row" for="loan-guarantee-cheque-returned">
-                                        <input type="checkbox" name="cheque_returned" value="1" id="loan-guarantee-cheque-returned">
-                                        عودت شده؟
-                                    </label>
-                                </div>
                             </div>
                         </div>
                         <div class="loan-guarantee-section" data-guarantee-section="gold" hidden>
@@ -2741,6 +2765,35 @@
                                         <button type="button" class="loan-file-btn loan-file-btn--mini" id="loan-guarantee-file-download" title="دانلود فایل" disabled><i class="fa-solid fa-download"></i></button>
                                         <button type="button" class="loan-file-btn loan-file-btn--mini" id="loan-guarantee-file-upload" title="آپلود فایل"><i class="fa-solid fa-upload"></i></button>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="cust-field cust-field--full loan-extra-box loan-creation-otp-section" id="loan-guarantee-return-section" hidden>
+                            <label class="loan-guarantee-check-row" for="loan-guarantee-mark-returned">
+                                <input type="checkbox" value="1" id="loan-guarantee-mark-returned">
+                                عودت شده؟
+                            </label>
+                            <p class="loan-interest-note" style="margin-top:.25rem">برای ثبت عودت چک یا اوراق ضمانتی، مستند تحویل به مشتری را نگهداری کنید.</p>
+                            <div id="loan-guarantee-return-details" hidden>
+                                <div class="loan-interest-note" style="margin-top:.35rem">موبایل مشتری: <strong id="loan-guarantee-return-mobile-view">—</strong></div>
+                                <div id="loan-guarantee-return-otp-wrap" style="margin-top:.45rem" hidden>
+                                    <button type="button" class="loan-creation-otp-btn" id="loan-guarantee-return-send-otp">ارسال کد تایید عودت</button>
+                                    <div id="loan-guarantee-return-otp-panel" class="cust-field" style="margin-top:0.5rem;padding:0;border:0;" hidden>
+                                        <label for="loan-guarantee-return-otp-code">کد پیامک‌شده</label>
+                                        <div class="loan-guarantee-guarantor-otp-actions">
+                                            <input id="loan-guarantee-return-otp-code" type="text" inputmode="numeric" maxlength="8" placeholder="کد ۶ رقمی" style="max-width:11rem;">
+                                            <button type="button" class="loan-file-btn" id="loan-guarantee-return-verify-otp">تایید کد</button>
+                                        </div>
+                                    </div>
+                                    <div id="loan-guarantee-return-verified" class="loan-creation-otp-verified" hidden>احراز مشتری برای عودت انجام شد.</div>
+                                    <input type="hidden" id="loan-guarantee-return-verification-token" value="" autocomplete="off">
+                                    <input type="hidden" id="loan-guarantee-return-otp-session" value="" autocomplete="off">
+                                </div>
+                                <div class="cust-field" style="margin-top:.55rem;padding:0;border:0;">
+                                    <label for="loan-guarantee-return-document">مستند عودت <span class="req">*</span></label>
+                                    <input type="file" id="loan-guarantee-return-document" name="return_document" accept=".png,.jpg,.jpeg,.webp,.pdf">
+                                    <div id="loan-guarantee-return-document-existing" class="loan-interest-note" style="margin-top:.35rem" hidden></div>
                                 </div>
                             </div>
                         </div>
@@ -2859,6 +2912,12 @@
             function customerLoanStoreUrl(id) {
                 return custListBaseUrl + '/' + id + '/loan-files';
             }
+            function customerLoanCreationOtpSendUrl(id) {
+                return custListBaseUrl + '/' + encodeURIComponent(String(id || '')) + '/loan-creation-otp/send';
+            }
+            function customerLoanCreationOtpVerifyUrl(id) {
+                return custListBaseUrl + '/' + encodeURIComponent(String(id || '')) + '/loan-creation-otp/verify';
+            }
             function customerLoanUpdateUrl(customerId, loanFileId) {
                 return custListBaseUrl + '/' + customerId + '/loan-files/' + loanFileId;
             }
@@ -2904,6 +2963,9 @@
             function customerLoanGuaranteeUpdateUrl(customerId, loanFileId, guaranteeId) {
                 return custListBaseUrl + '/' + customerId + '/loan-files/' + loanFileId + '/guarantees/' + guaranteeId;
             }
+            function customerGuaranteeReturnOtpUrl(customerId, loanFileId, action) {
+                return custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/loan-files/' + encodeURIComponent(String(loanFileId || '')) + '/guarantee-return-otp/' + encodeURIComponent(String(action || ''));
+            }
             function customerGuaranteesReportUrl(customerId) {
                 return custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/guarantees-report';
             }
@@ -2924,6 +2986,11 @@
             var organizationsListUrl = @json(route('admin.organizations.index'));
             var guarantorOtpSendUrl = @json(route('admin.guarantor-otp.send'));
             var guarantorOtpVerifyUrl = @json(route('admin.guarantor-otp.verify'));
+            var loanCreationOtpEnabled = @json($loanCreationOtpEnabled ?? false);
+            var loanCreationOtpVerified = false;
+            var guaranteeReturnOtpEnabled = @json($guaranteeReturnOtpEnabled ?? false);
+            var guaranteeReturnOtpVerified = false;
+            var guaranteeReturnHasExistingDocument = false;
             var adminOrgBaseUrl = @json(url('/admin/organizations'));
 
             function organizationRestUrl(id) {
@@ -2998,6 +3065,120 @@
                     msg.textContent = '';
                     msg.className = 'loan-guarantee-guarantor-verify-msg';
                 }
+            }
+
+            function resetLoanCreationOtpUi() {
+                loanCreationOtpVerified = false;
+                var tokenEl = document.getElementById('loan-creation-verification-token');
+                var sessEl = document.getElementById('loan-creation-otp-session');
+                var codeEl = document.getElementById('loan-creation-otp-code');
+                var panel = document.getElementById('loan-creation-otp-panel');
+                var verifiedEl = document.getElementById('loan-creation-otp-verified');
+                var sendBtn = document.getElementById('loan-creation-otp-send');
+                if (tokenEl) tokenEl.value = '';
+                if (sessEl) sessEl.value = '';
+                if (codeEl) codeEl.value = '';
+                if (panel) panel.hidden = true;
+                if (verifiedEl) verifiedEl.hidden = true;
+                if (sendBtn) sendBtn.disabled = false;
+            }
+
+            function syncLoanCreationOtpSectionVisibility() {
+                var section = document.getElementById('loan-creation-otp-section');
+                var mobileView = document.getElementById('loan-creation-otp-mobile-view');
+                if (!section) return;
+                var show = !!loanCreationOtpEnabled && loanFormMode === 'create';
+                section.hidden = !show;
+                if (mobileView) mobileView.textContent = loanManageCurrentCustomerMobile || '—';
+            }
+
+            function guaranteeTypesSupportingReturn(type) {
+                return type === 'cheque' || type === 'gold' || type === 'other';
+            }
+
+            function resetGuaranteeReturnUi() {
+                guaranteeReturnOtpVerified = false;
+                guaranteeReturnHasExistingDocument = false;
+                var markReturned = document.getElementById('loan-guarantee-mark-returned');
+                var details = document.getElementById('loan-guarantee-return-details');
+                var tokenEl = document.getElementById('loan-guarantee-return-verification-token');
+                var sessEl = document.getElementById('loan-guarantee-return-otp-session');
+                var codeEl = document.getElementById('loan-guarantee-return-otp-code');
+                var panel = document.getElementById('loan-guarantee-return-otp-panel');
+                var verifiedEl = document.getElementById('loan-guarantee-return-verified');
+                var docInput = document.getElementById('loan-guarantee-return-document');
+                var docExisting = document.getElementById('loan-guarantee-return-document-existing');
+                var sendBtn = document.getElementById('loan-guarantee-return-send-otp');
+                if (markReturned) markReturned.checked = false;
+                if (details) details.hidden = true;
+                if (tokenEl) tokenEl.value = '';
+                if (sessEl) sessEl.value = '';
+                if (codeEl) codeEl.value = '';
+                if (panel) panel.hidden = true;
+                if (verifiedEl) verifiedEl.hidden = true;
+                if (docInput) docInput.value = '';
+                if (docExisting) {
+                    docExisting.hidden = true;
+                    docExisting.textContent = '';
+                }
+                if (sendBtn) sendBtn.disabled = false;
+            }
+
+            function syncGuaranteeReturnDetailsVisibility() {
+                var markReturned = document.getElementById('loan-guarantee-mark-returned');
+                var details = document.getElementById('loan-guarantee-return-details');
+                var otpWrap = document.getElementById('loan-guarantee-return-otp-wrap');
+                var mobileView = document.getElementById('loan-guarantee-return-mobile-view');
+                if (!details || !markReturned) return;
+                details.hidden = !markReturned.checked;
+                if (mobileView) mobileView.textContent = loanManageCurrentCustomerMobile || '—';
+                if (otpWrap) otpWrap.hidden = !guaranteeReturnOtpEnabled;
+            }
+
+            function syncGuaranteeReturnSectionVisibility(type) {
+                var section = document.getElementById('loan-guarantee-return-section');
+                if (!section) return;
+                var show = guaranteeTypesSupportingReturn(String(type || ''));
+                section.hidden = !show;
+                if (!show) {
+                    resetGuaranteeReturnUi();
+                    return;
+                }
+                syncGuaranteeReturnDetailsVisibility();
+            }
+
+            function guaranteeTypeLabelFa(type) {
+                var map = {
+                    cheque: 'چک',
+                    gold: 'طلا',
+                    other: 'سایر'
+                };
+                return map[String(type || '')] || 'ضمانت';
+            }
+
+            function populateGuaranteeReturnFromData(guaranteeData) {
+                resetGuaranteeReturnUi();
+                if (!guaranteeData) return;
+                var gtype = String(guaranteeData.type || '');
+                if (!guaranteeTypesSupportingReturn(gtype)) return;
+                var meta = guaranteeData.meta && typeof guaranteeData.meta === 'object' ? guaranteeData.meta : {};
+                var isReturned = gtype === 'cheque' ? !!meta.cheque_returned : !!meta.returned;
+                var markReturned = document.getElementById('loan-guarantee-mark-returned');
+                if (markReturned) markReturned.checked = isReturned;
+                if (isReturned) {
+                    guaranteeReturnOtpVerified = !guaranteeReturnOtpEnabled;
+                    var verifiedEl = document.getElementById('loan-guarantee-return-verified');
+                    if (verifiedEl && guaranteeReturnOtpEnabled) verifiedEl.hidden = false;
+                }
+                var docExisting = document.getElementById('loan-guarantee-return-document-existing');
+                var downloadUrl = String(guaranteeData.return_document_download_url || '');
+                if (docExisting && downloadUrl) {
+                    guaranteeReturnHasExistingDocument = true;
+                    docExisting.hidden = false;
+                    docExisting.innerHTML = 'مستند عودت ثبت‌شده: <a href="' + escapeHtmlAttr(downloadUrl) + '" target="_blank" rel="noopener">' + escapeHtmlText(guaranteeData.return_document_name || 'دانلود') + '</a>'
+                        + (guaranteeData.returned_at ? (' | تاریخ: ' + escapeHtmlText(guaranteeData.returned_at)) : '');
+                }
+                syncGuaranteeReturnDetailsVisibility();
             }
 
             function normalizeGuarantorMobileValue(raw) {
@@ -3605,6 +3786,7 @@
                     document.getElementById('cust-father').value = c.father_name || '';
                     document.getElementById('cust-national').value = c.national_id || '';
                     document.getElementById('cust-mobile').value = c.mobile || '';
+                    document.getElementById('cust-mobile2').value = c.mobile2 || '';
                     document.getElementById('cust-phone').value = c.phone_landline || '';
                     document.getElementById('cust-membership-jdate').value = c.membership_jdate || '';
                     document.getElementById('cust-birth-jdate').value = c.birth_jdate || '';
@@ -5112,6 +5294,8 @@
                 if (loanInstallmentIntervalCountInput) loanInstallmentIntervalCountInput.value = '1';
                 var submitBtn = loanCreateForm.querySelector('button[type="submit"]');
                 if (submitBtn) submitBtn.textContent = 'ثبت وام';
+                resetLoanCreationOtpUi();
+                syncLoanCreationOtpSectionVisibility();
                 syncLoanCurrentInterestView();
                 syncLoanInstallmentCalculation(true);
                 loanCreateOverlay.hidden = false;
@@ -5170,6 +5354,8 @@
                 syncLoanInstallmentCalculation(true);
                 var submitBtn = loanCreateForm.querySelector('button[type="submit"]');
                 if (submitBtn) submitBtn.textContent = 'ذخیره تغییرات';
+                resetLoanCreationOtpUi();
+                syncLoanCreationOtpSectionVisibility();
                 loanCreateOverlay.hidden = false;
                 loanCreateOverlay.setAttribute('aria-hidden', 'false');
                 setTimeout(function () {
@@ -5323,6 +5509,7 @@
                 } else {
                     syncGuarantorOtpLockFromFormMeta();
                 }
+                syncGuaranteeReturnSectionVisibility(activeType);
             }
 
             function resetGuaranteeFilePreview() {
@@ -5393,6 +5580,7 @@
                 loanGuaranteeGuarantorOtpPhoneSnapshot = '';
                 loanGuaranteeForm.reset();
                 resetGuarantorOtpUi();
+                resetGuaranteeReturnUi();
                 setGuaranteeType('org_self');
                 resetGuaranteeFilePreview();
                 loanGuaranteeRemoveExistingAttachment = false;
@@ -5407,6 +5595,7 @@
                 loanGuaranteeEditingId = Number(guaranteeData.id || 0);
                 loanGuaranteeForm.reset();
                 resetGuarantorOtpUi();
+                resetGuaranteeReturnUi();
                 var gtype = String(guaranteeData.type || 'other');
                 var meta = guaranteeData.meta && typeof guaranteeData.meta === 'object' ? guaranteeData.meta : {};
                 loanGuaranteeLoadedMeta = Object.assign({}, meta);
@@ -5435,9 +5624,8 @@
                 if (loanGuaranteeForm.elements['cheque_sayadi']) loanGuaranteeForm.elements['cheque_sayadi'].value = meta.cheque_sayadi || '';
                 if (loanGuaranteeForm.elements['cheque_due_jdate']) loanGuaranteeForm.elements['cheque_due_jdate'].value = meta.cheque_due_jdate || '';
                 var chequeCollectedCb = document.getElementById('loan-guarantee-cheque-collected');
-                var chequeReturnedCb = document.getElementById('loan-guarantee-cheque-returned');
                 if (chequeCollectedCb) chequeCollectedCb.checked = !!meta.cheque_collected;
-                if (chequeReturnedCb) chequeReturnedCb.checked = !!meta.cheque_returned;
+                populateGuaranteeReturnFromData(guaranteeData);
                 var selectedGoldCode = String(meta.gold_item_code || '').trim();
                 if (!selectedGoldCode && meta.gold_item_type) {
                     selectedGoldCode = String(meta.gold_item_type).indexOf('شکن') !== -1 ? 'broken_gold' : 'full_coin';
@@ -5532,6 +5720,10 @@
                                 metaText.push('وصول شده؟ ' + (row.meta.cheque_collected ? 'بله' : 'خیر'));
                                 metaText.push('عودت شده؟ ' + (row.meta.cheque_returned ? 'بله' : 'خیر'));
                             }
+                            if (String(row.type || '') === 'gold' || String(row.type || '') === 'other') {
+                                metaText.push('عودت شده؟ ' + (row.meta.returned ? 'بله' : 'خیر'));
+                            }
+                            if (row.returned_at) metaText.push('تاریخ عودت: ' + row.returned_at);
                             if (row.meta.gold_item_label || row.meta.gold_item_type) metaText.push('نوع طلا: ' + (row.meta.gold_item_label || row.meta.gold_item_type));
                             if (row.meta.gold_weight_gram) metaText.push('وزن: ' + row.meta.gold_weight_gram + ' گرم');
                             if (row.meta.gold_quantity) metaText.push('تعداد: ' + row.meta.gold_quantity);
@@ -5545,6 +5737,7 @@
                         var attachmentPreviewUrl = String(row.attachment_preview_url || row.attachment_url || '');
                         var attachmentDownloadUrl = String(row.attachment_download_url || row.attachment_url || '');
                         var hasAttachment = !!attachmentDownloadUrl;
+                        var returnDocUrl = String(row.return_document_download_url || '');
                         var isImageAttachment = /\.(png|jpe?g|webp)$/i.test(attachmentName);
                         return '<div class="loan-guarantee-card">' +
                             '<div class="loan-guarantee-card__main">' +
@@ -5559,6 +5752,7 @@
                                 (hasAttachment && isImageAttachment ? '<a class="loan-guarantee-thumb-link" href="' + escapeHtmlAttr(attachmentPreviewUrl) + '" target="_blank" rel="noopener" title="پیش‌نمایش تصویر"><img class="loan-guarantee-thumb" src="' + escapeHtmlAttr(attachmentPreviewUrl) + '" alt="preview"></a>' : '') +
                                 '<div class="loan-guarantee-actions">' +
                                     (hasAttachment ? '<a class="loan-file-btn" href="' + escapeHtmlAttr(attachmentDownloadUrl) + '" target="_blank" rel="noopener">دانلود</a>' : '') +
+                                    (returnDocUrl ? '<a class="loan-file-btn" href="' + escapeHtmlAttr(returnDocUrl) + '" target="_blank" rel="noopener">مستند عودت</a>' : '') +
                                     '<button type="button" class="loan-file-btn" data-guarantee-edit="' + escapeHtmlAttr(JSON.stringify(row)) + '">ویرایش</button>' +
                                     '<button type="button" class="loan-file-btn loan-file-btn--danger" data-guarantee-delete-id="' + String(row.id || '') + '">حذف</button>' +
                                 '</div>' +
@@ -5585,6 +5779,7 @@
                 if (!loanCreateOverlay) return;
                 loanCreateOverlay.hidden = true;
                 loanCreateOverlay.setAttribute('aria-hidden', 'true');
+                resetLoanCreationOtpUi();
             }
 
             function openLoanManageModal(customerId, customerName, customerMobile) {
@@ -7057,6 +7252,136 @@
                     loanGuaranteeFormWrap.hidden = true;
                 });
             }
+            var loanGuaranteeMarkReturned = document.getElementById('loan-guarantee-mark-returned');
+            if (loanGuaranteeMarkReturned) {
+                loanGuaranteeMarkReturned.addEventListener('change', function () {
+                    if (loanGuaranteeMarkReturned.checked) {
+                        guaranteeReturnOtpVerified = false;
+                        var tokenEl = document.getElementById('loan-guarantee-return-verification-token');
+                        var sessEl = document.getElementById('loan-guarantee-return-otp-session');
+                        var codeEl = document.getElementById('loan-guarantee-return-otp-code');
+                        var panel = document.getElementById('loan-guarantee-return-otp-panel');
+                        var verifiedEl = document.getElementById('loan-guarantee-return-verified');
+                        if (tokenEl) tokenEl.value = '';
+                        if (sessEl) sessEl.value = '';
+                        if (codeEl) codeEl.value = '';
+                        if (panel) panel.hidden = true;
+                        if (verifiedEl) verifiedEl.hidden = true;
+                    }
+                    syncGuaranteeReturnDetailsVisibility();
+                });
+            }
+            var loanGuaranteeReturnSendOtpBtn = document.getElementById('loan-guarantee-return-send-otp');
+            if (loanGuaranteeReturnSendOtpBtn) {
+                loanGuaranteeReturnSendOtpBtn.addEventListener('click', function () {
+                    if (!loanManageCurrentCustomerId || !loanGuaranteeCurrentLoanId || !guaranteeReturnOtpEnabled) return;
+                    var mobile = toEnglishDigits(String(loanManageCurrentCustomerMobile || '')).replace(/\D/g, '');
+                    if (mobile.length === 10 && mobile.charAt(0) === '9') mobile = '0' + mobile;
+                    if (!/^09\d{9}$/.test(mobile)) {
+                        if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('موبایل معتبر برای این مشتری ثبت نشده است.');
+                        return;
+                    }
+                    var tokenEl = document.getElementById('loan-guarantee-return-verification-token');
+                    var sessEl = document.getElementById('loan-guarantee-return-otp-session');
+                    var codeEl = document.getElementById('loan-guarantee-return-otp-code');
+                    var panel = document.getElementById('loan-guarantee-return-otp-panel');
+                    var verifiedEl = document.getElementById('loan-guarantee-return-verified');
+                    if (tokenEl) tokenEl.value = '';
+                    if (sessEl) sessEl.value = '';
+                    if (codeEl) codeEl.value = '';
+                    if (panel) panel.hidden = true;
+                    if (verifiedEl) verifiedEl.hidden = true;
+                    guaranteeReturnOtpVerified = false;
+                    loanGuaranteeReturnSendOtpBtn.disabled = true;
+                    var gtype = String((loanGuaranteeTypeInput && loanGuaranteeTypeInput.value) || '');
+                    var payload = {
+                        customer_name: loanManageCurrentCustomerName || '',
+                        guarantee_type_label: guaranteeTypeLabelFa(gtype)
+                    };
+                    if (loanGuaranteeFormMode === 'edit' && loanGuaranteeEditingId) {
+                        payload.guarantee_id = loanGuaranteeEditingId;
+                    }
+                    fetch(customerGuaranteeReturnOtpUrl(loanManageCurrentCustomerId, loanGuaranteeCurrentLoanId, 'send'), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': @json(csrf_token())
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify(payload)
+                    }).then(function (r) {
+                        return r.json().then(function (j) { return { ok: r.ok, json: j || {} }; }).catch(function () {
+                            return { ok: r.ok, json: {} };
+                        });
+                    }).then(function (res) {
+                        if (!res.ok) {
+                            throw new Error((res.json && res.json.message) ? res.json.message : 'ارسال کد ناموفق بود.');
+                        }
+                        if (sessEl) sessEl.value = String(res.json.otp_session || '');
+                        if (panel) panel.hidden = false;
+                        if (window.AdminSwal && window.AdminSwal.success) AdminSwal.success(res.json.message || 'کد ارسال شد.');
+                    }).catch(function (err) {
+                        if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error(err.message || 'ارسال کد ناموفق بود.');
+                    }).finally(function () {
+                        loanGuaranteeReturnSendOtpBtn.disabled = false;
+                    });
+                });
+            }
+            var loanGuaranteeReturnVerifyOtpBtn = document.getElementById('loan-guarantee-return-verify-otp');
+            if (loanGuaranteeReturnVerifyOtpBtn) {
+                loanGuaranteeReturnVerifyOtpBtn.addEventListener('click', function () {
+                    if (!loanManageCurrentCustomerId || !loanGuaranteeCurrentLoanId || !guaranteeReturnOtpEnabled) return;
+                    var sessEl = document.getElementById('loan-guarantee-return-otp-session');
+                    var codeEl = document.getElementById('loan-guarantee-return-otp-code');
+                    var sessionId = sessEl ? String(sessEl.value || '').trim() : '';
+                    var code = codeEl ? toEnglishDigits(String(codeEl.value || '')).replace(/\D/g, '') : '';
+                    if (!sessionId || !code) {
+                        if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('کد پیامک را وارد کنید.');
+                        return;
+                    }
+                    loanGuaranteeReturnVerifyOtpBtn.disabled = true;
+                    var verifyPayload = {
+                        otp_session: sessionId,
+                        code: code
+                    };
+                    if (loanGuaranteeFormMode === 'edit' && loanGuaranteeEditingId) {
+                        verifyPayload.guarantee_id = loanGuaranteeEditingId;
+                    }
+                    fetch(customerGuaranteeReturnOtpUrl(loanManageCurrentCustomerId, loanGuaranteeCurrentLoanId, 'verify'), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': @json(csrf_token())
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify(verifyPayload)
+                    }).then(function (r) {
+                        return r.json().then(function (j) { return { ok: r.ok, json: j || {} }; }).catch(function () {
+                            return { ok: r.ok, json: {} };
+                        });
+                    }).then(function (res) {
+                        if (!res.ok) {
+                            throw new Error((res.json && res.json.message) ? res.json.message : 'تایید کد ناموفق بود.');
+                        }
+                        var tok = document.getElementById('loan-guarantee-return-verification-token');
+                        if (tok) tok.value = String(res.json.verification_token || '');
+                        guaranteeReturnOtpVerified = true;
+                        var panelOk = document.getElementById('loan-guarantee-return-otp-panel');
+                        var verifiedEl = document.getElementById('loan-guarantee-return-verified');
+                        if (panelOk) panelOk.hidden = true;
+                        if (verifiedEl) verifiedEl.hidden = false;
+                        if (window.AdminSwal && window.AdminSwal.success) AdminSwal.success(res.json.message || 'احراز انجام شد.');
+                    }).catch(function (err) {
+                        if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error(err.message || 'تایید کد ناموفق بود.');
+                    }).finally(function () {
+                        loanGuaranteeReturnVerifyOtpBtn.disabled = false;
+                    });
+                });
+            }
             if (loanGuaranteeFileUploadBtn && loanGuaranteeAttachmentInput) {
                 loanGuaranteeFileUploadBtn.addEventListener('click', function () {
                     loanGuaranteeAttachmentInput.click();
@@ -7197,6 +7522,40 @@
                             return;
                         }
                     }
+
+                    var markReturnedEl = document.getElementById('loan-guarantee-mark-returned');
+                    var markingReturned = !!(markReturnedEl && markReturnedEl.checked);
+                    var wasReturned = false;
+                    if (loanGuaranteeLoadedMeta && typeof loanGuaranteeLoadedMeta === 'object') {
+                        wasReturned = type === 'cheque'
+                            ? !!loanGuaranteeLoadedMeta.cheque_returned
+                            : !!loanGuaranteeLoadedMeta.returned;
+                    }
+                    if (guaranteeTypesSupportingReturn(type)) {
+                        if (type === 'cheque') {
+                            fd.set('cheque_returned', markingReturned ? '1' : '0');
+                        } else {
+                            fd.set('guarantee_returned', markingReturned ? '1' : '0');
+                        }
+                        if (markingReturned && !wasReturned) {
+                            var returnDocEl = document.getElementById('loan-guarantee-return-document');
+                            var hasReturnDocFile = returnDocEl && returnDocEl.files && returnDocEl.files[0];
+                            if (!hasReturnDocFile && !guaranteeReturnHasExistingDocument) {
+                                if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('مستند عودت را بارگذاری کنید.');
+                                return;
+                            }
+                            if (guaranteeReturnOtpEnabled) {
+                                var returnTokEl = document.getElementById('loan-guarantee-return-verification-token');
+                                var returnTok = returnTokEl ? String(returnTokEl.value || '').trim() : '';
+                                if (!returnTok) {
+                                    if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('ابتدا احراز مشتری با پیامک را برای عودت انجام دهید.');
+                                    return;
+                                }
+                                fd.set('guarantee_return_verification_token', returnTok);
+                            }
+                        }
+                    }
+
                     loanGuaranteeSubmitting = true;
                     var submitBtn = document.getElementById('loan-guarantee-submit');
                     if (submitBtn) {
@@ -7314,6 +7673,99 @@
                 });
             }
             if (loanCreateForm) {
+                var loanCreationOtpSendBtn = document.getElementById('loan-creation-otp-send');
+                if (loanCreationOtpSendBtn) {
+                    loanCreationOtpSendBtn.addEventListener('click', function () {
+                        if (!loanManageCurrentCustomerId || !loanCreationOtpEnabled || loanFormMode !== 'create') return;
+                        var mobile = toEnglishDigits(String(loanManageCurrentCustomerMobile || '')).replace(/\D/g, '');
+                        if (mobile.length === 10 && mobile.charAt(0) === '9') mobile = '0' + mobile;
+                        if (!/^09\d{9}$/.test(mobile)) {
+                            if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('موبایل معتبر برای این مشتری ثبت نشده است.');
+                            return;
+                        }
+                        resetLoanCreationOtpUi();
+                        loanCreationOtpSendBtn.disabled = true;
+                        fetch(customerLoanCreationOtpSendUrl(loanManageCurrentCustomerId), {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': @json(csrf_token())
+                            },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({
+                                customer_name: loanManageCurrentCustomerName || ''
+                            })
+                        }).then(function (r) {
+                            return r.json().then(function (j) { return { ok: r.ok, json: j || {} }; }).catch(function () {
+                                return { ok: r.ok, json: {} };
+                            });
+                        }).then(function (res) {
+                            if (!res.ok) {
+                                throw new Error((res.json && res.json.message) ? res.json.message : 'ارسال کد ناموفق بود.');
+                            }
+                            var sessEl = document.getElementById('loan-creation-otp-session');
+                            var panel = document.getElementById('loan-creation-otp-panel');
+                            if (sessEl) sessEl.value = String(res.json.otp_session || '');
+                            if (panel) panel.hidden = false;
+                            if (window.AdminSwal && window.AdminSwal.success) AdminSwal.success(res.json.message || 'کد ارسال شد.');
+                        }).catch(function (err) {
+                            if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error(err.message || 'ارسال کد ناموفق بود.');
+                        }).finally(function () {
+                            loanCreationOtpSendBtn.disabled = false;
+                        });
+                    });
+                }
+                var loanCreationOtpVerifyBtn = document.getElementById('loan-creation-otp-verify');
+                if (loanCreationOtpVerifyBtn) {
+                    loanCreationOtpVerifyBtn.addEventListener('click', function () {
+                        if (!loanManageCurrentCustomerId || !loanCreationOtpEnabled || loanFormMode !== 'create') return;
+                        var sessEl = document.getElementById('loan-creation-otp-session');
+                        var codeEl = document.getElementById('loan-creation-otp-code');
+                        var sessionId = sessEl ? String(sessEl.value || '').trim() : '';
+                        var code = codeEl ? toEnglishDigits(String(codeEl.value || '')).replace(/\D/g, '') : '';
+                        if (!sessionId || !code) {
+                            if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('کد پیامک را وارد کنید.');
+                            return;
+                        }
+                        loanCreationOtpVerifyBtn.disabled = true;
+                        fetch(customerLoanCreationOtpVerifyUrl(loanManageCurrentCustomerId), {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': @json(csrf_token())
+                            },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({
+                                otp_session: sessionId,
+                                code: code
+                            })
+                        }).then(function (r) {
+                            return r.json().then(function (j) { return { ok: r.ok, json: j || {} }; }).catch(function () {
+                                return { ok: r.ok, json: {} };
+                            });
+                        }).then(function (res) {
+                            if (!res.ok) {
+                                throw new Error((res.json && res.json.message) ? res.json.message : 'تایید کد ناموفق بود.');
+                            }
+                            var tok = document.getElementById('loan-creation-verification-token');
+                            if (tok) tok.value = String(res.json.verification_token || '');
+                            loanCreationOtpVerified = true;
+                            var panel = document.getElementById('loan-creation-otp-panel');
+                            var verifiedEl = document.getElementById('loan-creation-otp-verified');
+                            if (panel) panel.hidden = true;
+                            if (verifiedEl) verifiedEl.hidden = false;
+                            if (window.AdminSwal && window.AdminSwal.success) AdminSwal.success(res.json.message || 'احراز انجام شد.');
+                        }).catch(function (err) {
+                            if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error(err.message || 'تایید کد ناموفق بود.');
+                        }).finally(function () {
+                            loanCreationOtpVerifyBtn.disabled = false;
+                        });
+                    });
+                }
                 loanCreateForm.addEventListener('submit', function (e) {
                     e.preventDefault();
                     if (!loanManageCurrentCustomerId || loanCreateSubmitting) return;
@@ -7397,8 +7849,23 @@
                         if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('جمع مبلغ اقساط نباید از مبلغ قابل بازپرداخت (اصل + بهره - پیش‌پرداخت) بیشتر باشد.');
                         return;
                     }
+                    if (loanCreationOtpEnabled && loanFormMode === 'create') {
+                        var otpTokEl = document.getElementById('loan-creation-verification-token');
+                        var otpTok = otpTokEl ? String(otpTokEl.value || '').trim() : '';
+                        if (!otpTok) {
+                            if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('ابتدا احراز هویت مشتری با پیامک را انجام دهید.');
+                            var otpSection = document.getElementById('loan-creation-otp-section');
+                            if (otpSection && otpSection.hidden) syncLoanCreationOtpSectionVisibility();
+                            return;
+                        }
+                    }
 
                     function submitLoanCreate(finalPayload) {
+                        if (loanCreationOtpEnabled && loanFormMode === 'create') {
+                            var otpTokElSubmit = document.getElementById('loan-creation-verification-token');
+                            var otpTokSubmit = otpTokElSubmit ? String(otpTokElSubmit.value || '').trim() : '';
+                            if (otpTokSubmit) finalPayload.customer_verification_token = otpTokSubmit;
+                        }
                         loanCreateSubmitting = true;
                         if (submitBtn) {
                             submitBtn.disabled = true;
@@ -7440,6 +7907,7 @@
                             }
                             renderLoanFilesForCustomer(loanManageCurrentCustomerId);
                             closeLoanCreateModal();
+                            resetLoanCreationOtpUi();
                             if (window.AdminSwal && window.AdminSwal.success) AdminSwal.success(res.json.message || (loanFormMode === 'edit' ? 'پرونده وام ویرایش شد.' : 'پرونده وام ثبت شد.'));
                         }).catch(function (err) {
                             if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error(err.message || 'ثبت پرونده وام ناموفق بود.');

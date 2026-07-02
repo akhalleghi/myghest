@@ -7,7 +7,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\Customer;
+use App\Support\GuaranteeReturnOtpSettings;
 use App\Support\ListPerPage;
+use App\Support\LoanCreationOtpSettings;
+use App\Support\PrivateStoragePaths;
 use App\Models\CustomerBankAccount;
 use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanGuarantee;
@@ -103,6 +106,8 @@ final class CustomerController extends Controller
             'loanManageLrqEmbedUrlTemplate' => $this->loanManageLoanRequestEmbedUrlTemplate(),
             'loanManageCtxEmbedUrlTemplate' => $this->loanManageCustomerTransactionsEmbedUrlTemplate(),
             'loanManageTicketsEmbedUrlTemplate' => $this->loanManageTicketsEmbedUrlTemplate(),
+            'loanCreationOtpEnabled' => LoanCreationOtpSettings::isEnabled(),
+            'guaranteeReturnOtpEnabled' => GuaranteeReturnOtpSettings::isEnabled(),
         ]);
     }
 
@@ -839,7 +844,18 @@ final class CustomerController extends Controller
             'send_sms' => ['nullable', 'boolean'],
             'sms_text' => ['nullable', 'string', 'max:1000'],
             'sms_template_id' => ['nullable', 'integer', 'exists:sms_templates,id'],
+            'customer_verification_token' => ['nullable', 'string', 'max:128'],
         ]);
+
+        if (LoanCreationOtpSettings::isEnabled()) {
+            $mobile = $this->normalizeCustomerMobileForSmsFilter((string) $customer->mobile);
+            if ($mobile === '') {
+                return response()->json(['message' => 'شماره موبایل معتبر برای این مشتری ثبت نشده است؛ ثبت وام با تایید پیامکی ممکن نیست.'], 422);
+            }
+            if (! $this->consumeLoanCreationVerificationToken($request, $customer)) {
+                return response()->json(['message' => 'تایید پیامکی مشتری الزامی است. ابتدا کد ارسال‌شده به موبایل مشتری را تایید کنید.'], 422);
+            }
+        }
 
         $startDate = $this->parseJalaliDate((string) $validated['loan_start_jdate']);
         if ($startDate === null) {
@@ -2251,6 +2267,9 @@ final class CustomerController extends Controller
             $lines[] = 'وصول شده؟ '.(! empty($meta['cheque_collected']) ? 'بله' : 'خیر');
             $lines[] = 'عودت شده؟ '.(! empty($meta['cheque_returned']) ? 'بله' : 'خیر');
         }
+        if (in_array($type, [CustomerLoanGuarantee::TYPE_GOLD, CustomerLoanGuarantee::TYPE_OTHER], true)) {
+            $lines[] = 'عودت شده؟ '.(! empty($meta['returned']) ? 'بله' : 'خیر');
+        }
 
         $goldLabel = (string) ($meta['gold_item_label'] ?? $meta['gold_item_type'] ?? '');
         if ($goldLabel !== '') {
@@ -2304,6 +2323,9 @@ final class CustomerController extends Controller
             'cheque_due_jdate' => ['nullable', 'string', 'max:20'],
             'cheque_collected' => ['nullable', 'boolean'],
             'cheque_returned' => ['nullable', 'boolean'],
+            'guarantee_returned' => ['nullable', 'boolean'],
+            'guarantee_return_verification_token' => ['nullable', 'string', 'max:128'],
+            'return_document' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp,pdf', 'max:5120'],
             'amount_toman' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
             'attachment' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp,pdf', 'max:5120'],
         ];
@@ -2388,7 +2410,6 @@ final class CustomerController extends Controller
                 return response()->json(['message' => 'تاریخ چک معتبر نیست.'], 422);
             }
             $chequeCollected = $request->boolean('cheque_collected');
-            $chequeReturned = $request->boolean('cheque_returned');
             $meta = [
                 'cheque_owner_name' => $chequeOwnerName,
                 'cheque_owner_national_id' => $chequeOwnerNationalId,
@@ -2397,7 +2418,6 @@ final class CustomerController extends Controller
                 'cheque_sayadi' => $chequeSayadi,
                 'cheque_due_jdate' => $chequeDueDate ? Jalali::instance($chequeDueDate)->format('Y/m/d') : '',
                 'cheque_collected' => $chequeCollected,
-                'cheque_returned' => $chequeReturned,
             ];
         } elseif ($type === CustomerLoanGuarantee::TYPE_GOLD) {
             $meta = $this->buildGoldGuaranteeMeta($validated);
@@ -2409,6 +2429,24 @@ final class CustomerController extends Controller
             $meta = [
                 'amount_toman' => $amountToman,
             ];
+        }
+
+        $returnDocumentPath = null;
+        $returnedAt = null;
+        $returnedByAdminId = null;
+        $returnError = $this->processGuaranteeReturnState(
+            $request,
+            $customer,
+            $loanFile,
+            $type,
+            $meta,
+            null,
+            $returnDocumentPath,
+            $returnedAt,
+            $returnedByAdminId,
+        );
+        if ($returnError instanceof JsonResponse) {
+            return $returnError;
         }
 
         $attachmentPath = null;
@@ -2424,6 +2462,9 @@ final class CustomerController extends Controller
             'description' => $description !== '' ? $description : null,
             'meta' => $meta,
             'attachment_path' => $attachmentPath,
+            'return_document_path' => $returnDocumentPath,
+            'returned_at' => $returnedAt,
+            'returned_by_admin_id' => $returnedByAdminId,
             'created_by_admin_id' => auth('admin')->id(),
         ]);
 
@@ -2488,7 +2529,6 @@ final class CustomerController extends Controller
                 return response()->json(['message' => 'تاریخ چک معتبر نیست.'], 422);
             }
             $chequeCollected = $request->boolean('cheque_collected');
-            $chequeReturned = $request->boolean('cheque_returned');
             $meta = [
                 'cheque_owner_name' => $chequeOwnerName,
                 'cheque_owner_national_id' => $chequeOwnerNationalId,
@@ -2497,7 +2537,6 @@ final class CustomerController extends Controller
                 'cheque_sayadi' => $chequeSayadi,
                 'cheque_due_jdate' => $chequeDueDate ? Jalali::instance($chequeDueDate)->format('Y/m/d') : '',
                 'cheque_collected' => $chequeCollected,
-                'cheque_returned' => $chequeReturned,
             ];
         } elseif ($type === CustomerLoanGuarantee::TYPE_GOLD) {
             $meta = $this->buildGoldGuaranteeMeta($validated);
@@ -2510,16 +2549,34 @@ final class CustomerController extends Controller
             ];
         }
 
+        $returnDocumentPath = $guarantee->return_document_path;
+        $returnedAt = $guarantee->returned_at;
+        $returnedByAdminId = $guarantee->returned_by_admin_id;
+        $returnError = $this->processGuaranteeReturnState(
+            $request,
+            $customer,
+            $loanFile,
+            $type,
+            $meta,
+            $guarantee,
+            $returnDocumentPath,
+            $returnedAt,
+            $returnedByAdminId,
+        );
+        if ($returnError instanceof JsonResponse) {
+            return $returnError;
+        }
+
         $removeAttachment = (bool) ($validated['remove_attachment'] ?? false);
         $newAttachment = $request->file('attachment');
         $attachmentPath = $guarantee->attachment_path;
         if ($removeAttachment && is_string($attachmentPath) && $attachmentPath !== '') {
-            Storage::disk('public')->delete($attachmentPath);
+            PrivateStoragePaths::delete($attachmentPath);
             $attachmentPath = null;
         }
         if ($newAttachment instanceof UploadedFile && $newAttachment->isValid()) {
             if (is_string($attachmentPath) && $attachmentPath !== '') {
-                Storage::disk('public')->delete($attachmentPath);
+                PrivateStoragePaths::delete($attachmentPath);
             }
             $attachmentPath = $this->storeGuaranteeAttachment($newAttachment);
         }
@@ -2529,6 +2586,9 @@ final class CustomerController extends Controller
             'description' => $description !== '' ? $description : null,
             'meta' => $meta,
             'attachment_path' => $attachmentPath,
+            'return_document_path' => $returnDocumentPath,
+            'returned_at' => $returnedAt,
+            'returned_by_admin_id' => $returnedByAdminId,
         ]);
         $guarantee->refresh();
 
@@ -2545,8 +2605,9 @@ final class CustomerController extends Controller
         }
 
         if (is_string($guarantee->attachment_path) && $guarantee->attachment_path !== '') {
-            Storage::disk('public')->delete($guarantee->attachment_path);
+            PrivateStoragePaths::delete($guarantee->attachment_path);
         }
+        PrivateStoragePaths::delete((string) ($guarantee->return_document_path ?? ''));
         $guarantee->delete();
 
         return response()->json([
@@ -2560,18 +2621,30 @@ final class CustomerController extends Controller
             abort(404);
         }
         $attachmentPath = is_string($guarantee->attachment_path) ? trim($guarantee->attachment_path) : '';
-        if ($attachmentPath === '' || ! Storage::disk('public')->exists($attachmentPath)) {
+        if ($attachmentPath === '') {
             abort(404);
         }
 
         $download = $request->boolean('download');
         $fileName = basename($attachmentPath);
 
-        if ($download) {
-            return Storage::disk('public')->download($attachmentPath, $fileName);
+        return $this->serveStoredPrivateFile($attachmentPath, $fileName, $download);
+    }
+
+    public function loanGuaranteeReturnDocument(Request $request, Customer $customer, CustomerLoanFile $loanFile, CustomerLoanGuarantee $guarantee)
+    {
+        if ((int) $loanFile->customer_id !== (int) $customer->id || (int) $guarantee->loan_file_id !== (int) $loanFile->id) {
+            abort(404);
+        }
+        $documentPath = is_string($guarantee->return_document_path) ? trim($guarantee->return_document_path) : '';
+        if ($documentPath === '') {
+            abort(404);
         }
 
-        return Storage::disk('public')->response($attachmentPath, $fileName, [], 'inline');
+        $download = $request->boolean('download');
+        $fileName = basename($documentPath);
+
+        return $this->serveStoredPrivateFile($documentPath, $fileName, $download);
     }
 
     public function sendQuickSms(Request $request, Customer $customer): JsonResponse
@@ -2705,6 +2778,7 @@ final class CustomerController extends Controller
         $request->merge([
             'national_id' => IranNationalId::normalizeToDigits(trim((string) $request->input('national_id', ''))),
             'mobile' => $this->toEnglishDigits(trim((string) $request->input('mobile', ''))),
+            'mobile2' => $this->normalizeOptionalIranMobile(trim((string) $request->input('mobile2', ''))),
             'postal_code' => $this->toEnglishDigits(trim((string) $request->input('postal_code', ''))),
         ]);
 
@@ -2715,6 +2789,7 @@ final class CustomerController extends Controller
             'father_name' => ['required', 'string', 'max:120'],
             'national_id' => ['required', 'digits:10', new IranNationalId, Rule::unique('customers', 'national_id')],
             'mobile' => ['required', 'string', 'max:20', 'regex:/^09\d{9}$/', Rule::unique('customers', 'mobile')],
+            'mobile2' => $this->mobile2ValidationRules(),
             'phone_landline' => ['nullable', 'string', 'max:32'],
             'membership_jdate' => ['nullable', 'string', 'max:20'],
             'birth_jdate' => ['nullable', 'string', 'max:20'],
@@ -2730,6 +2805,7 @@ final class CustomerController extends Controller
             'father_name' => 'نام پدر',
             'national_id' => 'کد ملی',
             'mobile' => 'موبایل',
+            'mobile2' => 'موبایل دوم',
             'phone_landline' => 'تلفن ثابت',
             'membership_jdate' => 'تاریخ عضویت',
             'birth_jdate' => 'تاریخ تولد',
@@ -2781,6 +2857,9 @@ final class CustomerController extends Controller
                 'father_name' => $validated['father_name'],
                 'national_id' => $validated['national_id'],
                 'mobile' => $validated['mobile'],
+                'mobile2' => $validated['mobile2'] !== null && (string) $validated['mobile2'] !== ''
+                    ? (string) $validated['mobile2']
+                    : null,
                 'phone_landline' => $validated['phone_landline'] !== null && $validated['phone_landline'] !== ''
                     ? trim((string) $validated['phone_landline'])
                     : null,
@@ -2881,6 +2960,7 @@ final class CustomerController extends Controller
                 'father_name' => $customer->father_name,
                 'national_id' => $customer->national_id,
                 'mobile' => $customer->mobile,
+                'mobile2' => (string) ($customer->mobile2 ?? ''),
                 'phone_landline' => (string) ($customer->phone_landline ?? ''),
                 'membership_jdate' => $membershipJ,
                 'birth_jdate' => $birthJ,
@@ -2933,6 +3013,7 @@ final class CustomerController extends Controller
         $request->merge([
             'national_id' => IranNationalId::normalizeToDigits(trim((string) $request->input('national_id', ''))),
             'mobile' => $this->toEnglishDigits(trim((string) $request->input('mobile', ''))),
+            'mobile2' => $this->normalizeOptionalIranMobile(trim((string) $request->input('mobile2', ''))),
             'postal_code' => $this->toEnglishDigits(trim((string) $request->input('postal_code', ''))),
         ]);
 
@@ -2943,6 +3024,7 @@ final class CustomerController extends Controller
             'father_name' => ['required', 'string', 'max:120'],
             'national_id' => ['required', 'digits:10', new IranNationalId, Rule::unique('customers', 'national_id')->ignore($customer->id)],
             'mobile' => ['required', 'string', 'max:20', 'regex:/^09\d{9}$/', Rule::unique('customers', 'mobile')->ignore($customer->id)],
+            'mobile2' => $this->mobile2ValidationRules($customer->id),
             'phone_landline' => ['nullable', 'string', 'max:32'],
             'membership_jdate' => ['nullable', 'string', 'max:20'],
             'birth_jdate' => ['nullable', 'string', 'max:20'],
@@ -2958,6 +3040,7 @@ final class CustomerController extends Controller
             'father_name' => 'نام پدر',
             'national_id' => 'کد ملی',
             'mobile' => 'موبایل',
+            'mobile2' => 'موبایل دوم',
             'phone_landline' => 'تلفن ثابت',
             'membership_jdate' => 'تاریخ عضویت',
             'birth_jdate' => 'تاریخ تولد',
@@ -3016,6 +3099,9 @@ final class CustomerController extends Controller
                 'father_name' => $validated['father_name'],
                 'national_id' => $validated['national_id'],
                 'mobile' => $validated['mobile'],
+                'mobile2' => $validated['mobile2'] !== null && (string) $validated['mobile2'] !== ''
+                    ? (string) $validated['mobile2']
+                    : null,
                 'phone_landline' => $validated['phone_landline'] !== null && (string) $validated['phone_landline'] !== ''
                     ? trim((string) $validated['phone_landline'])
                     : null,
@@ -3222,6 +3308,52 @@ final class CustomerController extends Controller
         $en = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
         return str_replace($ar, $en, str_replace($fa, $en, $value));
+    }
+
+    private function normalizeOptionalIranMobile(string $value): ?string
+    {
+        $value = $this->toEnglishDigits(trim($value));
+        if ($value === '') {
+            return null;
+        }
+
+        if (strlen($value) === 10 && str_starts_with($value, '9')) {
+            $value = '0'.$value;
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return list<\Closure|string>
+     */
+    private function mobile2ValidationRules(?int $ignoreCustomerId = null): array
+    {
+        return [
+            'nullable',
+            'string',
+            'max:20',
+            'regex:/^09\d{9}$/',
+            'different:mobile',
+            function (string $attribute, mixed $value, \Closure $fail) use ($ignoreCustomerId): void {
+                if (! is_string($value) || $value === '') {
+                    return;
+                }
+
+                $query = Customer::query()
+                    ->where(function ($q) use ($value): void {
+                        $q->where('mobile', $value)->orWhere('mobile2', $value);
+                    });
+
+                if ($ignoreCustomerId !== null) {
+                    $query->where('id', '!=', $ignoreCustomerId);
+                }
+
+                if ($query->exists()) {
+                    $fail('این شماره موبایل قبلاً ثبت شده است.');
+                }
+            },
+        ];
     }
 
     /**
@@ -3843,6 +3975,17 @@ final class CustomerController extends Controller
             CustomerLoanGuarantee::TYPE_GOLD => 'طلا',
             CustomerLoanGuarantee::TYPE_OTHER => 'سایر',
         ];
+        $returnDocumentPreviewUrl = null;
+        $returnDocumentDownloadUrl = null;
+        if (is_string($g->return_document_path) && $g->return_document_path !== '') {
+            $returnRouteParams = [
+                'customer' => (int) $g->customer_id,
+                'loanFile' => (int) $g->loan_file_id,
+                'guarantee' => (int) $g->id,
+            ];
+            $returnDocumentPreviewUrl = route('admin.customers.loan-files.guarantees.return-document', $returnRouteParams);
+            $returnDocumentDownloadUrl = route('admin.customers.loan-files.guarantees.return-document', $returnRouteParams + ['download' => 1]);
+        }
 
         return [
             'id' => (int) $g->id,
@@ -3850,6 +3993,11 @@ final class CustomerController extends Controller
             'type_label' => (string) ($typeLabels[$g->type] ?? $g->type),
             'description' => (string) ($g->description ?? ''),
             'meta' => is_array($g->meta) ? $g->meta : [],
+            'is_returned' => $g->isMarkedReturned(),
+            'returned_at' => $g->returned_at ? Jalali::instance($g->returned_at)->format('Y/m/d H:i') : '',
+            'return_document_preview_url' => $returnDocumentPreviewUrl,
+            'return_document_download_url' => $returnDocumentDownloadUrl,
+            'return_document_name' => is_string($g->return_document_path) && $g->return_document_path !== '' ? basename($g->return_document_path) : '',
             'attachment_url' => $attachmentUrl,
             'attachment_preview_url' => $attachmentPreviewUrl,
             'attachment_download_url' => $attachmentDownloadUrl,
@@ -3930,6 +4078,148 @@ final class CustomerController extends Controller
         ];
     }
 
+    /**
+     * @return array<int, string>
+     */
+    private function guaranteeTypesSupportingReturn(): array
+    {
+        return [
+            CustomerLoanGuarantee::TYPE_CHEQUE,
+            CustomerLoanGuarantee::TYPE_GOLD,
+            CustomerLoanGuarantee::TYPE_OTHER,
+        ];
+    }
+
+    private function isGuaranteeMarkedReturnedFromRequest(string $type, Request $request): bool
+    {
+        if ($type === CustomerLoanGuarantee::TYPE_CHEQUE) {
+            return $request->boolean('cheque_returned');
+        }
+        if (in_array($type, [CustomerLoanGuarantee::TYPE_GOLD, CustomerLoanGuarantee::TYPE_OTHER], true)) {
+            return $request->boolean('guarantee_returned');
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     */
+    private function processGuaranteeReturnState(
+        Request $request,
+        Customer $customer,
+        CustomerLoanFile $loanFile,
+        string $type,
+        array &$meta,
+        ?CustomerLoanGuarantee $existing,
+        ?string &$returnDocumentPath,
+        ?Carbon &$returnedAt,
+        ?int &$returnedByAdminId,
+    ): ?JsonResponse {
+        if (! in_array($type, $this->guaranteeTypesSupportingReturn(), true)) {
+            return null;
+        }
+
+        $wasReturned = $existing !== null ? $existing->isMarkedReturned() : false;
+        $nowReturned = $this->isGuaranteeMarkedReturnedFromRequest($type, $request);
+
+        if ($type === CustomerLoanGuarantee::TYPE_CHEQUE) {
+            $meta['cheque_returned'] = $nowReturned;
+        } else {
+            $meta['returned'] = $nowReturned;
+        }
+
+        if ($nowReturned && ! $wasReturned) {
+            if (GuaranteeReturnOtpSettings::isEnabled()) {
+                if (! $this->consumeGuaranteeReturnVerificationToken($request, $customer, $loanFile, $existing?->id)) {
+                    return response()->json([
+                        'message' => 'تایید پیامکی مشتری برای ثبت عودت ضمانت الزامی است.',
+                    ], 422);
+                }
+            }
+
+            $hasReturnDocument = $request->file('return_document') instanceof UploadedFile
+                || ($existing !== null && is_string($existing->return_document_path) && $existing->return_document_path !== '');
+            if (! $hasReturnDocument) {
+                return response()->json(['message' => 'بارگذاری مستند عودت الزامی است.'], 422);
+            }
+        }
+
+        $returnDoc = $request->file('return_document');
+        if ($returnDoc instanceof UploadedFile && $returnDoc->isValid()) {
+            PrivateStoragePaths::delete((string) ($returnDocumentPath ?? ''));
+            $returnDocumentPath = $this->storeGuaranteeReturnDocument($returnDoc);
+        }
+
+        if ($nowReturned && ! $wasReturned) {
+            $returnedAt = now();
+            $adminId = auth('admin')->id();
+            $returnedByAdminId = is_numeric($adminId) ? (int) $adminId : null;
+            $meta['return_record'] = [
+                'returned_jdate' => Jalali::now()->format('Y/m/d H:i'),
+                'customer_otp_verified' => GuaranteeReturnOtpSettings::isEnabled(),
+            ];
+        } elseif (! $nowReturned) {
+            $returnedAt = null;
+            $returnedByAdminId = null;
+        }
+
+        return null;
+    }
+
+    private function consumeGuaranteeReturnVerificationToken(
+        Request $request,
+        Customer $customer,
+        CustomerLoanFile $loanFile,
+        ?int $guaranteeId,
+    ): bool {
+        $token = trim((string) $request->input('guarantee_return_verification_token', ''));
+        if ($token === '') {
+            return false;
+        }
+
+        $mobile = $this->normalizeCustomerMobileForSmsFilter((string) $customer->mobile);
+        if ($mobile === '') {
+            return false;
+        }
+
+        $payload = Cache::pull('guarantee_return_verified:'.$token);
+        if (! is_array($payload)) {
+            return false;
+        }
+
+        $expectedGuaranteeId = $guaranteeId !== null && $guaranteeId > 0 ? $guaranteeId : null;
+        $payloadGuaranteeId = isset($payload['guarantee_id']) ? (int) $payload['guarantee_id'] : null;
+
+        return (int) ($payload['customer_id'] ?? 0) === (int) $customer->id
+            && (int) ($payload['loan_file_id'] ?? 0) === (int) $loanFile->id
+            && $payloadGuaranteeId === $expectedGuaranteeId
+            && (string) ($payload['mobile'] ?? '') === $mobile;
+    }
+
+    private function storeGuaranteeReturnDocument(UploadedFile $file): string
+    {
+        $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'bin');
+        $safeName = 'guarantee-return-'.Str::lower(Str::random(22)).'.'.$extension;
+
+        return $file->storeAs('private/loan-guarantee-returns', $safeName, 'local');
+    }
+
+    private function serveStoredPrivateFile(string $storedPath, string $fileName, bool $download)
+    {
+        $location = PrivateStoragePaths::readableLocation($storedPath);
+        if ($location === null) {
+            abort(404);
+        }
+
+        $disk = Storage::disk($location['disk']);
+        if ($download) {
+            return $disk->download($location['path'], $fileName);
+        }
+
+        return $disk->response($location['path'], $fileName, [], 'inline');
+    }
+
     private function consumeGuarantorVerificationToken(Request $request, string $normalizedMobile): bool
     {
         $token = trim((string) $request->input('guarantor_verification_token', ''));
@@ -3942,12 +4232,31 @@ final class CustomerController extends Controller
         return is_array($payload) && (string) ($payload['mobile'] ?? '') === $normalizedMobile;
     }
 
+    private function consumeLoanCreationVerificationToken(Request $request, Customer $customer): bool
+    {
+        $token = trim((string) $request->input('customer_verification_token', ''));
+        if ($token === '') {
+            return false;
+        }
+
+        $mobile = $this->normalizeCustomerMobileForSmsFilter((string) $customer->mobile);
+        if ($mobile === '') {
+            return false;
+        }
+
+        $payload = Cache::pull('loan_creation_verified:'.$token);
+
+        return is_array($payload)
+            && (int) ($payload['customer_id'] ?? 0) === (int) $customer->id
+            && (string) ($payload['mobile'] ?? '') === $mobile;
+    }
+
     private function storeGuaranteeAttachment(UploadedFile $file): string
     {
         $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'bin');
         $safeName = 'guarantee-'.Str::lower(Str::random(22)).'.'.$extension;
 
-        return $file->storeAs('loan-guarantees', $safeName, 'public');
+        return $file->storeAs('private/loan-guarantees', $safeName, 'local');
     }
 
     private function ensureLoanInstallmentSchedule(CustomerLoanFile $file): void

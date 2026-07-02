@@ -12,6 +12,8 @@ use App\Models\LoginAccessBlock;
 use App\Services\Auth\LoginAccessBlockService;
 use App\Support\AdminLoginSecuritySettings;
 use App\Support\CustomerLoginSecuritySettings;
+use App\Support\GuaranteeReturnOtpSettings;
+use App\Support\LoanCreationOtpSettings;
 use App\Support\PortalLoginSecuritySettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -188,6 +190,31 @@ final class AppSettingsController extends Controller
         return back()
             ->with('flash_success', 'تنظیمات مالی ذخیره شد.')
             ->with('open_app_settings_tab', 'financial');
+    }
+
+    public function updateLoans(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'loan_creation_customer_otp_enabled' => ['required', 'string', 'in:0,1'],
+            'guarantee_return_customer_otp_enabled' => ['required', 'string', 'in:0,1'],
+        ], [], [
+            'loan_creation_customer_otp_enabled' => 'تایید پیامکی ایجاد وام',
+            'guarantee_return_customer_otp_enabled' => 'تایید پیامکی عودت ضمانت',
+        ]);
+
+        AppSetting::query()->updateOrCreate(
+            ['key' => LoanCreationOtpSettings::SETTING_KEY],
+            ['value' => $validated['loan_creation_customer_otp_enabled'] === '1' ? '1' : '0'],
+        );
+
+        AppSetting::query()->updateOrCreate(
+            ['key' => GuaranteeReturnOtpSettings::SETTING_KEY],
+            ['value' => $validated['guarantee_return_customer_otp_enabled'] === '1' ? '1' : '0'],
+        );
+
+        return back()
+            ->with('flash_success', 'تنظیمات وام‌ها ذخیره شد.')
+            ->with('open_app_settings_tab', 'loans');
     }
 
     public function updateSecurity(Request $request): RedirectResponse

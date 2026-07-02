@@ -21,6 +21,7 @@ final class Customer extends Authenticatable
         'father_name',
         'national_id',
         'mobile',
+        'mobile2',
         'phone_landline',
         'membership_at',
         'birth_date',

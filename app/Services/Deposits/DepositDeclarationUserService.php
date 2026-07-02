@@ -11,9 +11,9 @@ use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanInstallment;
 use App\Services\Loans\LoanInstallmentScheduleService;
 use App\Support\JalaliInputParser;
+use App\Support\PrivateStoragePaths;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -209,9 +209,9 @@ final class DepositDeclarationUserService
             throw ValidationException::withMessages(['attachment' => ['نوع فایل (MIME) با فرمت‌های مجاز هم‌خوان نیست.']]);
         }
         $name = Str::lower(Str::random(18)).'.'.$ext;
-        $dir = 'deposit-declarations/'.$customer->id;
+        $dir = 'private/deposit-declarations/'.$customer->id;
 
-        return $file->storeAs($dir, $name, 'public');
+        return $file->storeAs($dir, $name, 'local');
     }
 
     private function deleteStoredFile(?string $path): void
@@ -219,9 +219,8 @@ final class DepositDeclarationUserService
         if ($path === null || $path === '') {
             return;
         }
-        if (Storage::disk('public')->exists($path)) {
-            Storage::disk('public')->delete($path);
-        }
+
+        PrivateStoragePaths::delete($path);
     }
 
     private function nullableString(mixed $v): ?string

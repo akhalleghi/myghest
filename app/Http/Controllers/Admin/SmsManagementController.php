@@ -1057,6 +1057,8 @@ final class SmsManagementController extends Controller
             'contract_verification_code' => 'کد تایدییه قرارداد',
             'contract_registered_notice' => 'اطلاعیه ثبت موفق قرارداد',
             'guarantor_otp' => 'احراز هویت ضامن',
+            'loan_creation_otp' => 'تایید ایجاد پرونده وام',
+            'guarantee_return_otp' => 'تایید عودت ضمانت',
         ];
     }
 
@@ -1082,6 +1084,7 @@ final class SmsManagementController extends Controller
             'app_name' => ['label' => 'نام نمایشی سامانه', 'sample' => 'سامانه میهمان'],
             'loan_request_status_title' => ['label' => 'عنوان وضعیت درخواست وام', 'sample' => 'تکمیل مدارک'],
             'code' => ['label' => 'کد تأیید پیامکی', 'sample' => '847392'],
+            'guarantee_type_label' => ['label' => 'نوع ضمانت', 'sample' => 'چک'],
         ];
     }
 

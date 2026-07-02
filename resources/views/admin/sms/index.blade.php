@@ -378,7 +378,7 @@
         @if(isset($smsAllowedTabs['templates']))
         <section class="sms-tab-panel" data-sms-panel="templates" @if($smsActiveTab !== 'templates') hidden @endif>
             <div class="sms-template-toolbar">
-                <p class="sms-template-toolbar-note">قالب‌های آماده و سفارشی را مدیریت کنید. پترن‌ها در زمان ارسال با داده واقعی جایگزین می‌شوند. قالب سیستمی «احراز هویت موبایل ضامن (سازمانی)» برای پیامک کد تأیید ضمانت در پرونده وام استفاده می‌شود و از همین تب قابل ویرایش است.</p>
+                <p class="sms-template-toolbar-note">قالب‌های آماده و سفارشی را مدیریت کنید. پترن‌ها در زمان ارسال با داده واقعی جایگزین می‌شوند. قالب «احراز هویت موبایل ضامن (سازمانی)» برای پیامک کد تأیید ضمانت در پرونده وام استفاده می‌شود. قالب «تایید پیامکی ایجاد پرونده وام» هنگام ثبت وام جدید برای مشتری (در صورت فعال بودن تنظیم مربوطه) ارسال می‌شود. قالب «تایید پیامکی عودت ضمانت» هنگام ثبت عودت چک یا اوراق ضمانتی به مشتری ارسال می‌شود. همه از همین تب قابل ویرایش هستند.</p>
                 @if($smsFeat('templates.create'))
                 <button type="button" class="sms-template-add-btn" id="sms-template-open-modal">
                     <i class="fa-solid fa-plus" aria-hidden="true"></i>

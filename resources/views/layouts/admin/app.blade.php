@@ -3161,6 +3161,9 @@
                     @if(isset($adminAppSettingsPanels['security']))
                     @include('layouts.admin.partials.app-settings-security-panel')
                     @endif
+                    @if(isset($adminAppSettingsPanels['loans']))
+                    @include('layouts.admin.partials.app-settings-loans-panel')
+                    @endif
                 </div>
             </div>
         </div>
@@ -3572,6 +3575,9 @@
                 openSettings();
                 @elseif(session('open_app_settings_tab') === 'ui')
                 activateSettingsTab('ui');
+                openSettings();
+                @elseif(session('open_app_settings_tab') === 'loans' || $errors->has('loan_creation_customer_otp_enabled') || $errors->has('guarantee_return_customer_otp_enabled'))
+                activateSettingsTab('loans');
                 openSettings();
                 @elseif(
                     $errors->has('customer_login_two_factor_enabled')

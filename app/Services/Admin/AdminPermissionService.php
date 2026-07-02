@@ -445,7 +445,7 @@ final class AdminPermissionService
             return true;
         }
 
-        foreach (['app_settings.base', 'app_settings.ui', 'app_settings.financial', 'app_settings.security', 'app_settings.notifications'] as $key) {
+        foreach (['app_settings.base', 'app_settings.ui', 'app_settings.financial', 'app_settings.security', 'app_settings.notifications', 'app_settings.loans'] as $key) {
             if ($this->hasPermission($admin, $key)) {
                 return true;
             }

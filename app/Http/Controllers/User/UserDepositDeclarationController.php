@@ -10,6 +10,7 @@ use App\Services\Deposits\DepositDeclarationUserService;
 use App\Services\Loans\CustomerLoanPortalPresenter;
 use App\Support\ListPerPage;
 use App\Support\PaginationBar;
+use App\Support\PrivateStoragePaths;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Contracts\View\View;
@@ -167,18 +168,20 @@ final class UserDepositDeclarationController extends Controller
             abort(403);
         }
         $path = $deposit_declaration->attachment_path;
-        if ($path === null || $path === '' || ! Storage::disk('public')->exists($path)) {
+        $location = is_string($path) && $path !== '' ? PrivateStoragePaths::readableLocation($path) : null;
+        if ($location === null) {
             return response()->json(['message' => 'فایل پیوست یافت نشد.'], 404);
         }
 
+        $disk = Storage::disk($location['disk']);
         if ($request->query('download') === '1') {
-            return Storage::disk('public')->download($path);
+            return $disk->download($location['path']);
         }
 
-        $name = basename(str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $path)) ?: 'attachment';
-        $mime = (string) (Storage::disk('public')->mimeType($path) ?: 'application/octet-stream');
+        $name = basename(str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $location['path'])) ?: 'attachment';
+        $mime = (string) ($disk->mimeType($location['path']) ?: 'application/octet-stream');
 
-        return Storage::disk('public')->response($path, $name, [
+        return $disk->response($location['path'], $name, [
             'Content-Type' => $mime,
             'Content-Disposition' => 'inline; filename="'.$name.'"',
         ]);
@@ -204,7 +207,7 @@ final class UserDepositDeclarationController extends Controller
         $methodFa = CustomerDepositDeclaration::userPaymentMethodLabelsFa()[$d->user_payment_method] ?? $d->user_payment_method;
         $amountFa = Jalali::enToFaNumbers(number_format(max(0, (int) $d->amount_toman), 0, '.', ',')).' تومان';
         $path = $d->attachment_path;
-        $hasFile = $path !== null && $path !== '' && Storage::disk('public')->exists($path);
+        $hasFile = is_string($path) && $path !== '' && PrivateStoragePaths::readableLocation($path) !== null;
         $kind = 'none';
         if ($hasFile) {
             $ext = strtolower((string) pathinfo((string) $path, PATHINFO_EXTENSION));

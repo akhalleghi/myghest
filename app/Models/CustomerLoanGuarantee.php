@@ -6,7 +6,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
 
 final class CustomerLoanGuarantee extends Model
 {
@@ -65,6 +64,9 @@ final class CustomerLoanGuarantee extends Model
         'description',
         'meta',
         'attachment_path',
+        'return_document_path',
+        'returned_at',
+        'returned_by_admin_id',
         'created_by_admin_id',
     ];
 
@@ -77,6 +79,8 @@ final class CustomerLoanGuarantee extends Model
             'customer_id' => 'integer',
             'loan_file_id' => 'integer',
             'meta' => 'array',
+            'returned_at' => 'datetime',
+            'returned_by_admin_id' => 'integer',
             'created_by_admin_id' => 'integer',
         ];
     }
@@ -98,13 +102,26 @@ final class CustomerLoanGuarantee extends Model
 
     public function attachmentUrl(): ?string
     {
-        if (! is_string($this->attachment_path) || $this->attachment_path === '') {
-            return null;
+        // Guarantee attachments are private; use the admin download route.
+        return null;
+    }
+
+    public function returnDocumentUrl(): ?string
+    {
+        // Return documents are intentionally private; use the admin download route.
+        return null;
+    }
+
+    public function isMarkedReturned(): bool
+    {
+        $meta = is_array($this->meta) ? $this->meta : [];
+        if ($this->type === self::TYPE_CHEQUE) {
+            return ! empty($meta['cheque_returned']);
         }
-        if (! Storage::disk('public')->exists($this->attachment_path)) {
-            return null;
+        if (in_array($this->type, [self::TYPE_GOLD, self::TYPE_OTHER], true)) {
+            return ! empty($meta['returned']);
         }
 
-        return Storage::disk('public')->url($this->attachment_path);
+        return false;
     }
 }
