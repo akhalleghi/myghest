@@ -1206,7 +1206,7 @@ final class CustomerController extends Controller
 
         if ($loanFile->revoked_at !== null) {
             return response()->json([
-                'loan' => [
+                'loan' => array_merge([
                     'id' => (int) $loanFile->id,
                     'loan_code' => (string) $loanFile->loan_code,
                     'loan_type_title' => (string) ($loanFile->loanType?->title ?? '—'),
@@ -1223,7 +1223,7 @@ final class CustomerController extends Controller
                     'schedule_remaining_toman' => 0,
                     'is_revoked' => true,
                     'revoked_notice' => 'این قرارداد فسخ شده است؛ اقساطی برای نمایش وجود ندارد.',
-                ],
+                ], $this->loanInstallmentsModalSummary($loanFile, null)),
                 'installments' => [],
             ]);
         }
@@ -1247,7 +1247,7 @@ final class CustomerController extends Controller
         )->values();
 
         return response()->json([
-            'loan' => [
+            'loan' => array_merge([
                 'id' => (int) $loanFile->id,
                 'loan_code' => (string) $loanFile->loan_code,
                 'loan_type_title' => (string) ($loanFile->loanType?->title ?? '—'),
@@ -1262,7 +1262,7 @@ final class CustomerController extends Controller
                 'installments_count' => (int) $loanFile->installments_count,
                 'is_settled' => (bool) $loanFile->is_settled,
                 'schedule_remaining_toman' => (int) $snap['schedule_remaining_toman'],
-            ],
+            ], $this->loanInstallmentsModalSummary($loanFile, $snap)),
             'installments' => $rows,
         ]);
     }
@@ -3407,6 +3407,121 @@ final class CustomerController extends Controller
                 continue;
             }
             $sum += (int) round($unpaid * $dailyLateCoef * $days);
+        }
+
+        return max(0, $sum);
+    }
+
+    /**
+     * خلاصهٔ مالی پرونده برای بالای مدال «اقساط و پرداخت».
+     *
+     * @param  array{schedule_remaining_toman: int, total_paid_toman: int, paid_installments_count: int, paid_installments_slot_count: int, late_fee_so_far_toman: int}|null  $snap
+     * @return array{
+     *     paid_installments_count: int,
+     *     remaining_installments_count: int,
+     *     remaining_amount_toman: int,
+     *     paid_installments_amount_toman: int,
+     *     late_penalty_toman: int,
+     *     early_benefit_toman: int
+     * }
+     */
+    private function loanInstallmentsModalSummary(CustomerLoanFile $loanFile, ?array $snap): array
+    {
+        if ($snap === null) {
+            return [
+                'paid_installments_count' => 0,
+                'remaining_installments_count' => 0,
+                'remaining_amount_toman' => 0,
+                'paid_installments_amount_toman' => 0,
+                'late_penalty_toman' => 0,
+                'early_benefit_toman' => 0,
+            ];
+        }
+
+        $discount = (int) ($loanFile->discount_amount_toman ?? 0);
+        $remainingAmount = $loanFile->is_settled
+            ? 0
+            : max(0, (int) $snap['schedule_remaining_toman'] - $discount);
+        $unpaidCount = (int) $loanFile->installments->filter(static function (CustomerLoanInstallment $i): bool {
+            return (int) $i->paid_amount_toman < (int) $i->amount_toman;
+        })->count();
+        $lateCoef = (float) ($loanFile->loanType?->daily_late_coefficient ?? 0);
+        $earlyCoef = (float) ($loanFile->loanType?->daily_early_coefficient ?? 0);
+
+        return [
+            'paid_installments_count' => (int) $snap['paid_installments_count'],
+            'remaining_installments_count' => $unpaidCount,
+            'remaining_amount_toman' => $remainingAmount,
+            'paid_installments_amount_toman' => (int) $snap['total_paid_toman'],
+            'late_penalty_toman' => $this->aggregateLatePenaltyToman($loanFile->installments, $lateCoef, $remainingAmount),
+            'early_benefit_toman' => $this->aggregateEarlyBenefitToman($loanFile->installments, $earlyCoef),
+        ];
+    }
+
+    /**
+     * @param  Collection<int, CustomerLoanInstallment>  $installments
+     */
+    private function aggregateLatePenaltyToman(Collection $installments, float $lateCoef, int $remainingAfterDiscount): int
+    {
+        if ($lateCoef <= 0) {
+            return 0;
+        }
+
+        $finance = app(LoanFileFinanceCalculator::class);
+        $now = Carbon::now()->startOfDay();
+        $sum = 0;
+
+        foreach ($installments as $inst) {
+            $amount = (int) $inst->amount_toman;
+            $paid = (int) $inst->paid_amount_toman;
+            if ($amount <= 0) {
+                continue;
+            }
+
+            $due = Carbon::parse($inst->due_date)->startOfDay();
+            $paidAt = $inst->paid_at !== null ? Carbon::parse($inst->paid_at)->startOfDay() : null;
+            $slotFullyPaid = $paid >= $amount;
+
+            if ($slotFullyPaid && $paidAt !== null && $paidAt->gt($due)) {
+                $sum += $finance->estimatePenaltyAtDateToman($inst, $lateCoef, $paidAt);
+            } elseif (! $slotFullyPaid && $due->lt($now) && $remainingAfterDiscount > 0) {
+                $sum += $finance->estimateBookletPenaltyTomanForInstallment($inst, $lateCoef);
+            }
+        }
+
+        return max(0, $sum);
+    }
+
+    /**
+     * @param  Collection<int, CustomerLoanInstallment>  $installments
+     */
+    private function aggregateEarlyBenefitToman(Collection $installments, float $earlyCoef): int
+    {
+        if ($earlyCoef <= 0) {
+            return 0;
+        }
+
+        $sum = 0;
+
+        foreach ($installments as $inst) {
+            $amount = (int) $inst->amount_toman;
+            $paid = (int) $inst->paid_amount_toman;
+            if ($amount <= 0 || $paid < $amount || $inst->paid_at === null) {
+                continue;
+            }
+
+            $due = Carbon::parse($inst->due_date)->startOfDay();
+            $paidAt = Carbon::parse($inst->paid_at)->startOfDay();
+            if ($paidAt->gte($due)) {
+                continue;
+            }
+
+            $days = (int) $paidAt->diffInDays($due);
+            if ($days < 1) {
+                continue;
+            }
+
+            $sum += (int) round($amount * $earlyCoef * $days);
         }
 
         return max(0, $sum);

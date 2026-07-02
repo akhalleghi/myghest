@@ -17,6 +17,9 @@
     @include('layouts.partials.admin-ui-font-assets')
     @include('layouts.partials.admin-ui-font-style')
     @include('layouts.partials.fontawesome-local')
+    @php
+        $alt = $adminLayoutTheme ?? \App\Support\AdminLayoutThemeSettings::resolved();
+    @endphp
     <style>
         :root {
             --bg-page: #eef4fc;
@@ -29,15 +32,22 @@
             --primary-soft: #eff6ff;
             --sidebar-w: 258px;
             --mobile-topbar-h: 3.45rem;
-            --sidebar-bg: linear-gradient(180deg, #ffffff 0%, #f4f8ff 100%);
-            --sidebar-title: #0b1220;
-            --nav-color: #334155;
+            --admin-sidebar-bg: linear-gradient(180deg, {{ $alt['sidebar_from'] }} 0%, {{ $alt['sidebar_to'] }} 100%);
+            --admin-sidebar-text: {{ $alt['sidebar_text'] }};
+            --admin-sidebar-nav: {{ $alt['sidebar_nav'] }};
+            --admin-sidebar-accent: {{ $alt['sidebar_accent'] }};
+            --admin-content-from: {{ $alt['content_from'] }};
+            --admin-content-to: {{ $alt['content_to'] }};
+            --admin-content-border: {{ $alt['content_border'] }};
+            --sidebar-bg: var(--admin-sidebar-bg);
+            --sidebar-title: var(--admin-sidebar-text);
+            --nav-color: var(--admin-sidebar-nav);
             --topbar-bg: #fff;
             --topbar-date: #1e293b;
             --icon-btn-bg: #f8fafc;
             --icon-btn-color: #475569;
             --icon-btn-border: rgba(148, 163, 184, 0.45);
-            --sidebar-foot-bg: #fff;
+            --sidebar-foot-bg: color-mix(in srgb, var(--admin-sidebar-nav) 18%, transparent);
         }
 
         html[data-theme="dark"] {
@@ -49,15 +59,22 @@
             --primary: #3b82f6;
             --primary-dark: #60a5fa;
             --primary-soft: rgba(37, 99, 235, 0.18);
-            --sidebar-bg: linear-gradient(180deg, #111827 0%, #0f172a 100%);
-            --sidebar-title: #f1f5f9;
-            --nav-color: #cbd5e1;
+            --admin-sidebar-bg: linear-gradient(180deg, {{ $alt['sidebar_from_dark'] }} 0%, {{ $alt['sidebar_to_dark'] }} 100%);
+            --admin-sidebar-text: {{ $alt['sidebar_text_dark'] }};
+            --admin-sidebar-nav: {{ $alt['sidebar_nav_dark'] }};
+            --admin-sidebar-accent: {{ $alt['sidebar_accent_dark'] }};
+            --admin-content-from: {{ $alt['content_from_dark'] }};
+            --admin-content-to: {{ $alt['content_to_dark'] }};
+            --admin-content-border: {{ $alt['content_border_dark'] }};
+            --sidebar-bg: var(--admin-sidebar-bg);
+            --sidebar-title: var(--admin-sidebar-text);
+            --nav-color: var(--admin-sidebar-nav);
             --topbar-bg: #111827;
             --topbar-date: #e2e8f0;
             --icon-btn-bg: #1e293b;
             --icon-btn-color: #cbd5e1;
             --icon-btn-border: rgba(148, 163, 184, 0.28);
-            --sidebar-foot-bg: #1e293b;
+            --sidebar-foot-bg: color-mix(in srgb, var(--admin-sidebar-nav) 22%, transparent);
         }
 
         * { box-sizing: border-box; }
@@ -95,7 +112,7 @@
 
         .admin-sidebar {
             background: var(--sidebar-bg);
-            border-inline-start: 1px solid var(--border);
+            border-inline-start: 1px solid color-mix(in srgb, var(--admin-sidebar-nav) 28%, transparent);
             display: flex;
             flex-direction: column;
             position: sticky;
@@ -104,6 +121,49 @@
             min-height: 100vh;
             z-index: 20;
             grid-column: 1;
+            --muted: color-mix(in srgb, var(--admin-sidebar-nav) 72%, transparent);
+            --border: color-mix(in srgb, var(--admin-sidebar-nav) 24%, transparent);
+            --primary-soft: color-mix(in srgb, var(--admin-sidebar-accent) 24%, transparent);
+            --primary-dark: var(--admin-sidebar-accent);
+            --topbar-date: var(--admin-sidebar-text);
+        }
+
+        .admin-sidebar .sidebar-logo {
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+        }
+
+        .admin-sidebar .nav-link.is-active {
+            background: linear-gradient(90deg, color-mix(in srgb, var(--admin-sidebar-accent) 30%, transparent), color-mix(in srgb, var(--admin-sidebar-accent) 8%, transparent));
+            color: var(--admin-sidebar-text);
+            border-inline-end: 3px solid var(--admin-sidebar-accent);
+        }
+
+        .admin-sidebar .sidebar-foot button {
+            color: color-mix(in srgb, var(--admin-sidebar-text) 88%, var(--admin-sidebar-accent));
+            border-color: color-mix(in srgb, var(--admin-sidebar-nav) 34%, transparent);
+        }
+
+        .admin-sidebar .sidebar-foot button:hover:not(:disabled) {
+            background: color-mix(in srgb, var(--admin-sidebar-accent) 22%, transparent);
+            border-color: color-mix(in srgb, var(--admin-sidebar-accent) 48%, transparent);
+        }
+
+        .admin-column .card,
+        .admin-column .qk,
+        .admin-column .chart-card {
+            background: linear-gradient(158deg, var(--admin-content-from) 0%, var(--admin-content-to) 100%);
+            border-color: color-mix(in srgb, var(--admin-content-border) 22%, transparent);
+            box-shadow: 0 10px 26px color-mix(in srgb, var(--admin-content-border) 10%, transparent);
+        }
+
+        .admin-column .card-h {
+            background: linear-gradient(90deg, color-mix(in srgb, var(--admin-content-border) 9%, transparent), transparent);
+            border-bottom-color: color-mix(in srgb, var(--admin-content-border) 18%, transparent);
+        }
+
+        .admin-column .qk--clickable:hover {
+            border-color: color-mix(in srgb, var(--admin-content-border) 42%, transparent);
+            box-shadow: 0 12px 26px color-mix(in srgb, var(--admin-content-border) 16%, transparent);
         }
 
         .admin-column {
@@ -140,6 +200,103 @@
             border-radius: inherit;
             object-fit: cover;
             display: block;
+        }
+
+        .sidebar-system-logo {
+            flex-shrink: 0;
+            width: 2.75rem;
+            height: 2.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.55rem;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 0.2rem;
+        }
+
+        .sidebar-system-logo img {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            display: block;
+        }
+
+        html[data-theme="light"] .admin-sidebar .sidebar-system-logo {
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.22);
+        }
+
+        .mobile-app-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        .mobile-app-brand__logo {
+            width: 1.85rem;
+            height: 1.85rem;
+            object-fit: contain;
+            flex-shrink: 0;
+            display: block;
+        }
+
+        .mobile-app-brand__logo--icon {
+            border-radius: 0.45rem;
+            object-fit: cover;
+        }
+
+        .mobile-app-brand .mobile-app-title {
+            flex: 1 1 0;
+        }
+
+        .app-logo-preview-row {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            padding: 0.75rem 0.85rem;
+            border: 1px dashed var(--border);
+            border-radius: 0.7rem;
+            background: color-mix(in oklab, var(--bg-card) 92%, var(--primary-soft));
+            margin-bottom: 0.75rem;
+        }
+
+        .app-logo-preview-row__mark {
+            flex-shrink: 0;
+        }
+
+        .app-logo-preview-row__title {
+            font-weight: 800;
+            font-size: 0.95rem;
+            color: var(--text);
+        }
+
+        .app-logo-preview-box {
+            width: 2.75rem;
+            height: 2.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.55rem;
+            background: #fff;
+            box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.28);
+            padding: 0.2rem;
+            overflow: hidden;
+        }
+
+        .app-logo-preview-box img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        .app-logo-preview-box i {
+            font-size: 1.05rem;
+            color: #2563eb;
         }
 
         .sidebar-title {
@@ -1347,6 +1504,35 @@
             color: var(--muted);
         }
 
+        .app-layout-theme-grid {
+            display: grid;
+            gap: 0.75rem;
+        }
+
+        .app-layout-theme-group {
+            border: 1px dashed var(--border);
+            border-radius: 0.65rem;
+            padding: 0.65rem 0.75rem;
+            background: color-mix(in oklab, var(--bg-card) 92%, var(--primary-soft));
+        }
+
+        .app-layout-theme-group__title {
+            margin: 0 0 0.55rem;
+            font-size: 0.78rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .app-settings-field input[type="color"] {
+            width: 100%;
+            min-height: 2.25rem;
+            padding: 0.15rem;
+            border: 1px solid var(--border);
+            border-radius: 0.55rem;
+            background: var(--bg-card);
+            cursor: pointer;
+        }
+
         .app-settings-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -2200,13 +2386,7 @@
     <div class="admin-layout">
         <aside id="admin-drawer" class="admin-sidebar" aria-label="منوی کناری پنل">
             <div class="sidebar-brand only-desktop">
-                <div class="sidebar-logo" aria-hidden="true">
-                    @if(!empty($appIconUrl))
-                        <img src="{{ $appIconUrl }}" alt="app icon">
-                    @else
-                        <i class="{{ $appIconFaClass }}"></i>
-                    @endif
-                </div>
+                @include('layouts.partials.app-sidebar-brand-mark')
                 <div class="sidebar-title">{{ $appDisplayName }}</div>
             </div>
             <nav class="sidebar-nav">
@@ -2267,7 +2447,14 @@
                     <i class="fa-solid fa-bars mobile-nav-toggle__ico mobile-nav-toggle__ico--bars" aria-hidden="true"></i>
                     <i class="fa-solid fa-xmark mobile-nav-toggle__ico mobile-nav-toggle__ico--close" aria-hidden="true"></i>
                 </button>
-                <h1 class="mobile-app-title">{{ $appDisplayName }}</h1>
+                <div class="mobile-app-brand">
+                    @if(!empty($appLogoUrl))
+                        <img src="{{ $appLogoUrl }}" alt="" class="mobile-app-brand__logo" loading="lazy" decoding="async">
+                    @elseif(!empty($appIconUrl))
+                        <img src="{{ $appIconUrl }}" alt="" class="mobile-app-brand__logo mobile-app-brand__logo--icon" loading="lazy" decoding="async">
+                    @endif
+                    <h1 class="mobile-app-title">{{ $appDisplayName }}</h1>
+                </div>
                 <div class="mobile-topbar__actions">
                     @if(auth()->guard('admin')->check())
                         <span class="admin-notif-wrap">
@@ -2522,6 +2709,7 @@
                         <form method="post" action="{{ route('admin.app-settings.ui.update') }}" enctype="multipart/form-data">
                             @csrf
                             <input type="hidden" name="remove_app_icon" value="0">
+                            <input type="hidden" name="remove_app_logo" value="0">
                             <input type="hidden" name="remove_favicon" value="0">
                             <div class="app-settings-card">
                                 <h4>تنظیمات نمای رابط</h4>
@@ -2561,6 +2749,137 @@
                                         </select>
                                     </div>
                                 </div>
+                            </div>
+                            <div class="app-settings-card">
+                                <h4>لوگوی سامانه</h4>
+                                <p class="app-settings-card-desc">لوگو در بالای منوی کناری (کنار نام سامانه) در پنل ادمین و پنل کاربران نمایش داده می‌شود. در صورت آپلود نشدن لوگو، از آیکون برنامه یا Font Awesome استفاده می‌شود.</p>
+                                <div class="app-logo-preview-row" aria-hidden="true">
+                                    <div class="app-logo-preview-row__mark">
+                                        <div id="app-logo-preview-box" class="app-logo-preview-box">
+                                            @if(!empty($appLogoUrl))
+                                                <img src="{{ $appLogoUrl }}" alt="">
+                                            @elseif(!empty($appIconUrl))
+                                                <img src="{{ $appIconUrl }}" alt="">
+                                            @else
+                                                <i class="{{ $appIconFaClass }}"></i>
+                                            @endif
+                                        </div>
+                                    </div>
+                                    <div class="app-logo-preview-row__title">{{ $appDisplayName }}</div>
+                                </div>
+                                <div class="app-settings-field">
+                                    <label for="app-logo-upload">بارگذاری لوگو</label>
+                                    <input id="app-logo-upload" type="file" name="app_logo" accept=".png,.webp,.jpg,.jpeg,.svg,image/png,image/webp,image/jpeg,image/svg+xml">
+                                    <p class="app-field-help">فرمت پیشنهادی: PNG یا SVG با پس‌زمینه شفاف (حداکثر ۲ مگابایت)</p>
+                                    @error('app_logo')
+                                        <div class="app-settings-error">{{ $message }}</div>
+                                    @enderror
+                                    @if(!empty($appLogoUrl))
+                                        <label class="app-checkbox-inline">
+                                            <input type="checkbox" name="remove_app_logo" value="1">
+                                            حذف لوگوی فعلی
+                                        </label>
+                                    @endif
+                                </div>
+                            </div>
+                            @php
+                                $layoutTheme = $adminLayoutTheme ?? \App\Support\AdminLayoutThemeSettings::resolved();
+                                $layoutThemeDefaults = \App\Support\AdminLayoutThemeSettings::defaults();
+                            @endphp
+                            <div class="app-settings-card">
+                                <h4>رنگ‌بندی چیدمان پنل</h4>
+                                <p class="app-settings-card-desc">رنگ منوی کناری (سمت راست) و باکس‌های محتوا (سمت چپ) در تمام صفحات پنل ادمین از اینجا تنظیم می‌شود.</p>
+                                <div class="app-layout-theme-grid">
+                                    <div class="app-layout-theme-group">
+                                        <h5 class="app-layout-theme-group__title">منوی کناری — تم روشن</h5>
+                                        <div class="app-settings-row">
+                                            <div class="app-settings-field">
+                                                <label for="alt-sidebar-from">پس‌زمینه (شروع)</label>
+                                                <input id="alt-sidebar-from" type="color" name="admin_layout_theme[sidebar_from]" value="{{ old('admin_layout_theme.sidebar_from', $layoutTheme['sidebar_from']) }}" data-theme-default="{{ $layoutThemeDefaults['sidebar_from'] }}">
+                                            </div>
+                                            <div class="app-settings-field">
+                                                <label for="alt-sidebar-to">پس‌زمینه (پایان)</label>
+                                                <input id="alt-sidebar-to" type="color" name="admin_layout_theme[sidebar_to]" value="{{ old('admin_layout_theme.sidebar_to', $layoutTheme['sidebar_to']) }}" data-theme-default="{{ $layoutThemeDefaults['sidebar_to'] }}">
+                                            </div>
+                                        </div>
+                                        <div class="app-settings-row">
+                                            <div class="app-settings-field">
+                                                <label for="alt-sidebar-text">رنگ عنوان و متن</label>
+                                                <input id="alt-sidebar-text" type="color" name="admin_layout_theme[sidebar_text]" value="{{ old('admin_layout_theme.sidebar_text', $layoutTheme['sidebar_text']) }}" data-theme-default="{{ $layoutThemeDefaults['sidebar_text'] }}">
+                                            </div>
+                                            <div class="app-settings-field">
+                                                <label for="alt-sidebar-nav">رنگ آیتم‌های منو</label>
+                                                <input id="alt-sidebar-nav" type="color" name="admin_layout_theme[sidebar_nav]" value="{{ old('admin_layout_theme.sidebar_nav', $layoutTheme['sidebar_nav']) }}" data-theme-default="{{ $layoutThemeDefaults['sidebar_nav'] }}">
+                                            </div>
+                                            <div class="app-settings-field">
+                                                <label for="alt-sidebar-accent">رنگ تأکید (فعال)</label>
+                                                <input id="alt-sidebar-accent" type="color" name="admin_layout_theme[sidebar_accent]" value="{{ old('admin_layout_theme.sidebar_accent', $layoutTheme['sidebar_accent']) }}" data-theme-default="{{ $layoutThemeDefaults['sidebar_accent'] }}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="app-layout-theme-group">
+                                        <h5 class="app-layout-theme-group__title">باکس‌های محتوا — تم روشن</h5>
+                                        <div class="app-settings-row">
+                                            <div class="app-settings-field">
+                                                <label for="alt-content-from">پس‌زمینه (شروع)</label>
+                                                <input id="alt-content-from" type="color" name="admin_layout_theme[content_from]" value="{{ old('admin_layout_theme.content_from', $layoutTheme['content_from']) }}" data-theme-default="{{ $layoutThemeDefaults['content_from'] }}">
+                                            </div>
+                                            <div class="app-settings-field">
+                                                <label for="alt-content-to">پس‌زمینه (پایان)</label>
+                                                <input id="alt-content-to" type="color" name="admin_layout_theme[content_to]" value="{{ old('admin_layout_theme.content_to', $layoutTheme['content_to']) }}" data-theme-default="{{ $layoutThemeDefaults['content_to'] }}">
+                                            </div>
+                                            <div class="app-settings-field">
+                                                <label for="alt-content-border">رنگ حاشیه</label>
+                                                <input id="alt-content-border" type="color" name="admin_layout_theme[content_border]" value="{{ old('admin_layout_theme.content_border', $layoutTheme['content_border']) }}" data-theme-default="{{ $layoutThemeDefaults['content_border'] }}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="app-layout-theme-group">
+                                        <h5 class="app-layout-theme-group__title">منوی کناری — تم تاریک</h5>
+                                        <div class="app-settings-row">
+                                            <div class="app-settings-field">
+                                                <label for="alt-sidebar-from-dark">پس‌زمینه (شروع)</label>
+                                                <input id="alt-sidebar-from-dark" type="color" name="admin_layout_theme[sidebar_from_dark]" value="{{ old('admin_layout_theme.sidebar_from_dark', $layoutTheme['sidebar_from_dark']) }}" data-theme-default="{{ $layoutThemeDefaults['sidebar_from_dark'] }}">
+                                            </div>
+                                            <div class="app-settings-field">
+                                                <label for="alt-sidebar-to-dark">پس‌زمینه (پایان)</label>
+                                                <input id="alt-sidebar-to-dark" type="color" name="admin_layout_theme[sidebar_to_dark]" value="{{ old('admin_layout_theme.sidebar_to_dark', $layoutTheme['sidebar_to_dark']) }}" data-theme-default="{{ $layoutThemeDefaults['sidebar_to_dark'] }}">
+                                            </div>
+                                        </div>
+                                        <div class="app-settings-row">
+                                            <div class="app-settings-field">
+                                                <label for="alt-sidebar-text-dark">رنگ عنوان و متن</label>
+                                                <input id="alt-sidebar-text-dark" type="color" name="admin_layout_theme[sidebar_text_dark]" value="{{ old('admin_layout_theme.sidebar_text_dark', $layoutTheme['sidebar_text_dark']) }}" data-theme-default="{{ $layoutThemeDefaults['sidebar_text_dark'] }}">
+                                            </div>
+                                            <div class="app-settings-field">
+                                                <label for="alt-sidebar-nav-dark">رنگ آیتم‌های منو</label>
+                                                <input id="alt-sidebar-nav-dark" type="color" name="admin_layout_theme[sidebar_nav_dark]" value="{{ old('admin_layout_theme.sidebar_nav_dark', $layoutTheme['sidebar_nav_dark']) }}" data-theme-default="{{ $layoutThemeDefaults['sidebar_nav_dark'] }}">
+                                            </div>
+                                            <div class="app-settings-field">
+                                                <label for="alt-sidebar-accent-dark">رنگ تأکید (فعال)</label>
+                                                <input id="alt-sidebar-accent-dark" type="color" name="admin_layout_theme[sidebar_accent_dark]" value="{{ old('admin_layout_theme.sidebar_accent_dark', $layoutTheme['sidebar_accent_dark']) }}" data-theme-default="{{ $layoutThemeDefaults['sidebar_accent_dark'] }}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="app-layout-theme-group">
+                                        <h5 class="app-layout-theme-group__title">باکس‌های محتوا — تم تاریک</h5>
+                                        <div class="app-settings-row">
+                                            <div class="app-settings-field">
+                                                <label for="alt-content-from-dark">پس‌زمینه (شروع)</label>
+                                                <input id="alt-content-from-dark" type="color" name="admin_layout_theme[content_from_dark]" value="{{ old('admin_layout_theme.content_from_dark', $layoutTheme['content_from_dark']) }}" data-theme-default="{{ $layoutThemeDefaults['content_from_dark'] }}">
+                                            </div>
+                                            <div class="app-settings-field">
+                                                <label for="alt-content-to-dark">پس‌زمینه (پایان)</label>
+                                                <input id="alt-content-to-dark" type="color" name="admin_layout_theme[content_to_dark]" value="{{ old('admin_layout_theme.content_to_dark', $layoutTheme['content_to_dark']) }}" data-theme-default="{{ $layoutThemeDefaults['content_to_dark'] }}">
+                                            </div>
+                                            <div class="app-settings-field">
+                                                <label for="alt-content-border-dark">رنگ حاشیه</label>
+                                                <input id="alt-content-border-dark" type="color" name="admin_layout_theme[content_border_dark]" value="{{ old('admin_layout_theme.content_border_dark', $layoutTheme['content_border_dark']) }}" data-theme-default="{{ $layoutThemeDefaults['content_border_dark'] }}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="app-field-help" style="margin-top:0.55rem;">پس از ذخیره، رنگ‌ها در تمام صفحات پنل ادمین اعمال می‌شوند.</p>
                             </div>
                             <div class="app-settings-card">
                                 <h4>هویت بصری برنامه</h4>
@@ -2687,7 +3006,9 @@
                                 </div>
                             </div>
                             <div class="app-settings-actions">
-                                <button type="button" id="app-ui-font-reset" class="app-settings-btn">بازنشانی</button>
+                                <button type="button" id="app-ui-font-reset" class="app-settings-btn">بازنشانی فونت</button>
+                                <button type="button" id="app-ui-theme-reset" class="app-settings-btn">بازنشانی رنگ‌ها</button>
+                                <button type="submit" name="reset_admin_layout_theme" value="1" class="app-settings-btn" formnovalidate>بازگشت به حالت اولیه</button>
                                 <button type="submit" class="app-settings-btn app-settings-btn--primary">ذخیره تغییرات</button>
                             </div>
                         </form>
@@ -3142,12 +3463,15 @@
                 });
 
                 var fontResetBtn = document.getElementById('app-ui-font-reset');
+                var themeResetBtn = document.getElementById('app-ui-theme-reset');
                 var fontSelect = document.getElementById('app-font-size');
                 var uiFontSelect = document.getElementById('app-ui-font');
                 var appIconFaInput = document.getElementById('app-icon-fa');
                 var appFaPreview = document.getElementById('app-fa-preview');
                 var appImagePreview = document.getElementById('app-image-preview');
                 var appIconUpload = document.getElementById('app-icon-upload');
+                var appLogoUpload = document.getElementById('app-logo-upload');
+                var appLogoPreviewBox = document.getElementById('app-logo-preview-box');
                 var faviconUpload = document.getElementById('app-favicon-upload');
                 var faviconPreview = document.getElementById('favicon-preview');
                 var faviconFaInput = document.getElementById('favicon-fa');
@@ -3209,12 +3533,24 @@
                     });
                 }
 
+                if (themeResetBtn) {
+                    themeResetBtn.addEventListener('click', function () {
+                        document.querySelectorAll('input[type="color"][data-theme-default]').forEach(function (input) {
+                            var def = input.getAttribute('data-theme-default');
+                            if (def) {
+                                input.value = def;
+                            }
+                        });
+                    });
+                }
+
                 if (appIconFaInput) {
                     appIconFaInput.addEventListener('input', renderFaPreview);
                     appIconFaInput.addEventListener('change', renderFaPreview);
                 }
                 renderFaPreview();
                 bindImagePreview(appIconUpload, appImagePreview);
+                bindImagePreview(appLogoUpload, appLogoPreviewBox);
                 bindImagePreview(faviconUpload, faviconPreview);
                 if (faviconFaInput) {
                     faviconFaInput.addEventListener('input', renderFaviconFaPreview);
@@ -3222,7 +3558,7 @@
                 }
                 renderFaviconFaPreview();
 
-                @if($errors->has('font_size') || $errors->has('ui_font') || $errors->has('app_icon') || $errors->has('favicon') || $errors->has('app_icon_fa') || $errors->has('favicon_fa'))
+                @if($errors->has('font_size') || $errors->has('ui_font') || $errors->has('app_icon') || $errors->has('app_logo') || $errors->has('favicon') || $errors->has('app_icon_fa') || $errors->has('favicon_fa'))
                 activateSettingsTab('ui');
                 openSettings();
                 @elseif($errors->has('display_name'))
@@ -3233,6 +3569,9 @@
                 openSettings();
                 @elseif(session('open_app_settings_tab') === 'financial')
                 activateSettingsTab('financial');
+                openSettings();
+                @elseif(session('open_app_settings_tab') === 'ui')
+                activateSettingsTab('ui');
                 openSettings();
                 @elseif(
                     $errors->has('customer_login_two_factor_enabled')

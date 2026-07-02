@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Admin;
 use App\Models\AppSetting;
+use App\Support\AdminLayoutThemeSettings;
 use App\Services\Admin\AdminPermissionService;
 use App\Models\Customer;
 use App\Models\CustomerDepositDeclaration;
@@ -88,6 +89,9 @@ class AppServiceProvider extends ServiceProvider
             $appIconPath = AppSetting::query()
                 ->where('key', 'app_icon_path')
                 ->value('value');
+            $appLogoPath = AppSetting::query()
+                ->where('key', 'app_logo_path')
+                ->value('value');
             $faviconPath = AppSetting::query()
                 ->where('key', 'favicon_path')
                 ->value('value');
@@ -126,6 +130,7 @@ class AppServiceProvider extends ServiceProvider
             $view->with('appFontSize', is_string($fontSize) && in_array($fontSize, ['small', 'normal', 'large', 'xlarge'], true) ? $fontSize : 'normal');
             $view->with('appUiFont', is_string($uiFont) && in_array($uiFont, ['iransans', 'iranyekan', 'anjoman', 'estedad'], true) ? $uiFont : 'iransans');
             $view->with('appIconUrl', is_string($appIconPath) && $appIconPath !== '' ? asset($appIconPath) : null);
+            $view->with('appLogoUrl', is_string($appLogoPath) && $appLogoPath !== '' ? asset($appLogoPath) : null);
             $view->with('faviconUrl', is_string($faviconPath) && $faviconPath !== '' ? asset($faviconPath) : null);
             $view->with('appIconFaClass', is_string($appIconFa) && preg_match('/^fa-(solid|regular|brands)\s+fa-[a-z0-9-]+$/', $appIconFa) ? $appIconFa : 'fa-solid fa-layer-group');
             $resolvedFaviconFaClass = is_string($faviconFa) && preg_match('/^fa-(solid|regular|brands)\s+fa-[a-z0-9-]+$/', $faviconFa)
@@ -143,6 +148,7 @@ class AppServiceProvider extends ServiceProvider
                 'bankingInfoShowInUserPanel',
                 is_string($bankingShowInUserPanel) && $bankingShowInUserPanel === '1'
             );
+            $view->with('adminLayoutTheme', AdminLayoutThemeSettings::resolved());
 
             $loginPageBackgroundUrl = null;
             if (request()->routeIs('admin.login', 'admin.login.attempt')) {

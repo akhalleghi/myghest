@@ -110,6 +110,49 @@
             font-size: 1.05rem;
         }
         .sidebar-logo img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; display: block; }
+        .sidebar-system-logo {
+            flex-shrink: 0;
+            width: 2.75rem;
+            height: 2.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.55rem;
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.22);
+            padding: 0.2rem;
+        }
+        .sidebar-system-logo img {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            display: block;
+        }
+        html[data-theme="dark"] .sidebar-system-logo {
+            background: rgba(15, 23, 42, 0.55);
+            box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.18);
+        }
+        .mobile-app-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            flex: 1 1 0;
+            min-width: 0;
+        }
+        .mobile-app-brand__logo {
+            width: 1.85rem;
+            height: 1.85rem;
+            object-fit: contain;
+            flex-shrink: 0;
+            display: block;
+        }
+        .mobile-app-brand__logo--icon {
+            border-radius: 0.45rem;
+            object-fit: cover;
+        }
+        .mobile-app-brand .mobile-app-title { flex: 1 1 0; }
         .sidebar-title { font-weight: 800; font-size: 1.02rem; color: var(--sidebar-title); letter-spacing: -0.02em; }
         .sidebar-nav { flex: 1; overflow-y: auto; padding: 0.65rem 0.5rem 1rem; -webkit-overflow-scrolling: touch; }
         .nav-section-label {
@@ -2254,13 +2297,7 @@
     <div class="up-layout">
         <aside id="up-drawer" class="up-sidebar" aria-label="منوی پنل کاربری">
             <div class="sidebar-brand only-desktop">
-                <div class="sidebar-logo" aria-hidden="true">
-                    @if(!empty($appIconUrl))
-                        <img src="{{ $appIconUrl }}" alt="">
-                    @else
-                        <i class="{{ $appIconFaClass }}"></i>
-                    @endif
-                </div>
+                @include('layouts.partials.app-sidebar-brand-mark')
                 <div class="sidebar-title">{{ $appDisplayName }}</div>
             </div>
 
@@ -2323,7 +2360,14 @@
                     <i class="fa-solid fa-bars mobile-nav-toggle__ico mobile-nav-toggle__ico--bars" aria-hidden="true"></i>
                     <i class="fa-solid fa-xmark mobile-nav-toggle__ico mobile-nav-toggle__ico--close" aria-hidden="true"></i>
                 </button>
-                <h1 class="mobile-app-title">{{ $appDisplayName }}</h1>
+                <div class="mobile-app-brand">
+                    @if(!empty($appLogoUrl))
+                        <img src="{{ $appLogoUrl }}" alt="" class="mobile-app-brand__logo" loading="lazy" decoding="async">
+                    @elseif(!empty($appIconUrl))
+                        <img src="{{ $appIconUrl }}" alt="" class="mobile-app-brand__logo mobile-app-brand__logo--icon" loading="lazy" decoding="async">
+                    @endif
+                    <h1 class="mobile-app-title">{{ $appDisplayName }}</h1>
+                </div>
                 <div class="mobile-topbar__actions">
                     @if(auth()->guard('customer')->check())
                         <span class="up-notif-wrap">

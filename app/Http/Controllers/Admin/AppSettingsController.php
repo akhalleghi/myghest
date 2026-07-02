@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
+use App\Support\AdminLayoutThemeSettings;
 use App\Support\BankingHtmlSanitizer;
 use App\Models\LoginAccessBlock;
 use App\Services\Auth\LoginAccessBlockService;
@@ -42,14 +43,24 @@ final class AppSettingsController extends Controller
 
     public function updateUi(Request $request): RedirectResponse
     {
+        if ($request->boolean('reset_admin_layout_theme')) {
+            AdminLayoutThemeSettings::persist(AdminLayoutThemeSettings::defaults());
+
+            return back()
+                ->with('flash_success', 'رنگ‌های چیدمان به حالت اولیه بازگردانده شد.')
+                ->with('open_app_settings_tab', 'ui');
+        }
+
         $validated = $request->validate([
             'font_size' => ['required', 'in:small,normal,large,xlarge'],
             'ui_font' => ['required', 'in:iransans,iranyekan,anjoman,estedad'],
             'app_icon_fa' => ['nullable', 'string', 'max:80', 'regex:/^fa-(solid|regular|brands)\s+fa-[a-z0-9-]+$/'],
             'favicon_fa' => ['nullable', 'string', 'max:80', 'regex:/^fa-(solid|regular|brands)\s+fa-[a-z0-9-]+$/'],
             'app_icon' => ['nullable', 'file', 'mimes:png,webp,jpg,jpeg,svg', 'max:2048'],
+            'app_logo' => ['nullable', 'file', 'mimes:png,webp,jpg,jpeg,svg', 'max:2048'],
             'favicon' => ['nullable', 'file', 'mimes:png,webp,jpg,jpeg,svg,ico', 'max:1024'],
             'remove_app_icon' => ['nullable', 'boolean'],
+            'remove_app_logo' => ['nullable', 'boolean'],
             'remove_favicon' => ['nullable', 'boolean'],
         ], [], [
             'font_size' => 'اندازه فونت',
@@ -57,8 +68,10 @@ final class AppSettingsController extends Controller
             'app_icon_fa' => 'آیکون Font Awesome',
             'favicon_fa' => 'فاوآیکون Font Awesome',
             'app_icon' => 'آیکون برنامه',
+            'app_logo' => 'لوگوی سامانه',
             'favicon' => 'فاوآیکون',
             'remove_app_icon' => 'حذف آیکون برنامه',
+            'remove_app_logo' => 'حذف لوگوی سامانه',
             'remove_favicon' => 'حذف فاوآیکون',
         ]);
 
@@ -95,6 +108,21 @@ final class AppSettingsController extends Controller
             AppSetting::query()->updateOrCreate(['key' => 'app_icon_path'], ['value' => $path]);
         }
 
+        if ($request->boolean('remove_app_logo')) {
+            $old = AppSetting::query()->where('key', 'app_logo_path')->value('value');
+            if (is_string($old) && $old !== '') {
+                $this->deletePublicAsset($old);
+            }
+            AppSetting::query()->updateOrCreate(['key' => 'app_logo_path'], ['value' => '']);
+        } elseif ($request->file('app_logo') instanceof UploadedFile) {
+            $old = AppSetting::query()->where('key', 'app_logo_path')->value('value');
+            $path = $this->storePublicAsset($request->file('app_logo'), 'app-logo');
+            if (is_string($old) && $old !== '' && $old !== $path) {
+                $this->deletePublicAsset($old);
+            }
+            AppSetting::query()->updateOrCreate(['key' => 'app_logo_path'], ['value' => $path]);
+        }
+
         if ($request->boolean('remove_favicon')) {
             $old = AppSetting::query()->where('key', 'favicon_path')->value('value');
             if (is_string($old) && $old !== '') {
@@ -110,7 +138,14 @@ final class AppSettingsController extends Controller
             AppSetting::query()->updateOrCreate(['key' => 'favicon_path'], ['value' => $path]);
         }
 
-        return back()->with('flash_success', 'تنظیمات ظاهر با موفقیت ذخیره شد.');
+        $themeInput = $request->input('admin_layout_theme');
+        if (is_array($themeInput)) {
+            AdminLayoutThemeSettings::persist($themeInput);
+        }
+
+        return back()
+            ->with('flash_success', 'تنظیمات ظاهر با موفقیت ذخیره شد.')
+            ->with('open_app_settings_tab', 'ui');
     }
 
     public function updateFinancial(Request $request): RedirectResponse

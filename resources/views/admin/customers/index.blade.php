@@ -256,37 +256,42 @@
         }
         .loan-inst-summary {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0.55rem;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 0.45rem;
             margin-bottom: 0.85rem;
+        }
+        @media (max-width: 1024px) {
+            .loan-inst-summary {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
         }
         @media (max-width: 720px) {
             .loan-inst-summary {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
         .loan-inst-summary__card {
             border: 1px solid var(--border);
-            border-radius: 0.65rem;
-            padding: 0.55rem 0.65rem;
+            border-radius: 0.55rem;
+            padding: 0.4rem 0.5rem;
             background: var(--bg-card);
-            min-height: 4.1rem;
+            min-height: 3.3rem;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            gap: 0.18rem;
+            gap: 0.12rem;
         }
         .loan-inst-summary__label {
-            font-size: 0.68rem;
+            font-size: 0.62rem;
             font-weight: 800;
             color: var(--muted);
             letter-spacing: 0.02em;
         }
         .loan-inst-summary__value {
-            font-size: 0.88rem;
+            font-size: 0.78rem;
             font-weight: 900;
             color: var(--text);
-            line-height: 1.35;
+            line-height: 1.3;
             word-break: break-word;
         }
         .loan-inst-summary__muted {
@@ -2331,6 +2336,30 @@
                         <span class="loan-inst-summary__label">مبلغ هر قسط</span>
                         <div class="loan-inst-summary__value" id="loan-inst-sum-installment">—</div>
                     </div>
+                    <div class="loan-inst-summary__card loan-inst-summary__card--paid-count">
+                        <span class="loan-inst-summary__label">تعداد اقساط پرداخت شده</span>
+                        <div class="loan-inst-summary__value" id="loan-inst-sum-paid-count">—</div>
+                    </div>
+                    <div class="loan-inst-summary__card loan-inst-summary__card--remain-count">
+                        <span class="loan-inst-summary__label">تعداد اقساط مانده</span>
+                        <div class="loan-inst-summary__value" id="loan-inst-sum-remain-count">—</div>
+                    </div>
+                    <div class="loan-inst-summary__card loan-inst-summary__card--remain-amount">
+                        <span class="loan-inst-summary__label">مبلغ اقساط باقیمانده</span>
+                        <div class="loan-inst-summary__value" id="loan-inst-sum-remain-amount">—</div>
+                    </div>
+                    <div class="loan-inst-summary__card loan-inst-summary__card--paid-amount">
+                        <span class="loan-inst-summary__label">مبلغ اقساط پرداخت شده</span>
+                        <div class="loan-inst-summary__value" id="loan-inst-sum-paid-amount">—</div>
+                    </div>
+                    <div class="loan-inst-summary__card loan-inst-summary__card--late">
+                        <span class="loan-inst-summary__label">مبلغ دیرکرد</span>
+                        <div class="loan-inst-summary__value" id="loan-inst-sum-late">—</div>
+                    </div>
+                    <div class="loan-inst-summary__card loan-inst-summary__card--early">
+                        <span class="loan-inst-summary__label">مبلغ زودکرد</span>
+                        <div class="loan-inst-summary__value" id="loan-inst-sum-early">—</div>
+                    </div>
                 </div>
                 <div class="loan-inst-table-scroll">
                     <table class="loan-inst-table">
@@ -3232,6 +3261,12 @@
             var loanInstSumAmount = document.getElementById('loan-inst-sum-amount');
             var loanInstSumStart = document.getElementById('loan-inst-sum-start');
             var loanInstSumInstallment = document.getElementById('loan-inst-sum-installment');
+            var loanInstSumPaidCount = document.getElementById('loan-inst-sum-paid-count');
+            var loanInstSumRemainCount = document.getElementById('loan-inst-sum-remain-count');
+            var loanInstSumRemainAmount = document.getElementById('loan-inst-sum-remain-amount');
+            var loanInstSumPaidAmount = document.getElementById('loan-inst-sum-paid-amount');
+            var loanInstSumLate = document.getElementById('loan-inst-sum-late');
+            var loanInstSumEarly = document.getElementById('loan-inst-sum-early');
             var loanInstallmentEditOverlay = document.getElementById('loan-installment-edit-overlay');
             var loanInstEditClose = document.getElementById('loan-inst-edit-close');
             var loanInstEditCancel = document.getElementById('loan-inst-edit-cancel');
@@ -4531,6 +4566,19 @@
                 if (loanInstSumAmount) loanInstSumAmount.textContent = formatToman(loan.amount_toman || 0) + ' تومان';
                 if (loanInstSumStart) loanInstSumStart.textContent = String(loan.loan_start_jdate_fa || loan.loan_start_jdate || '—');
                 if (loanInstSumInstallment) loanInstSumInstallment.textContent = formatToman(loan.installment_amount_toman || 0) + ' تومان';
+                var instTotalCount = Number(loan.installments_count || 0);
+                if (loanInstSumPaidCount) {
+                    loanInstSumPaidCount.textContent = formatToman(loan.paid_installments_count || 0) +
+                        (instTotalCount > 0 ? ' از ' + formatToman(instTotalCount) : '');
+                }
+                if (loanInstSumRemainCount) {
+                    loanInstSumRemainCount.textContent = formatToman(loan.remaining_installments_count || 0) +
+                        (instTotalCount > 0 ? ' از ' + formatToman(instTotalCount) : '');
+                }
+                if (loanInstSumRemainAmount) loanInstSumRemainAmount.textContent = formatToman(loan.remaining_amount_toman || 0) + ' تومان';
+                if (loanInstSumPaidAmount) loanInstSumPaidAmount.textContent = formatToman(loan.paid_installments_amount_toman || 0) + ' تومان';
+                if (loanInstSumLate) loanInstSumLate.textContent = formatToman(loan.late_penalty_toman || 0) + ' تومان';
+                if (loanInstSumEarly) loanInstSumEarly.textContent = formatToman(loan.early_benefit_toman || 0) + ' تومان';
                 if (!loanInstTbody) return;
                 if (!rows.length) {
                     loanInstTbody.innerHTML = '<tr><td colspan="9" class="loan-inst-empty">اقساطی ثبت نشده است.</td></tr>';

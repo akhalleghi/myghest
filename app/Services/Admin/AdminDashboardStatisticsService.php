@@ -59,6 +59,7 @@ final class AdminDashboardStatisticsService
      */
     private function buildSystemStats(Collection $activeFiles): array
     {
+        $today = Carbon::now()->startOfDay();
         $customersCount = Customer::query()->count();
         $loanFilesCount = $activeFiles->count();
         $settledCount = $activeFiles->where('is_settled', true)->count();
@@ -105,6 +106,8 @@ final class AdminDashboardStatisticsService
             }
         }
 
+        $currentMonthInstallments = $this->buildCurrentMonthInstallmentStats($today);
+
         return [
             ['label' => 'تعداد مشتری', 'value' => $this->formatCount($customersCount)],
             ['label' => 'تعداد پرونده وام', 'value' => $this->formatCount($loanFilesCount)],
@@ -115,7 +118,25 @@ final class AdminDashboardStatisticsService
             ['label' => 'مجموع وصول شده', 'value' => $this->formatToman($collectedSum)],
             ['label' => 'مجموع وصول نشده', 'value' => $this->formatToman($uncollectedSum)],
             ['label' => 'مجموع وصول نشده سررسید نشده', 'value' => $this->formatToman($uncollectedNotDueSum)],
+            ['label' => 'مجموع مبلغ اقساط (ماه جاری)', 'value' => $this->formatToman($currentMonthInstallments)],
         ];
+    }
+
+    /**
+     * جمع مبلغ نامی اقساط با سررسید در ماه شمسی جاری (پرونده‌های فسخ‌نشده).
+     */
+    private function buildCurrentMonthInstallmentStats(Carbon $today): int
+    {
+        $jNow = Jalali::instance($today);
+        $monthStart = Carbon::createFromTimestamp($jNow->clone()->startMonth()->getTimestamp())->startOfDay();
+        $monthEnd = Carbon::createFromTimestamp($jNow->clone()->endMonth()->getTimestamp())->endOfDay();
+
+        return (int) CustomerLoanInstallment::query()
+            ->whereBetween('due_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
+            ->whereHas('loanFile', static function ($q): void {
+                $q->whereNull('revoked_at');
+            })
+            ->sum('amount_toman');
     }
 
     /**
