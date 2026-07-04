@@ -334,6 +334,42 @@
         .loan-inst-table td.loan-inst-td--sms {
             white-space: normal;
         }
+        .loan-inst-paid-method {
+            margin-top: 0.22rem;
+            font-size: 0.62rem;
+            color: var(--muted);
+            font-weight: 700;
+            line-height: 1.45;
+            white-space: normal;
+        }
+        .loan-inst-paid-method + .loan-inst-paid-method {
+            margin-top: 0.12rem;
+        }
+        .loan-inst-paid-method__src {
+            display: block;
+            margin-top: 0.06rem;
+            font-size: 0.54rem;
+            font-weight: 600;
+            opacity: 0.9;
+        }
+        .loan-inst-mismatch {
+            font-size: 0.66rem;
+            font-weight: 800;
+            line-height: 1.45;
+            white-space: normal;
+        }
+        .loan-inst-mismatch--over {
+            color: #b91c1c;
+        }
+        .loan-inst-mismatch--under {
+            color: #b45309;
+        }
+        html[data-theme="dark"] .loan-inst-mismatch--over {
+            color: #fca5a5;
+        }
+        html[data-theme="dark"] .loan-inst-mismatch--under {
+            color: #fcd34d;
+        }
         .loan-inst-sms-actions {
             display: inline-flex;
             flex-wrap: wrap;
@@ -422,20 +458,70 @@
             font-size: 0.85rem;
             transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
         }
+        .loan-inst-op-btn--danger {
+            color: #9f1239;
+            border-color: #f43f5e;
+            background: #fecdd3;
+        }
+        .loan-inst-op-btn--edit {
+            color: #5b21b6;
+            border-color: #8b5cf6;
+            background: #ddd6fe;
+        }
+        .loan-inst-op-btn--pay {
+            color: #14532d;
+            border-color: #22c55e;
+            background: #bbf7d0;
+        }
         .loan-inst-op-btn:hover {
             background: var(--primary-soft);
             color: var(--primary-dark);
             border-color: rgba(37, 99, 235, 0.35);
         }
         .loan-inst-op-btn--danger:hover {
-            background: rgba(254, 226, 226, 0.65);
-            color: #b91c1c;
-            border-color: rgba(220, 38, 38, 0.35);
+            background: #fda4af;
+            color: #881337;
+            border-color: #e11d48;
+        }
+        .loan-inst-op-btn--edit:hover {
+            background: #c4b5fd;
+            color: #4c1d95;
+            border-color: #7c3aed;
         }
         .loan-inst-op-btn--pay:hover {
-            background: rgba(220, 252, 231, 0.65);
-            color: #15803d;
-            border-color: rgba(22, 163, 74, 0.35);
+            background: #86efac;
+            color: #052e16;
+            border-color: #16a34a;
+        }
+        html[data-theme="dark"] .loan-inst-op-btn--danger {
+            color: #ffe4e6;
+            border-color: #fb7185;
+            background: #9f1239;
+        }
+        html[data-theme="dark"] .loan-inst-op-btn--danger:hover {
+            background: #be123c;
+            color: #fff1f2;
+            border-color: #fda4af;
+        }
+        html[data-theme="dark"] .loan-inst-op-btn--edit {
+            color: #ede9fe;
+            border-color: #a78bfa;
+            background: #5b21b6;
+        }
+        html[data-theme="dark"] .loan-inst-op-btn--edit:hover {
+            background: #6d28d9;
+            color: #f5f3ff;
+            border-color: #c4b5fd;
+        }
+        html[data-theme="dark"] .loan-inst-op-btn--pay {
+            color: #dcfce7;
+            border-color: #4ade80;
+            background: #166534;
+        }
+        html[data-theme="dark"] .loan-inst-op-btn--pay:hover {
+            background: #15803d;
+            color: #f0fdf4;
+            border-color: #86efac;
         }
         .loan-inst-op-btn:disabled {
             opacity: 0.42;
@@ -770,6 +856,7 @@
         }
         .loan-files-summary { font-size: 0.72rem; color: var(--muted); font-weight: 700; }
         .loan-files-list { display: grid; gap: 0.85rem; }
+        .loan-files-list--multi { gap: 1rem; }
         .loan-files-empty {
             text-align: center; color: var(--muted); font-size: 0.78rem; padding: 1.15rem;
             border: 1px dashed var(--border); border-radius: 0.72rem; background: rgba(248, 250, 252, 0.52);
@@ -781,6 +868,114 @@
             padding: 0.9rem;
             box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);
             position: relative;
+        }
+        .loan-files-list--multi .loan-file-card--theme-0 {
+            border-color: rgba(59, 130, 246, 0.32);
+            border-inline-start: 4px solid #3b82f6;
+            background: linear-gradient(135deg, rgba(239, 246, 255, 0.92), rgba(255, 255, 255, 0.98));
+            box-shadow: 0 8px 22px rgba(59, 130, 246, 0.08);
+        }
+        .loan-files-list--multi .loan-file-card--theme-1 {
+            border-color: rgba(99, 102, 241, 0.32);
+            border-inline-start: 4px solid #6366f1;
+            background: linear-gradient(135deg, rgba(238, 242, 255, 0.92), rgba(255, 255, 255, 0.98));
+            box-shadow: 0 8px 22px rgba(99, 102, 241, 0.08);
+        }
+        .loan-files-list--multi .loan-file-card--theme-2 {
+            border-color: rgba(14, 165, 233, 0.32);
+            border-inline-start: 4px solid #0ea5e9;
+            background: linear-gradient(135deg, rgba(224, 242, 254, 0.92), rgba(255, 255, 255, 0.98));
+            box-shadow: 0 8px 22px rgba(14, 165, 233, 0.08);
+        }
+        .loan-files-list--multi .loan-file-card--theme-3 {
+            border-color: rgba(16, 185, 129, 0.32);
+            border-inline-start: 4px solid #10b981;
+            background: linear-gradient(135deg, rgba(236, 253, 245, 0.92), rgba(255, 255, 255, 0.98));
+            box-shadow: 0 8px 22px rgba(16, 185, 129, 0.08);
+        }
+        .loan-files-list--multi .loan-file-card--theme-4 {
+            border-color: rgba(245, 158, 11, 0.34);
+            border-inline-start: 4px solid #f59e0b;
+            background: linear-gradient(135deg, rgba(255, 251, 235, 0.94), rgba(255, 255, 255, 0.98));
+            box-shadow: 0 8px 22px rgba(245, 158, 11, 0.08);
+        }
+        .loan-files-list--multi .loan-file-card--theme-5 {
+            border-color: rgba(244, 114, 182, 0.32);
+            border-inline-start: 4px solid #f472b6;
+            background: linear-gradient(135deg, rgba(253, 242, 248, 0.92), rgba(255, 255, 255, 0.98));
+            box-shadow: 0 8px 22px rgba(244, 114, 182, 0.08);
+        }
+        html[data-theme="dark"] .loan-files-list--multi .loan-file-card--theme-0 {
+            background: linear-gradient(135deg, rgba(30, 58, 138, 0.22), rgba(30, 41, 59, 0.9));
+            border-color: rgba(96, 165, 250, 0.35);
+        }
+        html[data-theme="dark"] .loan-files-list--multi .loan-file-card--theme-1 {
+            background: linear-gradient(135deg, rgba(49, 46, 129, 0.24), rgba(30, 41, 59, 0.9));
+            border-color: rgba(129, 140, 248, 0.35);
+        }
+        html[data-theme="dark"] .loan-files-list--multi .loan-file-card--theme-2 {
+            background: linear-gradient(135deg, rgba(12, 74, 110, 0.24), rgba(30, 41, 59, 0.9));
+            border-color: rgba(56, 189, 248, 0.35);
+        }
+        html[data-theme="dark"] .loan-files-list--multi .loan-file-card--theme-3 {
+            background: linear-gradient(135deg, rgba(6, 78, 59, 0.24), rgba(30, 41, 59, 0.9));
+            border-color: rgba(52, 211, 153, 0.35);
+        }
+        html[data-theme="dark"] .loan-files-list--multi .loan-file-card--theme-4 {
+            background: linear-gradient(135deg, rgba(120, 53, 15, 0.24), rgba(30, 41, 59, 0.9));
+            border-color: rgba(251, 191, 36, 0.35);
+        }
+        html[data-theme="dark"] .loan-files-list--multi .loan-file-card--theme-5 {
+            background: linear-gradient(135deg, rgba(131, 24, 67, 0.22), rgba(30, 41, 59, 0.9));
+            border-color: rgba(244, 114, 182, 0.35);
+        }
+        .loan-files-list--multi .loan-file-card--theme-0 .loan-file-col {
+            background: rgba(219, 234, 254, 0.42);
+            border-color: rgba(59, 130, 246, 0.2);
+        }
+        .loan-files-list--multi .loan-file-card--theme-1 .loan-file-col {
+            background: rgba(224, 231, 255, 0.42);
+            border-color: rgba(99, 102, 241, 0.2);
+        }
+        .loan-files-list--multi .loan-file-card--theme-2 .loan-file-col {
+            background: rgba(224, 242, 254, 0.42);
+            border-color: rgba(14, 165, 233, 0.2);
+        }
+        .loan-files-list--multi .loan-file-card--theme-3 .loan-file-col {
+            background: rgba(209, 250, 229, 0.38);
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+        .loan-files-list--multi .loan-file-card--theme-4 .loan-file-col {
+            background: rgba(254, 243, 199, 0.38);
+            border-color: rgba(245, 158, 11, 0.22);
+        }
+        .loan-files-list--multi .loan-file-card--theme-5 .loan-file-col {
+            background: rgba(252, 231, 243, 0.4);
+            border-color: rgba(244, 114, 182, 0.2);
+        }
+        html[data-theme="dark"] .loan-files-list--multi .loan-file-card--theme-0 .loan-file-col {
+            background: rgba(30, 58, 138, 0.18);
+            border-color: rgba(96, 165, 250, 0.22);
+        }
+        html[data-theme="dark"] .loan-files-list--multi .loan-file-card--theme-1 .loan-file-col {
+            background: rgba(49, 46, 129, 0.2);
+            border-color: rgba(129, 140, 248, 0.22);
+        }
+        html[data-theme="dark"] .loan-files-list--multi .loan-file-card--theme-2 .loan-file-col {
+            background: rgba(12, 74, 110, 0.2);
+            border-color: rgba(56, 189, 248, 0.22);
+        }
+        html[data-theme="dark"] .loan-files-list--multi .loan-file-card--theme-3 .loan-file-col {
+            background: rgba(6, 78, 59, 0.2);
+            border-color: rgba(52, 211, 153, 0.22);
+        }
+        html[data-theme="dark"] .loan-files-list--multi .loan-file-card--theme-4 .loan-file-col {
+            background: rgba(120, 53, 15, 0.2);
+            border-color: rgba(251, 191, 36, 0.22);
+        }
+        html[data-theme="dark"] .loan-files-list--multi .loan-file-card--theme-5 .loan-file-col {
+            background: rgba(131, 24, 67, 0.18);
+            border-color: rgba(244, 114, 182, 0.22);
         }
         .loan-file-card--settled {
             border-color: rgba(239, 68, 68, 0.38);
@@ -2453,6 +2648,7 @@
                                 <th>مبلغ قسط</th>
                                 <th>تاریخ سررسید</th>
                                 <th>مبلغ پرداختی</th>
+                                <th>مغایرت مبلغ</th>
                                 <th>تاریخ واریز</th>
                                 <th>دیرکرد / زودکرد</th>
                                 <th>ثبت توسط</th>
@@ -2461,7 +2657,7 @@
                             </tr>
                         </thead>
                         <tbody id="loan-inst-tbody">
-                            <tr><td colspan="9" class="loan-inst-empty">در حال بارگذاری...</td></tr>
+                            <tr><td colspan="10" class="loan-inst-empty">در حال بارگذاری...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -4911,12 +5107,41 @@
                 if (loanInstSumEarly) loanInstSumEarly.textContent = formatToman(loan.early_benefit_toman || 0) + ' تومان';
                 if (!loanInstTbody) return;
                 if (!rows.length) {
-                    loanInstTbody.innerHTML = '<tr><td colspan="9" class="loan-inst-empty">اقساطی ثبت نشده است.</td></tr>';
+                    loanInstTbody.innerHTML = '<tr><td colspan="10" class="loan-inst-empty">اقساطی ثبت نشده است.</td></tr>';
                     return;
                 }
                 loanInstTbody.innerHTML = rows.map(function (row) {
                     var paidAmt = Number(row.paid_amount_toman || 0);
                     var paidShow = paidAmt > 0 ? formatToman(paidAmt) + ' تومان' : '—';
+                    var paidLines = Array.isArray(row.payment_method_lines) ? row.payment_method_lines : [];
+                    var paidMethodsHtml = paidLines.map(function (ln) {
+                        var m = String((ln && ln.method_label) || '').trim();
+                        var s = String((ln && ln.source_label) || '').trim();
+                        if (!m) return '';
+                        var block = '<div class="loan-inst-paid-method">' + escapeHtmlText(m);
+                        if (s) {
+                            block += '<span class="loan-inst-paid-method__src">' + escapeHtmlText(s) + '</span>';
+                        }
+                        block += '</div>';
+                        return block;
+                    }).join('');
+                    if (!paidMethodsHtml) {
+                        var paidMethodFallback = String(row.payment_methods_label || '').trim();
+                        if (paidMethodFallback) {
+                            paidMethodsHtml = '<div class="loan-inst-paid-method">' + escapeHtmlText(paidMethodFallback) + '</div>';
+                        }
+                    }
+                    var paidCell = paidAmt > 0
+                        ? ('<div>' + escapeHtmlText(paidShow) + '</div>' + paidMethodsHtml)
+                        : '—';
+                    var mismatchKind = String(row.amount_mismatch_kind || 'none').trim();
+                    var mismatchLabel = String(row.amount_mismatch_label || '').trim();
+                    var mismatchCell = '—';
+                    if (mismatchKind === 'over' || mismatchKind === 'under') {
+                        mismatchCell = '<span class="loan-inst-mismatch loan-inst-mismatch--' +
+                            escapeHtmlAttr(mismatchKind) + '">' +
+                            escapeHtmlText(mismatchLabel || '—') + '</span>';
+                    }
                     var paidDate = String(row.paid_jdate_fa || row.paid_jdate || '').trim();
                     if (!paidDate) paidDate = '—';
                     var editPayload = {
@@ -4938,7 +5163,8 @@
                         '<td>' + formatToman(row.sequence || 0) + '</td>' +
                         '<td>' + escapeHtmlText(formatToman(row.amount_toman || 0) + ' تومان') + '</td>' +
                         '<td>' + escapeHtmlText(String(row.due_jdate_fa || row.due_jdate || '—')) + '</td>' +
-                        '<td>' + escapeHtmlText(paidShow) + '</td>' +
+                        '<td>' + paidCell + '</td>' +
+                        '<td>' + mismatchCell + '</td>' +
                         '<td>' + escapeHtmlText(paidDate) + '</td>' +
                         '<td>' + escapeHtmlText(String(row.early_late_label || '—')) + '</td>' +
                         '<td>' + escapeHtmlText(String(row.recorded_by || '—')) + '</td>' +
@@ -4947,7 +5173,7 @@
                             '<button type="button" class="loan-inst-op-btn loan-inst-op-btn--danger"' + clearPayData + clearPayDisabled +
                             ' title="حذف واریزی‌های ثبت‌شده برای این قسط (خود قسط حذف نمی‌شود)" aria-label="حذف واریزی‌های این قسط">' +
                             '<i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>' +
-                            '<button type="button" class="loan-inst-op-btn" title="ویرایش قسط" aria-label="ویرایش قسط"' + editData + editDisabled + '><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i></button>' +
+                            '<button type="button" class="loan-inst-op-btn loan-inst-op-btn--edit" title="ویرایش قسط" aria-label="ویرایش قسط"' + editData + editDisabled + '><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i></button>' +
                             '<button type="button" class="loan-inst-op-btn loan-inst-op-btn--pay" title="ثبت واریزی قسط" aria-label="ثبت واریزی قسط"' + payData + payDisabled + '><i class="fa-solid fa-dollar-sign" aria-hidden="true"></i></button>' +
                         '</div></td>' +
                         '</tr>';
@@ -4962,7 +5188,7 @@
                 if (loanInstSubtitle) loanInstSubtitle.textContent = 'در حال بارگذاری…';
                 if (loanInstSummary) loanInstSummary.hidden = true;
                 if (loanInstTbody) {
-                    loanInstTbody.innerHTML = '<tr><td colspan="9" class="loan-inst-empty">در حال بارگذاری...</td></tr>';
+                    loanInstTbody.innerHTML = '<tr><td colspan="10" class="loan-inst-empty">در حال بارگذاری...</td></tr>';
                 }
                 fetch(customerLoanInstallmentsUrl(loanManageCurrentCustomerId, loanFileId), {
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -4975,7 +5201,7 @@
                 }).catch(function () {
                     if (loanInstSubtitle) loanInstSubtitle.textContent = 'خطا در دریافت اقساط';
                     if (loanInstTbody) {
-                        loanInstTbody.innerHTML = '<tr><td colspan="9" class="loan-inst-empty" style="color:#b91c1c">خطا در دریافت اقساط.</td></tr>';
+                        loanInstTbody.innerHTML = '<tr><td colspan="10" class="loan-inst-empty" style="color:#b91c1c">خطا در دریافت اقساط.</td></tr>';
                     }
                 });
             }
@@ -5271,6 +5497,7 @@
                     : 'برای این مشتری هنوز پرونده وام ثبت نشده است.';
                 if (!count) {
                     loanFilesList.innerHTML = '<div class="loan-files-empty">هنوز پرونده‌ای ثبت نشده است.</div>';
+                    loanFilesList.classList.remove('loan-files-list--multi');
                     var activeTabBtnEmpty = document.querySelector('.loan-tab-btn.is-active');
                     if (activeTabBtnEmpty && String(activeTabBtnEmpty.getAttribute('data-loan-tab') || '') === 'guarantees' && loanManageCurrentCustomerId) {
                         loadLoanGuaranteesReport(loanManageCurrentCustomerId);
@@ -5278,7 +5505,14 @@
                     return;
                 }
 
-                loanFilesList.innerHTML = rows.map(function (row) {
+                var multiLoanFiles = count >= 2;
+                if (multiLoanFiles) {
+                    loanFilesList.classList.add('loan-files-list--multi');
+                } else {
+                    loanFilesList.classList.remove('loan-files-list--multi');
+                }
+
+                loanFilesList.innerHTML = rows.map(function (row, rowIndex) {
                     var paidInstallments = Number(row.paid_installments_count || 0);
                     var paidAmount = Number(row.paid_installments_amount_toman || 0);
                     var remainingAmount = Number(row.remaining_amount_toman || 0);
@@ -5306,8 +5540,9 @@
                         cardModClass = ' loan-file-card--settled';
                         ribbonHtml = '<span class="loan-file-corner-ribbon"><span>تسویه شده</span></span>';
                     }
+                    var themeClass = multiLoanFiles ? (' loan-file-card--theme-' + (rowIndex % 6)) : '';
 
-                    return '<article class="loan-file-card' + cardModClass + '">' +
+                    return '<article class="loan-file-card' + cardModClass + themeClass + '">' +
                         ribbonHtml +
                         '<div class="loan-file-grid">' +
                             '<section class="loan-file-col">' +

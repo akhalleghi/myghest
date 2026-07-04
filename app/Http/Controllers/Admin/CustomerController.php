@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Admin;
 use App\Models\AppSetting;
 use App\Models\Customer;
 use App\Support\GuaranteeReturnOtpSettings;
@@ -1260,7 +1261,7 @@ final class CustomerController extends Controller
         }
 
         $this->ensureLoanInstallmentSchedule($loanFile);
-        $loanFile->load(['installments.recordedByAdmin']);
+        $loanFile->load(['installments.recordedByAdmin', 'installments.payments.recordedByAdmin']);
 
         $profit = $this->calculateLoanProfitToman(
             (int) $loanFile->amount_toman,
@@ -3875,6 +3876,280 @@ final class CustomerController extends Controller
         return Jalali::enToFaNumbers(number_format($amount, 0, '.', ',')).' تومان';
     }
 
+    private function formatInstallmentEarlyLateLabel(CustomerLoanInstallment $inst, CustomerLoanFile $file): string
+    {
+        if ($file->revoked_at !== null) {
+            return '—';
+        }
+
+        $file->loadMissing('loanType');
+        $lateCoef = (float) ($file->loanType?->daily_late_coefficient ?? 0);
+        $earlyCoef = (float) ($file->loanType?->daily_early_coefficient ?? 0);
+        $finance = app(LoanFileFinanceCalculator::class);
+
+        $due = Carbon::parse($inst->due_date)->startOfDay();
+        $today = Carbon::now()->startOfDay();
+        $amount = (int) $inst->amount_toman;
+        $paid = (int) $inst->paid_amount_toman;
+        $slotFullyPaid = $amount > 0 && $paid >= $amount;
+
+        // تا قبل از تسویهٔ کامل قسط، همیشه بر اساس امروز (نه تاریخ واریز) برآورد می‌شود.
+        if (! $slotFullyPaid) {
+            if ($today->gt($due)) {
+                $days = (int) $due->diffInDays($today);
+                $pen = $finance->estimateBookletPenaltyTomanForInstallment($inst, $lateCoef);
+
+                return 'دیرکرد: '.Jalali::enToFaNumbers((string) $days).' روز — '.$this->formatBookletMoneyFa($pen);
+            }
+
+            if ($today->lt($due) && $earlyCoef > 0 && $amount > 0) {
+                $days = (int) $today->diffInDays($due);
+                $unpaid = max(0, $amount - $paid);
+                if ($days >= 1 && $unpaid > 0) {
+                    $benefit = max(0, (int) round($unpaid * $earlyCoef * $days));
+                    if ($benefit > 0) {
+                        return 'زودکرد احتمالی: '.Jalali::enToFaNumbers((string) $days).' روز — '.$this->formatBookletMoneyFa($benefit);
+                    }
+                }
+            }
+
+            return '—';
+        }
+
+        $paidAt = $inst->paid_at !== null ? Carbon::parse($inst->paid_at)->startOfDay() : null;
+
+        if ($paidAt !== null) {
+            if ($paidAt->lt($due)) {
+                $days = (int) $paidAt->diffInDays($due);
+                $label = 'زودکرد: '.Jalali::enToFaNumbers((string) $days).' روز';
+                if ($earlyCoef > 0 && $days >= 1) {
+                    $benefit = max(0, (int) round($amount * $earlyCoef * $days));
+                    if ($benefit > 0) {
+                        $label .= ' — '.$this->formatBookletMoneyFa($benefit);
+                    }
+                }
+
+                return $label;
+            }
+            if ($paidAt->gt($due)) {
+                $days = (int) $due->diffInDays($paidAt);
+                $pen = $finance->estimatePenaltyAtDateToman($inst, $lateCoef, $paidAt);
+
+                return 'دیرکرد: '.Jalali::enToFaNumbers((string) $days).' روز — '.$this->formatBookletMoneyFa($pen);
+            }
+
+            return 'به‌موقع';
+        }
+
+        return 'تسویهٔ قسط';
+    }
+
+    private function resolveInstallmentPaymentMethodsLabel(CustomerLoanInstallment $inst): ?string
+    {
+        $lines = $this->resolveInstallmentPaymentMethodLines($inst);
+        if ($lines === []) {
+            return null;
+        }
+
+        $parts = [];
+        foreach ($lines as $line) {
+            $method = trim((string) ($line['method_label'] ?? ''));
+            $source = trim((string) ($line['source_label'] ?? ''));
+            if ($method === '') {
+                continue;
+            }
+            $parts[] = $source !== '' ? $method.' ('.$source.')' : $method;
+        }
+
+        return $parts !== [] ? implode('، ', $parts) : null;
+    }
+
+    /**
+     * @return list<array{method_label: string, source_label: string|null}>
+     */
+    private function resolveInstallmentPaymentMethodLines(CustomerLoanInstallment $inst): array
+    {
+        $inst->loadMissing('payments');
+        $methodLabels = CustomerLoanInstallmentPayment::methodLabels();
+        $lines = [];
+        $seen = [];
+
+        foreach ($inst->payments as $payment) {
+            $key = (string) $payment->payment_method;
+            $methodLabel = $methodLabels[$key] ?? $key;
+            $sourceLabel = $this->resolveInstallmentPaymentSourceLabelFa($payment);
+            $uniq = $methodLabel.'|'.($sourceLabel ?? '');
+            if (isset($seen[$uniq])) {
+                continue;
+            }
+            $seen[$uniq] = true;
+            $lines[] = [
+                'method_label' => $methodLabel,
+                'source_label' => $sourceLabel,
+            ];
+        }
+
+        if ($lines === [] && (int) $inst->paid_amount_toman > 0) {
+            $lines[] = [
+                'method_label' => $methodLabels[CustomerLoanInstallmentPayment::METHOD_LEGACY_IMPORTED]
+                    ?? CustomerLoanInstallmentPayment::METHOD_LEGACY_IMPORTED,
+                'source_label' => null,
+            ];
+        }
+
+        return $lines;
+    }
+
+    private function resolveInstallmentPaymentSourceLabelFa(CustomerLoanInstallmentPayment $payment): ?string
+    {
+        $note = (string) ($payment->note ?? '');
+
+        if ($payment->recorded_by_admin_id !== null) {
+            if (str_contains($note, 'اعلام کاربر #')) {
+                return 'اعلام واریز';
+            }
+
+            return 'ادمین';
+        }
+
+        return match ((string) $payment->payment_method) {
+            CustomerLoanInstallmentPayment::METHOD_ONLINE,
+            CustomerLoanInstallmentPayment::METHOD_WALLET,
+            CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_ONLINE,
+            CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET => 'مشتری',
+            default => null,
+        };
+    }
+
+    private function resolveInstallmentRecordedByLabel(CustomerLoanInstallment $inst, Customer $customer): string
+    {
+        $inst->loadMissing(['payments.recordedByAdmin', 'recordedByAdmin']);
+
+        if ((int) $inst->paid_amount_toman <= 0) {
+            return '—';
+        }
+
+        $labels = [];
+        $seen = [];
+
+        foreach ($inst->payments as $payment) {
+            $label = $this->resolvePaymentRecordedByLabelFa($payment, $customer);
+            if ($label === '' || isset($seen[$label])) {
+                continue;
+            }
+            $seen[$label] = true;
+            $labels[] = $label;
+        }
+
+        if ($labels !== []) {
+            return implode('، ', $labels);
+        }
+
+        $storedLabel = trim((string) ($inst->recorded_by_label ?? ''));
+        if ($storedLabel !== '') {
+            return $storedLabel;
+        }
+
+        if ($inst->recorded_by_admin_id !== null) {
+            return $this->formatAdminDisplayName($inst->recordedByAdmin);
+        }
+
+        return 'سیستم (ثبت قبلی)';
+    }
+
+    private function resolvePaymentRecordedByLabelFa(CustomerLoanInstallmentPayment $payment, Customer $customer): string
+    {
+        $note = (string) ($payment->note ?? '');
+        $method = (string) $payment->payment_method;
+
+        if (str_contains($note, 'اعلام کاربر #')) {
+            $customerName = trim($customer->fullName());
+
+            return $customerName !== '' ? $customerName.' (اعلام واریز)' : 'مشتری (اعلام واریز)';
+        }
+
+        if ($payment->recorded_by_admin_id !== null) {
+            return $this->formatAdminDisplayName($payment->recordedByAdmin);
+        }
+
+        if (in_array($method, [
+            CustomerLoanInstallmentPayment::METHOD_ONLINE,
+            CustomerLoanInstallmentPayment::METHOD_WALLET,
+            CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_ONLINE,
+            CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET,
+        ], true)) {
+            $customerName = trim($customer->fullName());
+
+            return $customerName !== '' ? $customerName : 'مشتری';
+        }
+
+        if ($method === CustomerLoanInstallmentPayment::METHOD_LEGACY_IMPORTED) {
+            return 'سیستم (ثبت قبلی)';
+        }
+
+        if (
+            str_contains($note, 'پرداخت آنلاین')
+            || str_contains($note, 'پرداخت از کیف پول')
+            || str_contains($note, 'تسویه')
+        ) {
+            $customerName = trim($customer->fullName());
+
+            return $customerName !== '' ? $customerName : 'مشتری';
+        }
+
+        return 'سیستم';
+    }
+
+    private function formatAdminDisplayName(?Admin $admin): string
+    {
+        if ($admin === null) {
+            return 'ادمین';
+        }
+
+        $name = trim((string) ($admin->name ?? ''));
+        if ($name !== '') {
+            return $name;
+        }
+
+        $username = trim((string) ($admin->username ?? ''));
+        if ($username !== '') {
+            return $username;
+        }
+
+        return 'ادمین';
+    }
+
+    /**
+     * @return array{kind: string, diff_toman: int, label: string|null}
+     */
+    private function resolveInstallmentAmountMismatch(int $nominalToman, int $paidToman): array
+    {
+        if ($paidToman <= 0 || $nominalToman <= 0) {
+            return ['kind' => 'none', 'diff_toman' => 0, 'label' => null];
+        }
+
+        $diff = $paidToman - $nominalToman;
+        if ($diff === 0) {
+            return ['kind' => 'none', 'diff_toman' => 0, 'label' => null];
+        }
+
+        if ($diff > 0) {
+            return [
+                'kind' => 'over',
+                'diff_toman' => $diff,
+                'label' => 'اضافه‌پرداخت: '.$this->formatBookletMoneyFa($diff),
+            ];
+        }
+
+        $shortfall = abs($diff);
+
+        return [
+            'kind' => 'under',
+            'diff_toman' => $diff,
+            'label' => 'کسری: '.$this->formatBookletMoneyFa($shortfall),
+        ];
+    }
+
     private function calculateLoanProfitToman(
         int $amountToman,
         float $interestRatePercent,
@@ -4508,30 +4783,11 @@ final class CustomerController extends Controller
         $paidJalali = $paidAt ? Jalali::instance($paidAt)->format('Y/m/d') : '';
         $paidJalaliFa = $paidJalali !== '' ? Jalali::enToFaNumbers($paidJalali) : '';
         $paidAmount = (int) $i->paid_amount_toman;
-        $earlyLate = '—';
-        if ($paidAt !== null && $paidAmount > 0) {
-            if ($paidAt->lt($due)) {
-                $earlyLate = 'زودکرد '.(string) (int) $due->diffInDays($paidAt).' روز';
-            } elseif ($paidAt->gt($due)) {
-                $earlyLate = 'دیرکرد '.(string) (int) $paidAt->diffInDays($due).' روز';
-            } else {
-                $earlyLate = 'به‌موقع';
-            }
-        }
-
-        $storedLabel = trim((string) ($i->recorded_by_label ?? ''));
-        $recLabel = $storedLabel !== '' ? $storedLabel : null;
-        if ($recLabel === null) {
-            $rec = $i->recordedByAdmin;
-            $recLabel = '—';
-            if ($rec !== null) {
-                $nm = trim((string) ($rec->name ?? ''));
-                $recLabel = $nm !== '' ? $nm : trim((string) ($rec->username ?? ''));
-                if ($recLabel === '') {
-                    $recLabel = '—';
-                }
-            }
-        }
+        $earlyLate = $this->formatInstallmentEarlyLateLabel($i, $file);
+        $paymentMethodsLabel = $this->resolveInstallmentPaymentMethodsLabel($i);
+        $paymentMethodLines = $this->resolveInstallmentPaymentMethodLines($i);
+        $recLabel = $this->resolveInstallmentRecordedByLabel($i, $customer);
+        $mismatch = $this->resolveInstallmentAmountMismatch((int) $i->amount_toman, $paidAmount);
 
         return [
             'id' => (int) $i->id,
@@ -4544,7 +4800,12 @@ final class CustomerController extends Controller
             'paid_at' => $paidAt ? $paidAt->format('Y-m-d') : null,
             'paid_jdate' => $paidJalali,
             'paid_jdate_fa' => $paidJalaliFa,
+            'payment_methods_label' => $paymentMethodsLabel,
+            'payment_method_lines' => $paymentMethodLines,
             'early_late_label' => $earlyLate,
+            'amount_mismatch_kind' => $mismatch['kind'],
+            'amount_mismatch_toman' => $mismatch['diff_toman'],
+            'amount_mismatch_label' => $mismatch['label'],
             'recorded_by' => $recLabel,
             'customer_id' => (int) $customer->id,
             'customer_name' => $customer->fullName(),
