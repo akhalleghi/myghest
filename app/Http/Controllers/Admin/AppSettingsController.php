@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Support\AdminLayoutThemeSettings;
+use App\Support\AdminReportsDisplaySettings;
 use App\Support\BankingHtmlSanitizer;
 use App\Models\LoginAccessBlock;
 use App\Services\Auth\LoginAccessBlockService;
@@ -224,6 +225,31 @@ final class AppSettingsController extends Controller
         return back()
             ->with('flash_success', 'تنظیمات وام‌ها ذخیره شد.')
             ->with('open_app_settings_tab', 'loans');
+    }
+
+    public function updateReports(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'font_scale' => ['required', 'string', Rule::in(['small', 'normal', 'large', 'xlarge'])],
+            'text_align' => ['required', 'string', Rule::in(['right', 'center'])],
+            'numeric_align' => ['required', 'string', Rule::in(['right', 'center'])],
+            'header_mode' => ['required', 'string', Rule::in(['match', 'center', 'right'])],
+            'stack_align' => ['required', 'string', Rule::in(['start', 'center'])],
+            'cell_density' => ['required', 'string', Rule::in(['compact', 'normal', 'comfortable'])],
+        ], [], [
+            'font_scale' => 'اندازه فونت جدول گزارش',
+            'text_align' => 'چینش متن معمولی',
+            'numeric_align' => 'چینش مبالغ و اعداد',
+            'header_mode' => 'چینش سرستون‌ها',
+            'stack_align' => 'چینش سلول‌های چندخطی',
+            'cell_density' => 'تراکم سلول‌ها',
+        ]);
+
+        AdminReportsDisplaySettings::persist($validated);
+
+        return back()
+            ->with('flash_success', 'تنظیمات گزارش‌ها ذخیره شد.')
+            ->with('open_app_settings_tab', 'reports');
     }
 
     public function updateSecurity(Request $request): RedirectResponse

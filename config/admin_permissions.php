@@ -314,6 +314,7 @@ return [
                     'admin.app-settings.login-blocks.unblock',
                 ]],
                 ['key' => 'app_settings.loans', 'label' => 'وام‌ها', 'routes' => ['admin.app-settings.loans.update']],
+                ['key' => 'app_settings.reports', 'label' => 'گزارش‌ها', 'routes' => ['admin.app-settings.reports.update']],
                 [
                     'key' => 'backup',
                     'label' => 'پشتیبان‌گیری و بازیابی',
@@ -393,6 +394,7 @@ return [
                 'financial' => ['label' => 'تنظیمات مالی', 'permissions' => ['app_settings.financial']],
                 'security' => ['label' => 'امنیت', 'permissions' => ['app_settings.security']],
                 'loans' => ['label' => 'وام‌ها', 'permissions' => ['app_settings.loans']],
+                'reports' => ['label' => 'گزارش‌ها', 'permissions' => ['app_settings.reports']],
             ],
         ],
     ],

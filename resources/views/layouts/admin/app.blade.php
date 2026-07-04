@@ -2662,6 +2662,8 @@
                         'notifications' => 'fa-regular fa-bell',
                         'financial' => 'fa-solid fa-coins',
                         'security' => 'fa-solid fa-shield-halved',
+                        'loans' => 'fa-solid fa-file-invoice-dollar',
+                        'reports' => 'fa-solid fa-table-columns',
                     ];
                 @endphp
                 <aside class="app-settings-menu" aria-label="دسته‌بندی تنظیمات">
@@ -3164,6 +3166,9 @@
                     @if(isset($adminAppSettingsPanels['loans']))
                     @include('layouts.admin.partials.app-settings-loans-panel')
                     @endif
+                    @if(isset($adminAppSettingsPanels['reports']))
+                    @include('layouts.admin.partials.app-settings-reports-panel')
+                    @endif
                 </div>
             </div>
         </div>
@@ -3578,6 +3583,9 @@
                 openSettings();
                 @elseif(session('open_app_settings_tab') === 'loans' || $errors->has('loan_creation_customer_otp_enabled') || $errors->has('guarantee_return_customer_otp_enabled'))
                 activateSettingsTab('loans');
+                openSettings();
+                @elseif(session('open_app_settings_tab') === 'reports' || $errors->has('font_scale') || $errors->has('text_align') || $errors->has('numeric_align') || $errors->has('header_mode') || $errors->has('stack_align') || $errors->has('cell_density'))
+                activateSettingsTab('reports');
                 openSettings();
                 @elseif(
                     $errors->has('customer_login_two_factor_enabled')

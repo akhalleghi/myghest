@@ -703,6 +703,10 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission'])->g
         ->middleware('throttle:20,1')
         ->name('app-settings.loans.update');
 
+    Route::post('/app-settings/reports', [AppSettingsController::class, 'updateReports'])
+        ->middleware('throttle:20,1')
+        ->name('app-settings.reports.update');
+
     Route::post('/app-settings/security', [AppSettingsController::class, 'updateSecurity'])
         ->middleware('throttle:20,1')
         ->name('app-settings.security.update');

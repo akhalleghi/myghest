@@ -730,6 +730,64 @@
         .cust-field-error { margin-top: 0.22rem; font-size: 0.72rem; color: #b91c1c; font-weight: 700; }
         .cust-field-hint { display: block; margin-top: 0.18rem; font-size: 0.7rem; color: var(--muted); line-height: 1.4; }
         .loan-manage-modal { width: min(1180px, 100%); }
+        .cust-modal.loan-manage-modal {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .cust-modal.loan-manage-modal .cust-modal-body.loan-manage-modal-body {
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: hidden;
+            padding: 1rem 1rem 1.15rem;
+        }
+        .loan-manage-sticky {
+            flex-shrink: 0;
+            z-index: 4;
+            background: var(--bg-card);
+        }
+        .loan-manage-scroll {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            padding-top: 0.45rem;
+        }
+        .loan-files-filter-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.55rem;
+            flex-wrap: wrap;
+            margin: 0.2rem 0 0.35rem;
+            padding: 0.48rem 0.62rem;
+            border: 1px solid var(--border);
+            border-radius: 0.62rem;
+            background: rgba(248, 250, 252, 0.72);
+        }
+        html[data-theme="dark"] .loan-files-filter-bar {
+            background: rgba(30, 41, 59, 0.45);
+        }
+        .loan-files-filter-bar[hidden] { display: none !important; }
+        .loan-files-filter-check {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.42rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--text);
+            cursor: pointer;
+            user-select: none;
+        }
+        .loan-files-filter-check input {
+            width: 0.95rem;
+            height: 0.95rem;
+            accent-color: var(--primary-dark);
+            flex-shrink: 0;
+        }
         .loan-manage-top {
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2280,7 +2338,8 @@
                 </div>
                 <button type="button" class="cust-modal-close" id="loan-manage-close" aria-label="بستن">&times;</button>
             </div>
-            <div class="cust-modal-body">
+            <div class="cust-modal-body loan-manage-modal-body">
+                <div class="loan-manage-sticky">
                 <div class="loan-manage-top">
                     <button type="button" class="loan-manage-pill" id="loan-manage-open-edit">
                         <i class="fa-regular fa-user loan-manage-pill-ico" aria-hidden="true"></i>
@@ -2312,6 +2371,15 @@
                     <button type="button" class="loan-tab-btn" data-loan-tab="tickets">تیکت ها</button>
                     <button type="button" class="loan-tab-btn" data-loan-tab="guarantees">تضامین</button>
                 </div>
+                <div class="loan-files-filter-bar" id="loan-files-filter-bar" hidden>
+                    <span class="loan-files-summary" id="loan-files-filter-hint" style="font-size:0.68rem;color:var(--muted);font-weight:700;">فیلتر پرونده‌ها</span>
+                    <label class="loan-files-filter-check" for="loan-files-hide-settled">
+                        <input type="checkbox" id="loan-files-hide-settled" checked>
+                        <span>مخفی کردن پرونده‌های تسویه‌شده</span>
+                    </label>
+                </div>
+                </div>
+                <div class="loan-manage-scroll">
                 <div class="loan-tab-panel" data-loan-panel="files">
                     <div class="loan-files-head">
                         <div class="loan-files-summary" id="loan-files-summary">برای این مشتری هنوز پرونده وام ثبت نشده است.</div>
@@ -2440,6 +2508,7 @@
                             </tbody>
                         </table>
                     </div>
+                </div>
                 </div>
             </div>
         </div>
@@ -3584,6 +3653,9 @@
             var loanManageClose = document.getElementById('loan-manage-close');
             var loanFilesSummary = document.getElementById('loan-files-summary');
             var loanFilesList = document.getElementById('loan-files-list');
+            var loanFilesFilterBar = document.getElementById('loan-files-filter-bar');
+            var loanFilesHideSettledCheckbox = document.getElementById('loan-files-hide-settled');
+            var loanFilesFilterHint = document.getElementById('loan-files-filter-hint');
             var loanOpenCreateModalBtn = document.getElementById('loan-open-create-modal');
             var loanManageOpenEditBtn = document.getElementById('loan-manage-open-edit');
             var loanManageOpenWalletBtn = document.getElementById('loan-manage-open-wallet');
@@ -3622,6 +3694,7 @@
             var loanManageCurrentCustomerId = null;
             var loanManageCurrentCustomerName = '';
             var loanManageCurrentCustomerMobile = '';
+            var loanManageHideSettledFiles = true;
             var loanManageMap = @json($loanManageMap);
             var loanTypesData = @json($loanTypes->values());
             var loanCreateOverlay = document.getElementById('loan-create-overlay');
@@ -5481,20 +5554,55 @@
                 }
             }
 
+            function isLoanFileSettledForUi(row) {
+                if (!row) return false;
+                var remainingAmount = Number(row.remaining_amount_toman || 0);
+                return !!(row.is_settled || (!row.is_revoked && remainingAmount <= 0));
+            }
+
+            function updateLoanFilesFilterBarVisibility(tabId) {
+                if (!loanFilesFilterBar) return;
+                var show = String(tabId || '') === 'files';
+                loanFilesFilterBar.hidden = !show;
+                loanFilesFilterBar.setAttribute('aria-hidden', show ? 'false' : 'true');
+            }
+
             function renderLoanFilesForCustomer(customerId) {
                 if (!loanFilesList || !loanFilesSummary) return;
                 var meta = loanManageMap ? loanManageMap[String(customerId || '')] : null;
                 var rows = (meta && Array.isArray(meta.loan_files)) ? meta.loan_files : [];
+                var hideSettled = loanManageHideSettledFiles !== false;
+                if (loanFilesHideSettledCheckbox) {
+                    loanFilesHideSettledCheckbox.checked = hideSettled;
+                }
+                var settledCount = rows.filter(function (row) {
+                    return isLoanFileSettledForUi(row);
+                }).length;
+                var visibleRows = hideSettled
+                    ? rows.filter(function (row) {
+                        return !isLoanFileSettledForUi(row);
+                    })
+                    : rows.slice();
                 var count = rows.length;
+                var visibleCount = visibleRows.length;
                 var total = rows.reduce(function (sum, row) {
                     return sum + Number(row.total_repayable_toman || 0);
                 }, 0);
                 var remain = rows.reduce(function (sum, row) {
                     return sum + Number(row.remaining_amount_toman || 0);
                 }, 0);
-                loanFilesSummary.textContent = count
+                var summaryText = count
                     ? ('تعداد پرونده: ' + formatToman(count) + ' | مجموع بازپرداخت: ' + formatToman(total) + ' تومان | مانده: ' + formatToman(remain) + ' تومان')
                     : 'برای این مشتری هنوز پرونده وام ثبت نشده است.';
+                if (count && hideSettled && settledCount > 0) {
+                    summaryText += ' | نمایش: ' + formatToman(visibleCount) + ' از ' + formatToman(count);
+                }
+                loanFilesSummary.textContent = summaryText;
+                if (loanFilesFilterHint) {
+                    loanFilesFilterHint.textContent = count && hideSettled && settledCount > 0
+                        ? (formatToman(settledCount) + ' پرونده تسویه‌شده مخفی است')
+                        : 'فیلتر پرونده‌ها';
+                }
                 if (!count) {
                     loanFilesList.innerHTML = '<div class="loan-files-empty">هنوز پرونده‌ای ثبت نشده است.</div>';
                     loanFilesList.classList.remove('loan-files-list--multi');
@@ -5504,15 +5612,24 @@
                     }
                     return;
                 }
+                if (!visibleCount) {
+                    loanFilesList.innerHTML = '<div class="loan-files-empty">' +
+                        (hideSettled && settledCount > 0
+                            ? 'همهٔ پرونده‌ها تسویه‌شده‌اند؛ برای مشاهده، فیلتر «مخفی کردن پرونده‌های تسویه‌شده» را غیرفعال کنید.'
+                            : 'هنوز پرونده‌ای ثبت نشده است.') +
+                        '</div>';
+                    loanFilesList.classList.remove('loan-files-list--multi');
+                    return;
+                }
 
-                var multiLoanFiles = count >= 2;
+                var multiLoanFiles = visibleCount >= 2;
                 if (multiLoanFiles) {
                     loanFilesList.classList.add('loan-files-list--multi');
                 } else {
                     loanFilesList.classList.remove('loan-files-list--multi');
                 }
 
-                loanFilesList.innerHTML = rows.map(function (row, rowIndex) {
+                loanFilesList.innerHTML = visibleRows.map(function (row, rowIndex) {
                     var paidInstallments = Number(row.paid_installments_count || 0);
                     var paidAmount = Number(row.paid_installments_amount_toman || 0);
                     var remainingAmount = Number(row.remaining_amount_toman || 0);
@@ -6193,6 +6310,7 @@
             }
 
             function setLoanTab(tabId) {
+                updateLoanFilesFilterBarVisibility(tabId);
                 loanTabButtons.forEach(function (btn) {
                     var active = btn.getAttribute('data-loan-tab') === tabId;
                     btn.classList.toggle('is-active', active);
@@ -6518,6 +6636,14 @@
                     setLoanTab(btn.getAttribute('data-loan-tab') || 'files');
                 });
             });
+            if (loanFilesHideSettledCheckbox) {
+                loanFilesHideSettledCheckbox.addEventListener('change', function () {
+                    loanManageHideSettledFiles = !!loanFilesHideSettledCheckbox.checked;
+                    if (loanManageCurrentCustomerId) {
+                        renderLoanFilesForCustomer(loanManageCurrentCustomerId);
+                    }
+                });
+            }
             if (loanSmsDayPrev) {
                 loanSmsDayPrev.addEventListener('click', function () {
                     if (!loanManageCurrentCustomerId) return;

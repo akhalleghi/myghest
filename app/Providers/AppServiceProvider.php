@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\Admin;
 use App\Models\AppSetting;
 use App\Support\AdminLayoutThemeSettings;
+use App\Support\AdminReportsDisplaySettings;
 use App\Services\Admin\AdminPermissionService;
 use App\Models\Customer;
 use App\Models\CustomerDepositDeclaration;
@@ -149,6 +150,7 @@ class AppServiceProvider extends ServiceProvider
                 is_string($bankingShowInUserPanel) && $bankingShowInUserPanel === '1'
             );
             $view->with('adminLayoutTheme', AdminLayoutThemeSettings::resolved());
+            $view->with('adminReportsDisplay', AdminReportsDisplaySettings::resolved());
 
             $loginPageBackgroundUrl = null;
             if (request()->routeIs('admin.login', 'admin.login.attempt')) {

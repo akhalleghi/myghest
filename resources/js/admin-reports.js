@@ -1534,7 +1534,7 @@ function rptInitWalletTransactionsByDateReport(cfg) {
 
             var tdFinal = rptTd(tr, 'rpt-td--stack rpt-td--num', 'ثبت نهایی پرداخت');
             var finalStack = document.createElement('div');
-            finalStack.className = 'rpt-cell-stack';
+            finalStack.className = 'rpt-cell-stack rpt-cell-stack--amount';
             var finalTime = document.createElement('span');
             finalTime.className = 'rpt-val-ltr rpt-num';
             finalTime.textContent = row.finalized_at_fa || '—';
@@ -2079,7 +2079,7 @@ function rptInitLoanGuaranteesReport(cfg) {
             rptNumCell(tr, row.amount_toman, 'rpt-td--amount', 'مبلغ');
             rptNumCell(tr, row.installment_amount_toman, '', 'مبلغ اقساط');
 
-            var tdType = rptTd(tr, '', 'نوع ضمانت');
+            var tdType = rptTd(tr, 'rpt-td--text', 'نوع ضمانت');
             tdType.textContent = row.guarantee_type_label || '—';
 
             var tdDetail = rptTd(tr, 'rpt-td--stack', 'اطلاعات ضمانت');
@@ -2628,10 +2628,10 @@ function rptInitLoanInterestFeesReport(cfg) {
                 tdDiscount.textContent = '—';
             }
 
-            var tdSettled = rptTd(tr, '', 'تسویه');
+            var tdSettled = rptTd(tr, 'rpt-td--num', 'تسویه');
             tdSettled.textContent = row.is_settled_label || '—';
 
-            var tdStart = rptTd(tr, '', 'شروع');
+            var tdStart = rptTd(tr, 'rpt-td--num', 'شروع');
             tdStart.textContent = row.loan_start_jdate || '—';
 
             tbody.appendChild(tr);

@@ -4,8 +4,15 @@
 
 @push('head')
     <link rel="stylesheet" href="{{ asset('vendor/persian-datepicker/persian-datepicker.min.css') }}">
+    @php
+        $adminReportsDisplay = $adminReportsDisplay ?? \App\Support\AdminReportsDisplaySettings::resolved();
+        $adminReportsDisplayStyle = \App\Support\AdminReportsDisplaySettings::inlineStyle($adminReportsDisplay);
+    @endphp
     <style>
-        .rpt-page { max-width: 100%; }
+        .rpt-page {
+            max-width: 100%;
+            {{ $adminReportsDisplayStyle }}
+        }
         .rpt-title { margin: 0 0 0.35rem; font-size: 1.1rem; font-weight: 800; color: var(--text); }
         .rpt-sub { margin: 0 0 1rem; font-size: 0.84rem; color: var(--muted); line-height: 1.6; }
 
@@ -262,7 +269,7 @@
             width: 100%;
             table-layout: fixed;
             border-collapse: collapse;
-            font-size: 0.67rem;
+            font-size: var(--rpt-font-base, 0.67rem);
         }
 
         .rpt-table col.rpt-col-loan { width: 13%; }
@@ -278,25 +285,12 @@
         .rpt-table col.rpt-col-discount { width: 6.5%; }
         .rpt-table col.rpt-col-sms { width: 9%; }
 
-        .rpt-col-loan { width: 12%; }
-        .rpt-col-customer { width: 10.5%; }
-        .rpt-col-amount { width: 7.5%; }
-        .rpt-col-count { width: 4.2%; }
-        .rpt-col-inst { width: 7%; }
-        .rpt-col-date { width: 6%; }
-        .rpt-col-settled { width: 3.8%; }
-        .rpt-col-paid { width: 7%; }
-        .rpt-col-remain { width: 7%; }
-        .rpt-col-delay { width: 7.5%; }
-        .rpt-col-discount { width: 6.5%; }
-        .rpt-col-sms { width: 8.5%; }
-
         .rpt-table th,
         .rpt-table td {
             box-sizing: border-box;
             border: 1px solid rgba(148, 163, 184, 0.28);
-            padding: 0.32rem 0.28rem;
-            text-align: right;
+            padding: var(--rpt-cell-py, 0.32rem) var(--rpt-cell-px, 0.28rem);
+            text-align: var(--rpt-td-align, right);
             vertical-align: middle;
             white-space: nowrap;
             overflow: hidden;
@@ -309,16 +303,27 @@
             z-index: 2;
             background: rgba(241, 245, 249, 0.92);
             font-weight: 800;
-            font-size: 0.64rem;
+            font-size: var(--rpt-font-th, 0.64rem);
             color: var(--text);
-            text-align: center;
+            text-align: var(--rpt-th-align, center);
             line-height: 1.35;
             white-space: normal;
         }
 
+        .rpt-page[data-rpt-header-mode="match"] .rpt-table th {
+            text-align: var(--rpt-num-align, center);
+        }
+
+        .rpt-page[data-rpt-header-mode="match"] .rpt-table th.rpt-th-loan,
+        .rpt-page[data-rpt-header-mode="match"] .rpt-table th.rpt-th-customer,
+        .rpt-page[data-rpt-header-mode="match"] .rpt-table th.rpt-th-text {
+            text-align: var(--rpt-td-align, right);
+        }
+
         .rpt-table th.rpt-th-loan,
-        .rpt-table th.rpt-th-customer {
-            text-align: right;
+        .rpt-table th.rpt-th-customer,
+        .rpt-table th.rpt-th-text {
+            text-align: var(--rpt-td-align, right);
         }
 
         html[data-theme="dark"] .rpt-table th {
@@ -335,7 +340,9 @@
         }
 
         .rpt-table .rpt-td--num,
-        .rpt-table .rpt-td--amount { text-align: center; }
+        .rpt-table .rpt-td--amount { text-align: var(--rpt-num-align, center); }
+
+        .rpt-table .rpt-td--text { text-align: var(--rpt-td-align, right); white-space: normal; }
 
         .rpt-table .rpt-td--sms {
             white-space: normal;
@@ -343,33 +350,30 @@
             overflow: visible;
         }
 
-        .rpt-col-loan { width: 11.5%; }
-        .rpt-col-customer { width: 10.5%; }
-        .rpt-col-amount { width: 7%; }
-        .rpt-col-count { width: 3.8%; }
-        .rpt-col-inst { width: 6.5%; }
-        .rpt-col-date { width: 5.5%; }
-        .rpt-col-settled { width: 3.5%; }
-        .rpt-col-paid { width: 6.5%; }
-        .rpt-col-remain { width: 6.5%; }
-        .rpt-col-delay { width: 7%; }
-        .rpt-col-discount { width: 6%; }
-        .rpt-col-sms { width: 10.7%; }
-
         .rpt-amt-principal,
         .rpt-amt-total,
-        .rpt-num { font-size: 0.64rem; }
+        .rpt-num { font-size: var(--rpt-font-num, 0.64rem); }
 
         .rpt-cell-stack {
             display: flex;
             flex-direction: column;
             gap: 0.06rem;
-            align-items: flex-start;
+            align-items: var(--rpt-stack-items, center);
             min-width: 0;
             max-width: 100%;
+            width: 100%;
         }
 
-        .rpt-cell-stack--amount { align-items: center; gap: 0.1rem; }
+        .rpt-cell-stack--amount { align-items: var(--rpt-stack-items, center); gap: 0.1rem; }
+
+        .rpt-cell-sub {
+            font-size: calc(var(--rpt-font-stack, 0.66rem) * 0.95);
+            color: var(--muted);
+            line-height: 1.4;
+            width: 100%;
+            text-align: inherit;
+            white-space: normal;
+        }
 
         .rpt-cell-stack span,
         .rpt-cell-stack .rpt-link {
@@ -377,7 +381,7 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            font-size: 0.66rem;
+            font-size: var(--rpt-font-stack, 0.66rem);
         }
 
         .rpt-td--stack .rpt-cell-stack span {
@@ -392,7 +396,7 @@
             color: #0891b2;
             font-weight: 800;
             text-decoration: none;
-            font-size: 0.66rem;
+            font-size: var(--rpt-font-link, 0.66rem);
         }
 
         html[data-theme="dark"] .rpt-link { color: #38bdf8; }
@@ -409,11 +413,11 @@
         .rpt-amt-total { color: #15803d; font-weight: 800; }
         html[data-theme="dark"] .rpt-amt-total { color: #4ade80; }
 
-        .rpt-num { font-weight: 700; color: var(--text); font-size: 0.62rem; }
+        .rpt-num { font-weight: 700; color: var(--text); font-size: var(--rpt-font-num, 0.62rem); }
         .rpt-num--neg { color: #b91c1c; }
 
         .rpt-amt-principal,
-        .rpt-amt-total { font-size: 0.62rem; }
+        .rpt-amt-total { font-size: var(--rpt-font-num, 0.62rem); }
 
         .rpt-empty {
             padding: 1.5rem 1rem;
@@ -849,7 +853,7 @@
 
             .rpt-table tbody tr.rpt-data-row td.rpt-td--num,
             .rpt-table tbody tr.rpt-data-row td.rpt-td--amount {
-                text-align: start;
+                text-align: var(--rpt-num-align, center);
             }
 
             .rpt-table tbody tr.rpt-data-row td.rpt-td--sms,
@@ -863,7 +867,7 @@
             }
 
             .rpt-cell-stack {
-                align-items: flex-start;
+                align-items: var(--rpt-stack-items, flex-start);
                 min-width: 0;
             }
 
@@ -883,7 +887,7 @@
             }
 
             .rpt-cell-stack--amount {
-                align-items: flex-start;
+                align-items: var(--rpt-stack-items, flex-start);
             }
 
             .rpt-sms-btn {
@@ -908,7 +912,7 @@
 @endpush
 
 @section('content')
-    <div class="rpt-page">
+    <div class="rpt-page" data-rpt-header-mode="{{ $adminReportsDisplay['header_mode'] ?? 'match' }}">
         <h1 class="rpt-title">گزارش‌ها</h1>
         <p class="rpt-sub">گزارش‌های تحلیلی و عملیاتی سامانه. هر گزارش در پنجرهٔ جدا با فیلتر تاریخ و جستجو نمایش داده می‌شود.</p>
 
