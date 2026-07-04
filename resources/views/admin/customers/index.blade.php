@@ -337,9 +337,63 @@
         .loan-inst-sms-actions {
             display: inline-flex;
             flex-wrap: wrap;
-            gap: 0.28rem;
+            gap: 0.38rem;
             align-items: center;
             justify-content: flex-start;
+        }
+        .cust-sms-circle-wrap {
+            position: relative;
+            display: inline-flex;
+            flex-shrink: 0;
+        }
+        .cust-sms-badge {
+            position: absolute;
+            min-width: 0.95rem;
+            height: 0.95rem;
+            padding: 0 0.12rem;
+            border-radius: 999px;
+            font-size: 0.5rem;
+            font-weight: 900;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            border: 1px solid #fff;
+            box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.1);
+            pointer-events: none;
+            z-index: 1;
+        }
+        .cust-sms-badge--count {
+            top: -0.22rem;
+            inset-inline-end: -0.18rem;
+            background: #0f172a;
+            color: #fff;
+        }
+        html[data-theme="dark"] .cust-sms-badge--count {
+            border-color: rgba(15, 23, 42, 0.9);
+            box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.25);
+        }
+        .cust-sms-badge--mode {
+            bottom: -0.22rem;
+            inset-inline-start: -0.18rem;
+            width: 0.95rem;
+            padding: 0;
+        }
+        .cust-sms-badge--auto {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+        .cust-sms-badge--manual {
+            background: #fef3c7;
+            color: #b45309;
+        }
+        html[data-theme="dark"] .cust-sms-badge--auto {
+            background: rgba(30, 58, 138, 0.55);
+            color: #bfdbfe;
+        }
+        html[data-theme="dark"] .cust-sms-badge--manual {
+            background: rgba(146, 64, 14, 0.45);
+            color: #fde68a;
         }
         .loan-inst-sms-actions .cust-sms-circle-btn {
             width: 1.65rem;
@@ -4116,12 +4170,54 @@
                     return '—';
                 }
                 var ea = escapeHtmlAttr;
+                var stats = row.sms_stats && typeof row.sms_stats === 'object' ? row.sms_stats : {};
+
+                function makeSmsBtn(type, cls, letter, title) {
+                    var st = stats[type] || {};
+                    var count = Number(st.count || 0);
+                    var lastMode = st.last_mode || null;
+                    var html = '<span class="cust-sms-circle-wrap">';
+                    html += '<button type="button" class="cust-sms-circle-btn ' + cls + '" data-cust-quick-sms data-sms-type="' + type + '" data-customer-id="' + String(cid) + '" data-customer-name="' + ea(cname) + '" data-customer-mobile="' + ea(cmob) + '" data-installment-id="' + String(iid) + '" data-loan-file-id="' + String(lf) + '" title="' + ea(title) + '">' + letter + '</button>';
+                    if (count > 0) {
+                        html += '<span class="cust-sms-badge cust-sms-badge--count" title="تعداد ارسال: ' + ea(formatToman(count)) + '">' + formatToman(count) + '</span>';
+                    }
+                    if (lastMode === 'auto' || lastMode === 'manual') {
+                        var modeLabel = lastMode === 'auto' ? 'خ' : 'د';
+                        var modeTitle = lastMode === 'auto' ? 'آخرین ارسال: خودکار' : 'آخرین ارسال: دستی';
+                        html += '<span class="cust-sms-badge cust-sms-badge--mode cust-sms-badge--' + lastMode + '" title="' + ea(modeTitle) + '">' + modeLabel + '</span>';
+                    }
+                    html += '</span>';
+
+                    return html;
+                }
+
                 return '<div class="cust-sms-actions loan-inst-sms-actions">' +
-                    '<button type="button" class="cust-sms-circle-btn cust-sms-circle-btn--inst-pre" data-cust-quick-sms data-sms-type="installment_pre_due" data-customer-id="' + String(cid) + '" data-customer-name="' + ea(cname) + '" data-customer-mobile="' + ea(cmob) + '" data-installment-id="' + String(iid) + '" data-loan-file-id="' + String(lf) + '" title="ارسال پیامک پیش از موعد">پ</button>' +
-                    '<button type="button" class="cust-sms-circle-btn cust-sms-circle-btn--inst-due" data-cust-quick-sms data-sms-type="installment_due" data-customer-id="' + String(cid) + '" data-customer-name="' + ea(cname) + '" data-customer-mobile="' + ea(cmob) + '" data-installment-id="' + String(iid) + '" data-loan-file-id="' + String(lf) + '" title="ارسال پیامک سررسید">س</button>' +
-                    '<button type="button" class="cust-sms-circle-btn cust-sms-circle-btn--inst-over" data-cust-quick-sms data-sms-type="installment_overdue" data-customer-id="' + String(cid) + '" data-customer-name="' + ea(cname) + '" data-customer-mobile="' + ea(cmob) + '" data-installment-id="' + String(iid) + '" data-loan-file-id="' + String(lf) + '" title="ارسال پیامک معوق جدید">م</button>' +
-                    '<button type="button" class="cust-sms-circle-btn cust-sms-circle-btn--inst-thanks" data-cust-quick-sms data-sms-type="installment_thanks" data-customer-id="' + String(cid) + '" data-customer-name="' + ea(cname) + '" data-customer-mobile="' + ea(cmob) + '" data-installment-id="' + String(iid) + '" data-loan-file-id="' + String(lf) + '" title="ارسال پیامک تشکر جدید">ت</button>' +
+                    makeSmsBtn('installment_pre_due', 'cust-sms-circle-btn--inst-pre', 'پ', 'ارسال پیامک پیش از موعد') +
+                    makeSmsBtn('installment_due', 'cust-sms-circle-btn--inst-due', 'س', 'ارسال پیامک سررسید') +
+                    makeSmsBtn('installment_overdue', 'cust-sms-circle-btn--inst-over', 'م', 'ارسال پیامک معوق جدید') +
+                    makeSmsBtn('installment_thanks', 'cust-sms-circle-btn--inst-thanks', 'ت', 'ارسال پیامک تشکر جدید') +
                     '</div>';
+            }
+
+            function reloadActiveLoanInstallmentsQuiet() {
+                if (!loanManageCurrentCustomerId || !loanInstActiveLoanFileId) {
+                    return;
+                }
+                if (!loanInstallmentsOverlay || loanInstallmentsOverlay.hidden) {
+                    return;
+                }
+                fetch(customerLoanInstallmentsUrl(loanManageCurrentCustomerId, loanInstActiveLoanFileId), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                }).then(function (r) {
+                    if (!r.ok) {
+                        throw new Error('bad');
+                    }
+
+                    return r.json();
+                }).then(function (data) {
+                    renderLoanInstallmentsPayload(data);
+                }).catch(function () { /* noop */ });
             }
 
             function destroyLoanInstallmentEditDatePicker() {
@@ -6739,6 +6835,192 @@
                     } catch (eSap) { /* noop */ }
                 });
             }
+            function buildLoanInstPaymentDefaultSmsText(amtPay, snapIns) {
+                var loanPx = loanInstPayLastServerPayload && loanInstPayLastServerPayload.loan
+                    ? loanInstPayLastServerPayload.loan
+                    : {};
+                var amtText = formatToman(amtPay) + ' تومان';
+                var seq = snapIns.sequence != null ? String(snapIns.sequence) : '—';
+                var loanCode = String(loanPx.loan_code || '—');
+                var remainBefore = Number(
+                    snapIns.loan_remaining_payable_toman != null
+                        ? snapIns.loan_remaining_payable_toman
+                        : (snapIns.max_payment_toman != null ? snapIns.max_payment_toman : 0)
+                );
+                var remainAfter = Math.max(0, remainBefore - Number(amtPay || 0));
+                var remainText = formatToman(remainAfter) + ' تومان';
+                var tplVars = {
+                    store_name: appDisplayName || (document.title || 'سامانه'),
+                    customer_name: loanManageCurrentCustomerName || '',
+                    loan_code: loanCode,
+                    installment_number: seq,
+                    paid_amount: amtText,
+                    remaining_loan: remainText
+                };
+                var adminPayTpl = quickSmsTemplatesData.find(function (t) {
+                    return String(t.template_key || '') === 'default_admin_installment_payment_registered';
+                });
+                if (adminPayTpl && adminPayTpl.body) {
+                    return renderWalletTemplateText(adminPayTpl.body, tplVars);
+                }
+
+                return (appDisplayName || '') + '\n' +
+                    'مشتری گرامی ' + (loanManageCurrentCustomerName || '') + '؛ مبلغ ' + amtText +
+                    ' بابت قسط شماره ' + formatToman(seq) + ' پرونده ' + loanCode + ' ثبت گردید.\n' +
+                    'مانده قابل پرداخت: ' + remainText;
+            }
+
+            function submitLoanInstPaymentRequest(postBody, payUrl, payMethodHttp, cidPay, lfPay, insPay, editPaymentId) {
+                loanInstPaySubmitting = true;
+                if (loanInstPaySaveBtn) loanInstPaySaveBtn.disabled = true;
+                fetch(payUrl, {
+                    method: payMethodHttp,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': @json(csrf_token())
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(postBody)
+                }).then(function (rPay) {
+                    return rPay.json().then(function (jPay) {
+                        return { ok: rPay.ok, json: jPay };
+                    });
+                }).then(function (resPay) {
+                    if (!resPay.ok) {
+                        var msgPayErr = '';
+                        try {
+                            var jpe = resPay.json || {};
+                            msgPayErr = jpe.message ? String(jpe.message) : '';
+                            if (!msgPayErr && jpe.errors && typeof jpe.errors === 'object') {
+                                var kPay = Object.keys(jpe.errors);
+                                if (kPay.length && Array.isArray(jpe.errors[kPay[0]]) && jpe.errors[kPay[0]][0]) {
+                                    msgPayErr = String(jpe.errors[kPay[0]][0]);
+                                }
+                            }
+                        } catch (ePv) {}
+                        throw new Error(msgPayErr || (editPaymentId > 0 ? 'به‌روزرسانی پرداخت ناموفق بود.' : 'ثبت پرداخت ناموفق بود.'));
+                    }
+                    var okPayMsg = resPay.json && resPay.json.message
+                        ? resPay.json.message
+                        : (editPaymentId > 0 ? 'پرداخت به‌روزرسانی شد.' : 'پرداخت ثبت شد.');
+                    return loanInstPayRefreshAfterMutation(cidPay, lfPay, insPay, okPayMsg);
+                }).catch(function (exPay) {
+                    if (window.AdminSwal && AdminSwal.error) {
+                        AdminSwal.error(exPay.message || 'عملیات پرداخت ناموفق بود.');
+                    }
+                }).finally(function () {
+                    loanInstPaySubmitting = false;
+                    if (loanInstPaySaveBtn) loanInstPaySaveBtn.disabled = false;
+                });
+            }
+
+            function promptLoanInstPaymentSmsThenSubmit(postBody, payUrl, payMethodHttp, cidPay, lfPay, insPay, editPaymentId, snapIns, amtPay) {
+                if (editPaymentId > 0 || typeof Swal === 'undefined') {
+                    submitLoanInstPaymentRequest(postBody, payUrl, payMethodHttp, cidPay, lfPay, insPay, editPaymentId);
+                    return;
+                }
+
+                var defaultPaySms = buildLoanInstPaymentDefaultSmsText(amtPay, snapIns);
+                var adminPayTpl = quickSmsTemplatesData.find(function (t) {
+                    return String(t.template_key || '') === 'default_admin_installment_payment_registered';
+                });
+                var templateOptionsHtml = '<option value="">بدون قالب (متن آزاد)</option>';
+                quickSmsTemplatesData.forEach(function (tpl) {
+                    var selected = adminPayTpl && Number(tpl.id) === Number(adminPayTpl.id) ? ' selected' : '';
+                    templateOptionsHtml += '<option value="' + String(tpl.id) + '"' + selected + '>' +
+                        escapeHtmlText((tpl.title || '') + ' (' + (tpl.category || '') + ')') + '</option>';
+                });
+
+                Swal.fire({
+                    icon: 'question',
+                    title: 'ارسال پیامک پس از ثبت واریز',
+                    width: 540,
+                    customClass: {
+                        popup: 'wallet-sms-swal',
+                        title: 'wallet-sms-swal-title',
+                    },
+                    html:
+                        '<div style="text-align:right">' +
+                        '<div style="font-size:.73rem;color:#64748b;margin-bottom:.3rem">موبایل مشتری: ' + escapeHtmlText(loanManageCurrentCustomerMobile || '—') + '</div>' +
+                        '<label style="display:block;font-size:.72rem;font-weight:700;margin-bottom:.2rem">قالب پیامک</label>' +
+                        '<select id="loan-inst-pay-sms-template" class="swal2-select" style="width:100%;margin:0 0 .35rem;min-height:2.1rem">' + templateOptionsHtml + '</select>' +
+                        '<label style="display:block;font-size:.72rem;font-weight:700;margin-bottom:.2rem">متن پیامک (قابل ویرایش)</label>' +
+                        '<textarea id="loan-inst-pay-sms-text" class="swal2-textarea" style="width:100%;margin:0;min-height:88px;padding:.45rem .55rem">' + escapeHtmlText(defaultPaySms) + '</textarea>' +
+                        '</div>',
+                    showDenyButton: true,
+                    showCancelButton: true,
+                    confirmButtonText: 'ثبت و ارسال پیامک',
+                    denyButtonText: 'فقط ثبت پرداخت',
+                    cancelButtonText: 'لغو',
+                    reverseButtons: true,
+                    focusCancel: false,
+                    didOpen: function () {
+                        var p = document.querySelector('.swal2-popup');
+                        if (p) p.setAttribute('dir', 'rtl');
+                        var selectEl = document.getElementById('loan-inst-pay-sms-template');
+                        var txtEl = document.getElementById('loan-inst-pay-sms-text');
+                        var loanPx = loanInstPayLastServerPayload && loanInstPayLastServerPayload.loan
+                            ? loanInstPayLastServerPayload.loan
+                            : {};
+                        var remainBefore = Number(
+                            snapIns.loan_remaining_payable_toman != null
+                                ? snapIns.loan_remaining_payable_toman
+                                : (snapIns.max_payment_toman != null ? snapIns.max_payment_toman : 0)
+                        );
+                        var remainAfter = Math.max(0, remainBefore - Number(amtPay || 0));
+                        if (selectEl && txtEl) {
+                            selectEl.addEventListener('change', function () {
+                                var selectedId = parseInt(String(selectEl.value || '0'), 10);
+                                if (!selectedId) {
+                                    txtEl.value = defaultPaySms;
+                                    return;
+                                }
+                                var tpl = quickSmsTemplatesData.find(function (x) {
+                                    return parseInt(String(x.id), 10) === selectedId;
+                                });
+                                if (!tpl) return;
+                                txtEl.value = renderWalletTemplateText(tpl.body || '', {
+                                    store_name: appDisplayName || (document.title || 'سامانه'),
+                                    customer_name: loanManageCurrentCustomerName || '',
+                                    loan_code: String(loanPx.loan_code || '—'),
+                                    installment_number: snapIns.sequence != null ? String(snapIns.sequence) : '—',
+                                    paid_amount: formatToman(amtPay) + ' تومان',
+                                    remaining_loan: formatToman(remainAfter) + ' تومان'
+                                });
+                            });
+                            if (adminPayTpl && String(selectEl.value || '') === String(adminPayTpl.id)) {
+                                selectEl.dispatchEvent(new Event('change'));
+                            }
+                        }
+                    },
+                    preConfirm: function () {
+                        var txtEl = document.getElementById('loan-inst-pay-sms-text');
+                        var selectEl = document.getElementById('loan-inst-pay-sms-template');
+                        return {
+                            sms_text: txtEl ? String(txtEl.value || '').trim() : '',
+                            sms_template_id: selectEl ? (selectEl.value || '') : ''
+                        };
+                    }
+                }).then(function (result) {
+                    if (result.isDismissed) {
+                        return;
+                    }
+                    if (result.isConfirmed) {
+                        postBody.send_sms = true;
+                        postBody.sms_text = (result.value && result.value.sms_text) ? result.value.sms_text : '';
+                        postBody.sms_template_id = (result.value && result.value.sms_template_id) ? result.value.sms_template_id : '';
+                        submitLoanInstPaymentRequest(postBody, payUrl, payMethodHttp, cidPay, lfPay, insPay, editPaymentId);
+                        return;
+                    }
+                    if (result.isDenied) {
+                        postBody.send_sms = false;
+                        submitLoanInstPaymentRequest(postBody, payUrl, payMethodHttp, cidPay, lfPay, insPay, editPaymentId);
+                    }
+                });
+            }
+
             if (loanInstPaySaveBtn) {
                 loanInstPaySaveBtn.addEventListener('click', function () {
                     if (loanInstPaySubmitting) return;
@@ -6800,49 +7082,7 @@
                         ? customerLoanInstallmentPaymentItemUrl(cidPay, lfPay, insPay, editPaymentId)
                         : customerLoanInstallmentPaymentsUrl(cidPay, lfPay, insPay);
                     var payMethodHttp = editPaymentId > 0 ? 'PUT' : 'POST';
-                    loanInstPaySubmitting = true;
-                    loanInstPaySaveBtn.disabled = true;
-                    fetch(payUrl, {
-                        method: payMethodHttp,
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': @json(csrf_token())
-                        },
-                        credentials: 'same-origin',
-                        body: JSON.stringify(postBody)
-                    }).then(function (rPay) {
-                        return rPay.json().then(function (jPay) {
-                            return { ok: rPay.ok, json: jPay };
-                        });
-                    }).then(function (resPay) {
-                        if (!resPay.ok) {
-                            var msgPayErr = '';
-                            try {
-                                var jpe = resPay.json || {};
-                                msgPayErr = jpe.message ? String(jpe.message) : '';
-                                if (!msgPayErr && jpe.errors && typeof jpe.errors === 'object') {
-                                    var kPay = Object.keys(jpe.errors);
-                                    if (kPay.length && Array.isArray(jpe.errors[kPay[0]]) && jpe.errors[kPay[0]][0]) {
-                                        msgPayErr = String(jpe.errors[kPay[0]][0]);
-                                    }
-                                }
-                            } catch (ePv) {}
-                            throw new Error(msgPayErr || (editPaymentId > 0 ? 'به‌روزرسانی پرداخت ناموفق بود.' : 'ثبت پرداخت ناموفق بود.'));
-                        }
-                        var okPayMsg = resPay.json && resPay.json.message
-                            ? resPay.json.message
-                            : (editPaymentId > 0 ? 'پرداخت به‌روزرسانی شد.' : 'پرداخت ثبت شد.');
-                        return loanInstPayRefreshAfterMutation(cidPay, lfPay, insPay, okPayMsg);
-                    }).catch(function (exPay) {
-                        if (window.AdminSwal && AdminSwal.error) {
-                            AdminSwal.error(exPay.message || 'عملیات پرداخت ناموفق بود.');
-                        }
-                    }).finally(function () {
-                        loanInstPaySubmitting = false;
-                        if (loanInstPaySaveBtn) loanInstPaySaveBtn.disabled = false;
-                    });
+                    promptLoanInstPaymentSmsThenSubmit(postBody, payUrl, payMethodHttp, cidPay, lfPay, insPay, editPaymentId, snapIns, amtPay);
                 });
             }
             if (loanInstPayTbody) {
@@ -8417,6 +8657,9 @@
                         closeQuickSmsModal();
                         if (window.AdminSwal && window.AdminSwal.success) {
                             AdminSwal.success(res.json.message || 'پیامک ارسال شد.');
+                        }
+                        if (quickSmsCurrentInstallmentId && ['installment_pre_due', 'installment_due', 'installment_overdue', 'installment_thanks'].indexOf(quickSmsCurrentType) !== -1) {
+                            reloadActiveLoanInstallmentsQuiet();
                         }
                     }).catch(function (err) {
                         if (window.AdminSwal && window.AdminSwal.error) {

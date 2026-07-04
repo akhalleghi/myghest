@@ -97,12 +97,13 @@ final class CustomerController extends Controller
             }),
             'smsTemplates' => SmsTemplate::query()
                 ->latest('id')
-                ->get(['id', 'title', 'category', 'body'])
+                ->get(['id', 'title', 'category', 'body', 'template_key'])
                 ->map(static fn (SmsTemplate $tpl): array => [
                     'id' => $tpl->id,
                     'title' => $tpl->title,
                     'category' => $tpl->category,
                     'body' => $tpl->body,
+                    'template_key' => (string) ($tpl->template_key ?? ''),
                 ])
                 ->values(),
             'loanManageLrqEmbedUrlTemplate' => $this->loanManageLoanRequestEmbedUrlTemplate(),
@@ -1272,8 +1273,18 @@ final class CustomerController extends Controller
         $totalRepayable = max(0, ((int) $loanFile->amount_toman + $profit) - (int) $loanFile->down_payment_toman);
         $snap = $this->loanInstallmentFinancialSnapshot($loanFile, $totalRepayable);
 
+        $installmentIds = $loanFile->installments
+            ->map(static fn (CustomerLoanInstallment $i): int => (int) $i->id)
+            ->all();
+        $smsStatsByInstallment = $this->installmentSmsStatsForInstallmentIds($installmentIds);
+
         $rows = $loanFile->installments->map(
-            fn (CustomerLoanInstallment $i): array => $this->mapLoanInstallmentRow($i, $customer, $loanFile)
+            fn (CustomerLoanInstallment $i): array => array_merge(
+                $this->mapLoanInstallmentRow($i, $customer, $loanFile),
+                [
+                    'sms_stats' => $smsStatsByInstallment[(int) $i->id] ?? $this->emptyInstallmentSmsStats(),
+                ],
+            )
         )->values();
 
         return response()->json([
@@ -1512,6 +1523,9 @@ final class CustomerController extends Controller
             'reference_due_jdate' => ['nullable', 'string', 'max:20'],
             'deposited_jdate' => ['required', 'string', 'max:20'],
             'note' => ['nullable', 'string', 'max:5000'],
+            'send_sms' => ['nullable', 'boolean'],
+            'sms_text' => ['nullable', 'string', 'max:1000'],
+            'sms_template_id' => ['nullable', 'integer', 'exists:sms_templates,id'],
         ], [], [
             'payment_method' => 'نحوه پرداخت',
             'amount_toman' => 'مبلغ پرداختی',
@@ -1565,8 +1579,39 @@ final class CustomerController extends Controller
             return $row->fresh(['recordedByAdmin']);
         });
 
+        $installment->refresh();
+        $installment->load(['recordedByAdmin']);
+        $loanFile->refresh();
+        $loanFile->load(['loanType', 'installments']);
+
+        $smsFeedback = '';
+        if ((bool) ($validated['send_sms'] ?? false)) {
+            $smsText = trim((string) ($validated['sms_text'] ?? ''));
+            if ($smsText === '' && isset($validated['sms_template_id'])) {
+                $template = SmsTemplate::query()->find((int) $validated['sms_template_id']);
+                if ($template !== null) {
+                    $smsText = $this->renderTemplate(
+                        $template->body,
+                        $this->installmentPaymentRegisteredSmsTemplateVars($customer, $loanFile, $installment, $amountNew)
+                    );
+                }
+            }
+            if ($smsText === '') {
+                $smsText = $this->defaultAdminInstallmentPaymentRegisteredSmsText($customer, $loanFile, $installment, $amountNew);
+            }
+            $smsResult = $this->rawSms->send($customer->mobile, $smsText, 'installment-payment-registered', [
+                'installment_id' => (int) $installment->id,
+                'loan_file_id' => (int) $loanFile->id,
+                'customer_id' => (int) $customer->id,
+                'payment_id' => (int) $payment->id,
+                'automated' => false,
+                'manual' => true,
+            ]);
+            $smsFeedback = ' '.$smsResult['message'];
+        }
+
         return response()->json([
-            'message' => 'پرداخت با موفقیت ثبت شد.',
+            'message' => 'پرداخت با موفقیت ثبت شد.'.$smsFeedback,
             'payment' => $this->mapInstallmentPaymentRow($payment),
             'installment' => $this->mapLoanInstallmentRow($installment->fresh(['recordedByAdmin']), $customer, $loanFile),
             'payments' => CustomerLoanInstallmentPayment::query()
@@ -2134,6 +2179,7 @@ final class CustomerController extends Controller
         return match ($type) {
             'customer-credentials' => 'ارسال نام کاربری و رمز عبور',
             'loan-file-created' => 'ثبت پرونده وام',
+            'installment-payment-registered' => 'ثبت واریز قسط',
             'wallet-charge-link' => 'لینک شارژ کیف پول',
             'welcome-message' => 'پیام خوش‌آمدگویی',
             'guarantor-otp' => 'کد تأیید ضامن',
@@ -2729,7 +2775,18 @@ final class CustomerController extends Controller
             default => 'welcome-message',
         };
 
-        $result = $this->rawSms->send($customer->mobile, $messageText, $logType);
+        $extraMeta = [];
+        if ($installment !== null && $loanFile !== null) {
+            $extraMeta = [
+                'installment_id' => (int) $installment->id,
+                'loan_file_id' => (int) $loanFile->id,
+                'customer_id' => (int) $customer->id,
+                'automated' => false,
+                'manual' => true,
+            ];
+        }
+
+        $result = $this->rawSms->send($customer->mobile, $messageText, $logType, $extraMeta);
 
         return response()->json([
             'ok' => $result['ok'],
@@ -3905,6 +3962,48 @@ final class CustomerController extends Controller
     }
 
     /**
+     * @return array<string, string>
+     */
+    private function installmentPaymentRegisteredSmsTemplateVars(
+        Customer $customer,
+        CustomerLoanFile $loanFile,
+        CustomerLoanInstallment $inst,
+        int $registeredAmountToman,
+    ): array {
+        $loanFile->loadMissing('loanType');
+        $mapped = $this->mapLoanFile($loanFile);
+
+        return [
+            'store_name' => $this->appDisplayName(),
+            'customer_name' => $customer->fullName(),
+            'loan_code' => (string) $loanFile->loan_code,
+            'installment_number' => (string) $inst->sequence,
+            'paid_amount' => number_format($registeredAmountToman, 0, '.', ',').' تومان',
+            'remaining_loan' => number_format((int) ($mapped['remaining_amount_toman'] ?? 0), 0, '.', ',').' تومان',
+        ];
+    }
+
+    private function defaultAdminInstallmentPaymentRegisteredSmsText(
+        Customer $customer,
+        CustomerLoanFile $loanFile,
+        CustomerLoanInstallment $inst,
+        int $registeredAmountToman,
+    ): string {
+        $tpl = SmsTemplate::query()
+            ->where('template_key', 'default_admin_installment_payment_registered')
+            ->first();
+        $vars = $this->installmentPaymentRegisteredSmsTemplateVars($customer, $loanFile, $inst, $registeredAmountToman);
+        if ($tpl !== null) {
+            return trim($this->renderTemplate($tpl->body, $vars));
+        }
+
+        return $this->appDisplayName()."\n"
+            .'مشتری گرامی '.$customer->fullName().'؛ مبلغ '
+            .number_format($registeredAmountToman, 0, '.', ',').' تومان بابت قسط شماره '.(string) $inst->sequence
+            .' پرونده '.(string) $loanFile->loan_code.' ثبت گردید.';
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function buildGoldGuaranteeMeta(array $validated): array
@@ -4452,6 +4551,108 @@ final class CustomerController extends Controller
             'customer_mobile' => trim((string) ($customer->mobile ?? '')),
             'loan_file_id' => (int) $file->id,
         ];
+    }
+
+    /**
+     * @var array<string, list<string>>
+     */
+    private const INSTALLMENT_SMS_LOG_TYPE_GROUPS = [
+        'installment_pre_due' => ['installment_pre_due', 'installment-pre-due'],
+        'installment_due' => ['installment_due', 'installment-due'],
+        'installment_overdue' => ['installment_overdue', 'installment-overdue'],
+        'installment_thanks' => ['installment_thanks', 'installment-thanks'],
+    ];
+
+    /**
+     * @return array<string, array{count: int, last_mode: string|null}>
+     */
+    private function emptyInstallmentSmsStats(): array
+    {
+        $stats = [];
+        foreach (array_keys(self::INSTALLMENT_SMS_LOG_TYPE_GROUPS) as $key) {
+            $stats[$key] = ['count' => 0, 'last_mode' => null];
+        }
+
+        return $stats;
+    }
+
+    /**
+     * @param  list<int>  $installmentIds
+     * @return array<int, array<string, array{count: int, last_mode: string|null}>>
+     */
+    private function installmentSmsStatsForInstallmentIds(array $installmentIds): array
+    {
+        $installmentIds = array_values(array_unique(array_filter(
+            array_map(static fn (mixed $id): int => (int) $id, $installmentIds),
+            static fn (int $id): bool => $id > 0,
+        )));
+
+        $stats = [];
+        foreach ($installmentIds as $installmentId) {
+            $stats[$installmentId] = $this->emptyInstallmentSmsStats();
+        }
+
+        if ($installmentIds === []) {
+            return $stats;
+        }
+
+        $allTypes = [];
+        foreach (self::INSTALLMENT_SMS_LOG_TYPE_GROUPS as $types) {
+            foreach ($types as $type) {
+                $allTypes[] = $type;
+            }
+        }
+
+        $logs = SmsLog::query()
+            ->whereIn('type', array_values(array_unique($allTypes)))
+            ->whereIn('meta->installment_id', $installmentIds)
+            ->orderBy('sent_at')
+            ->orderBy('id')
+            ->get(['id', 'type', 'meta', 'sent_at']);
+
+        foreach ($logs as $log) {
+            $meta = is_array($log->meta) ? $log->meta : [];
+            $installmentId = (int) ($meta['installment_id'] ?? 0);
+            if ($installmentId < 1 || ! isset($stats[$installmentId])) {
+                continue;
+            }
+
+            $smsKey = $this->resolveInstallmentSmsStatsKey((string) $log->type);
+            if ($smsKey === null) {
+                continue;
+            }
+
+            $stats[$installmentId][$smsKey]['count']++;
+            $stats[$installmentId][$smsKey]['last_mode'] = $this->resolveSmsLogDeliveryMode($meta);
+        }
+
+        return $stats;
+    }
+
+    private function resolveInstallmentSmsStatsKey(string $logType): ?string
+    {
+        $normalized = str_replace('-', '_', trim($logType));
+        foreach (self::INSTALLMENT_SMS_LOG_TYPE_GROUPS as $key => $types) {
+            foreach ($types as $type) {
+                if (str_replace('-', '_', $type) === $normalized) {
+                    return $key;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     */
+    private function resolveSmsLogDeliveryMode(array $meta): string
+    {
+        if (filter_var($meta['automated'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            return 'auto';
+        }
+
+        return 'manual';
     }
 
     /**
