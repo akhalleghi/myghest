@@ -134,6 +134,7 @@
             function closeOtherPortalPaymentDialogs() {
                 [
                     'portal-installment-pay-dialog',
+                    'portal-installment-wallet-pay-dialog',
                     'portal-loans-settle-dialog',
                     'portal-settle-dialog',
                 ].forEach(function (id) {

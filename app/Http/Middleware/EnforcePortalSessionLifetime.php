@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Models\Admin;
 use App\Models\LoginAccessBlock;
+use App\Services\Admin\AdminActivityLogService;
 use App\Support\PortalLoginSecuritySettings;
 use Closure;
 use Illuminate\Http\Request;
@@ -24,6 +26,14 @@ final class EnforcePortalSessionLifetime
             if (is_numeric($lastActivity)) {
                 $idleSeconds = now()->timestamp - (int) $lastActivity;
                 if ($idleSeconds > ($maxIdleMinutes * 60)) {
+                    if ($guard === LoginAccessBlock::GUARD_ADMIN) {
+                        /** @var Admin|null $expiredAdmin */
+                        $expiredAdmin = Auth::guard($authGuard)->user();
+                        if ($expiredAdmin instanceof Admin) {
+                            app(AdminActivityLogService::class)->recordSessionExpired($expiredAdmin, $request);
+                        }
+                    }
+
                     Auth::guard($authGuard)->logout();
                     $request->session()->forget($sessionKey);
                     $request->session()->invalidate();

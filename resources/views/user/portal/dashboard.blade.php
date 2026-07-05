@@ -3,6 +3,7 @@
 @section('title', $pageTitle)
 
 @section('content')
+    @php($portalWalletBal = max(0, (int) (($portalSummary['wallet_balance_toman'] ?? null) ?? ($customerWalletBalanceToman ?? 0))))
     @if(!empty($showUserBankingCard))
         <section class="portal-banking" aria-labelledby="portal-banking-title">
             <div class="portal-banking__shell">
@@ -164,6 +165,7 @@
                                         data-loan-file-id="{{ (int) $loan['id'] }}"
                                         data-remaining-fa="{{ $loan['remaining_amount_fa'] }}"
                                         data-late-fa="{{ $loan['late_fee_estimate_fa'] }}"
+                                        data-late-toman="{{ (int) ($loan['late_fee_estimate_toman'] ?? 0) }}"
                                         data-total-fa="{{ $loan['full_settlement_online_fa'] ?? '' }}"
                                         data-settlement-toman="{{ (int) ($loan['full_settlement_online_toman'] ?? 0) }}"
                                     >
@@ -199,10 +201,17 @@
                                             data-due-jalali="{{ e($inst['due_jalali'] ?? '') }}"
                                             data-paid-fa="{{ e($inst['paid_fa'] ?? '') }}"
                                             data-slot-remaining-fa="{{ e($inst['slot_remaining_fa'] ?? '') }}"
+                                            data-slot-remaining-toman="{{ (int) ($inst['slot_remaining_toman'] ?? 0) }}"
+                                            data-payment-ceiling-toman="{{ (int) ($inst['payment_ceiling_toman'] ?? 0) }}"
+                                            data-payment-ceiling-fa="{{ e($inst['payment_ceiling_fa'] ?? '') }}"
+                                            data-nominal-amount-toman="{{ (int) ($inst['amount_toman'] ?? 0) }}"
+                                            data-paid-amount-toman="{{ (int) ($inst['paid_amount_toman'] ?? 0) }}"
                                             data-online-payable-fa="{{ e($inst['online_payable_fa'] ?? '') }}"
                                             data-online-payable-toman="{{ (int) ($inst['online_payable_toman'] ?? 0) }}"
                                             data-status-line="{{ e($inst['status_line'] ?? '') }}"
                                         >
+                                            @php($onlinePayTomanInst = (int) ($inst['online_payable_toman'] ?? 0))
+                                            @php($slotRemTomanInst = (int) ($inst['slot_remaining_toman'] ?? 0))
                                             <div class="portal-inst__head">
                                                 <span class="portal-inst__n">
                                                     <i class="fa-regular fa-file-lines portal-loan__inline-ico" aria-hidden="true"></i>
@@ -214,26 +223,62 @@
                                                 </span>
                                             </div>
                                             <div class="portal-inst__tiles">
-                                                <div><span class="portal-inst__k">@if(!empty($inst['online_pay_eligible']) && (int) ($inst['online_payable_toman'] ?? 0) > 0)قابل پرداخت آنلاین@elseمبلغ قسط@endif</span><span class="portal-inst__v">@if(!empty($inst['online_pay_eligible']) && (int) ($inst['online_payable_toman'] ?? 0) > 0){{ $inst['online_payable_fa'] ?? '—' }}@else{{ $inst['amount_fa'] ?? '—' }}@endif</span></div>
+                                                <div>
+                                                    <span class="portal-inst__k">
+                                                        @if(!empty($inst['online_pay_eligible']) && $onlinePayTomanInst > 0)
+                                                            قابل پرداخت آنلاین
+                                                        @else
+                                                            مبلغ قسط
+                                                        @endif
+                                                    </span>
+                                                    <span class="portal-inst__v">
+                                                        @if(!empty($inst['online_pay_eligible']) && $onlinePayTomanInst > 0)
+                                                            {{ $inst['online_payable_fa'] ?? '—' }}
+                                                        @else
+                                                            {{ $inst['amount_fa'] ?? '—' }}
+                                                        @endif
+                                                    </span>
+                                                </div>
                                                 <div><span class="portal-inst__k">سررسید</span><span class="portal-inst__v">{{ $inst['due_jalali'] }}</span></div>
                                                 <div><span class="portal-inst__k">پرداختی</span><span class="portal-inst__v">{{ $inst['paid_fa'] }}</span></div>
                                                 <div><span class="portal-inst__k">تاریخ واریز</span><span class="portal-inst__v">{{ $inst['deposit_jalali'] }}</span></div>
                                             </div>
-                                            @if(!empty($inst['online_pay_eligible']) && (int) ($inst['online_payable_toman'] ?? 0) > 0 && (int) ($inst['online_payable_toman'] ?? 0) < (int) ($inst['slot_remaining_toman'] ?? 0))
+                                            @if(!empty($inst['online_pay_eligible']) && $onlinePayTomanInst > 0 && $onlinePayTomanInst < $slotRemTomanInst)
                                                 <p class="portal-inst__note">مبلغ نامی ماندهٔ این قسط {{ $inst['slot_remaining_fa'] }} است؛ با توجه به پرونده، مبلغ قابل پرداخت در درگاه همان مبلغ «قابل پرداخت آنلاین» است.</p>
                                             @endif
                                             @if(($inst['status_note'] ?? '') !== '—')
                                                 <p class="portal-inst__note">{{ $inst['status_note'] }}</p>
                                             @endif
                                             @if(!empty($inst['actions_enabled']))
-                                                <div class="portal-inst__actions">
+                                                @php($showWalletPayBtn = !empty($inst['wallet_pay_eligible']) && $portalWalletBal > 0)
+                                                @php($showOnlinePayBtn = !empty($inst['online_pay_eligible']) || !empty($inst['online_pay_prior_sequence_block']))
+                                                @php($instActionBtnCount = 1 + ($showWalletPayBtn ? 1 : 0) + ($showOnlinePayBtn ? 1 : 0))
+                                                <div class="portal-inst__actions{{ $instActionBtnCount > 2 ? ' portal-inst__actions--multi' : '' }}">
                                                     <a
-                                                        class="portal-loan__btn portal-loan__btn--ghost"
+                                                        class="portal-loan__btn portal-loan__btn--ghost{{ !empty($inst['has_deposit_declaration']) ? ' portal-loan__btn--declared' : '' }}"
                                                         href="{{ route('user.deposits.index', ['installment' => (int) $inst['id']]) }}"
                                                     >
-                                                        <i class="fa-solid fa-building-columns" aria-hidden="true"></i>
-                                                        اعلام واریزی
+                                                        <span class="portal-loan__btn__inner">
+                                                            <span class="portal-loan__btn__label">
+                                                                <i class="fa-solid fa-building-columns" aria-hidden="true"></i>
+                                                                اعلام واریزی
+                                                            </span>
+                                                            @if(!empty($inst['has_deposit_declaration']) && !empty($inst['deposit_declaration_created_jalali']))
+                                                                <span class="portal-loan__btn__declare-date">{{ $inst['deposit_declaration_created_jalali'] }}</span>
+                                                            @endif
+                                                        </span>
                                                     </a>
+                                                    @if($showWalletPayBtn)
+                                                        <button
+                                                            type="button"
+                                                            class="portal-loan__btn portal-loan__btn--wallet"
+                                                            data-portal-pay-wallet
+                                                            data-installment-label="قسط {{ $inst['sequence_fa'] }}"
+                                                        >
+                                                            <i class="fa-solid fa-wallet" aria-hidden="true"></i>
+                                                            پرداخت از کیف پول
+                                                        </button>
+                                                    @endif
                                                     @if(!empty($inst['online_pay_eligible']))
                                                         <button
                                                             type="button"
@@ -355,79 +400,11 @@
 
     
 
-    <dialog id="portal-settle-dialog" class="portal-dialog portal-dialog--pay-inst" aria-labelledby="portal-settle-dialog-title">
-        <div class="portal-dialog__inner">
-            @php($upPayReady = (bool) ($userOnlinePaymentReady ?? false))
-            @php($upFsPayUrl = $userLoanFullSettlementOnlinePayUrl ?? route('user.loans.full-settlement.online-pay.start'))
-            @php($upWalletFsUrl = $userLoanFullSettlementWalletPayUrl ?? route('user.loans.full-settlement.wallet-pay'))
-            <button type="button" class="portal-dialog__close" data-portal-dialog-close aria-label="بستن">&times;</button>
-            <h3 id="portal-settle-dialog-title" class="portal-dialog__title">
-                <i class="fa-solid fa-hand-holding-dollar" aria-hidden="true"></i>
-                تسویه کلی بدهی
-            </h3>
-            <p class="portal-dialog__hint" style="margin-top:0.35rem;text-align:center;line-height:1.65">
-                مبالغ زیر برآورد امروز است؛ برای پرداخت، ابتدا درگاه بانکی (پیشنهادی) یا در صورت تمایل کیف پول را انتخاب کنید.
-            </p>
-            <p class="portal-dialog__lead">ماندهٔ تعهد قسطی (پس از تخفیف‌های ثبت‌شده):</p>
-            <p class="portal-dialog__amount" id="portal-settle-remaining">—</p>
-            <p class="portal-dialog__lead portal-dialog__lead--muted">برآورد جریمهٔ دیرکرد تا امروز:</p>
-            <p class="portal-dialog__sub" id="portal-settle-late">—</p>
-            <p class="portal-dialog__lead portal-dialog__lead--muted">جمع قابل پرداخت:</p>
-            <p class="portal-dialog__amount" id="portal-settle-total" style="margin-top:0.15rem">—</p>
-
-            <div class="portal-pay-path-card portal-pay-path-card--gateway">
-                <p class="portal-dialog__lead" style="font-size:0.88rem;font-weight:900;color:var(--text)">
-                    <i class="fa-solid fa-building-columns" aria-hidden="true"></i>
-                    پرداخت و تسویهٔ کامل از درگاه بانکی
-                </p>
-                <p class="portal-dialog__hint" style="margin-top:0.35rem;text-align:center">
-                    روش پیشنهادی؛ مبلغ نهایی در لحظهٔ پرداخت از روی وضعیت پرونده محاسبه می‌شود و در صورت تغییر، سرور عملیات را رد می‌کند.
-                </p>
-                <p class="portal-dialog__vpn-hint" id="portal-settle-vpn">
-                    پیش از ورود به درگاه، از خاموش بودن VPN خود اطمینان حاصل نمایید.
-                </p>
-                <form class="portal-dialog__actions" method="post" action="{{ $upFsPayUrl }}" id="portal-settle-pay-form">
-                    @csrf
-                    <input type="hidden" name="customer_loan_file_id" id="portal-settle-loan-file-id" value="" required>
-                    <input type="hidden" name="return_route" value="user.dashboard">
-                    <button type="submit" class="portal-loan__btn portal-loan__btn--primary portal-loan__btn--block" id="portal-settle-pay-submit" @if(!$upPayReady) disabled title="درگاه پرداخت در تنظیمات مدیریت تکمیل نشده است." @endif>
-                        <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
-                        ورود به درگاه و تسویهٔ کامل
-                    </button>
-                    @unless($upPayReady)
-                        <p class="portal-dialog__hint" style="margin-top:0.45rem;text-align:center">درگاه پرداخت توسط مدیریت فعال نشده است؛ می‌توانید در صورت کفایت موجودی از کیف پول زیر تسویه کنید.</p>
-                    @endunless
-                </form>
-            </div>
-
-            <div class="portal-pay-alt-block">
-                <p class="portal-pay-alt-heading">یا تسویهٔ کامل با کیف پول</p>
-                <div class="portal-pay-wallet-panel">
-                    <p class="portal-dialog__lead portal-dialog__lead--muted" style="margin:0;text-align:center;font-size:0.8rem">
-                        موجودی کیف پول شما:
-                        <strong id="portal-settle-wallet-line">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format(max(0, (int) ($customerWalletBalanceToman ?? 0)), 0, '.', ',')) }} تومان</strong>
-                    </p>
-                    <div id="portal-settle-wallet-hint" class="portal-dialog__hint" style="display:none;text-align:center;margin-top:0.35rem"></div>
-                    <div id="portal-settle-wallet-topup-wrap" class="portal-dialog__actions" style="display:none;margin-top:0.35rem;padding-top:0">
-                        <button type="button" class="portal-loan__btn portal-loan__btn--ghost portal-loan__btn--block" id="portal-settle-wallet-topup-btn">
-                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                            شارژ کیف پول (پوشش کمبود)
-                        </button>
-                    </div>
-                    <form class="portal-dialog__actions" method="post" action="{{ $upWalletFsUrl }}" id="portal-settle-wallet-form">
-                        @csrf
-                        <input type="hidden" name="customer_loan_file_id" id="portal-settle-wallet-loan-file-id" value="" required>
-                        <input type="hidden" name="return_route" value="user.dashboard">
-                        <input type="hidden" name="payment_idempotency_key" id="portal-settle-wallet-idem" value="" required>
-                        <button type="submit" class="portal-loan__btn portal-loan__btn--ghost portal-loan__btn--block" id="portal-settle-wallet-submit">
-                            <i class="fa-solid fa-wallet" aria-hidden="true"></i>
-                            تسویهٔ کامل از کیف پول
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </dialog>
+    @include('user.portal.partials.full-settlement-dialog', [
+        'settleDialogNamespace' => 'portal-settle',
+        'settleReturnRouteName' => 'user.dashboard',
+        'settleCloseDataAttr' => 'data-portal-dialog-close',
+    ])
 @endsection
 
 @push('scripts')
@@ -481,9 +458,11 @@
                     var total = btn.getAttribute('data-total-fa') || '—';
                     var lid = btn.getAttribute('data-loan-file-id') || '';
                     var needT = parseInt(btn.getAttribute('data-settlement-toman') || '0', 10) || 0;
+                    var lateT = parseInt(btn.getAttribute('data-late-toman') || '0', 10) || 0;
                     var elR = document.getElementById('portal-settle-remaining');
                     var elL = document.getElementById('portal-settle-late');
                     var elT = document.getElementById('portal-settle-total');
+                    var lateRow = document.getElementById('portal-settle-late-row');
                     var hid = document.getElementById('portal-settle-loan-file-id');
                     var wHid = document.getElementById('portal-settle-wallet-loan-file-id');
                     var wIdem = document.getElementById('portal-settle-wallet-idem');
@@ -493,6 +472,7 @@
                     if (elR) elR.textContent = rem;
                     if (elL) elL.textContent = late;
                     if (elT) elT.textContent = total;
+                    if (lateRow) lateRow.style.display = lateT > 0 ? '' : 'none';
                     if (hid) hid.value = lid;
                     if (wHid) wHid.value = lid;
                     if (wIdem) wIdem.value = newIdempotencyKey();
@@ -505,9 +485,7 @@
                     if (wHint) {
                         if (needT > 0 && short > 0) {
                             wHint.style.display = 'block';
-                            wHint.innerHTML =
-                                'برای تسویهٔ کامل از کیف پول، موجودی باید حداقل <strong>' + faMoneyFromToman(needT) + '</strong> باشد. ' +
-                                'کمبود فعلی: <strong>' + faMoneyFromToman(short) + '</strong> — با دکمهٔ زیر می‌توانید همین مبلغ را در فرم شارژ پیش‌نویس کنید.';
+                            wHint.textContent = 'موجودی کافی نیست؛ کمبود: ' + faMoneyFromToman(short);
                         } else {
                             wHint.style.display = 'none';
                             wHint.textContent = '';

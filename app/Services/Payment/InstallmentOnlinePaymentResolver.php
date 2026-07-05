@@ -10,7 +10,7 @@ use App\Models\CustomerLoanInstallment;
 use App\Services\Loans\LoanFileFinanceCalculator;
 
 /**
- * مجوز و مبلغ پرداخت آنلاین قسط؛ هم‌سو با منطق نمایش پنل کاربر.
+ * مجوز و مبلغ پرداخت آنلاین/کیف‌پول قسط؛ هم‌سو با منطق نمایش پنل کاربر و سقف ثبت پرداخت ادمین.
  */
 final class InstallmentOnlinePaymentResolver
 {
@@ -19,9 +19,81 @@ final class InstallmentOnlinePaymentResolver
     ) {}
 
     /**
-     * @return array{ok: true, installment: CustomerLoanInstallment, file: CustomerLoanFile, amount_toman: int, ceiling_toman: int}|array{ok: false, message: string}
+     * @return array{ok: true, installment: CustomerLoanInstallment, file: CustomerLoanFile, amount_toman: int, ceiling_toman: int, slot_remaining_toman: int}|array{ok: false, message: string}
      */
     public function resolveForCustomer(Customer $customer, int $installmentId): array
+    {
+        $ctx = $this->resolvePaymentContext($customer, $installmentId);
+        if (! ($ctx['ok'] ?? false)) {
+            return $ctx;
+        }
+
+        $ceiling = (int) $ctx['ceiling_toman'];
+        $slotRemaining = (int) $ctx['slot_remaining_toman'];
+        $amountToPay = min($slotRemaining, $ceiling);
+
+        if ($amountToPay < 1) {
+            return ['ok' => false, 'message' => 'مبلغی برای پرداخت آنلاین باقی نمانده است.'];
+        }
+
+        return [
+            'ok' => true,
+            'installment' => $ctx['installment'],
+            'file' => $ctx['file'],
+            'amount_toman' => $amountToPay,
+            'ceiling_toman' => $ceiling,
+            'slot_remaining_toman' => $slotRemaining,
+        ];
+    }
+
+    /**
+     * مجوز پرداخت از کیف پول (کامل یا جزئی)؛ سقف مانند ثبت پرداخت ادمین است نه فقط ماندهٔ نامی قسط.
+     *
+     * @return array{
+     *     ok: true,
+     *     installment: CustomerLoanInstallment,
+     *     file: CustomerLoanFile,
+     *     ceiling_toman: int,
+     *     slot_remaining_toman: int,
+     *     nominal_amount_toman: int,
+     *     paid_amount_toman: int
+     * }|array{ok: false, message: string}
+     */
+    public function resolveWalletPaymentForCustomer(Customer $customer, int $installmentId): array
+    {
+        $ctx = $this->resolvePaymentContext($customer, $installmentId, 'wallet');
+        if (! ($ctx['ok'] ?? false)) {
+            return $ctx;
+        }
+
+        $ceiling = (int) $ctx['ceiling_toman'];
+        if ($ceiling < 1) {
+            return ['ok' => false, 'message' => 'طبق ماندهٔ وام، مبلغ دیگری قابل پرداخت نیست.'];
+        }
+
+        return [
+            'ok' => true,
+            'installment' => $ctx['installment'],
+            'file' => $ctx['file'],
+            'ceiling_toman' => $ceiling,
+            'slot_remaining_toman' => (int) $ctx['slot_remaining_toman'],
+            'nominal_amount_toman' => (int) $ctx['nominal_amount_toman'],
+            'paid_amount_toman' => (int) $ctx['paid_amount_toman'],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     ok: true,
+     *     installment: CustomerLoanInstallment,
+     *     file: CustomerLoanFile,
+     *     ceiling_toman: int,
+     *     slot_remaining_toman: int,
+     *     nominal_amount_toman: int,
+     *     paid_amount_toman: int
+     * }|array{ok: false, message: string}
+     */
+    private function resolvePaymentContext(Customer $customer, int $installmentId, string $channel = 'online'): array
     {
         $installment = CustomerLoanInstallment::query()
             ->whereKey($installmentId)
@@ -42,7 +114,7 @@ final class InstallmentOnlinePaymentResolver
 
         $isRevoked = $file->revoked_at !== null;
         if ($isRevoked) {
-            return ['ok' => false, 'message' => 'به‌دلیل فسخ قرارداد، پرداخت آنلاین ممکن نیست.'];
+            return ['ok' => false, 'message' => 'به‌دلیل فسخ قرارداد، پرداخت ممکن نیست.'];
         }
 
         $file->loadMissing('installments');
@@ -83,23 +155,25 @@ final class InstallmentOnlinePaymentResolver
                 return ['ok' => false, 'message' => 'پرونده از نظر تعهد تسویه است یا اقدامی لازم نیست.'];
             }
 
-            return ['ok' => false, 'message' => 'پرداخت آنلاین برای این قسط در دسترس نیست.'];
+            return [
+                'ok' => false,
+                'message' => $channel === 'wallet'
+                    ? 'پرداخت از کیف پول برای این قسط در دسترس نیست.'
+                    : 'پرداخت آنلاین برای این قسط در دسترس نیست.',
+            ];
         }
 
         $ceiling = $this->finance->installmentPaymentCeilingToman($file);
         $slotRemaining = max(0, $amount - $paid);
-        $amountToPay = min($slotRemaining, $ceiling);
-
-        if ($amountToPay < 1) {
-            return ['ok' => false, 'message' => 'مبلغی برای پرداخت آنلاین باقی نمانده است.'];
-        }
 
         return [
             'ok' => true,
             'installment' => $installment,
             'file' => $file,
-            'amount_toman' => $amountToPay,
             'ceiling_toman' => $ceiling,
+            'slot_remaining_toman' => $slotRemaining,
+            'nominal_amount_toman' => $amount,
+            'paid_amount_toman' => $paid,
         ];
     }
 }

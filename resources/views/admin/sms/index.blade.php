@@ -703,16 +703,22 @@
                                 <input id="sms-overdue-days-after" type="number" min="0" max="365" step="1" name="overdue_days_after" value="{{ old('overdue_days_after', $smsReminderSettings['overdue_days_after'] ?? '') }}" placeholder="مثلاً 3">
                                 @error('overdue_days_after')<div class="sms-field-error">{{ $message }}</div>@enderror
                             </div>
-                            <label class="sms-toggle-label">
-                                <input
-                                    type="checkbox"
-                                    name="overdue_daily_until_paid"
-                                    id="sms-overdue-daily-until-paid"
-                                    value="1"
-                                    @checked(old('overdue_daily_until_paid', $smsReminderSettings['overdue_daily_until_paid'] ?? '') === '1')
-                                >
-                                پیامک یادآوری معوق تا زمان وصول هر روز ارسال شود؟
-                            </label>
+                            <div class="sms-settings-field">
+                                <label for="sms-overdue-repeat-mode">بازه ارسال پیامک معوق تا زمان وصول</label>
+                                @php($overdueRepeatMode = old('overdue_repeat_mode', $smsReminderSettings['overdue_repeat_mode'] ?? 'once'))
+                                <select id="sms-overdue-repeat-mode" name="overdue_repeat_mode">
+                                    <option value="once" @selected($overdueRepeatMode === 'once')>فقط یک‌بار (روز شروع ارسال معوق)</option>
+                                    <option value="daily" @selected($overdueRepeatMode === 'daily')>هر روز</option>
+                                    <option value="weekly" @selected($overdueRepeatMode === 'weekly')>هفتگی (هر ۷ روز)</option>
+                                    <option value="interval" @selected($overdueRepeatMode === 'interval')>هر n روز یکبار</option>
+                                </select>
+                                @error('overdue_repeat_mode')<div class="sms-field-error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="sms-settings-field" id="sms-overdue-interval-wrap">
+                                <label for="sms-overdue-repeat-interval">هر چند روز یکبار ارسال شود؟</label>
+                                <input id="sms-overdue-repeat-interval" type="number" min="2" max="365" step="1" name="overdue_repeat_interval_days" value="{{ old('overdue_repeat_interval_days', $smsReminderSettings['overdue_repeat_interval_days'] ?? '7') }}" placeholder="مثلاً 3">
+                                @error('overdue_repeat_interval_days')<div class="sms-field-error">{{ $message }}</div>@enderror
+                            </div>
                             <div class="sms-settings-field">
                                 <label for="sms-overdue-template">قالب پیامک اقساط معوق شده</label>
                                 <select id="sms-overdue-template" name="overdue_template_id">
@@ -1073,6 +1079,8 @@
             var beforeDueEnabled = document.getElementById('sms-before-due-enabled');
             var beforeDueTemplateWrap = document.getElementById('sms-before-due-template-wrap');
             var beforeDueDaysWrap = document.getElementById('sms-before-due-days-wrap');
+            var overdueRepeatMode = document.getElementById('sms-overdue-repeat-mode');
+            var overdueIntervalWrap = document.getElementById('sms-overdue-interval-wrap');
             function syncReminderTimeValue() {
                 if (!reminderSendTimeInput || !reminderHourSelect || !reminderMinuteSelect) return;
                 reminderSendTimeInput.value = String(reminderHourSelect.value || '00') + ':' + String(reminderMinuteSelect.value || '00');
@@ -1100,10 +1108,14 @@
                 setVisibility(beforeDueDaysWrap, beforeEnabled);
                 setEnabledRecursive(beforeDueTemplateWrap, beforeEnabled);
                 setEnabledRecursive(beforeDueDaysWrap, beforeEnabled);
+                var intervalVisible = rootEnabled && overdueRepeatMode && overdueRepeatMode.value === 'interval';
+                setVisibility(overdueIntervalWrap, intervalVisible);
+                setEnabledRecursive(overdueIntervalWrap, intervalVisible);
             }
             if (reminderEnabled) reminderEnabled.addEventListener('change', syncReminderVisibility);
             if (dueDayEnabled) dueDayEnabled.addEventListener('change', syncReminderVisibility);
             if (beforeDueEnabled) beforeDueEnabled.addEventListener('change', syncReminderVisibility);
+            if (overdueRepeatMode) overdueRepeatMode.addEventListener('change', syncReminderVisibility);
             if (reminderHourSelect) reminderHourSelect.addEventListener('change', syncReminderTimeValue);
             if (reminderMinuteSelect) reminderMinuteSelect.addEventListener('change', syncReminderTimeValue);
             syncReminderTimeValue();

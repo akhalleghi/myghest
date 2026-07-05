@@ -155,6 +155,7 @@
             font-size: 0.72rem;
         }
         .cust-sms-circle-btn:hover { filter: brightness(0.97); }
+        .cust-sms-circle-btn:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
         .loan-inst-modal-sub {
             margin: 0.15rem 0 0;
             font-size: 0.78rem;
@@ -1872,6 +1873,7 @@
                             <th>تعداد وام</th>
                             <th>مجموع وام‌های دریافتی با بهره</th>
                             <th>مانده اقساط</th>
+                            <th>موجودی کیف پول</th>
                             <th>تاریخ عضویت</th>
                             <th>پیامک‌ها</th>
                             <th>عملیات</th>
@@ -1886,6 +1888,12 @@
                                 $loanCodes = array_map(static fn ($item): string => (string) ($item['loan_code'] ?? ''), $loanFiles);
                                 $loanTotalWithProfit = (int) ($loanMeta['loan_total_with_profit'] ?? 0);
                                 $loanRemainInstallments = (int) ($loanMeta['loan_remaining_installments'] ?? 0);
+                                $overdueInstId = (int) ($loanMeta['primary_overdue_installment_id'] ?? 0);
+                                $overdueLfId = (int) ($loanMeta['primary_overdue_loan_file_id'] ?? 0);
+                                $overdueCount = (int) ($loanMeta['overdue_installment_count'] ?? 0);
+                                $overdueSmsTitle = $overdueInstId > 0
+                                    ? 'ارسال پیامک معوق'.($overdueCount > 1 ? ' ('.\Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $overdueCount).' قسط معوق)' : '')
+                                    : 'قسط معوق پرداخت‌نشده‌ای وجود ندارد';
                             @endphp
                             <tr>
                                 <td>{{ $c->customer_code }}</td>
@@ -1910,6 +1918,7 @@
                                 </td>
                                 <td class="cust-amount">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($loanTotalWithProfit, 0)) }} تومان</td>
                                 <td class="cust-amount">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($loanRemainInstallments, 0)) }} تومان</td>
+                                <td class="cust-amount">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format((int) ($c->wallet?->balance_toman ?? 0), 0)) }} تومان</td>
                                 <td>
                                     @if ($c->membership_at)
                                         {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(jalali($c->membership_at)->format('Y/m/d')) }}
@@ -1921,6 +1930,22 @@
                                     <div class="cust-sms-actions">
                                         <button type="button" class="cust-sms-circle-btn cust-sms-circle-btn--link" data-cust-quick-sms data-sms-type="wallet_link" data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}" data-customer-mobile="{{ $c->mobile }}" title="ارسال لینک شارژ کیف پول">ل</button>
                                         <button type="button" class="cust-sms-circle-btn cust-sms-circle-btn--welcome" data-cust-quick-sms data-sms-type="welcome" data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}" data-customer-mobile="{{ $c->mobile }}" title="ارسال پیامک خوش‌آمدگویی">خ</button>
+                                        <button
+                                            type="button"
+                                            class="cust-sms-circle-btn cust-sms-circle-btn--inst-over"
+                                            data-cust-quick-sms
+                                            data-sms-type="installment_overdue"
+                                            data-customer-id="{{ $c->id }}"
+                                            data-customer-name="{{ e($c->fullName()) }}"
+                                            data-customer-mobile="{{ $c->mobile }}"
+                                            @if($overdueInstId > 0)
+                                                data-installment-id="{{ $overdueInstId }}"
+                                                data-loan-file-id="{{ $overdueLfId }}"
+                                            @else
+                                                disabled
+                                            @endif
+                                            title="{{ $overdueSmsTitle }}"
+                                        >م</button>
                                     </div>
                                 </td>
                                 <td>
@@ -1962,7 +1987,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="cust-empty">هنوز مشتری ثبت نشده است.</td>
+                                <td colspan="9" class="cust-empty">هنوز مشتری ثبت نشده است.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -3677,6 +3702,7 @@
             var loanSmsMobileMissingNote = document.getElementById('loan-sms-mobile-missing');
             var loanSmsDefaultDate = @json(now()->format('Y-m-d'));
             var loanSmsSelectedDate = loanSmsDefaultDate;
+            var adminTodayJdate = @json(\Hekmatinasser\Jalali\Jalali::now()->format('Y/m/d'));
             var walletCurrentCustomerId = null;
             var walletCurrentCustomerName = '';
             var walletCurrentCustomerMobile = '';
@@ -4113,6 +4139,10 @@
                 customerFormSubmitting = false;
                 setCustomerSubmitLoading(false);
                 destroyCustPickers();
+                var membershipJdateEl = document.getElementById('cust-membership-jdate');
+                if (membershipJdateEl && adminTodayJdate) {
+                    membershipJdateEl.value = adminTodayJdate;
+                }
                 syncUsername();
                 openModal();
             }
@@ -5798,6 +5828,8 @@
                 if (loanCustomInterestWrap) loanCustomInterestWrap.hidden = true;
                 if (loanInstallmentsCountInput) loanInstallmentsCountInput.value = '12';
                 if (loanInstallmentIntervalCountInput) loanInstallmentIntervalCountInput.value = '1';
+                if (loanStartJdateInput && adminTodayJdate) loanStartJdateInput.value = adminTodayJdate;
+                if (loanDisbursementDueJdateInput && adminTodayJdate) loanDisbursementDueJdateInput.value = adminTodayJdate;
                 var submitBtn = loanCreateForm.querySelector('button[type="submit"]');
                 if (submitBtn) submitBtn.textContent = 'ثبت وام';
                 resetLoanCreationOtpUi();
@@ -6545,6 +6577,12 @@
                     var quickSmsType = quickSmsBtn.getAttribute('data-sms-type') || 'welcome';
                     var quickInstId = quickSmsBtn.getAttribute('data-installment-id');
                     var quickLfId = quickSmsBtn.getAttribute('data-loan-file-id');
+                    if (quickSmsType === 'installment_overdue' && (!quickInstId || parseInt(quickInstId, 10) < 1)) {
+                        if (window.AdminSwal && window.AdminSwal.error) {
+                            AdminSwal.error('این مشتری قسط معوق پرداخت‌نشده‌ای ندارد.');
+                        }
+                        return;
+                    }
                     if (quickCustomerId) {
                         openQuickSmsModal(parseInt(quickCustomerId, 10), quickCustomerName, quickCustomerMobile, quickSmsType, {
                             installmentId: quickInstId,
@@ -9368,6 +9406,12 @@
             if (pwdHint) pwdHint.hidden = true;
             if (pwdInput) { pwdInput.required = true; }
             syncUsername();
+            (function () {
+                var membershipJdateEl = document.getElementById('cust-membership-jdate');
+                if (membershipJdateEl && !String(membershipJdateEl.value || '').trim() && adminTodayJdate) {
+                    membershipJdateEl.value = adminTodayJdate;
+                }
+            })();
             openModal();
             @elseif (session('open_edit_customer_id'))
             custFormMode = 'edit';

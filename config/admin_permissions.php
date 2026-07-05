@@ -272,6 +272,11 @@ return [
                     'admin.reports.loan-interest-fees.customers-search',
                     'admin.reports.loan-interest-fees.export-excel',
                 ]],
+                ['key' => 'reports.admin_activity', 'label' => 'گزارش فعالیت ادمین‌ها', 'routes' => [
+                    'admin.reports.admin-activity.data',
+                    'admin.reports.admin-activity.admins-search',
+                    'admin.reports.admin-activity.export-excel',
+                ]],
             ],
         ],
         [
@@ -383,6 +388,7 @@ return [
                 'wallet-transactions-by-date' => ['permissions' => ['reports.wallet_transactions']],
                 'loan-guarantees' => ['permissions' => ['reports.loan_guarantees']],
                 'loan-interest-fees' => ['permissions' => ['reports.loan_interest_fees']],
+                'admin-activity' => ['permissions' => ['reports.admin_activity']],
             ],
         ],
         'app_settings' => [

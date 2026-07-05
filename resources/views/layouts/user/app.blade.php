@@ -1206,6 +1206,304 @@
             border-color: rgba(37, 99, 235, 0.35);
         }
 
+        .portal-loan__btn--declared {
+            background: rgba(5, 150, 105, 0.1);
+            color: #047857;
+            border-color: rgba(5, 150, 105, 0.45);
+            white-space: normal;
+        }
+
+        html[data-theme="dark"] .portal-loan__btn--declared {
+            background: rgba(16, 185, 129, 0.14);
+            color: #6ee7b7;
+            border-color: rgba(16, 185, 129, 0.38);
+        }
+
+        .portal-loan__btn--declared:hover {
+            background: rgba(5, 150, 105, 0.18);
+            border-color: rgba(5, 150, 105, 0.55);
+        }
+
+        html[data-theme="dark"] .portal-loan__btn--declared:hover {
+            background: rgba(16, 185, 129, 0.22);
+        }
+
+        .portal-loan__btn__inner {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.08rem;
+            line-height: 1.25;
+            text-align: center;
+        }
+
+        .portal-loan__btn__label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .portal-loan__btn__declare-date {
+            font-size: 0.58rem;
+            font-weight: 600;
+            opacity: 0.72;
+            line-height: 1.2;
+        }
+
+        .portal-loan__btn--table .portal-loan__btn__declare-date {
+            font-size: 0.52rem;
+        }
+
+        .portal-loan__btn--wallet {
+            background: linear-gradient(145deg, rgba(14, 116, 144, 0.12), rgba(8, 145, 178, 0.08));
+            color: #0e7490;
+            border-color: rgba(14, 116, 144, 0.42);
+            white-space: normal;
+        }
+
+        html[data-theme="dark"] .portal-loan__btn--wallet {
+            background: rgba(34, 211, 238, 0.12);
+            color: #67e8f9;
+            border-color: rgba(34, 211, 238, 0.35);
+        }
+
+        .portal-loan__btn--wallet:hover {
+            background: rgba(14, 116, 144, 0.2);
+            border-color: rgba(14, 116, 144, 0.55);
+        }
+
+        html[data-theme="dark"] .portal-loan__btn--wallet:hover {
+            background: rgba(34, 211, 238, 0.2);
+        }
+
+        .portal-inst__actions--multi {
+            grid-template-columns: 1fr;
+        }
+
+        @media (min-width: 420px) {
+            .portal-inst__actions--multi {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        .portal-loans-inst__actions--multi {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            justify-content: flex-start;
+        }
+
+        .portal-loans-inst__actions--multi .portal-loan__btn--table {
+            flex: 1 1 6.5rem;
+            max-width: 100%;
+        }
+
+        .portal-wallet-pay-summary {
+            margin-top: 0.55rem;
+            padding: 0.55rem 0.6rem;
+            border-radius: 0.6rem;
+            background: rgba(148, 163, 184, 0.12);
+            border: 1px dashed rgba(148, 163, 184, 0.45);
+        }
+
+        .portal-wallet-pay-summary__grid {
+            display: grid;
+            gap: 0.35rem;
+            font-size: 0.76rem;
+        }
+
+        .portal-wallet-pay-summary__grid > div {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.5rem;
+            align-items: baseline;
+        }
+
+        .portal-wallet-pay-summary__note {
+            margin: 0.45rem 0 0;
+            font-size: 0.68rem;
+            line-height: 1.55;
+            color: var(--muted);
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .portal-dialog__field-label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 800;
+            margin-bottom: 0.3rem;
+            color: var(--text);
+        }
+
+        .portal-dialog--wallet-inst {
+            width: min(22rem, calc(100vw - 1.25rem));
+        }
+
+        .portal-dialog__inner--wallet-inst {
+            padding: 1rem 1rem 1.1rem;
+        }
+
+        .portal-wallet-inst__lead {
+            margin: 0.35rem 0 0.75rem;
+            text-align: center;
+            font-size: 0.84rem;
+            font-weight: 800;
+            line-height: 1.55;
+            color: var(--text);
+        }
+
+        .portal-wallet-inst__form {
+            display: grid;
+            gap: 0.55rem;
+        }
+
+        .portal-wallet-inst__row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 0.45rem 0.55rem;
+            border-radius: 0.55rem;
+            background: rgba(148, 163, 184, 0.12);
+            font-size: 0.78rem;
+        }
+
+        .portal-wallet-inst__k {
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .portal-wallet-inst__v {
+            color: var(--text);
+            font-weight: 900;
+        }
+
+        .portal-wallet-inst__field {
+            display: grid;
+            gap: 0.3rem;
+        }
+
+        .portal-wallet-inst__label {
+            font-size: 0.78rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .portal-wallet-inst__after {
+            margin: 0;
+            text-align: center;
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--muted);
+            line-height: 1.5;
+            min-height: 1.1rem;
+        }
+
+        .portal-wallet-inst__actions {
+            margin-top: 0.15rem;
+            padding-top: 0;
+        }
+
+        .portal-dialog--settle {
+            max-width: min(22rem, calc(100vw - 1.5rem));
+        }
+
+        .portal-dialog__inner--settle {
+            padding: 1rem 1rem 1.1rem;
+            gap: 0.65rem;
+        }
+
+        .portal-settle-summary {
+            border-radius: 0.75rem;
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            background: rgba(248, 250, 252, 0.9);
+            padding: 0.75rem 0.85rem;
+            display: grid;
+            gap: 0.55rem;
+        }
+
+        .portal-settle-summary__total {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding-bottom: 0.45rem;
+            border-bottom: 1px dashed rgba(148, 163, 184, 0.55);
+        }
+
+        .portal-settle-summary__total .portal-settle-summary__v {
+            font-size: 1.05rem;
+            font-weight: 900;
+            color: var(--primary-dark);
+        }
+
+        .portal-settle-summary__rows {
+            display: grid;
+            gap: 0.3rem;
+        }
+
+        .portal-settle-summary__row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            font-size: 0.78rem;
+        }
+
+        .portal-settle-summary__row--wallet {
+            margin-bottom: 0.15rem;
+        }
+
+        .portal-settle-summary__k {
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .portal-settle-summary__v {
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .portal-settle-actions {
+            display: grid;
+            gap: 0.35rem;
+            margin: 0;
+            padding: 0;
+        }
+
+        .portal-settle-note {
+            margin: 0;
+            text-align: center;
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--muted);
+            line-height: 1.45;
+        }
+
+        .portal-settle-divider {
+            margin: 0.1rem 0;
+            text-align: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--muted);
+        }
+
+        .portal-settle-wallet-block {
+            display: grid;
+            gap: 0.4rem;
+        }
+
+        .portal-settle-wallet-hint {
+            margin: 0;
+            text-align: center;
+            font-size: 0.74rem;
+            font-weight: 700;
+            color: #b45309;
+            line-height: 1.45;
+        }
+
         .portal-loan__btn--disabled,
         .portal-loan__btn--disabled:hover {
             opacity: 0.55;
@@ -2794,6 +3092,7 @@
         </script>
         @include('layouts.partials.user-portal-pay-result-swal')
         @include('user.portal.partials.installment-online-pay-dialog')
+        @include('user.portal.partials.installment-wallet-pay-dialog')
         @include('user.portal.partials.wallet-topup-dialog')
     @endif
     @stack('scripts')

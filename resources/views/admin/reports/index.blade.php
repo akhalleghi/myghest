@@ -1397,6 +1397,7 @@
 
     @include('admin.reports.partials.modal-loan-guarantees')
     @include('admin.reports.partials.modal-loan-interest-fees')
+    @include('admin.reports.partials.modal-admin-activity')
 
     <div class="rpt-quick-overlay" id="rpt-quick-sms-overlay" hidden aria-hidden="true">
         <div class="rpt-quick-modal" role="dialog" aria-modal="true" aria-labelledby="rpt-quick-sms-title">
@@ -1446,6 +1447,9 @@
             'loanInterestFeesDataUrl' => route('admin.reports.loan-interest-fees.data'),
             'loanInterestFeesExportUrl' => route('admin.reports.loan-interest-fees.export-excel'),
             'loanInterestFeesCustomersUrl' => route('admin.reports.loan-interest-fees.customers-search'),
+            'adminActivityDataUrl' => route('admin.reports.admin-activity.data'),
+            'adminActivityExportUrl' => route('admin.reports.admin-activity.export-excel'),
+            'adminActivityAdminsUrl' => route('admin.reports.admin-activity.admins-search'),
             'customersBaseUrl' => url('admin/customers'),
             'csrf' => csrf_token(),
         ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!}

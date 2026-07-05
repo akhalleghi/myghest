@@ -648,7 +648,19 @@ final class SmsManagementController extends Controller
                 'min:0',
                 'max:365',
             ],
-            'overdue_daily_until_paid' => ['nullable', 'boolean'],
+            'overdue_repeat_mode' => [
+                Rule::requiredIf(fn (): bool => $request->boolean('reminder_enabled')),
+                'nullable',
+                'string',
+                Rule::in(['once', 'daily', 'weekly', 'interval']),
+            ],
+            'overdue_repeat_interval_days' => [
+                Rule::requiredIf(fn (): bool => $request->boolean('reminder_enabled') && $request->input('overdue_repeat_mode') === 'interval'),
+                'nullable',
+                'integer',
+                'min:2',
+                'max:365',
+            ],
             'overdue_template_id' => [
                 Rule::requiredIf(fn (): bool => $request->boolean('reminder_enabled')),
                 'nullable',
@@ -664,7 +676,8 @@ final class SmsManagementController extends Controller
             'before_due_template_id' => 'قالب پیامک سررسید پیش از موعد',
             'before_due_days' => 'تعداد روز قبل از سررسید',
             'overdue_days_after' => 'تعداد روز پس از سررسید برای شروع معوق',
-            'overdue_daily_until_paid' => 'ارسال روزانه تا زمان وصول',
+            'overdue_repeat_mode' => 'بازه ارسال پیامک معوق',
+            'overdue_repeat_interval_days' => 'تعداد روز بین هر ارسال معوق',
             'overdue_template_id' => 'قالب پیامک اقساط معوق',
         ]);
 
@@ -677,7 +690,8 @@ final class SmsManagementController extends Controller
             'before_due_template_id' => $validated['before_due_template_id'] ?? null,
             'before_due_days' => $validated['before_due_days'] ?? null,
             'overdue_days_after' => $validated['overdue_days_after'] ?? null,
-            'overdue_daily_until_paid' => $request->boolean('overdue_daily_until_paid'),
+            'overdue_repeat_mode' => $validated['overdue_repeat_mode'] ?? 'once',
+            'overdue_repeat_interval_days' => $validated['overdue_repeat_interval_days'] ?? null,
             'overdue_template_id' => $validated['overdue_template_id'] ?? null,
         ]);
 

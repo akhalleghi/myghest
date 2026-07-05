@@ -53,7 +53,8 @@ final class InstallmentSmsReminderService
 
             $beforeDueDays = max(0, $this->parseInt($settings['before_due_days'] ?? '', 0));
             $overdueDaysAfter = max(0, $this->parseInt($settings['overdue_days_after'] ?? '', 0));
-            $overdueDaily = $this->isEnabled($settings['overdue_daily_until_paid'] ?? '');
+            $overdueRepeatMode = strtolower(trim((string) ($settings['overdue_repeat_mode'] ?? 'once')));
+            $overdueRepeatIntervalDays = max(2, $this->parseInt($settings['overdue_repeat_interval_days'] ?? '', 7));
 
             $beforeDueTemplateId = $this->parsePositiveInt($settings['before_due_template_id'] ?? '');
             $dueDayTemplateId = $this->parsePositiveInt($settings['due_day_template_id'] ?? '');
@@ -84,7 +85,8 @@ final class InstallmentSmsReminderService
                     $dueDayTemplateId,
                     $overdueTemplateId,
                     $overdueDaysAfter,
-                    $overdueDaily,
+                    $overdueRepeatMode,
+                    $overdueRepeatIntervalDays,
                     &$preDueSent,
                     &$dueDaySent,
                     &$overdueSent,
@@ -145,15 +147,11 @@ final class InstallmentSmsReminderService
 
                         if ($overdueTemplateId !== null && $daysPastDue >= $overdueDaysAfter) {
                             $firstOverdueDay = $due->copy()->addDays($overdueDaysAfter);
-                            if ($today->lt($firstOverdueDay)) {
+                            if (! $this->shouldSendOverdueToday($today, $firstOverdueDay, $overdueRepeatMode, $overdueRepeatIntervalDays)) {
                                 continue;
                             }
 
-                            if (! $overdueDaily && ! $today->equalTo($firstOverdueDay)) {
-                                continue;
-                            }
-
-                            $businessDate = $overdueDaily ? $today : $firstOverdueDay;
+                            $businessDate = $overdueRepeatMode === 'once' ? $firstOverdueDay : $today;
                             $sent = $this->trySend(
                                 $installment,
                                 $customer,
@@ -251,6 +249,24 @@ final class InstallmentSmsReminderService
         });
 
         return 'sent';
+    }
+
+    private function shouldSendOverdueToday(
+        Carbon $today,
+        Carbon $firstOverdueDay,
+        string $repeatMode,
+        int $intervalDays,
+    ): bool {
+        if ($today->lt($firstOverdueDay)) {
+            return false;
+        }
+
+        return match ($repeatMode) {
+            'daily' => true,
+            'weekly' => ((int) $firstOverdueDay->diffInDays($today)) % 7 === 0,
+            'interval' => ((int) $firstOverdueDay->diffInDays($today)) % max(2, $intervalDays) === 0,
+            default => $today->equalTo($firstOverdueDay),
+        };
     }
 
     /**

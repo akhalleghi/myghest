@@ -60,7 +60,7 @@ final class CustomerController extends Controller
         $q = trim((string) $request->query('q', ''));
 
         $customers = Customer::query()
-            ->with(['loanFiles.loanType', 'loanFiles.installments'])
+            ->with(['loanFiles.loanType', 'loanFiles.installments', 'wallet'])
             ->when($q !== '', function ($query) use ($q): void {
                 $query->where(function ($w) use ($q): void {
                     $w->where('customer_code', 'like', '%'.$q.'%')
@@ -86,6 +86,7 @@ final class CustomerController extends Controller
                 $loanFiles = $customer->loanFiles->map(fn (CustomerLoanFile $file): array => $this->mapLoanFile($file))->values();
                 $loanTotalWithProfit = $loanFiles->sum(static fn (array $row): int => (int) ($row['total_repayable_toman'] ?? 0));
                 $remainingInstallments = $loanFiles->sum(static fn (array $row): int => (int) ($row['remaining_amount_toman'] ?? 0));
+                $primaryOverdue = $this->resolvePrimaryOverdueInstallment($customer);
 
                 return [
                     (string) $customer->id => [
@@ -93,6 +94,9 @@ final class CustomerController extends Controller
                         'loan_count' => $loanFiles->count(),
                         'loan_total_with_profit' => $loanTotalWithProfit,
                         'loan_remaining_installments' => $remainingInstallments,
+                        'primary_overdue_installment_id' => $primaryOverdue['installment_id'] ?? null,
+                        'primary_overdue_loan_file_id' => $primaryOverdue['loan_file_id'] ?? null,
+                        'overdue_installment_count' => $primaryOverdue['count'] ?? 0,
                     ],
                 ];
             }),
@@ -3366,8 +3370,9 @@ final class CustomerController extends Controller
 
         try {
             $j = Jalali::parseFormat('Y/m/d', $value);
+            $j->startDay();
 
-            return Carbon::createFromTimestamp($j->getTimestamp());
+            return Carbon::createFromTimestamp($j->getTimestamp(), config('app.timezone'));
         } catch (\Throwable) {
             return null;
         }
@@ -3425,6 +3430,52 @@ final class CustomerController extends Controller
                     $fail('این شماره موبایل قبلاً ثبت شده است.');
                 }
             },
+        ];
+    }
+
+    /**
+     * @return array{installment_id: int, loan_file_id: int, count: int}|null
+     */
+    private function resolvePrimaryOverdueInstallment(Customer $customer): ?array
+    {
+        $today = Carbon::today();
+        $best = null;
+        $count = 0;
+
+        foreach ($customer->loanFiles as $file) {
+            if ($file->revoked_at !== null || $file->is_settled) {
+                continue;
+            }
+
+            foreach ($file->installments as $installment) {
+                if ((int) $installment->paid_amount_toman >= (int) $installment->amount_toman) {
+                    continue;
+                }
+
+                $due = Carbon::parse($installment->due_date)->startOfDay();
+                if ($due->gte($today)) {
+                    continue;
+                }
+
+                $count++;
+                if ($best === null || $due->lt($best['due'])) {
+                    $best = [
+                        'installment_id' => (int) $installment->id,
+                        'loan_file_id' => (int) $file->id,
+                        'due' => $due,
+                    ];
+                }
+            }
+        }
+
+        if ($best === null) {
+            return null;
+        }
+
+        return [
+            'installment_id' => $best['installment_id'],
+            'loan_file_id' => $best['loan_file_id'],
+            'count' => $count,
         ];
     }
 

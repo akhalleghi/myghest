@@ -9,6 +9,7 @@ use App\Models\Admin;
 use App\Models\CustomerLoanInstallmentPayment;
 use App\Services\Admin\AdminPermissionService;
 use App\Models\SmsTemplate;
+use App\Services\Admin\Reports\AdminActivityReportService;
 use App\Services\Admin\Reports\DepositsByDateReportService;
 use App\Services\Admin\Reports\InstallmentDueDatesByDateReportService;
 use App\Services\Admin\Reports\LoanGuaranteesReportService;
@@ -35,6 +36,7 @@ final class AdminReportsController extends Controller
         private readonly WalletTransactionsByDateReportService $walletTransactionsByDate,
         private readonly LoanGuaranteesReportService $loanGuarantees,
         private readonly LoanInterestFeesReportService $loanInterestFees,
+        private readonly AdminActivityReportService $adminActivity,
         private readonly AdminPermissionService $permissions,
     ) {}
 
@@ -102,6 +104,14 @@ final class AdminReportsController extends Controller
                     'accent' => '#4f46e5',
                     'enabled' => $this->permissions->canAccessUiCard($admin, 'reports', 'loan-interest-fees'),
                 ],
+                [
+                    'id' => 'admin-activity',
+                    'title' => 'فعالیت ادمین‌های سامانه',
+                    'description' => 'ثبت و مشاهدهٔ اقدامات هر ادمین از ورود تا خروج، با امکان فیلتر بر اساس کاربر و بازهٔ تاریخ.',
+                    'icon' => 'fa-user-clock',
+                    'accent' => '#0f766e',
+                    'enabled' => $this->permissions->canAccessUiCard($admin, 'reports', 'admin-activity'),
+                ],
         ];
 
         if (! collect($reportCards)->contains(static fn (array $card): bool => ! empty($card['enabled']))) {
@@ -117,6 +127,7 @@ final class AdminReportsController extends Controller
             'walletTransactionDirectionOptions' => WalletTransactionsByDateReportService::directionFilterOptions(),
             'walletTransactionSourceOptions' => WalletTransactionsByDateReportService::sourceFilterOptions(),
             'guaranteeTypeFilterOptions' => LoanGuaranteesReportService::guaranteeTypeFilterOptions(),
+            'adminActivityActionOptions' => $this->adminActivity->actionFilterOptions(),
             'reportCards' => $reportCards,
         ]);
     }
@@ -747,6 +758,116 @@ final class AdminReportsController extends Controller
 
             foreach ($rows as $row) {
                 $this->writeExcelUnicodeRow($out, $this->loanInterestFees->excelDataRow($row));
+            }
+
+            fclose($out);
+        }, $filename, $headers);
+    }
+
+    public function adminActivityData(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'from_jdate' => ['nullable', 'string', 'max:20'],
+            'to_jdate' => ['nullable', 'string', 'max:20'],
+            'admin_id' => ['nullable', 'integer', 'min:1', 'exists:admins,id'],
+            'action' => ['nullable', 'string', Rule::in(['', 'login', 'logout', 'session_expired', 'http'])],
+            'q' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $range = $this->adminActivity->resolveDateRange(
+            isset($validated['from_jdate']) ? (string) $validated['from_jdate'] : null,
+            isset($validated['to_jdate']) ? (string) $validated['to_jdate'] : null,
+        );
+
+        $adminId = isset($validated['admin_id']) ? (int) $validated['admin_id'] : null;
+
+        $rows = $this->adminActivity->fetchRows(
+            $range['from'],
+            $range['to'],
+            $adminId,
+            (string) ($validated['action'] ?? ''),
+            trim((string) ($validated['q'] ?? '')),
+        );
+
+        return response()->json([
+            'rows' => $rows,
+            'meta' => [
+                'from_jdate' => Jalali::enToFaNumbers(Jalali::instance($range['from'])->format('Y/m/d')),
+                'to_jdate' => Jalali::enToFaNumbers(Jalali::instance($range['to'])->format('Y/m/d')),
+                'count' => count($rows),
+                'admin_id' => $adminId,
+            ],
+        ]);
+    }
+
+    public function adminActivityAdminsSearch(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'q' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $term = trim((string) ($validated['q'] ?? ''));
+        $results = $this->adminActivity->searchAdminsForSelect($term !== '' ? $term : null);
+
+        return response()->json([
+            'results' => array_map(static fn (array $row): array => [
+                'id' => $row['id'],
+                'text' => $row['text'],
+            ], $results),
+        ]);
+    }
+
+    public function exportAdminActivityExcel(Request $request): StreamedResponse
+    {
+        $validated = $request->validate([
+            'from_jdate' => ['nullable', 'string', 'max:20'],
+            'to_jdate' => ['nullable', 'string', 'max:20'],
+            'admin_id' => ['nullable', 'integer', 'min:1', 'exists:admins,id'],
+            'action' => ['nullable', 'string', Rule::in(['', 'login', 'logout', 'session_expired', 'http'])],
+            'q' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $range = $this->adminActivity->resolveDateRange(
+            isset($validated['from_jdate']) ? (string) $validated['from_jdate'] : null,
+            isset($validated['to_jdate']) ? (string) $validated['to_jdate'] : null,
+        );
+
+        $adminId = isset($validated['admin_id']) ? (int) $validated['admin_id'] : null;
+
+        $rows = $this->adminActivity->fetchRows(
+            $range['from'],
+            $range['to'],
+            $adminId,
+            (string) ($validated['action'] ?? ''),
+            trim((string) ($validated['q'] ?? '')),
+        );
+
+        $filename = 'admin-activity-'
+            .Jalali::instance($range['from'])->format('Ymd')
+            .'-'
+            .Jalali::instance($range['to'])->format('Ymd')
+            .'-'
+            .now()->format('His')
+            .'.xls';
+
+        $headers = [
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-16LE',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ];
+
+        return response()->streamDownload(function () use ($rows): void {
+            $out = fopen('php://output', 'wb');
+            if (! is_resource($out)) {
+                return;
+            }
+
+            fwrite($out, "\xFF\xFE");
+            $this->writeExcelUnicodeRow($out, $this->adminActivity->excelHeaderRow());
+
+            foreach ($rows as $row) {
+                $this->writeExcelUnicodeRow($out, $this->adminActivity->excelDataRow($row));
             }
 
             fclose($out);

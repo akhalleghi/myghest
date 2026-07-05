@@ -85,7 +85,7 @@ Route::middleware(['auth:admin', 'portal.session:admin'])->group(function (): vo
     Route::post('/logout', [AdminLoginController::class, 'destroy'])->name('logout');
 });
 
-Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission'])->group(function (): void {
+Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'log.admin.activity'])->group(function (): void {
 
     /*
     | داشبورد موقت؛ ساخت صفحه‌های واقعی سیستم اقساط در گام بعدی خواهد بود.
@@ -155,6 +155,18 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission'])->g
     Route::get('/reports/loan-interest-fees/export-excel', [AdminReportsController::class, 'exportLoanInterestFeesExcel'])
         ->middleware('throttle:20,1')
         ->name('reports.loan-interest-fees.export-excel');
+
+    Route::get('/reports/admin-activity/data', [AdminReportsController::class, 'adminActivityData'])
+        ->middleware('throttle:90,1')
+        ->name('reports.admin-activity.data');
+
+    Route::get('/reports/admin-activity/admins-search', [AdminReportsController::class, 'adminActivityAdminsSearch'])
+        ->middleware('throttle:90,1')
+        ->name('reports.admin-activity.admins-search');
+
+    Route::get('/reports/admin-activity/export-excel', [AdminReportsController::class, 'exportAdminActivityExcel'])
+        ->middleware('throttle:20,1')
+        ->name('reports.admin-activity.export-excel');
 
     Route::get('/organizations', [OrganizationController::class, 'index'])
         ->middleware('throttle:60,1')

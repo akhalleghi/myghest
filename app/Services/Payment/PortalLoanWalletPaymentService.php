@@ -41,7 +41,7 @@ final class PortalLoanWalletPaymentService
     /**
      * @return array{ok: bool, message: string, amount_toman?: int, shortfall_toman?: int, needs_topup?: bool, replay?: bool}
      */
-    public function payInstallmentFromWallet(Customer $customer, int $installmentId, string $idempotencyKey): array
+    public function payInstallmentFromWallet(Customer $customer, int $installmentId, string $idempotencyKey, ?int $requestedAmountToman = null): array
     {
         $key = $this->normalizeIdempotencyKey($idempotencyKey);
         if ($key === null) {
@@ -51,7 +51,7 @@ final class PortalLoanWalletPaymentService
         $requestUuid = Str::lower($key);
 
         try {
-            return DB::transaction(function () use ($customer, $installmentId, $requestUuid): array {
+            return DB::transaction(function () use ($customer, $installmentId, $requestUuid, $requestedAmountToman): array {
                 $existing = CustomerWalletTransaction::query()
                     ->where('customer_id', (int) $customer->id)
                     ->where('request_uuid', $requestUuid)
@@ -60,7 +60,7 @@ final class PortalLoanWalletPaymentService
                     return $this->replayInstallmentWalletResponse($existing);
                 }
 
-                $resolved = $this->installmentResolver->resolveForCustomer($customer, $installmentId);
+                $resolved = $this->installmentResolver->resolveWalletPaymentForCustomer($customer, $installmentId);
                 if (! ($resolved['ok'] ?? false)) {
                     return ['ok' => false, 'message' => (string) ($resolved['message'] ?? 'امکان پرداخت وجود ندارد.')];
                 }
@@ -87,18 +87,36 @@ final class PortalLoanWalletPaymentService
                     return ['ok' => false, 'message' => 'پروندهٔ وام یافت نشد.'];
                 }
 
-                $resolved2 = $this->installmentResolver->resolveForCustomer($customer, (int) $installment->id);
+                $resolved2 = $this->installmentResolver->resolveWalletPaymentForCustomer($customer, (int) $installment->id);
                 if (! ($resolved2['ok'] ?? false)) {
                     return ['ok' => false, 'message' => (string) ($resolved2['message'] ?? 'وضعیت قسط تغییر کرده است.')];
                 }
 
-                $amountToman = (int) $resolved2['amount_toman'];
-                if ($amountToman < 1) {
-                    return ['ok' => false, 'message' => 'مبلغی برای پرداخت باقی نمانده است.'];
+                $ceilingToman = (int) $resolved2['ceiling_toman'];
+                if ($ceilingToman < 1) {
+                    return ['ok' => false, 'message' => 'طبق ماندهٔ وام، مبلغ دیگری قابل پرداخت نیست.'];
                 }
 
                 $balance = $this->lockedWalletBalanceToman($customer);
-                if ($balance < $amountToman) {
+                if ($balance < 1) {
+                    return [
+                        'ok' => false,
+                        'message' => 'موجودی کیف پول کافی نیست.',
+                        'needs_topup' => true,
+                    ];
+                }
+
+                $amountToman = $requestedAmountToman ?? min($balance, $ceilingToman);
+                if ($amountToman < 1) {
+                    return ['ok' => false, 'message' => 'مبلغ پرداخت نامعتبر است.'];
+                }
+                if ($amountToman > $ceilingToman) {
+                    return [
+                        'ok' => false,
+                        'message' => 'مبلغ درخواستی از ماندهٔ قابل پرداخت وام بیشتر است.',
+                    ];
+                }
+                if ($amountToman > $balance) {
                     return [
                         'ok' => false,
                         'message' => 'موجودی کیف پول برای این پرداخت کافی نیست.',
@@ -173,6 +191,8 @@ final class PortalLoanWalletPaymentService
                     'ok' => true,
                     'message' => 'پرداخت قسط از کیف پول با موفقیت ثبت شد.',
                     'amount_toman' => $amountToman,
+                    'track_id' => (string) (int) $wtx->id,
+                    'bank_ref' => 'wtx-'.(string) (int) $wtx->id,
                 ];
             });
         } catch (Throwable) {
@@ -347,6 +367,8 @@ final class PortalLoanWalletPaymentService
             'ok' => true,
             'message' => 'این پرداخت قبلاً با موفقیت ثبت شده است.',
             'amount_toman' => (int) $tx->amount_toman,
+            'track_id' => (string) (int) $tx->id,
+            'bank_ref' => 'wtx-'.(string) (int) $tx->id,
             'replay' => true,
         ];
     }

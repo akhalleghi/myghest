@@ -47,6 +47,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'guest.customer' => EnsureCustomerGuest::class,
             'admin.permission' => \App\Http\Middleware\EnsureAdminHasPermission::class,
             'portal.session' => \App\Http\Middleware\EnforcePortalSessionLifetime::class,
+            'log.admin.activity' => \App\Http\Middleware\LogAdminActivity::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -55,12 +55,14 @@ final class SmsSettingsService
      *   before_due_days:string,
      *   overdue_days_after:string,
      *   overdue_daily_until_paid:string,
+     *   overdue_repeat_mode:string,
+     *   overdue_repeat_interval_days:string,
      *   overdue_template_id:string
      * }
      */
     public function reminderSettings(): array
     {
-        return $this->readMap([
+        $settings = $this->readMap([
             'reminder_enabled' => 'sms_reminder_enabled',
             'reminder_send_time' => 'sms_reminder_send_time',
             'due_day_enabled' => 'sms_reminder_due_day_enabled',
@@ -70,8 +72,18 @@ final class SmsSettingsService
             'before_due_days' => 'sms_reminder_before_due_days',
             'overdue_days_after' => 'sms_reminder_overdue_days_after',
             'overdue_daily_until_paid' => 'sms_reminder_overdue_daily_until_paid',
+            'overdue_repeat_mode' => 'sms_reminder_overdue_repeat_mode',
+            'overdue_repeat_interval_days' => 'sms_reminder_overdue_repeat_interval_days',
             'overdue_template_id' => 'sms_reminder_overdue_template_id',
         ]);
+
+        if (trim($settings['overdue_repeat_mode'] ?? '') === '') {
+            $settings['overdue_repeat_mode'] = $this->isSettingEnabled($settings['overdue_daily_until_paid'] ?? '')
+                ? 'daily'
+                : 'once';
+        }
+
+        return $settings;
     }
 
     /**
@@ -85,6 +97,8 @@ final class SmsSettingsService
      *   before_due_days:int|string|null,
      *   overdue_days_after:int|string|null,
      *   overdue_daily_until_paid:string|int|bool|null,
+     *   overdue_repeat_mode:string|null,
+     *   overdue_repeat_interval_days:int|string|null,
      *   overdue_template_id:int|string|null
      * }  $values
      */
@@ -424,6 +438,11 @@ final class SmsSettingsService
 
     public function saveReminderSettings(array $values): void
     {
+        $repeatMode = strtolower(trim((string) ($values['overdue_repeat_mode'] ?? 'once')));
+        if (! in_array($repeatMode, ['once', 'daily', 'weekly', 'interval'], true)) {
+            $repeatMode = 'once';
+        }
+
         $this->saveMap([
             'sms_reminder_enabled' => $values['reminder_enabled'] ?? '0',
             'sms_reminder_send_time' => $values['reminder_send_time'] ?? '',
@@ -433,7 +452,9 @@ final class SmsSettingsService
             'sms_reminder_before_due_template_id' => $values['before_due_template_id'] ?? null,
             'sms_reminder_before_due_days' => $values['before_due_days'] ?? null,
             'sms_reminder_overdue_days_after' => $values['overdue_days_after'] ?? null,
-            'sms_reminder_overdue_daily_until_paid' => $values['overdue_daily_until_paid'] ?? '0',
+            'sms_reminder_overdue_repeat_mode' => $repeatMode,
+            'sms_reminder_overdue_repeat_interval_days' => $values['overdue_repeat_interval_days'] ?? null,
+            'sms_reminder_overdue_daily_until_paid' => in_array($repeatMode, ['daily', 'weekly', 'interval'], true) ? '1' : '0',
             'sms_reminder_overdue_template_id' => $values['overdue_template_id'] ?? null,
         ]);
     }

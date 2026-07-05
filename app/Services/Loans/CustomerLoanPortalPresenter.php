@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Loans;
 
 use App\Models\Customer;
+use App\Models\CustomerDepositDeclaration;
 use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanInstallment;
 use App\Models\CustomerLoanInstallmentPayment;
@@ -40,9 +41,18 @@ final class CustomerLoanPortalPresenter
             ->orderByDesc('id')
             ->get();
 
+        $installmentIds = $files
+            ->flatMap(static fn (CustomerLoanFile $file): \Illuminate\Support\Collection => $file->installments->pluck('id'))
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->all();
+        $declarationMetaByInstallmentId = $this->resolveLatestDepositDeclarationMetaByInstallmentId(
+            (int) $customer->id,
+            $installmentIds
+        );
+
         $loans = [];
         foreach ($files as $file) {
-            $loans[] = $this->mapLoanForPortal($file);
+            $loans[] = $this->mapLoanForPortal($file, $declarationMetaByInstallmentId);
         }
 
         return [
@@ -54,7 +64,10 @@ final class CustomerLoanPortalPresenter
     /**
      * @return array<string, mixed>
      */
-    private function mapLoanForPortal(CustomerLoanFile $file): array
+    /**
+     * @param  array<int, array{created_at: Carbon}>  $declarationMetaByInstallmentId
+     */
+    private function mapLoanForPortal(CustomerLoanFile $file, array $declarationMetaByInstallmentId = []): array
     {
         $this->schedule->ensureSchedule($file);
         $file->unsetRelation('installments');
@@ -123,7 +136,8 @@ final class CustomerLoanPortalPresenter
                 $contractLocked,
                 $isRevoked,
                 $priorNominalSlotUnpaid,
-                $installmentPayCeilingToman
+                $installmentPayCeilingToman,
+                $declarationMetaByInstallmentId[(int) $inst->id] ?? null
             );
         }
 
@@ -323,13 +337,17 @@ final class CustomerLoanPortalPresenter
     /**
      * @return array<string, mixed>
      */
+    /**
+     * @param  array{created_at: Carbon}|null  $depositDeclarationMeta
+     */
     private function mapInstallmentForPortal(
         CustomerLoanInstallment $inst,
         float $lateCoef,
         bool $contractLocked,
         bool $isRevoked,
         bool $priorNominalSlotUnpaid,
-        int $installmentPayCeilingToman
+        int $installmentPayCeilingToman,
+        ?array $depositDeclarationMeta = null
     ): array {
         $due = Carbon::parse($inst->due_date)->startOfDay();
         $now = Carbon::now()->startOfDay();
@@ -346,9 +364,15 @@ final class CustomerLoanPortalPresenter
             : 0;
         $onlinePayEligible = $actionsEnabled && ! $priorNominalSlotUnpaid && $onlinePayableToman > 0;
         $onlinePayPriorSequenceBlock = $actionsEnabled && $priorNominalSlotUnpaid;
+        $walletPayEligible = $actionsEnabled && ! $priorNominalSlotUnpaid && $installmentPayCeilingToman > 0;
 
         $depositCarbon = $this->resolveLatestDepositCarbon($inst);
         $depositJalali = $depositCarbon !== null ? $this->toJalaliFa($depositCarbon) : '—';
+
+        $hasDepositDeclaration = $depositDeclarationMeta !== null;
+        $depositDeclarationCreatedJalali = $hasDepositDeclaration
+            ? $this->toJalaliFa($depositDeclarationMeta['created_at'])
+            : null;
 
         $statusLine = '';
         $statusNote = '';
@@ -417,7 +441,12 @@ final class CustomerLoanPortalPresenter
             'online_payable_fa' => $onlinePayableToman > 0 ? $this->formatMoneyFa($onlinePayableToman) : '—',
             'online_pay_eligible' => $onlinePayEligible,
             'online_pay_prior_sequence_block' => $onlinePayPriorSequenceBlock,
+            'wallet_pay_eligible' => $walletPayEligible,
+            'payment_ceiling_toman' => $installmentPayCeilingToman,
+            'payment_ceiling_fa' => $installmentPayCeilingToman > 0 ? $this->formatMoneyFa($installmentPayCeilingToman) : '—',
             'deposit_jalali' => $depositJalali,
+            'has_deposit_declaration' => $hasDepositDeclaration,
+            'deposit_declaration_created_jalali' => $depositDeclarationCreatedJalali,
             'early_late_cell_fa' => $this->formatInstallmentEarlyLateCellFa(
                 $inst,
                 $lateCoef,
@@ -478,6 +507,36 @@ final class CustomerLoanPortalPresenter
         }
 
         return '—';
+    }
+
+    /**
+     * @param  list<int>  $installmentIds
+     * @return array<int, array{created_at: Carbon}>
+     */
+    private function resolveLatestDepositDeclarationMetaByInstallmentId(int $customerId, array $installmentIds): array
+    {
+        if ($installmentIds === []) {
+            return [];
+        }
+
+        $rows = CustomerDepositDeclaration::query()
+            ->where('customer_id', $customerId)
+            ->whereIn('customer_loan_installment_id', $installmentIds)
+            ->orderByDesc('id')
+            ->get(['customer_loan_installment_id', 'created_at']);
+
+        $out = [];
+        foreach ($rows as $row) {
+            $installmentId = (int) $row->customer_loan_installment_id;
+            if (isset($out[$installmentId])) {
+                continue;
+            }
+            $out[$installmentId] = [
+                'created_at' => Carbon::parse($row->created_at),
+            ];
+        }
+
+        return $out;
     }
 
     private function resolveLatestDepositCarbon(CustomerLoanInstallment $inst): ?Carbon

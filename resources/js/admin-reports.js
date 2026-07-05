@@ -2835,6 +2835,454 @@ function rptInitLoanInterestFeesReport(cfg) {
     return { openModal: openModal, closeModal: closeModal, overlay: overlay };
 }
 
+function rptInitAdminActivityReport(cfg) {
+    var overlay = document.getElementById('rpt-modal-admin-activity');
+    if (!overlay) {
+        return;
+    }
+
+    var form = document.getElementById('rpt-aa-date-form');
+    var tbody = document.getElementById('rpt-aa-tbody');
+    var meta = document.getElementById('rpt-aa-meta');
+    var searchInput = document.getElementById('rpt-aa-search');
+    var actionSelect = document.getElementById('rpt-aa-action');
+    var fromInput = document.getElementById('rpt-aa-from');
+    var toInput = document.getElementById('rpt-aa-to');
+    var exportExcelLink = document.getElementById('rpt-aa-export-excel');
+    var adminIdInput = document.getElementById('rpt-aa-admin-id');
+    var adminSearchInput = document.getElementById('rpt-aa-admin-search');
+    var adminClearBtn = document.getElementById('rpt-aa-admin-clear');
+    var adminSuggest = document.getElementById('rpt-aa-admin-suggest');
+
+    function openModalShell() {
+        overlay.hidden = false;
+        overlay.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+        rptInitDatePickers('rpt-aa-from', 'rpt-aa-to');
+    }
+
+    function closeModalShell() {
+        overlay.hidden = true;
+        overlay.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+        hideAdminSuggest();
+    }
+
+    if (!form || !tbody) {
+        return { openModal: openModalShell, closeModal: closeModalShell, overlay: overlay };
+    }
+
+    function hideAdminSuggest() {
+        if (!adminSuggest) {
+            return;
+        }
+        adminSuggest.hidden = true;
+        adminSuggest.replaceChildren();
+    }
+
+    function syncAdminClearBtn() {
+        if (!adminClearBtn || !adminIdInput) {
+            return;
+        }
+        adminClearBtn.hidden = String(adminIdInput.value || '').trim() === '';
+    }
+
+    function clearAdminFilter() {
+        if (adminIdInput) {
+            adminIdInput.value = '';
+        }
+        if (adminSearchInput) {
+            adminSearchInput.value = '';
+            adminSearchInput.placeholder = 'همه ادمین‌ها — برای فیلتر یک ادمین جستجو کنید…';
+        }
+        hideAdminSuggest();
+        syncAdminClearBtn();
+    }
+
+    function selectAdmin(id, text) {
+        if (adminIdInput) {
+            adminIdInput.value = String(id);
+        }
+        if (adminSearchInput) {
+            adminSearchInput.value = text;
+        }
+        hideAdminSuggest();
+        syncAdminClearBtn();
+        loadData();
+    }
+
+    function renderAdminSuggest(results) {
+        if (!adminSuggest) {
+            return;
+        }
+        adminSuggest.replaceChildren();
+        if (!results.length) {
+            var emptyBtn = document.createElement('button');
+            emptyBtn.type = 'button';
+            emptyBtn.textContent = 'موردی یافت نشد';
+            emptyBtn.disabled = true;
+            adminSuggest.appendChild(emptyBtn);
+            adminSuggest.hidden = false;
+
+            return;
+        }
+        results.forEach(function (item) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = item.text || '';
+            btn.addEventListener('click', function () {
+                selectAdmin(item.id, item.text || '');
+            });
+            adminSuggest.appendChild(btn);
+        });
+        adminSuggest.hidden = false;
+    }
+
+    var adminSearchTimer;
+    function fetchAdminSuggestions(term) {
+        if (!cfg.adminActivityAdminsUrl) {
+            return;
+        }
+        var url = new URL(cfg.adminActivityAdminsUrl, window.location.origin);
+        url.searchParams.set('q', term);
+        fetch(url.toString(), {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        })
+            .then(function (r) {
+                if (!r.ok) {
+                    throw new Error('bad');
+                }
+
+                return r.json();
+            })
+            .then(function (data) {
+                renderAdminSuggest(Array.isArray(data.results) ? data.results : []);
+            })
+            .catch(function () {
+                hideAdminSuggest();
+            });
+    }
+
+    function rptUpdateExportUrl() {
+        if (!exportExcelLink || !cfg.adminActivityExportUrl) {
+            return;
+        }
+        var url = new URL(cfg.adminActivityExportUrl, window.location.origin);
+        if (fromInput && String(fromInput.value || '').trim()) {
+            url.searchParams.set('from_jdate', String(fromInput.value).trim());
+        }
+        if (toInput && String(toInput.value || '').trim()) {
+            url.searchParams.set('to_jdate', String(toInput.value).trim());
+        }
+        if (searchInput && String(searchInput.value || '').trim()) {
+            url.searchParams.set('q', String(searchInput.value).trim());
+        }
+        if (adminIdInput && String(adminIdInput.value || '').trim()) {
+            url.searchParams.set('admin_id', String(adminIdInput.value).trim());
+        }
+        if (actionSelect && String(actionSelect.value || '')) {
+            url.searchParams.set('action', String(actionSelect.value));
+        }
+        exportExcelLink.href = url.toString();
+    }
+
+    var allRows = [];
+    var serverSearch = '';
+    var serverAction = '';
+    var serverAdminId = '';
+
+    function openModal() {
+        openModalShell();
+        rptUpdateExportUrl();
+        syncAdminClearBtn();
+    }
+
+    function closeModal() {
+        closeModalShell();
+    }
+
+    function renderRows(rows) {
+        tbody.replaceChildren();
+
+        if (!rows.length) {
+            var emptyTr = document.createElement('tr');
+            var emptyTd = document.createElement('td');
+            emptyTd.colSpan = 7;
+            emptyTd.className = 'rpt-empty';
+            emptyTd.textContent = 'رکوردی یافت نشد.';
+            emptyTr.appendChild(emptyTd);
+            tbody.appendChild(emptyTr);
+
+            return;
+        }
+
+        rows.forEach(function (row) {
+            var tr = document.createElement('tr');
+            tr.className = 'rpt-data-row';
+
+            var tdTime = document.createElement('td');
+            tdTime.setAttribute('data-label', 'زمان');
+            tdTime.textContent = row.performed_at_fa || '—';
+            tr.appendChild(tdTime);
+
+            var tdAdmin = document.createElement('td');
+            tdAdmin.setAttribute('data-label', 'ادمین');
+            var adminStack = document.createElement('div');
+            adminStack.className = 'rpt-cell-stack';
+            var adminName = document.createElement('span');
+            adminName.textContent = row.admin_name || '—';
+            adminStack.appendChild(adminName);
+            var adminUser = document.createElement('span');
+            adminUser.className = 'rpt-val-ltr';
+            adminUser.textContent = row.admin_username_fa || row.admin_username || '';
+            adminStack.appendChild(adminUser);
+            tdAdmin.appendChild(adminStack);
+            tr.appendChild(tdAdmin);
+
+            var tdType = document.createElement('td');
+            tdType.setAttribute('data-label', 'نوع');
+            tdType.textContent = row.action_label || '—';
+            tr.appendChild(tdType);
+
+            var tdDesc = document.createElement('td');
+            tdDesc.setAttribute('data-label', 'شرح');
+            tdDesc.textContent = row.description || '—';
+            tr.appendChild(tdDesc);
+
+            var tdPath = document.createElement('td');
+            tdPath.setAttribute('data-label', 'مسیر');
+            tdPath.className = 'rpt-val-ltr';
+            tdPath.textContent = row.url_path || row.route_name || '—';
+            tr.appendChild(tdPath);
+
+            var tdIp = document.createElement('td');
+            tdIp.setAttribute('data-label', 'IP');
+            tdIp.className = 'rpt-val-ltr';
+            tdIp.textContent = row.ip_fa || row.ip_address || '—';
+            tr.appendChild(tdIp);
+
+            var tdDevice = document.createElement('td');
+            tdDevice.setAttribute('data-label', 'دستگاه');
+            var deviceStack = document.createElement('div');
+            deviceStack.className = 'rpt-cell-stack';
+            var deviceType = document.createElement('span');
+            deviceType.textContent = row.device_type_fa || '—';
+            deviceStack.appendChild(deviceType);
+            if (row.browser && row.browser !== '—') {
+                var browserSpan = document.createElement('span');
+                browserSpan.textContent = row.browser;
+                deviceStack.appendChild(browserSpan);
+            }
+            tdDevice.appendChild(deviceStack);
+            tr.appendChild(tdDevice);
+
+            tbody.appendChild(tr);
+        });
+    }
+
+    function applyClientFilters() {
+        var q = searchInput ? String(searchInput.value || '').trim().toLowerCase() : '';
+        if (q === '') {
+            renderRows(allRows);
+
+            return;
+        }
+        var filtered = allRows.filter(function (row) {
+            var blob = [
+                row.admin_name,
+                row.admin_username,
+                row.description,
+                row.route_name,
+                row.url_path,
+                row.action_label,
+            ]
+                .join(' ')
+                .toLowerCase();
+
+            return blob.indexOf(q) !== -1;
+        });
+        renderRows(filtered);
+    }
+
+    function loadData() {
+        if (!cfg.adminActivityDataUrl) {
+            return;
+        }
+        var url = new URL(cfg.adminActivityDataUrl, window.location.origin);
+        if (fromInput && String(fromInput.value || '').trim()) {
+            url.searchParams.set('from_jdate', String(fromInput.value).trim());
+        }
+        if (toInput && String(toInput.value || '').trim()) {
+            url.searchParams.set('to_jdate', String(toInput.value).trim());
+        }
+        if (adminIdInput && String(adminIdInput.value || '').trim()) {
+            url.searchParams.set('admin_id', String(adminIdInput.value).trim());
+        }
+        if (actionSelect && String(actionSelect.value || '')) {
+            url.searchParams.set('action', String(actionSelect.value));
+        }
+        if (searchInput && String(searchInput.value || '').trim()) {
+            url.searchParams.set('q', String(searchInput.value).trim());
+        }
+
+        serverSearch = searchInput ? String(searchInput.value || '').trim() : '';
+        serverAction = actionSelect ? String(actionSelect.value || '') : '';
+        serverAdminId = adminIdInput ? String(adminIdInput.value || '').trim() : '';
+
+        if (meta) {
+            meta.textContent = 'در حال دریافت…';
+        }
+        tbody.replaceChildren();
+        var loadingTr = document.createElement('tr');
+        var loadingTd = document.createElement('td');
+        loadingTd.colSpan = 7;
+        loadingTd.className = 'rpt-empty';
+        loadingTd.textContent = 'در حال بارگذاری…';
+        loadingTr.appendChild(loadingTd);
+        tbody.appendChild(loadingTr);
+
+        fetch(url.toString(), {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        })
+            .then(function (r) {
+                if (!r.ok) {
+                    throw new Error('bad');
+                }
+
+                return r.json();
+            })
+            .then(function (data) {
+                allRows = Array.isArray(data.rows) ? data.rows : [];
+                var m = data.meta || {};
+                if (meta) {
+                    meta.textContent =
+                        'بازه: ' +
+                        (m.from_jdate || '—') +
+                        ' تا ' +
+                        (m.to_jdate || '—') +
+                        ' — ' +
+                        rptFaNum(m.count || allRows.length) +
+                        ' رکورد';
+                }
+                if (searchInput && String(searchInput.value || '').trim() === serverSearch) {
+                    applyClientFilters();
+                } else {
+                    renderRows(allRows);
+                }
+                rptUpdateExportUrl();
+            })
+            .catch(function () {
+                if (meta) {
+                    meta.textContent = 'خطا در دریافت اطلاعات.';
+                }
+                tbody.replaceChildren();
+                var errTr = document.createElement('tr');
+                var errTd = document.createElement('td');
+                errTd.colSpan = 7;
+                errTd.className = 'rpt-empty';
+                errTd.textContent = 'خطا در دریافت اطلاعات.';
+                errTr.appendChild(errTd);
+                tbody.appendChild(errTr);
+            });
+    }
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        loadData();
+    });
+
+    if (searchInput) {
+        searchInput.addEventListener('input', function () {
+            if (serverSearch !== '' && String(searchInput.value || '').trim() !== serverSearch) {
+                applyClientFilters();
+            } else if (allRows.length) {
+                applyClientFilters();
+            }
+        });
+        searchInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                loadData();
+            }
+        });
+    }
+
+    if (adminSearchInput) {
+        adminSearchInput.addEventListener('input', function () {
+            if (adminIdInput) {
+                adminIdInput.value = '';
+            }
+            syncAdminClearBtn();
+            var term = String(adminSearchInput.value || '').trim();
+            clearTimeout(adminSearchTimer);
+            if (term.length < 1) {
+                hideAdminSuggest();
+
+                return;
+            }
+            adminSearchTimer = setTimeout(function () {
+                fetchAdminSuggestions(term);
+            }, 280);
+        });
+        adminSearchInput.addEventListener('focus', function () {
+            var term = String(adminSearchInput.value || '').trim();
+            if (term.length > 0 && (!adminIdInput || !String(adminIdInput.value || '').trim())) {
+                fetchAdminSuggestions(term);
+            }
+        });
+    }
+
+    if (adminClearBtn) {
+        adminClearBtn.addEventListener('click', function () {
+            clearAdminFilter();
+            loadData();
+        });
+    }
+
+    if (actionSelect) {
+        actionSelect.addEventListener('change', function () {
+            loadData();
+        });
+    }
+
+    document.addEventListener('click', function (e) {
+        if (!adminSuggest || adminSuggest.hidden) {
+            return;
+        }
+        var picker = adminSearchInput ? adminSearchInput.closest('.rpt-customer-picker') : null;
+        if (picker && !picker.contains(e.target)) {
+            hideAdminSuggest();
+        }
+    });
+
+    if (fromInput) {
+        fromInput.addEventListener('change', rptUpdateExportUrl);
+    }
+    if (toInput) {
+        toInput.addEventListener('change', rptUpdateExportUrl);
+    }
+
+    document.querySelectorAll('[data-rpt-open="admin-activity"]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            openModal();
+        });
+    });
+
+    overlay.querySelectorAll('[data-rpt-modal-close]').forEach(function (btn) {
+        btn.addEventListener('click', closeModal);
+    });
+
+    overlay.addEventListener('click', function (e) {
+        if (e.target === overlay) {
+            closeModal();
+        }
+    });
+
+    return { openModal: openModal, closeModal: closeModal, overlay: overlay };
+}
+
 function rptInitReportsPage() {
     var cfg = rptParseConfig();
     var memberLoans = rptInitMemberLoansReport(cfg);
@@ -2844,6 +3292,7 @@ function rptInitReportsPage() {
     var walletTransactions = rptInitWalletTransactionsByDateReport(cfg);
     var loanGuarantees = rptInitLoanGuaranteesReport(cfg);
     var loanInterestFees = rptInitLoanInterestFeesReport(cfg);
+    var adminActivity = rptInitAdminActivityReport(cfg);
     var reportRegistry = {
         'member-loans-by-date': memberLoans,
         'installment-due-by-date': installmentDue,
@@ -2852,6 +3301,7 @@ function rptInitReportsPage() {
         'wallet-transactions-by-date': walletTransactions,
         'loan-guarantees': loanGuarantees,
         'loan-interest-fees': loanInterestFees,
+        'admin-activity': adminActivity,
     };
     rptBindReportCardOpens(reportRegistry);
     rptBindReportEscapeHandlers([
@@ -2862,6 +3312,7 @@ function rptInitReportsPage() {
         walletTransactions,
         loanGuarantees,
         loanInterestFees,
+        adminActivity,
     ]);
     rptInitQuickSms(cfg);
 }

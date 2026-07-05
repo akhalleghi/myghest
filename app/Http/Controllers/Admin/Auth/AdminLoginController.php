@@ -10,6 +10,7 @@ use App\Jobs\SendAdminLoginNotifySmsJob;
 use App\Models\Admin;
 use App\Models\LoginAccessBlock;
 use App\Services\Admin\CaptchaService;
+use App\Services\Admin\AdminActivityLogService;
 use App\Services\Auth\AdminLoginTwoFactorService;
 use App\Services\Auth\LoginAccessBlockService;
 use App\Support\AdminLoginSecuritySettings;
@@ -27,6 +28,7 @@ final class AdminLoginController extends Controller
     public function __construct(
         private readonly AdminLoginTwoFactorService $loginTwoFactor,
         private readonly LoginAccessBlockService $loginAccessBlocks,
+        private readonly AdminActivityLogService $activityLog,
     ) {}
 
     public function create(): View
@@ -113,6 +115,12 @@ final class AdminLoginController extends Controller
 
     public function destroy(Request $request): RedirectResponse
     {
+        /** @var Admin|null $admin */
+        $admin = Auth::guard('admin')->user();
+        if ($admin instanceof Admin) {
+            $this->activityLog->recordLogout($admin, $request);
+        }
+
         Auth::guard('admin')->logout();
 
         $request->session()->invalidate();
@@ -135,6 +143,7 @@ final class AdminLoginController extends Controller
         ])->save();
 
         SendAdminLoginNotifySmsJob::dispatchAfterResponse((int) $admin->id);
+        $this->activityLog->recordLogin($admin, $request);
 
         return redirect()->intended(route('admin.dashboard'));
     }

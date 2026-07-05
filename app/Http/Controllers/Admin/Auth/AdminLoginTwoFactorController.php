@@ -8,6 +8,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Middleware\EnforcePortalSessionLifetime;
 use App\Jobs\SendAdminLoginNotifySmsJob;
 use App\Models\LoginAccessBlock;
+use App\Models\Admin;
+use App\Services\Admin\AdminActivityLogService;
 use App\Services\Auth\AdminLoginTwoFactorService;
 use App\Services\Auth\LoginAccessBlockService;
 use Illuminate\Http\JsonResponse;
@@ -24,6 +26,7 @@ final class AdminLoginTwoFactorController extends Controller
     public function __construct(
         private readonly AdminLoginTwoFactorService $twoFactor,
         private readonly LoginAccessBlockService $loginAccessBlocks,
+        private readonly AdminActivityLogService $activityLog,
     ) {}
 
     public function resend(Request $request): JsonResponse
@@ -104,6 +107,9 @@ final class AdminLoginTwoFactorController extends Controller
         ])->save();
 
         SendAdminLoginNotifySmsJob::dispatchAfterResponse((int) $admin->id);
+        if ($admin instanceof Admin) {
+            $this->activityLog->recordLogin($admin, $request);
+        }
 
         if ($request->expectsJson()) {
             return response()->json([
