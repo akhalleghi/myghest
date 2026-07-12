@@ -719,6 +719,10 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
         ->middleware('throttle:20,1')
         ->name('app-settings.reports.update');
 
+    Route::post('/app-settings/print', [AppSettingsController::class, 'updatePrint'])
+        ->middleware('throttle:20,1')
+        ->name('app-settings.print.update');
+
     Route::post('/app-settings/security', [AppSettingsController::class, 'updateSecurity'])
         ->middleware('throttle:20,1')
         ->name('app-settings.security.update');

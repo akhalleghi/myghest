@@ -15,6 +15,7 @@ use App\Support\AdminLoginSecuritySettings;
 use App\Support\CustomerLoginSecuritySettings;
 use App\Support\GuaranteeReturnOtpSettings;
 use App\Support\LoanCreationOtpSettings;
+use App\Support\InstallmentBookletPrintSettings;
 use App\Support\LoanInstallmentRoundingSettings;
 use App\Support\PortalLoginSecuritySettings;
 use Illuminate\Http\JsonResponse;
@@ -250,6 +251,86 @@ final class AppSettingsController extends Controller
         return back()
             ->with('flash_success', 'تنظیمات گزارش‌ها ذخیره شد.')
             ->with('open_app_settings_tab', 'reports');
+    }
+
+    public function updatePrint(Request $request): RedirectResponse
+    {
+        $columnKeys = InstallmentBookletPrintSettings::orderedColumnKeys();
+        $columnRules = [];
+        $columnLabels = [];
+        foreach ($columnKeys as $columnKey) {
+            $columnRules['columns.'.$columnKey.'.show'] = ['required', 'string', 'in:0,1'];
+            $columnRules['columns.'.$columnKey.'.label'] = ['required', 'string', 'max:80'];
+            $columnLabels['columns.'.$columnKey.'.show'] = 'نمایش ستون '.$columnKey;
+            $columnLabels['columns.'.$columnKey.'.label'] = 'عنوان ستون '.$columnKey;
+        }
+
+        $validated = $request->validate(array_merge([
+            'title_main' => ['required', 'string', 'max:120'],
+            'subtitle' => ['required', 'string', 'max:120'],
+            'loan_amount_label' => ['required', 'string', 'max:120'],
+            'show_logo' => ['required', 'string', 'in:0,1'],
+            'use_app_logo' => ['required', 'string', 'in:0,1'],
+            'show_loan_amount' => ['required', 'string', 'in:0,1'],
+            'show_summary_table' => ['required', 'string', 'in:0,1'],
+            'show_detail_table' => ['required', 'string', 'in:0,1'],
+            'show_portal_block' => ['required', 'string', 'in:0,1'],
+            'show_username' => ['required', 'string', 'in:0,1'],
+            'show_password' => ['required', 'string', 'in:0,1'],
+            'password_unavailable_text' => ['nullable', 'string', 'max:80'],
+            'portal_intro_text' => ['required', 'string', 'max:300'],
+            'username_label' => ['required', 'string', 'max:80'],
+            'password_label' => ['required', 'string', 'max:80'],
+            'show_signatures' => ['required', 'string', 'in:0,1'],
+            'seller_signature_label' => ['required', 'string', 'max:120'],
+            'buyer_signature_label' => ['required', 'string', 'max:120'],
+            'font_scale' => ['required', 'string', Rule::in(['small', 'normal', 'large'])],
+            'remove_print_logo' => ['nullable', 'boolean'],
+            'print_logo' => ['nullable', 'image', 'max:4096'],
+        ], $columnRules), [], array_merge([
+            'title_main' => 'عنوان اصلی چاپ',
+            'subtitle' => 'زیرعنوان چاپ',
+            'loan_amount_label' => 'برچسب مبلغ وام',
+            'show_logo' => 'نمایش لوگو',
+            'use_app_logo' => 'استفاده از لوگوی سامانه',
+            'show_loan_amount' => 'نمایش مبلغ وام',
+            'show_summary_table' => 'نمایش جدول خلاصه',
+            'show_detail_table' => 'نمایش جدول اقساط',
+            'show_portal_block' => 'نمایش بلوک پنل کاربری',
+            'show_username' => 'نمایش نام کاربری',
+            'show_password' => 'نمایش رمز عبور',
+            'password_unavailable_text' => 'متن جایگزین رمز',
+            'portal_intro_text' => 'متن معرفی پنل',
+            'username_label' => 'برچسب نام کاربری',
+            'password_label' => 'برچسب رمز عبور',
+            'show_signatures' => 'نمایش امضاها',
+            'seller_signature_label' => 'برچسب امضای فروشنده',
+            'buyer_signature_label' => 'برچسب امضای خریدار',
+            'font_scale' => 'اندازه فونت چاپ',
+            'print_logo' => 'لوگوی چاپ',
+        ], $columnLabels));
+
+        $current = InstallmentBookletPrintSettings::resolved();
+        $logoPath = trim((string) ($current['logo_path'] ?? ''));
+
+        if ($request->boolean('remove_print_logo')) {
+            if ($logoPath !== '') {
+                $this->deletePublicAsset($logoPath);
+            }
+            $logoPath = '';
+        } elseif ($request->file('print_logo') instanceof UploadedFile) {
+            if ($logoPath !== '') {
+                $this->deletePublicAsset($logoPath);
+            }
+            $logoPath = $this->storePublicAsset($request->file('print_logo'), 'booklet-print-logo');
+        }
+
+        $validated['logo_path'] = $logoPath;
+        InstallmentBookletPrintSettings::persist($validated);
+
+        return back()
+            ->with('flash_success', 'تنظیمات چاپ ذخیره شد.')
+            ->with('open_app_settings_tab', 'print');
     }
 
     public function updateSecurity(Request $request): RedirectResponse

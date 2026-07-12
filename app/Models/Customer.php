@@ -27,6 +27,7 @@ final class Customer extends Authenticatable
         'birth_date',
         'email',
         'password',
+        'password_print_encrypted',
         'city',
         'address',
         'postal_code',
@@ -38,6 +39,7 @@ final class Customer extends Authenticatable
      */
     protected $hidden = [
         'password',
+        'password_print_encrypted',
         'remember_token',
     ];
 

@@ -320,6 +320,7 @@ return [
                 ]],
                 ['key' => 'app_settings.loans', 'label' => 'وام‌ها', 'routes' => ['admin.app-settings.loans.update']],
                 ['key' => 'app_settings.reports', 'label' => 'گزارش‌ها', 'routes' => ['admin.app-settings.reports.update']],
+                ['key' => 'app_settings.print', 'label' => 'تنظیمات چاپ', 'routes' => ['admin.app-settings.print.update']],
                 [
                     'key' => 'backup',
                     'label' => 'پشتیبان‌گیری و بازیابی',
@@ -401,6 +402,7 @@ return [
                 'security' => ['label' => 'امنیت', 'permissions' => ['app_settings.security']],
                 'loans' => ['label' => 'وام‌ها', 'permissions' => ['app_settings.loans']],
                 'reports' => ['label' => 'گزارش‌ها', 'permissions' => ['app_settings.reports']],
+                'print' => ['label' => 'تنظیمات چاپ', 'permissions' => ['app_settings.print']],
             ],
         ],
     ],

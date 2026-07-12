@@ -2664,6 +2664,7 @@
                         'security' => 'fa-solid fa-shield-halved',
                         'loans' => 'fa-solid fa-file-invoice-dollar',
                         'reports' => 'fa-solid fa-table-columns',
+                        'print' => 'fa-solid fa-print',
                     ];
                 @endphp
                 <aside class="app-settings-menu" aria-label="دسته‌بندی تنظیمات">
@@ -3169,6 +3170,9 @@
                     @if(isset($adminAppSettingsPanels['reports']))
                     @include('layouts.admin.partials.app-settings-reports-panel')
                     @endif
+                    @if(isset($adminAppSettingsPanels['print']))
+                    @include('layouts.admin.partials.app-settings-print-panel')
+                    @endif
                 </div>
             </div>
         </div>
@@ -3586,6 +3590,9 @@
                 openSettings();
                 @elseif(session('open_app_settings_tab') === 'reports' || $errors->has('font_scale') || $errors->has('text_align') || $errors->has('numeric_align') || $errors->has('header_mode') || $errors->has('stack_align') || $errors->has('cell_density'))
                 activateSettingsTab('reports');
+                openSettings();
+                @elseif(session('open_app_settings_tab') === 'print' || $errors->has('title_main') || $errors->has('subtitle') || $errors->has('loan_amount_label') || $errors->has('print_logo'))
+                activateSettingsTab('print');
                 openSettings();
                 @elseif(
                     $errors->has('customer_login_two_factor_enabled')

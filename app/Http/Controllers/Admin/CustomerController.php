@@ -11,6 +11,7 @@ use App\Models\Customer;
 use App\Support\GuaranteeReturnOtpSettings;
 use App\Support\ListPerPage;
 use App\Support\LoanCreationOtpSettings;
+use App\Support\InstallmentBookletPrintSettings;
 use App\Support\LoanInstallmentRoundingSettings;
 use App\Support\PrivateStoragePaths;
 use App\Models\CustomerBankAccount;
@@ -39,6 +40,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -1402,20 +1404,54 @@ final class CustomerController extends Controller
             ? $uiFontRaw
             : 'iransans';
 
+        $printSettings = InstallmentBookletPrintSettings::resolved();
+        $appLogoPath = AppSetting::query()->where('key', 'app_logo_path')->value('value');
+        $appLogoPath = is_string($appLogoPath) ? trim($appLogoPath) : '';
+
+        $visibleColumns = [];
+        foreach (InstallmentBookletPrintSettings::orderedColumnKeys() as $columnKey) {
+            $column = $printSettings['columns'][$columnKey] ?? null;
+            if (! is_array($column) || ($column['show'] ?? '0') !== '1') {
+                continue;
+            }
+            $visibleColumns[] = [
+                'key' => $columnKey,
+                'label' => (string) ($column['label'] ?? $columnKey),
+            ];
+        }
+
         return view('admin.customers.loan_installment_booklet_print', [
-            'titleMain' => 'دفترچه اقساط',
-            'subtitleSales' => 'فروش اقساطی',
+            'titleMain' => (string) ($printSettings['title_main'] ?? 'دفترچه اقساط'),
+            'subtitleSales' => (string) ($printSettings['subtitle'] ?? 'فروش اقساطی'),
+            'loanAmountLabel' => (string) ($printSettings['loan_amount_label'] ?? 'مبلغ وام'),
+            'loanAmountDisplay' => $this->formatBookletMoneyFa((int) $loanFile->amount_toman),
+            'showLoanAmount' => ($printSettings['show_loan_amount'] ?? '1') === '1',
+            'showSummaryTable' => ($printSettings['show_summary_table'] ?? '1') === '1',
+            'showDetailTable' => ($printSettings['show_detail_table'] ?? '1') === '1',
+            'showPortalBlock' => ($printSettings['show_portal_block'] ?? '1') === '1',
+            'showUsername' => ($printSettings['show_username'] ?? '1') === '1',
+            'showPassword' => ($printSettings['show_password'] ?? '1') === '1',
+            'showSignatures' => ($printSettings['show_signatures'] ?? '1') === '1',
+            'portalIntroText' => (string) ($printSettings['portal_intro_text'] ?? ''),
+            'usernameLabel' => (string) ($printSettings['username_label'] ?? 'نام کاربری:'),
+            'passwordLabel' => (string) ($printSettings['password_label'] ?? 'رمز عبور:'),
+            'sellerSignatureLabel' => (string) ($printSettings['seller_signature_label'] ?? 'امضا و اثر انگشت فروشنده'),
+            'buyerSignatureLabel' => (string) ($printSettings['buyer_signature_label'] ?? 'امضا و اثر انگشت خریدار'),
             'borrowerFullName' => trim((string) $customer->fullName()),
             'borrowerTitleLine' => 'آقای / خانم '.trim((string) $customer->fullName()),
             'borrowerUsernameDisplay' => trim((string) ($customer->username ?? '')) !== ''
                 ? Jalali::enToFaNumbers(trim((string) $customer->username))
                 : '—',
+            'borrowerPasswordDisplay' => $this->customerPrintPasswordDisplay($customer, $printSettings),
             'loanFileSummary' => $fileSummaryLine,
             'contractDateFa' => $contractStartFa,
             'installmentsCountDisplay' => Jalali::enToFaNumbers((string) (int) $loanFile->installments_count),
             'installmentAmountDisplay' => $this->formatBookletMoneyFa((int) $loanFile->installment_amount_toman),
             'bookletRows' => $bookletRows,
+            'visibleColumns' => $visibleColumns,
             'portalUrl' => rtrim((string) url('/'), '/'),
+            'printLogoUrl' => InstallmentBookletPrintSettings::logoUrl($printSettings, $appLogoPath !== '' ? $appLogoPath : null),
+            'bodyFontSize' => InstallmentBookletPrintSettings::bodyFontSize($printSettings),
             'appUiFont' => $appUiFont,
             'loanRevoked' => $loanFile->revoked_at !== null,
         ]);
@@ -3008,6 +3044,7 @@ final class CustomerController extends Controller
                     ? (string) $validated['email']
                     : null,
                 'password' => $plainPassword,
+                'password_print_encrypted' => $this->customerPasswordPrintEncrypted($plainPassword),
                 'city' => $validated['city'] !== null && (string) $validated['city'] !== ''
                     ? (string) $validated['city']
                     : null,
@@ -3284,6 +3321,7 @@ final class CustomerController extends Controller
 
             if ($plainPasswordInput !== '') {
                 $data['password'] = $plainPasswordInput;
+                $data['password_print_encrypted'] = $this->customerPasswordPrintEncrypted($plainPasswordInput);
             }
 
             $customer->update($data);
@@ -3931,7 +3969,8 @@ final class CustomerController extends Controller
         $sumCash = 0;
         $sumBank = 0;
         $sumTerminal = 0;
-        $sumOnlineCardBucket = 0;
+        $sumOnline = 0;
+        $sumGateway = 0;
         $noteParts = [];
 
         foreach ($paySlices as $slice) {
@@ -3952,8 +3991,12 @@ final class CustomerController extends Controller
                     $sumTerminal += $amt;
                     break;
                 case CustomerLoanInstallmentPayment::METHOD_ONLINE:
+                case CustomerLoanInstallmentPayment::METHOD_WALLET:
+                case CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET:
+                    $sumOnline += $amt;
+                    break;
                 case CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_ONLINE:
-                    $sumOnlineCardBucket += $amt;
+                    $sumGateway += $amt;
                     break;
                 case CustomerLoanInstallmentPayment::METHOD_GOLD:
                     $noteParts[] = 'طلا: '.$this->formatBookletMoneyFa($amt).' ('.$depFa.')';
@@ -3991,26 +4034,53 @@ final class CustomerController extends Controller
         $penaltyToman = $this->estimateBookletPenaltyTomanForInstallment($inst, $lateCoef);
         $penaltyCell = $penaltyToman > 0 ? $this->formatBookletMoneyFa($penaltyToman) : '—';
 
-        $colCardParts = [];
-        if ($sumOnlineCardBucket > 0) {
-            $colCardParts[] = $this->formatBookletMoneyFa($sumOnlineCardBucket).' (پرداخت آنلاین / کارتی)';
-        }
-        $colCardCell = $colCardParts !== [] ? implode("\n", $colCardParts) : '—';
-
         return [
             'sequence_fa' => Jalali::enToFaNumbers((string) (int) $inst->sequence),
             'due_fa' => $dueFa,
+            'amount_due_cell' => $this->formatBookletMoneyFa((int) $inst->amount_toman),
             'pay_dates_cell' => $payDatesCell,
             'amounts_paid_cell' => $amountsPaidCell,
             'early_cell' => $earlyFa !== '' ? $earlyFa : '—',
             'late_cell' => $lateFa !== '' ? $lateFa : '—',
             'penalty_cell' => $penaltyCell,
-            'col_card_online' => $colCardCell,
+            'online_cell' => $sumOnline > 0 ? $this->formatBookletMoneyFa($sumOnline) : '—',
+            'gateway_cell' => $sumGateway > 0 ? $this->formatBookletMoneyFa($sumGateway) : '—',
             'cash_cell' => $sumCash > 0 ? $this->formatBookletMoneyFa($sumCash) : '—',
             'transfer_cell' => $sumBank > 0 ? $this->formatBookletMoneyFa($sumBank) : '—',
             'terminal_cell' => $sumTerminal > 0 ? $this->formatBookletMoneyFa($sumTerminal) : '—',
             'notes_cell' => $noteParts !== [] ? implode("\n", $noteParts) : '—',
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $printSettings
+     */
+    private function customerPrintPasswordDisplay(Customer $customer, array $printSettings): string
+    {
+        if (($printSettings['show_password'] ?? '1') !== '1') {
+            return '';
+        }
+
+        $encrypted = $customer->password_print_encrypted ?? null;
+        if (! is_string($encrypted) || trim($encrypted) === '') {
+            return (string) ($printSettings['password_unavailable_text'] ?? '—');
+        }
+
+        try {
+            return Crypt::decryptString($encrypted);
+        } catch (\Throwable) {
+            return (string) ($printSettings['password_unavailable_text'] ?? '—');
+        }
+    }
+
+    private function customerPasswordPrintEncrypted(?string $plainPassword): ?string
+    {
+        $plainPassword = trim((string) $plainPassword);
+        if ($plainPassword === '') {
+            return null;
+        }
+
+        return Crypt::encryptString($plainPassword);
     }
 
     private function formatBookletMoneyFa(int $amount): string

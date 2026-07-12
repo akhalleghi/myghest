@@ -27,7 +27,7 @@
         body {
             margin: 0;
             padding: 0.6rem 0.45rem 1.75rem;
-            font-size: 10pt;
+            font-size: {{ $bodyFontSize }};
             line-height: 1.55;
             color: #0f172a;
             background: #f1f5f9;
@@ -43,6 +43,30 @@
             box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
         }
 
+        .doc-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 0.85rem;
+        }
+        .doc-head__brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            min-width: 0;
+        }
+        .doc-head__logo {
+            max-height: 58px;
+            max-width: 120px;
+            object-fit: contain;
+        }
+        .doc-head__titles {
+            flex: 1 1 auto;
+            text-align: center;
+            min-width: 0;
+        }
+
         .doc-title {
             text-align: center;
             font-size: 1.42rem;
@@ -53,10 +77,21 @@
         }
         .doc-sub {
             text-align: center;
-            margin: 0 0 1.15rem;
+            margin: 0 0 0.55rem;
             font-size: 1.02rem;
             font-weight: 600;
             color: #334155;
+        }
+        .loan-amount-banner {
+            text-align: center;
+            margin: 0 0 1rem;
+            padding: 0.55rem 0.75rem;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #1e3a8a;
         }
 
         .banner-revoked {
@@ -196,9 +231,27 @@
     <div class="banner-revoked">توجه: این قرارداد در سامانه به‌صورت «فسخ‌شده» ثبت شده است؛ جدول زیر بر اساس دادهٔ ذخیره‌شده نمایش داده می‌شود.</div>
 @endif
 
-<h1 class="doc-title">{{ $titleMain }}</h1>
-<p class="doc-sub">{{ $subtitleSales }}</p>
+@if (!empty($printLogoUrl))
+    <div class="doc-head">
+        <div class="doc-head__brand">
+            <img src="{{ $printLogoUrl }}" alt="لوگو" class="doc-head__logo">
+        </div>
+        <div class="doc-head__titles">
+            <h1 class="doc-title">{{ $titleMain }}</h1>
+            <p class="doc-sub">{{ $subtitleSales }}</p>
+        </div>
+        <div style="width:120px;"></div>
+    </div>
+@else
+    <h1 class="doc-title">{{ $titleMain }}</h1>
+    <p class="doc-sub">{{ $subtitleSales }}</p>
+@endif
 
+@if (!empty($showLoanAmount))
+    <div class="loan-amount-banner">{{ $loanAmountLabel }}: {{ $loanAmountDisplay }}</div>
+@endif
+
+@if (!empty($showSummaryTable))
 <div class="tbl-wrap">
 <table class="book summary">
     <thead>
@@ -220,64 +273,77 @@
     </tbody>
 </table>
 </div>
+@endif
 
+@if (!empty($showDetailTable))
 <div class="tbl-wrap">
 <table class="book detail">
     <thead>
     <tr>
-        <th>شماره قسط</th>
-        <th>تاریخ سررسید</th>
-        <th>تاریخ پرداخت</th>
-        <th>مبالغ پرداختی</th>
-        <th>زود کرد</th>
-        <th>دیرکرد</th>
-        <th>جریمه</th>
-        <th>شماره کارت</th>
-        <th>نقدی</th>
-        <th>واریزی</th>
-        <th>کارتخوان</th>
-        <th>توضیحات</th>
+        @foreach ($visibleColumns as $column)
+            <th>{{ $column['label'] }}</th>
+        @endforeach
     </tr>
     </thead>
     <tbody>
     @forelse ($bookletRows as $r)
         <tr>
-            <td class="pre-cell">{{ $r['sequence_fa'] }}</td>
-            <td class="pre-cell">{{ $r['due_fa'] }}</td>
-            <td class="pre-cell">{{ $r['pay_dates_cell'] }}</td>
-            <td class="pre-cell">{{ $r['amounts_paid_cell'] }}</td>
-            <td class="pre-cell">{{ $r['early_cell'] }}</td>
-            <td class="pre-cell">{{ $r['late_cell'] }}</td>
-            <td class="pre-cell">{{ $r['penalty_cell'] }}</td>
-            <td class="pre-cell">{{ $r['col_card_online'] }}</td>
-            <td class="pre-cell">{{ $r['cash_cell'] }}</td>
-            <td class="pre-cell">{{ $r['transfer_cell'] }}</td>
-            <td class="pre-cell">{{ $r['terminal_cell'] }}</td>
-            <td class="pre-cell">{{ $r['notes_cell'] }}</td>
+            @foreach ($visibleColumns as $column)
+                @php
+                    $cellKey = match ($column['key']) {
+                        'sequence' => 'sequence_fa',
+                        'due_date' => 'due_fa',
+                        'amount_due' => 'amount_due_cell',
+                        'pay_dates' => 'pay_dates_cell',
+                        'amounts_paid' => 'amounts_paid_cell',
+                        'early' => 'early_cell',
+                        'late' => 'late_cell',
+                        'penalty' => 'penalty_cell',
+                        'online' => 'online_cell',
+                        'gateway' => 'gateway_cell',
+                        'cash' => 'cash_cell',
+                        'transfer' => 'transfer_cell',
+                        'terminal' => 'terminal_cell',
+                        'notes' => 'notes_cell',
+                        default => $column['key'].'_cell',
+                    };
+                @endphp
+                <td class="pre-cell">{{ $r[$cellKey] ?? '—' }}</td>
+            @endforeach
         </tr>
     @empty
         <tr>
-            <td colspan="12" class="pre-cell" style="text-align:center;">ردیف قسطی برای نمایش وجود ندارد.</td>
+            <td colspan="{{ max(count($visibleColumns), 1) }}" class="pre-cell" style="text-align:center;">ردیف قسطی برای نمایش وجود ندارد.</td>
         </tr>
     @endforelse
     </tbody>
 </table>
 </div>
+@endif
 
+@if (!empty($showPortalBlock))
 <div class="portal-block">
-    <div>آدرس سایت جهت اطلاع از وضعیت اقساط و پرداخت آنلاین: <strong>{{ $portalUrl }}</strong></div>
-    <div>نام کاربری: <strong>{{ $borrowerUsernameDisplay }}</strong></div>
+    <div>{{ $portalIntroText }} <strong>{{ $portalUrl }}</strong></div>
+    @if (!empty($showUsername))
+        <div>{{ $usernameLabel }} <strong>{{ $borrowerUsernameDisplay }}</strong></div>
+    @endif
+    @if (!empty($showPassword))
+        <div>{{ $passwordLabel }} <strong>{{ $borrowerPasswordDisplay }}</strong></div>
+    @endif
 </div>
+@endif
 
+@if (!empty($showSignatures))
 <div class="sig-row">
     <div class="sig-block">
-        <p><strong>امضا و اثر انگشت فروشنده</strong></p>
+        <p><strong>{{ $sellerSignatureLabel }}</strong></p>
     </div>
     <div class="sig-block">
-        <p><strong>امضا و اثر انگشت خریدار</strong></p>
+        <p><strong>{{ $buyerSignatureLabel }}</strong></p>
         <p>{{ $borrowerTitleLine }}</p>
     </div>
 </div>
+@endif
 </div>
 </body>
 </html>
