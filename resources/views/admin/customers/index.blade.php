@@ -1904,7 +1904,7 @@
                                         </a>
                                     </div>
                                     <div class="cust-sub-text">تماس: {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers($c->mobile) }}</div>
-                                    <div class="cust-sub-text">کد ملی: {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers($c->national_id) }}</div>
+                                    <div class="cust-sub-text">کد ملی: {{ $c->national_id !== null && $c->national_id !== '' ? \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $c->national_id) : '—' }}</div>
                                 </td>
                                 <td>
                                     <div class="cust-loan-count">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $loanCount) }}</div>
@@ -2069,13 +2069,13 @@
                             @error('last_name')<div class="cust-field-error">{{ $message }}</div>@enderror
                         </div>
                         <div class="cust-field">
-                            <label for="cust-father">نام پدر <span class="req">*</span></label>
-                            <input id="cust-father" name="father_name" type="text" value="{{ old('father_name') }}" required>
+                            <label for="cust-father">نام پدر <span class="req" id="cust-father-req" style="display:none">*</span></label>
+                            <input id="cust-father" name="father_name" type="text" value="{{ old('father_name') }}">
                             @error('father_name')<div class="cust-field-error">{{ $message }}</div>@enderror
                         </div>
                         <div class="cust-field">
-                            <label for="cust-national">کد ملی <span class="req">*</span></label>
-                            <input id="cust-national" name="national_id" type="text" inputmode="numeric" value="{{ old('national_id') }}" maxlength="10" required>
+                            <label for="cust-national">کد ملی <span class="req" id="cust-national-req" style="display:none">*</span></label>
+                            <input id="cust-national" name="national_id" type="text" inputmode="numeric" value="{{ old('national_id') }}" maxlength="10">
                             @error('national_id')<div class="cust-field-error">{{ $message }}</div>@enderror
                         </div>
                         <div class="cust-field">
@@ -2115,18 +2115,18 @@
                             @error('password')<div class="cust-field-error">{{ $message }}</div>@enderror
                         </div>
                         <div class="cust-field">
-                            <label for="cust-city">شهر <span class="req">*</span></label>
-                            <input id="cust-city" name="city" type="text" value="{{ old('city') }}" required>
+                            <label for="cust-city">شهر <span class="req" id="cust-city-req" style="display:none">*</span></label>
+                            <input id="cust-city" name="city" type="text" value="{{ old('city') }}">
                             @error('city')<div class="cust-field-error">{{ $message }}</div>@enderror
                         </div>
                         <div class="cust-field cust-field--full">
-                            <label for="cust-address">آدرس <span class="req">*</span></label>
-                            <textarea id="cust-address" name="address" required>{{ old('address') }}</textarea>
+                            <label for="cust-address">آدرس <span class="req" id="cust-address-req" style="display:none">*</span></label>
+                            <textarea id="cust-address" name="address">{{ old('address') }}</textarea>
                             @error('address')<div class="cust-field-error">{{ $message }}</div>@enderror
                         </div>
                         <div class="cust-field">
-                            <label for="cust-postal">کدپستی <span class="req">*</span></label>
-                            <input id="cust-postal" name="postal_code" type="text" inputmode="numeric" value="{{ old('postal_code') }}" maxlength="10" required>
+                            <label for="cust-postal">کدپستی <span class="req" id="cust-postal-req" style="display:none">*</span></label>
+                            <input id="cust-postal" name="postal_code" type="text" inputmode="numeric" value="{{ old('postal_code') }}" maxlength="10">
                             @error('postal_code')<div class="cust-field-error">{{ $message }}</div>@enderror
                         </div>
                     </div>
@@ -3588,6 +3588,16 @@
             var pwdInput = document.getElementById('cust-password');
             var pwdReq = document.getElementById('cust-password-req');
             var pwdHint = document.getElementById('cust-password-hint');
+            var custFatherInput = document.getElementById('cust-father');
+            var custNationalInput = document.getElementById('cust-national');
+            var custCityInput = document.getElementById('cust-city');
+            var custAddressInput = document.getElementById('cust-address');
+            var custPostalInput = document.getElementById('cust-postal');
+            var custFatherReq = document.getElementById('cust-father-req');
+            var custNationalReq = document.getElementById('cust-national-req');
+            var custCityReq = document.getElementById('cust-city-req');
+            var custAddressReq = document.getElementById('cust-address-req');
+            var custPostalReq = document.getElementById('cust-postal-req');
             var modalTitle = document.getElementById('cust-modal-title');
             var modalDesc = document.getElementById('cust-modal-desc');
             var custImportOverlay = document.getElementById('cust-import-overlay');
@@ -4103,6 +4113,19 @@
                 } catch (err) { /* noop */ }
             }
 
+            function setCustProfileOptionalFieldsRequired(isRequired) {
+                [custFatherInput, custNationalInput, custCityInput, custAddressInput, custPostalInput].forEach(function (el) {
+                    if (el) {
+                        el.required = isRequired;
+                    }
+                });
+                [custFatherReq, custNationalReq, custCityReq, custAddressReq, custPostalReq].forEach(function (el) {
+                    if (el) {
+                        el.style.display = isRequired ? '' : 'none';
+                    }
+                });
+            }
+
             function openCreateModal() {
                 custFormMode = 'create';
                 removeMethodField();
@@ -4125,6 +4148,7 @@
                     pwdInput.required = true;
                     pwdInput.placeholder = '';
                 }
+                setCustProfileOptionalFieldsRequired(false);
                 bankContainer.innerHTML = '';
                 refContainer.innerHTML = '';
                 bankIndex = 0;
@@ -4169,6 +4193,7 @@
                     pwdInput.required = false;
                     pwdInput.placeholder = '';
                 }
+                setCustProfileOptionalFieldsRequired(false);
                 customerFormSubmitting = false;
                 setCustomerSubmitLoading(false);
 
@@ -9405,6 +9430,7 @@
             if (pwdReq) pwdReq.style.display = '';
             if (pwdHint) pwdHint.hidden = true;
             if (pwdInput) { pwdInput.required = true; }
+            setCustProfileOptionalFieldsRequired(false);
             syncUsername();
             (function () {
                 var membershipJdateEl = document.getElementById('cust-membership-jdate');
@@ -9422,6 +9448,7 @@
             if (pwdReq) pwdReq.style.display = 'none';
             if (pwdHint) pwdHint.hidden = false;
             if (pwdInput) { pwdInput.value = ''; pwdInput.required = false; }
+            setCustProfileOptionalFieldsRequired(false);
             syncUsername();
             openModal();
             @endif

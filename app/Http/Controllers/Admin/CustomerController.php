@@ -1110,34 +1110,81 @@ final class CustomerController extends Controller
             $intervalCount,
             $intervalUnit
         );
-        $payableAfterDownPayment = max(0, ($amount + $calculatedProfit) - $downPayment);
-        $sumInstallments = $installmentAmount * $installmentsCount;
+        $allocation = app(LoanInstallmentAmountAllocator::class)->allocateForLoanFile(
+            $amount,
+            $calculatedProfit,
+            $downPayment,
+            $installmentsCount,
+        );
+        $downPayment = (int) $allocation['adjusted_down_payment_toman'];
+        $installmentAmount = (int) $allocation['base_amount_toman'];
+        $payableAfterDownPayment = (int) $allocation['payable_after_down_payment_toman'];
+        $sumInstallments = array_sum($allocation['amounts_toman']);
         if ($sumInstallments > $payableAfterDownPayment) {
             return response()->json(['message' => 'مجموع مبلغ اقساط از مبلغ قابل بازپرداخت (با احتساب بهره نوع وام) بیشتر است.'], 422);
         }
+        if ($installmentAmount < 1) {
+            return response()->json(['message' => 'مبلغ هر قسط پس از رندسازی معتبر نیست.'], 422);
+        }
 
-        $loanFile->update([
-            'loan_type_id' => $loanType->id,
-            'loan_start_date' => $startDate,
-            'disbursement_due_date' => $disbursementDueDate,
-            'amount_toman' => $amount,
-            'installments_count' => $installmentsCount,
-            'installment_interval_count' => $intervalCount,
-            'installment_interval_unit' => $intervalUnit,
-            'installment_amount_toman' => $installmentAmount,
-            'down_payment_toman' => $downPayment,
-            'profit_calculation_method' => $profitMethod,
-            'sub_file_number' => trim((string) ($validated['sub_file_number'] ?? '')) ?: null,
-            'description' => trim((string) ($validated['description'] ?? '')) ?: null,
-            'is_settled' => $isSettled,
-            'settled_at' => $settledAt,
-            'base_interest_rate' => $baseInterestRate,
-            'has_custom_interest_rate' => $hasCustomInterestRate,
-            'custom_interest_rate' => $customInterestRate,
-            'effective_interest_rate' => $effectiveInterestRate,
-        ]);
+        try {
+            DB::transaction(function () use (
+                $loanFile,
+                $loanType,
+                $startDate,
+                $disbursementDueDate,
+                $amount,
+                $installmentsCount,
+                $installmentAmount,
+                $downPayment,
+                $intervalCount,
+                $intervalUnit,
+                $profitMethod,
+                $validated,
+                $isSettled,
+                $settledAt,
+                $baseInterestRate,
+                $hasCustomInterestRate,
+                $customInterestRate,
+                $effectiveInterestRate
+            ): void {
+                $loanFile->update([
+                    'loan_type_id' => $loanType->id,
+                    'loan_start_date' => $startDate,
+                    'disbursement_due_date' => $disbursementDueDate,
+                    'amount_toman' => $amount,
+                    'installments_count' => $installmentsCount,
+                    'installment_interval_count' => $intervalCount,
+                    'installment_interval_unit' => $intervalUnit,
+                    'installment_amount_toman' => $installmentAmount,
+                    'down_payment_toman' => $downPayment,
+                    'profit_calculation_method' => $profitMethod,
+                    'sub_file_number' => trim((string) ($validated['sub_file_number'] ?? '')) ?: null,
+                    'description' => trim((string) ($validated['description'] ?? '')) ?: null,
+                    'is_settled' => $isSettled,
+                    'settled_at' => $settledAt,
+                    'base_interest_rate' => $baseInterestRate,
+                    'has_custom_interest_rate' => $hasCustomInterestRate,
+                    'custom_interest_rate' => $customInterestRate,
+                    'effective_interest_rate' => $effectiveInterestRate,
+                ]);
+
+                $loanFile->refresh();
+                $loanFile->load('loanType');
+                app(LoanInstallmentScheduleService::class)->syncScheduleFromLoanFile($loanFile);
+            });
+        } catch (ValidationException $e) {
+            $firstMessage = collect($e->errors())->flatten()->first();
+
+            return response()->json([
+                'message' => is_string($firstMessage) && $firstMessage !== ''
+                    ? $firstMessage
+                    : 'ویرایش پرونده وام به‌خاطر ناسازگاری با اقساط ثبت‌شده ممکن نیست.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
         $loanFile->refresh();
-        $loanFile->load('loanType');
+        $loanFile->load(['loanType', 'installments']);
 
         return response()->json([
             'message' => 'پرونده وام با موفقیت ویرایش شد.',
@@ -2851,19 +2898,31 @@ final class CustomerController extends Controller
             $request->merge(['email' => null]);
         }
 
+        $nationalId = trim((string) $request->input('national_id', ''));
+        $postalCode = trim((string) $request->input('postal_code', ''));
+
         $request->merge([
-            'national_id' => IranNationalId::normalizeToDigits(trim((string) $request->input('national_id', ''))),
+            'father_name' => trim((string) $request->input('father_name', '')) !== ''
+                ? trim((string) $request->input('father_name', ''))
+                : null,
+            'national_id' => $nationalId !== '' ? $nationalId : null,
             'mobile' => $this->toEnglishDigits(trim((string) $request->input('mobile', ''))),
             'mobile2' => $this->normalizeOptionalIranMobile(trim((string) $request->input('mobile2', ''))),
-            'postal_code' => $this->toEnglishDigits(trim((string) $request->input('postal_code', ''))),
+            'city' => trim((string) $request->input('city', '')) !== ''
+                ? trim((string) $request->input('city', ''))
+                : null,
+            'address' => trim((string) $request->input('address', '')) !== ''
+                ? trim((string) $request->input('address', ''))
+                : null,
+            'postal_code' => $postalCode !== '' ? $postalCode : null,
         ]);
 
         $validated = $request->validate([
             'customer_code' => ['nullable', 'string', 'max:40', Rule::unique('customers', 'customer_code')],
             'first_name' => ['required', 'string', 'max:120'],
             'last_name' => ['required', 'string', 'max:120'],
-            'father_name' => ['required', 'string', 'max:120'],
-            'national_id' => ['required', 'digits:10', new IranNationalId, Rule::unique('customers', 'national_id')],
+            'father_name' => ['nullable', 'string', 'max:120'],
+            'national_id' => ['nullable', 'string', 'max:10', Rule::unique('customers', 'national_id')],
             'mobile' => ['required', 'string', 'max:20', 'regex:/^09\d{9}$/', Rule::unique('customers', 'mobile')],
             'mobile2' => $this->mobile2ValidationRules(),
             'phone_landline' => ['nullable', 'string', 'max:32'],
@@ -2871,9 +2930,9 @@ final class CustomerController extends Controller
             'birth_jdate' => ['nullable', 'string', 'max:20'],
             'email' => ['nullable', 'string', 'lowercase', 'email', 'max:191', Rule::unique('customers', 'email')],
             'password' => ['required', 'string', 'min:8', 'max:255'],
-            'city' => ['required', 'string', 'max:120'],
-            'address' => ['required', 'string', 'max:2000'],
-            'postal_code' => ['required', 'string', 'max:16', 'regex:/^[0-9]{10}$/'],
+            'city' => ['nullable', 'string', 'max:120'],
+            'address' => ['nullable', 'string', 'max:2000'],
+            'postal_code' => ['nullable', 'string', 'max:16'],
         ], [], [
             'customer_code' => 'کد مشتری',
             'first_name' => 'نام',
@@ -2930,8 +2989,12 @@ final class CustomerController extends Controller
                 'username' => $username,
                 'first_name' => $validated['first_name'],
                 'last_name' => $validated['last_name'],
-                'father_name' => $validated['father_name'],
-                'national_id' => $validated['national_id'],
+                'father_name' => $validated['father_name'] !== null && (string) $validated['father_name'] !== ''
+                    ? (string) $validated['father_name']
+                    : null,
+                'national_id' => $validated['national_id'] !== null && (string) $validated['national_id'] !== ''
+                    ? (string) $validated['national_id']
+                    : null,
                 'mobile' => $validated['mobile'],
                 'mobile2' => $validated['mobile2'] !== null && (string) $validated['mobile2'] !== ''
                     ? (string) $validated['mobile2']
@@ -2945,9 +3008,15 @@ final class CustomerController extends Controller
                     ? (string) $validated['email']
                     : null,
                 'password' => $plainPassword,
-                'city' => $validated['city'],
-                'address' => $validated['address'],
-                'postal_code' => $validated['postal_code'],
+                'city' => $validated['city'] !== null && (string) $validated['city'] !== ''
+                    ? (string) $validated['city']
+                    : null,
+                'address' => $validated['address'] !== null && (string) $validated['address'] !== ''
+                    ? (string) $validated['address']
+                    : null,
+                'postal_code' => $validated['postal_code'] !== null && (string) $validated['postal_code'] !== ''
+                    ? (string) $validated['postal_code']
+                    : null,
             ]);
 
             foreach ($accounts as $i => $row) {
@@ -3086,19 +3155,31 @@ final class CustomerController extends Controller
             $request->merge(['email' => null]);
         }
 
+        $nationalId = trim((string) $request->input('national_id', ''));
+        $postalCode = trim((string) $request->input('postal_code', ''));
+
         $request->merge([
-            'national_id' => IranNationalId::normalizeToDigits(trim((string) $request->input('national_id', ''))),
+            'father_name' => trim((string) $request->input('father_name', '')) !== ''
+                ? trim((string) $request->input('father_name', ''))
+                : null,
+            'national_id' => $nationalId !== '' ? $nationalId : null,
             'mobile' => $this->toEnglishDigits(trim((string) $request->input('mobile', ''))),
             'mobile2' => $this->normalizeOptionalIranMobile(trim((string) $request->input('mobile2', ''))),
-            'postal_code' => $this->toEnglishDigits(trim((string) $request->input('postal_code', ''))),
+            'city' => trim((string) $request->input('city', '')) !== ''
+                ? trim((string) $request->input('city', ''))
+                : null,
+            'address' => trim((string) $request->input('address', '')) !== ''
+                ? trim((string) $request->input('address', ''))
+                : null,
+            'postal_code' => $postalCode !== '' ? $postalCode : null,
         ]);
 
         $validator = Validator::make($request->all(), [
             'customer_code' => ['nullable', 'string', 'max:40', Rule::unique('customers', 'customer_code')->ignore($customer->id)],
             'first_name' => ['required', 'string', 'max:120'],
             'last_name' => ['required', 'string', 'max:120'],
-            'father_name' => ['required', 'string', 'max:120'],
-            'national_id' => ['required', 'digits:10', new IranNationalId, Rule::unique('customers', 'national_id')->ignore($customer->id)],
+            'father_name' => ['nullable', 'string', 'max:120'],
+            'national_id' => ['nullable', 'string', 'max:10', Rule::unique('customers', 'national_id')->ignore($customer->id)],
             'mobile' => ['required', 'string', 'max:20', 'regex:/^09\d{9}$/', Rule::unique('customers', 'mobile')->ignore($customer->id)],
             'mobile2' => $this->mobile2ValidationRules($customer->id),
             'phone_landline' => ['nullable', 'string', 'max:32'],
@@ -3106,9 +3187,9 @@ final class CustomerController extends Controller
             'birth_jdate' => ['nullable', 'string', 'max:20'],
             'email' => ['nullable', 'string', 'lowercase', 'email', 'max:191', Rule::unique('customers', 'email')->ignore($customer->id)],
             'password' => ['nullable', 'string', 'min:8', 'max:255'],
-            'city' => ['required', 'string', 'max:120'],
-            'address' => ['required', 'string', 'max:2000'],
-            'postal_code' => ['required', 'string', 'max:16', 'regex:/^[0-9]{10}$/'],
+            'city' => ['nullable', 'string', 'max:120'],
+            'address' => ['nullable', 'string', 'max:2000'],
+            'postal_code' => ['nullable', 'string', 'max:16'],
         ], [], [
             'customer_code' => 'کد مشتری',
             'first_name' => 'نام',
@@ -3172,8 +3253,12 @@ final class CustomerController extends Controller
                 'username' => $username,
                 'first_name' => $validated['first_name'],
                 'last_name' => $validated['last_name'],
-                'father_name' => $validated['father_name'],
-                'national_id' => $validated['national_id'],
+                'father_name' => $validated['father_name'] !== null && (string) $validated['father_name'] !== ''
+                    ? (string) $validated['father_name']
+                    : null,
+                'national_id' => $validated['national_id'] !== null && (string) $validated['national_id'] !== ''
+                    ? (string) $validated['national_id']
+                    : null,
                 'mobile' => $validated['mobile'],
                 'mobile2' => $validated['mobile2'] !== null && (string) $validated['mobile2'] !== ''
                     ? (string) $validated['mobile2']
@@ -3186,9 +3271,15 @@ final class CustomerController extends Controller
                 'email' => $validated['email'] !== null && $validated['email'] !== ''
                     ? (string) $validated['email']
                     : null,
-                'city' => $validated['city'],
-                'address' => $validated['address'],
-                'postal_code' => $validated['postal_code'],
+                'city' => $validated['city'] !== null && (string) $validated['city'] !== ''
+                    ? (string) $validated['city']
+                    : null,
+                'address' => $validated['address'] !== null && (string) $validated['address'] !== ''
+                    ? (string) $validated['address']
+                    : null,
+                'postal_code' => $validated['postal_code'] !== null && (string) $validated['postal_code'] !== ''
+                    ? (string) $validated['postal_code']
+                    : null,
             ];
 
             if ($plainPasswordInput !== '') {
