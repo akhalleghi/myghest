@@ -60,6 +60,8 @@ final class CustomerController extends Controller
     public function index(Request $request): View
     {
         $q = trim((string) $request->query('q', ''));
+        $listFilter = $this->customerListFilterFromRequest($request);
+        $listSort = $this->customerListSortFromRequest($request);
 
         $customers = Customer::query()
             ->with(['loanFiles.loanType', 'loanFiles.installments', 'wallet'])
@@ -71,14 +73,21 @@ final class CustomerController extends Controller
                         ->orWhere('mobile', 'like', '%'.$q.'%')
                         ->orWhere('national_id', 'like', '%'.$q.'%');
                 });
-            })
-            ->latest('id')
+            });
+        $this->applyCustomerListFilters($customers, $listFilter);
+        $this->applyCustomerListSort($customers, $listSort);
+        $customers = $customers
             ->paginate(ListPerPage::resolve($request))
             ->withQueryString();
 
         return view('admin.customers.index', [
             'customers' => $customers,
             'search' => $q,
+            'listScope' => $listFilter['list_scope'],
+            'listSort' => $listSort['sort'],
+            'listSortDir' => $listSort['dir'],
+            'listFilterLabel' => $this->customerListFilterLabel($listFilter),
+            'listFilterQuery' => $this->customerListFilterQueryParams($listFilter, $listSort),
             'appDisplayName' => $this->appDisplayName(),
             'loanTypes' => LoanType::query()
                 ->latest('id')
@@ -158,6 +167,7 @@ final class CustomerController extends Controller
     public function exportCustomersListExcel(Request $request): StreamedResponse
     {
         $queryText = trim((string) $request->query('q', ''));
+        $listFilter = $this->customerListFilterFromRequest($request);
 
         $filename = 'customers-list-'.now()->format('Ymd-His').'.xls';
         $headers = [
@@ -167,7 +177,7 @@ final class CustomerController extends Controller
             'Pragma' => 'no-cache',
         ];
 
-        return response()->streamDownload(function () use ($queryText): void {
+        return response()->streamDownload(function () use ($queryText, $listFilter): void {
             $out = fopen('php://output', 'wb');
             if (! is_resource($out)) {
                 return;
@@ -189,7 +199,7 @@ final class CustomerController extends Controller
                 'تاریخ عضویت',
             ]);
 
-            Customer::query()
+            $customerExportQuery = Customer::query()
                 ->with(['loanFiles.loanType', 'loanFiles.installments'])
                 ->when($queryText !== '', function ($query) use ($queryText): void {
                     $query->where(function ($w) use ($queryText): void {
@@ -199,7 +209,9 @@ final class CustomerController extends Controller
                             ->orWhere('mobile', 'like', '%'.$queryText.'%')
                             ->orWhere('national_id', 'like', '%'.$queryText.'%');
                     });
-                })
+                });
+            $this->applyCustomerListFilters($customerExportQuery, $listFilter);
+            $customerExportQuery
                 ->latest('id')
                 ->chunkById(150, function ($chunk) use ($out): void {
                     foreach ($chunk as $customer) {
@@ -3562,6 +3574,183 @@ final class CustomerController extends Controller
         ];
     }
 
+    /** @var list<string> */
+    private const CUSTOMER_LIST_SCOPES = ['all', 'active_loan', 'overdue_installment'];
+
+    /** @var list<string> */
+    private const CUSTOMER_LIST_SORT_COLUMNS = [
+        'customer_code',
+        'name',
+        'loan_count',
+        'loan_total',
+        'loan_remaining',
+        'wallet',
+        'membership_at',
+    ];
+
+    /**
+     * @return array{list_scope: string, disbursement_due_overdue: bool}
+     */
+    private function customerListFilterFromRequest(Request $request): array
+    {
+        $scope = (string) $request->query('list_scope', 'all');
+        if ($request->boolean('has_overdue_installments')) {
+            $scope = 'overdue_installment';
+        }
+        if (! in_array($scope, self::CUSTOMER_LIST_SCOPES, true)) {
+            $scope = 'all';
+        }
+
+        return [
+            'list_scope' => $scope,
+            'disbursement_due_overdue' => $request->boolean('disbursement_due_overdue'),
+        ];
+    }
+
+    /**
+     * @return array{sort: ?string, dir: 'asc'|'desc'}
+     */
+    private function customerListSortFromRequest(Request $request): array
+    {
+        $sort = (string) $request->query('sort', '');
+        $dir = strtolower((string) $request->query('dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+        if (! in_array($sort, self::CUSTOMER_LIST_SORT_COLUMNS, true)) {
+            return ['sort' => null, 'dir' => 'asc'];
+        }
+
+        return ['sort' => $sort, 'dir' => $dir];
+    }
+
+    /**
+     * @param  array{list_scope: string, disbursement_due_overdue: bool}  $filters
+     */
+    private function applyCustomerListFilters(\Illuminate\Database\Eloquent\Builder $query, array $filters): void
+    {
+        $today = now()->toDateString();
+
+        if ($filters['list_scope'] === 'active_loan') {
+            $query->whereHas('loanFiles', static function ($loanFileQuery): void {
+                $loanFileQuery
+                    ->whereNull('revoked_at')
+                    ->where('is_settled', false);
+            });
+        }
+
+        if ($filters['list_scope'] === 'overdue_installment') {
+            $query->whereHas('loanFiles', static function ($loanFileQuery) use ($today): void {
+                $loanFileQuery
+                    ->whereNull('revoked_at')
+                    ->where('is_settled', false)
+                    ->whereHas('installments', static function ($installmentQuery) use ($today): void {
+                        $installmentQuery
+                            ->whereColumn('paid_amount_toman', '<', 'amount_toman')
+                            ->whereDate('due_date', '<', $today);
+                    });
+            });
+        }
+
+        if ($filters['disbursement_due_overdue']) {
+            $query->whereHas('loanFiles', static function ($loanFileQuery) use ($today): void {
+                $loanFileQuery
+                    ->whereNull('revoked_at')
+                    ->where('is_settled', false)
+                    ->whereNotNull('disbursement_due_date')
+                    ->whereDate('disbursement_due_date', '<', $today);
+            });
+        }
+    }
+
+    /**
+     * @param  array{sort: ?string, dir: 'asc'|'desc'}  $sort
+     */
+    private function applyCustomerListSort(\Illuminate\Database\Eloquent\Builder $query, array $sort): void
+    {
+        $column = $sort['sort'];
+        $direction = $sort['dir'] === 'desc' ? 'desc' : 'asc';
+
+        if ($column === null) {
+            $query->latest('customers.id');
+
+            return;
+        }
+
+        match ($column) {
+            'customer_code' => $query->orderBy('customers.customer_code', $direction),
+            'name' => $query
+                ->orderBy('customers.first_name', $direction)
+                ->orderBy('customers.last_name', $direction),
+            'membership_at' => $query->orderBy('customers.membership_at', $direction),
+            'loan_count' => $query
+                ->withCount('loanFiles')
+                ->orderBy('loan_files_count', $direction),
+            'wallet' => $query->orderBy(
+                CustomerWallet::query()
+                    ->selectRaw('COALESCE(balance_toman, 0)')
+                    ->whereColumn('customer_wallets.customer_id', 'customers.id')
+                    ->limit(1),
+                $direction
+            ),
+            'loan_total' => $query->orderBy(
+                CustomerLoanFile::query()
+                    ->selectRaw('COALESCE(SUM(amount_toman), 0)')
+                    ->whereColumn('customer_loan_files.customer_id', 'customers.id'),
+                $direction
+            ),
+            'loan_remaining' => $query->orderBy(
+                CustomerLoanInstallment::query()
+                    ->selectRaw('COALESCE(SUM(GREATEST(0, customer_loan_installments.amount_toman - customer_loan_installments.paid_amount_toman)), 0)')
+                    ->join('customer_loan_files', 'customer_loan_files.id', '=', 'customer_loan_installments.customer_loan_file_id')
+                    ->whereColumn('customer_loan_files.customer_id', 'customers.id')
+                    ->whereNull('customer_loan_files.revoked_at')
+                    ->where('customer_loan_files.is_settled', false),
+                $direction
+            ),
+            default => $query->latest('customers.id'),
+        };
+
+        $query->orderBy('customers.id', 'desc');
+    }
+
+    /**
+     * @param  array{list_scope: string, disbursement_due_overdue: bool}  $filters
+     */
+    private function customerListFilterLabel(array $filters): ?string
+    {
+        if ($filters['list_scope'] === 'overdue_installment') {
+            return 'مشتریان دارای قسط سررسید گذشته / معوق';
+        }
+        if ($filters['list_scope'] === 'active_loan') {
+            return 'مشتریان دارای وام فعال';
+        }
+        if ($filters['disbursement_due_overdue']) {
+            return 'مشتریان دارای سررسید واریز به طرف حساب (گذشته از موعد)';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array{list_scope: string, disbursement_due_overdue: bool}  $filters
+     * @param  array{sort: ?string, dir: 'asc'|'desc'}  $sort
+     * @return array<string, int|string>
+     */
+    private function customerListFilterQueryParams(array $filters, array $sort = ['sort' => null, 'dir' => 'asc']): array
+    {
+        $params = [];
+        if ($filters['list_scope'] !== 'all') {
+            $params['list_scope'] = $filters['list_scope'];
+        }
+        if ($filters['disbursement_due_overdue']) {
+            $params['disbursement_due_overdue'] = 1;
+        }
+        if ($sort['sort'] !== null) {
+            $params['sort'] = $sort['sort'];
+            $params['dir'] = $sort['dir'];
+        }
+
+        return $params;
+    }
+
     /**
      * @return array{installment_id: int, loan_file_id: int, count: int}|null
      */
@@ -4738,11 +4927,6 @@ final class CustomerController extends Controller
                 }
             }
 
-            $hasReturnDocument = $request->file('return_document') instanceof UploadedFile
-                || ($existing !== null && is_string($existing->return_document_path) && $existing->return_document_path !== '');
-            if (! $hasReturnDocument) {
-                return response()->json(['message' => 'بارگذاری مستند عودت الزامی است.'], 422);
-            }
         }
 
         $returnDoc = $request->file('return_document');

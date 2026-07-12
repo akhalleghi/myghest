@@ -240,7 +240,7 @@ final class AdminDashboardStatisticsService
                 'icon' => 'fa-calendar-xmark',
                 'c' => '#8b5cf6',
                 'clickable' => true,
-                'href' => route('admin.customers.index'),
+                'href' => route('admin.customers.index', ['has_overdue_installments' => 1]),
                 'lines' => [
                     ['text' => $this->formatToman($overdue['amount_toman']), 'ltr' => true],
                     ['text' => $this->formatCount($overdue['count']).' مورد'],
@@ -289,7 +289,7 @@ final class AdminDashboardStatisticsService
                 'icon' => 'fa-user-clock',
                 'c' => '#2563eb',
                 'clickable' => true,
-                'href' => route('admin.customers.index'),
+                'href' => route('admin.customers.index', ['disbursement_due_overdue' => 1]),
                 'lines' => [
                     ['text' => $this->formatToman($disbursementDue['amount_toman']), 'ltr' => true],
                     ['text' => $this->formatCount($disbursementDue['count']).' مورد'],

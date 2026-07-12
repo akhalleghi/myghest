@@ -99,18 +99,56 @@
         }
         .cust-import-actions { display: inline-flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.75rem; align-items: center; }
         .cust-search { flex: 1 1 16rem; max-width: 22rem; }
+        .cust-search-row {
+            display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: center;
+            flex: 1 1 auto; width: 100%;
+        }
+        .cust-search-row .cust-search { flex: 1 1 14rem; max-width: none; }
+        .cust-list-scope {
+            flex: 0 1 13rem; min-width: 11rem;
+            border: 1px solid var(--border); border-radius: 0.65rem; padding: 0.48rem 0.72rem;
+            background: var(--bg-card); color: var(--text); font-family: inherit; font-size: 0.84rem;
+        }
         .cust-search input {
             width: 100%; border: 1px solid var(--border); border-radius: 0.65rem; padding: 0.48rem 0.72rem;
             background: var(--bg-card); color: var(--text); font-family: inherit; font-size: 0.84rem;
         }
+        .cust-list-filter-banner {
+            display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.55rem;
+            margin-bottom: 0.85rem; padding: 0.55rem 0.75rem; border-radius: 0.7rem;
+            border: 1px solid rgba(37, 99, 235, 0.28); background: var(--primary-soft);
+            font-size: 0.8rem; color: var(--text);
+        }
+        .cust-list-filter-banner strong { font-weight: 800; }
+        .cust-list-filter-clear {
+            display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.65rem;
+            border-radius: 0.55rem; border: 1px solid var(--border); background: var(--bg-card);
+            color: var(--text); font-size: 0.76rem; font-weight: 800; text-decoration: none;
+        }
+        .cust-list-filter-clear:hover { border-color: rgba(37, 99, 235, 0.35); color: var(--primary-dark); }
         .cust-card {
             border: 1px solid var(--border); border-radius: 0.9rem; background: var(--bg-card);
             overflow: visible; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
         }
-        .cust-table-wrap { overflow-x: auto; overflow-y: visible; }
-        .cust-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .cust-table-wrap {
+            overflow: auto;
+            max-height: min(70vh, calc(100dvh - 17rem));
+            -webkit-overflow-scrolling: touch;
+        }
+        .cust-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem; }
         .cust-table th, .cust-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); text-align: start; vertical-align: middle; }
-        .cust-table th { background: var(--primary-soft); font-weight: 800; white-space: nowrap; }
+        .cust-table th {
+            background: var(--primary-soft); font-weight: 800; white-space: nowrap;
+            position: sticky; top: 0; z-index: 2;
+            box-shadow: 0 1px 0 var(--border);
+        }
+        .cust-th-sort a {
+            color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 0.3rem;
+        }
+        .cust-th-sort a:hover { color: var(--primary-dark); }
+        .cust-th-sort.is-active a { color: var(--primary-dark); }
+        .cust-th-sort-icon { font-size: 0.62rem; opacity: 0.55; }
+        .cust-th-sort.is-active .cust-th-sort-icon { opacity: 1; }
         .cust-main-text { font-size: 0.82rem; font-weight: 800; color: var(--text); line-height: 1.4; }
         .cust-name-link { color: inherit; text-decoration: none; border-bottom: 1px dashed rgba(37, 99, 235, 0.35); }
         .cust-name-link:hover { color: var(--primary-dark); }
@@ -1826,6 +1864,34 @@
         $quickSmsTemplates = $smsTemplates ?? collect();
         $loanTypes = $loanTypes ?? collect();
         $loanManageMap = $loanManageMap ?? collect();
+        $listFilterLabel = $listFilterLabel ?? null;
+        $listFilterQuery = $listFilterQuery ?? [];
+        $listScope = $listScope ?? 'all';
+        $listSort = $listSort ?? null;
+        $listSortDir = $listSortDir ?? 'asc';
+        $listExportQuery = array_filter(array_merge(
+            $listFilterQuery,
+            ['q' => ($search ?? '') !== '' ? $search : null]
+        ));
+        $custSortUrl = static function (string $column) use ($listFilterQuery, $search, $listSort, $listSortDir): string {
+            $nextDir = ($listSort === $column && $listSortDir === 'asc') ? 'desc' : 'asc';
+
+            return route('admin.customers.index', array_filter(array_merge(
+                $listFilterQuery,
+                [
+                    'q' => ($search ?? '') !== '' ? $search : null,
+                    'sort' => $column,
+                    'dir' => $nextDir,
+                ]
+            )));
+        };
+        $custSortIcon = static function (string $column) use ($listSort, $listSortDir): string {
+            if ($listSort !== $column) {
+                return 'fa-sort';
+            }
+
+            return $listSortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down';
+        };
     @endphp
 
     <div class="cust-page">
@@ -1839,9 +1905,9 @@
                     <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
                 </button>
                 <a
-                    href="{{ route('admin.customers.export-excel', array_filter(['q' => $search !== null && $search !== '' ? $search : null])) }}"
+                    href="{{ route('admin.customers.export-excel', $listExportQuery) }}"
                     class="cust-export-excel-btn"
-                    title="دانلود خروجی اکسل مطابق همین جستجو (یا همه مشتریان)"
+                    title="دانلود خروجی اکسل مطابق همین فیلتر و جستجو"
                 >
                     <i class="fa-solid fa-file-excel" aria-hidden="true"></i>
                     خروجی اکسل
@@ -1857,9 +1923,33 @@
             </div>
         </div>
 
+        @if (!empty($listFilterLabel))
+            <div class="cust-list-filter-banner" role="status">
+                <span><strong>فیلتر فعال:</strong> {{ $listFilterLabel }}</span>
+                <a href="{{ route('admin.customers.index', array_filter(['q' => ($search ?? '') !== '' ? $search : null])) }}" class="cust-list-filter-clear">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                    حذف فیلتر
+                </a>
+            </div>
+        @endif
+
         <div class="cust-head" style="margin-top: -0.25rem;">
-            <form method="get" action="{{ route('admin.customers.index') }}" class="cust-search">
-                <input type="search" name="q" value="{{ $search }}" placeholder="جستجو: کد، نام، موبایل، کد ملی..." autocomplete="off">
+            <form method="get" action="{{ route('admin.customers.index') }}" class="cust-search-row">
+                <div class="cust-search">
+                    <input type="search" name="q" value="{{ $search }}" placeholder="جستجو: کد، نام، موبایل، کد ملی..." autocomplete="off">
+                </div>
+                <select name="list_scope" class="cust-list-scope" aria-label="فیلتر مشتریان" onchange="this.form.submit()">
+                    <option value="all" @selected($listScope === 'all')>همه مشتریان</option>
+                    <option value="active_loan" @selected($listScope === 'active_loan')>دارای وام فعال</option>
+                    <option value="overdue_installment" @selected($listScope === 'overdue_installment')>دارای قسط معوق</option>
+                </select>
+                @if ($listSort)
+                    <input type="hidden" name="sort" value="{{ $listSort }}">
+                    <input type="hidden" name="dir" value="{{ $listSortDir }}">
+                @endif
+                @if (!empty($listFilterQuery['disbursement_due_overdue']))
+                    <input type="hidden" name="disbursement_due_overdue" value="1">
+                @endif
             </form>
         </div>
 
@@ -1868,13 +1958,48 @@
                 <table class="cust-table">
                     <thead>
                         <tr>
-                            <th>کد مشتری</th>
-                            <th>نام مشتری</th>
-                            <th>تعداد وام</th>
-                            <th>مجموع وام‌های دریافتی با بهره</th>
-                            <th>مانده اقساط</th>
-                            <th>موجودی کیف پول</th>
-                            <th>تاریخ عضویت</th>
+                            <th class="cust-th-sort @if($listSort === 'customer_code') is-active @endif">
+                                <a href="{{ $custSortUrl('customer_code') }}" title="مرتب‌سازی بر اساس کد مشتری">
+                                    <span>کد مشتری</span>
+                                    <i class="fa-solid {{ $custSortIcon('customer_code') }} cust-th-sort-icon" aria-hidden="true"></i>
+                                </a>
+                            </th>
+                            <th class="cust-th-sort @if($listSort === 'name') is-active @endif">
+                                <a href="{{ $custSortUrl('name') }}" title="مرتب‌سازی بر اساس نام مشتری">
+                                    <span>نام مشتری</span>
+                                    <i class="fa-solid {{ $custSortIcon('name') }} cust-th-sort-icon" aria-hidden="true"></i>
+                                </a>
+                            </th>
+                            <th class="cust-th-sort @if($listSort === 'loan_count') is-active @endif">
+                                <a href="{{ $custSortUrl('loan_count') }}" title="مرتب‌سازی بر اساس تعداد وام">
+                                    <span>تعداد وام</span>
+                                    <i class="fa-solid {{ $custSortIcon('loan_count') }} cust-th-sort-icon" aria-hidden="true"></i>
+                                </a>
+                            </th>
+                            <th class="cust-th-sort @if($listSort === 'loan_total') is-active @endif">
+                                <a href="{{ $custSortUrl('loan_total') }}" title="مرتب‌سازی بر اساس مجموع مبلغ وام‌ها">
+                                    <span>مجموع وام‌های دریافتی با بهره</span>
+                                    <i class="fa-solid {{ $custSortIcon('loan_total') }} cust-th-sort-icon" aria-hidden="true"></i>
+                                </a>
+                            </th>
+                            <th class="cust-th-sort @if($listSort === 'loan_remaining') is-active @endif">
+                                <a href="{{ $custSortUrl('loan_remaining') }}" title="مرتب‌سازی بر اساس مانده اقساط">
+                                    <span>مانده اقساط</span>
+                                    <i class="fa-solid {{ $custSortIcon('loan_remaining') }} cust-th-sort-icon" aria-hidden="true"></i>
+                                </a>
+                            </th>
+                            <th class="cust-th-sort @if($listSort === 'wallet') is-active @endif">
+                                <a href="{{ $custSortUrl('wallet') }}" title="مرتب‌سازی بر اساس موجودی کیف پول">
+                                    <span>موجودی کیف پول</span>
+                                    <i class="fa-solid {{ $custSortIcon('wallet') }} cust-th-sort-icon" aria-hidden="true"></i>
+                                </a>
+                            </th>
+                            <th class="cust-th-sort @if($listSort === 'membership_at') is-active @endif">
+                                <a href="{{ $custSortUrl('membership_at') }}" title="مرتب‌سازی بر اساس تاریخ عضویت">
+                                    <span>تاریخ عضویت</span>
+                                    <i class="fa-solid {{ $custSortIcon('membership_at') }} cust-th-sort-icon" aria-hidden="true"></i>
+                                </a>
+                            </th>
                             <th>پیامک‌ها</th>
                             <th>عملیات</th>
                         </tr>
@@ -3118,7 +3243,7 @@
                                 <input type="checkbox" value="1" id="loan-guarantee-mark-returned">
                                 عودت شده؟
                             </label>
-                            <p class="loan-interest-note" style="margin-top:.25rem">برای ثبت عودت چک یا اوراق ضمانتی، مستند تحویل به مشتری را نگهداری کنید.</p>
+                            <p class="loan-interest-note" style="margin-top:.25rem">برای ثبت عودت چک یا اوراق ضمانتی، در صورت تمایل می‌توانید مستند تحویل به مشتری را بارگذاری کنید.</p>
                             <div id="loan-guarantee-return-details" hidden>
                                 <div class="loan-interest-note" style="margin-top:.35rem">موبایل مشتری: <strong id="loan-guarantee-return-mobile-view">—</strong></div>
                                 <div id="loan-guarantee-return-otp-wrap" style="margin-top:.45rem" hidden>
@@ -3135,7 +3260,7 @@
                                     <input type="hidden" id="loan-guarantee-return-otp-session" value="" autocomplete="off">
                                 </div>
                                 <div class="cust-field" style="margin-top:.55rem;padding:0;border:0;">
-                                    <label for="loan-guarantee-return-document">مستند عودت <span class="req">*</span></label>
+                                    <label for="loan-guarantee-return-document">مستند عودت</label>
                                     <input type="file" id="loan-guarantee-return-document" name="return_document" accept=".png,.jpg,.jpeg,.webp,.pdf">
                                     <div id="loan-guarantee-return-document-existing" class="loan-interest-note" style="margin-top:.35rem" hidden></div>
                                 </div>
@@ -8261,12 +8386,6 @@
                             fd.set('guarantee_returned', markingReturned ? '1' : '0');
                         }
                         if (markingReturned && !wasReturned) {
-                            var returnDocEl = document.getElementById('loan-guarantee-return-document');
-                            var hasReturnDocFile = returnDocEl && returnDocEl.files && returnDocEl.files[0];
-                            if (!hasReturnDocFile && !guaranteeReturnHasExistingDocument) {
-                                if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('مستند عودت را بارگذاری کنید.');
-                                return;
-                            }
                             if (guaranteeReturnOtpEnabled) {
                                 var returnTokEl = document.getElementById('loan-guarantee-return-verification-token');
                                 var returnTok = returnTokEl ? String(returnTokEl.value || '').trim() : '';
