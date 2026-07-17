@@ -2732,6 +2732,7 @@
             margin-top: 0.4rem;
         }
     </style>
+    @include('layouts.partials.table-zebra-styles')
     @stack('head')
 </head>
 <body class="up-app">

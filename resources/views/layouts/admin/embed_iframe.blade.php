@@ -52,6 +52,7 @@
             padding: 0.65rem 0.75rem 1rem;
         }
     </style>
+    @include('layouts.partials.table-zebra-styles')
     @stack('head')
 </head>
 <body class="admin-embed-iframe">
