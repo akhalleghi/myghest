@@ -1,4 +1,5 @@
 @php($upPayReady = (bool) ($userOnlinePaymentReady ?? false))
+@php($onlinePayAdminEnabled = (bool) ($customerOnlinePaymentEnabled ?? true))
 @php($upPayUrl = $userInstallmentOnlinePayUrl ?? route('user.installments.online-pay.start'))
 @php($portalInstPayReturnRoute = request()->routeIs('user.dashboard') ? 'user.dashboard' : 'user.loans.index')
 
@@ -22,13 +23,18 @@
                 @csrf
                 <input type="hidden" name="return_route" value="{{ $portalInstPayReturnRoute }}">
                 <input type="hidden" name="customer_loan_installment_id" id="portal-installment-pay-id" value="" required>
-                <button type="submit" class="portal-loan__btn portal-loan__btn--primary portal-loan__btn--block" id="portal-installment-pay-submit" @if(!$upPayReady) disabled title="درگاه پرداخت در تنظیمات مدیریت تکمیل نشده است." @endif>
-                    <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
-                    ورود به درگاه و پرداخت قسط
-                </button>
-                @unless($upPayReady)
+                <span class="portal-online-pay-stack" style="width:100%">
+                    <button type="submit" class="portal-loan__btn portal-loan__btn--primary portal-loan__btn--block @unless($upPayReady) portal-loan__btn--disabled @endunless" id="portal-installment-pay-submit" @if(!$upPayReady) disabled title="{{ $onlinePayAdminEnabled ? 'درگاه پرداخت در تنظیمات مدیریت تکمیل نشده است.' : 'پرداخت آنلاین توسط مدیریت غیرفعال شده است.' }}" @endif>
+                        <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                        ورود به درگاه و پرداخت قسط
+                    </button>
+                    @unless($onlinePayAdminEnabled)
+                        <span class="portal-online-pay-off-label">غیرفعال</span>
+                    @endunless
+                </span>
+                @if($onlinePayAdminEnabled && !$upPayReady)
                     <p class="portal-dialog__hint" style="margin-top:0.5rem;text-align:center">درگاه پرداخت توسط مدیریت فعال نشده است.</p>
-                @endunless
+                @endif
             </form>
         </div>
     </div>

@@ -12,6 +12,7 @@ use App\Models\CustomerLoanInstallmentOnlinePaymentIntent;
 use App\Services\Payment\CustomerTransactionLedgerService;
 use App\Services\Payment\InstallmentOnlinePaymentResolver;
 use App\Services\Payment\ZibalIpgClient;
+use App\Support\CustomerOnlinePaymentSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -39,6 +40,10 @@ final class UserInstallmentOnlinePaymentController extends Controller
         $customer = Auth::guard('customer')->user();
         if ($customer === null) {
             abort(403);
+        }
+
+        if (! CustomerOnlinePaymentSettings::isEnabled()) {
+            return $this->backWithPayFlash(false, 'پرداخت آنلاین توسط مدیریت غیرفعال شده است.');
         }
 
         $gateway = AppSetting::query()->where('key', 'payment_gateway')->value('value');

@@ -3107,6 +3107,30 @@
                                     @enderror
                                 </div>
                             </div>
+                            <div class="app-settings-card app-settings-card--banking-visibility">
+                                <h4 class="app-banking-visibility-title">پرداخت آنلاین پنل مشتری</h4>
+                                <p class="app-banking-visibility-lead" id="customer-online-pay-label">پرداخت از درگاه بانکی برای مشتری فعال باشد؟</p>
+                                <input type="hidden" name="customer_online_payment_enabled" value="0">
+                                <div class="app-banking-visibility-control" role="group" aria-labelledby="customer-online-pay-label">
+                                    <span class="app-switch-legend app-switch-legend--off" aria-hidden="true">خیر</span>
+                                    <label class="app-switch app-switch--prominent">
+                                        <input
+                                            type="checkbox"
+                                            name="customer_online_payment_enabled"
+                                            value="1"
+                                            role="switch"
+                                            aria-checked="{{ old('customer_online_payment_enabled', ($customerOnlinePaymentEnabled ?? true) ? '1' : '0') === '1' ? 'true' : 'false' }}"
+                                            @checked(old('customer_online_payment_enabled', ($customerOnlinePaymentEnabled ?? true) ? '1' : '0') === '1')
+                                        >
+                                        <span class="app-switch-ui" aria-hidden="true"></span>
+                                    </label>
+                                    <span class="app-switch-legend app-switch-legend--on" aria-hidden="true">بله</span>
+                                </div>
+                                <p class="app-banking-visibility-note">با خاموش کردن این گزینه، مشتری نمی‌تواند از درگاه پرداخت (شارژ کیف پول، پرداخت آنلاین قسط و تسویه آنلاین) استفاده کند و دکمه‌های مربوط در پنل کاربر غیرفعال می‌شوند.</p>
+                                @error('customer_online_payment_enabled')
+                                    <div class="app-settings-error">{{ $message }}</div>
+                                @enderror
+                            </div>
                             <div class="app-settings-card">
                                 <div class="app-settings-field app-settings-field--stack">
                                     <label for="payment-gateway">درگاه پرداخت</label>
@@ -3585,7 +3609,7 @@
                 @elseif(session('open_app_settings_tab') === 'ui')
                 activateSettingsTab('ui');
                 openSettings();
-                @elseif(session('open_app_settings_tab') === 'loans' || $errors->has('loan_creation_customer_otp_enabled') || $errors->has('guarantee_return_customer_otp_enabled'))
+                @elseif(session('open_app_settings_tab') === 'loans' || $errors->has('loan_creation_customer_otp_enabled') || $errors->has('guarantee_return_customer_otp_enabled') || $errors->has('loan_installment_remainder_target') || $errors->has('loan_installment_rounding_step_toman'))
                 activateSettingsTab('loans');
                 openSettings();
                 @elseif(session('open_app_settings_tab') === 'reports' || $errors->has('font_scale') || $errors->has('text_align') || $errors->has('numeric_align') || $errors->has('header_mode') || $errors->has('stack_align') || $errors->has('cell_density'))

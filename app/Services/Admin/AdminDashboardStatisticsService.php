@@ -11,6 +11,7 @@ use App\Models\CustomerLoanInstallment;
 use App\Models\CustomerLoanInstallmentPayment;
 use App\Models\CustomerLoanRequest;
 use App\Models\CustomerTransaction;
+use App\Models\CustomerWallet;
 use App\Models\CustomerWalletTransaction;
 use App\Services\Loans\LoanFileFinanceCalculator;
 use Carbon\Carbon;
@@ -42,11 +43,12 @@ final class AdminDashboardStatisticsService
         $depositsPending = $this->buildPendingDepositStats();
         $loanRequests = $this->buildLoanRequestStats($today);
         $disbursementDue = $this->buildDisbursementDueStats($today);
+        $walletCharges = $this->buildWalletChargeStats();
         $charts = $this->buildTwelveMonthCharts($today);
 
         return [
             'systemStatRows' => $systemStats,
-            'summaryCards' => $this->buildSummaryCards($overdue, $depositsPending, $loanRequests, $disbursementDue),
+            'summaryCards' => $this->buildSummaryCards($overdue, $depositsPending, $loanRequests, $disbursementDue, $walletCharges),
             'tables' => $this->buildRecentTransactionTables(),
             'installmentChart' => $charts['installments'],
             'newLoansChart' => $charts['new_loans'],
@@ -225,6 +227,7 @@ final class AdminDashboardStatisticsService
      * @param  array{count: int, amount_toman: int}  $depositsPending
      * @param  array{pending_expert: int, expert_re_review: int, new_today: int}  $loanRequests
      * @param  array{amount_toman: int, count: int}  $disbursementDue
+     * @param  array{total_charge_toman: int, online_charge_toman: int, admin_charge_toman: int, other_charge_toman: int, charge_count: int, balance_total_toman: int}  $walletCharges
      * @return list<array<string, mixed>>
      */
     private function buildSummaryCards(
@@ -232,6 +235,7 @@ final class AdminDashboardStatisticsService
         array $depositsPending,
         array $loanRequests,
         array $disbursementDue,
+        array $walletCharges,
     ): array {
         return [
             [
@@ -296,6 +300,75 @@ final class AdminDashboardStatisticsService
                 ],
                 'footer' => 'جهت مشاهده بر روی باکس کلیک کنید',
             ],
+            [
+                'widget_id' => 'summary-customer-wallets',
+                'title' => 'کیف پول مشتریان',
+                'icon' => 'fa-wallet',
+                'c' => '#0d9488',
+                'clickable' => true,
+                'href' => route('admin.reports.index', ['open' => 'wallet-transactions-by-date']),
+                'lines' => [
+                    ['text' => $this->formatToman($walletCharges['total_charge_toman']), 'ltr' => true],
+                    ['text' => 'مجموع شارژها — '.$this->formatCount($walletCharges['charge_count']).' مورد'],
+                    ['k' => 'شارژ آنلاین (درگاه)', 'v' => $this->formatToman($walletCharges['online_charge_toman'])],
+                    ['k' => 'شارژ فروشگاه / ادمین', 'v' => $this->formatToman($walletCharges['admin_charge_toman'])],
+                    ['k' => 'سایر شارژها', 'v' => $this->formatToman($walletCharges['other_charge_toman'])],
+                    ['k' => 'موجودی فعلی کل', 'v' => $this->formatToman($walletCharges['balance_total_toman'])],
+                ],
+                'footer' => 'جهت مشاهده گزارش بر روی باکس کلیک کنید',
+            ],
+        ];
+    }
+
+    /**
+     * مجموع شارژ (واریز) کیف پول‌ها به تفکیک منبع، به‌همراه موجودی فعلی کل.
+     *
+     * @return array{total_charge_toman: int, online_charge_toman: int, admin_charge_toman: int, other_charge_toman: int, charge_count: int, balance_total_toman: int}
+     */
+    private function buildWalletChargeStats(): array
+    {
+        $balanceTotal = (int) CustomerWallet::query()->sum('balance_toman');
+
+        $depositQuery = CustomerWalletTransaction::query()
+            ->where('direction', CustomerWalletTransaction::DIRECTION_DEPOSIT);
+
+        $totalCharge = (int) (clone $depositQuery)->sum('amount_toman');
+        $chargeCount = (int) (clone $depositQuery)->count();
+
+        $adminCharge = (int) CustomerWalletTransaction::query()
+            ->where('direction', CustomerWalletTransaction::DIRECTION_DEPOSIT)
+            ->where(static function ($query): void {
+                $query->whereNotNull('actor_admin_id')
+                    ->orWhere('meta->channel', 'admin');
+            })
+            ->sum('amount_toman');
+
+        $onlineCharge = (int) CustomerWalletTransaction::query()
+            ->where('direction', CustomerWalletTransaction::DIRECTION_DEPOSIT)
+            ->where(static function ($query): void {
+                $query->whereNull('actor_admin_id')
+                    ->where(static function ($inner): void {
+                        $inner->whereNull('meta->channel')
+                            ->orWhere('meta->channel', '!=', 'admin');
+                    });
+            })
+            ->where(static function ($query): void {
+                $query->whereNotNull('meta->wallet_topup_intent_id')
+                    ->orWhere('request_uuid', 'like', 'wallet-topup-intent-%')
+                    ->orWhere('description', 'like', '%شارژ آنلاین%')
+                    ->orWhere('description', 'like', '%زیبال%');
+            })
+            ->sum('amount_toman');
+
+        $otherCharge = max(0, $totalCharge - $adminCharge - $onlineCharge);
+
+        return [
+            'total_charge_toman' => max(0, $totalCharge),
+            'online_charge_toman' => max(0, $onlineCharge),
+            'admin_charge_toman' => max(0, $adminCharge),
+            'other_charge_toman' => $otherCharge,
+            'charge_count' => max(0, $chargeCount),
+            'balance_total_toman' => max(0, $balanceTotal),
         ];
     }
 

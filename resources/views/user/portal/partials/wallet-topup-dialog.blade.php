@@ -1,4 +1,5 @@
 @php($upWalletReady = (bool) ($userOnlinePaymentReady ?? false))
+@php($onlinePayAdminEnabled = (bool) ($customerOnlinePaymentEnabled ?? true))
 @php($upWalletTopupUrl = $userWalletOnlineTopupUrl ?? route('user.wallet.online-topup.start'))
 @php($wMin = 10000)
 @php($wMax = 500000000)
@@ -33,6 +34,7 @@
                     required
                     autocomplete="off"
                     aria-describedby="portal-wallet-topup-amount-hint"
+                    @unless($upWalletReady) disabled @endunless
                 >
                 <p class="portal-dialog__hint" id="portal-wallet-topup-amount-hint" style="margin-top:0.35rem">
                     حداقل {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($wMin, 0, '.', ',')) }} و حداکثر
@@ -40,13 +42,18 @@
                 </p>
             </div>
             <div class="portal-dialog__actions" style="margin-top:0.25rem;padding-top:0">
-                <button type="submit" class="portal-loan__btn portal-loan__btn--primary portal-loan__btn--block" id="portal-wallet-topup-submit" @if(!$upWalletReady) disabled title="درگاه پرداخت در تنظیمات مدیریت تکمیل نشده است." @endif>
-                    <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
-                    شارژ کیف پول
-                </button>
-                @unless($upWalletReady)
+                <span class="portal-online-pay-stack" style="width:100%">
+                    <button type="submit" class="portal-loan__btn portal-loan__btn--primary portal-loan__btn--block @unless($upWalletReady) portal-loan__btn--disabled @endunless" id="portal-wallet-topup-submit" @if(!$upWalletReady) disabled title="{{ $onlinePayAdminEnabled ? 'درگاه پرداخت در تنظیمات مدیریت تکمیل نشده است.' : 'پرداخت آنلاین توسط مدیریت غیرفعال شده است.' }}" @endif>
+                        <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                        شارژ کیف پول
+                    </button>
+                    @unless($onlinePayAdminEnabled)
+                        <span class="portal-online-pay-off-label">غیرفعال</span>
+                    @endunless
+                </span>
+                @if($onlinePayAdminEnabled && !$upWalletReady)
                     <p class="portal-dialog__hint" style="margin-top:0.45rem;text-align:center">درگاه پرداخت توسط مدیریت فعال نشده است؛ پس از تکمیل تنظیمات مالی ادمین دوباره تلاش کنید.</p>
-                @endunless
+                @endif
             </div>
         </form>
     </div>

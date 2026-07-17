@@ -11,6 +11,7 @@ use App\Models\CustomerLoanFullSettlementOnlinePaymentIntent;
 use App\Services\Loans\CustomerLoanPortalPresenter;
 use App\Services\Payment\CustomerTransactionLedgerService;
 use App\Services\Payment\ZibalIpgClient;
+use App\Support\CustomerOnlinePaymentSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -44,6 +45,10 @@ final class UserLoanFullSettlementOnlinePaymentController extends Controller
             && in_array($validated['return_route'], self::RETURN_ROUTE_NAMES, true)
             ? $validated['return_route']
             : 'user.loans.index';
+
+        if (! CustomerOnlinePaymentSettings::isEnabled()) {
+            return $this->backWithPayFlash(false, 'پرداخت آنلاین توسط مدیریت غیرفعال شده است.');
+        }
 
         $gateway = AppSetting::query()->where('key', 'payment_gateway')->value('value');
         $gatewayKey = is_string($gateway) && $gateway !== '' ? $gateway : 'zibal';

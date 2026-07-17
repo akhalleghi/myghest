@@ -1,4 +1,5 @@
 @php($upPayReady = (bool) ($userOnlinePaymentReady ?? false))
+@php($onlinePayAdminEnabled = (bool) ($customerOnlinePaymentEnabled ?? true))
 @php($upFsPayUrl = $userLoanFullSettlementOnlinePayUrl ?? route('user.loans.full-settlement.online-pay.start'))
 @php($upWalletFsUrl = $userLoanFullSettlementWalletPayUrl ?? route('user.loans.full-settlement.wallet-pay'))
 @php($settleNs = $settleDialogNamespace ?? 'portal-settle')
@@ -34,13 +35,18 @@
             @csrf
             <input type="hidden" name="customer_loan_file_id" id="{{ $settleNs }}-loan-file-id" value="" required>
             <input type="hidden" name="return_route" value="{{ $settleReturnRoute }}">
-            <button type="submit" class="portal-loan__btn portal-loan__btn--primary portal-loan__btn--block" id="{{ $settleNs }}-pay-submit" @if(!$upPayReady) disabled title="درگاه پرداخت فعال نیست." @endif>
-                <i class="fa-solid fa-building-columns" aria-hidden="true"></i>
-                پرداخت از درگاه بانکی
-            </button>
-            @if($upPayReady)
+            <span class="portal-online-pay-stack" style="width:100%">
+                <button type="submit" class="portal-loan__btn portal-loan__btn--primary portal-loan__btn--block @unless($upPayReady) portal-loan__btn--disabled @endunless" id="{{ $settleNs }}-pay-submit" @if(!$upPayReady) disabled title="{{ $onlinePayAdminEnabled ? 'درگاه پرداخت فعال نیست.' : 'پرداخت آنلاین توسط مدیریت غیرفعال شده است.' }}" @endif>
+                    <i class="fa-solid fa-building-columns" aria-hidden="true"></i>
+                    پرداخت از درگاه بانکی
+                </button>
+                @unless($onlinePayAdminEnabled)
+                    <span class="portal-online-pay-off-label">غیرفعال</span>
+                @endunless
+            </span>
+            @if($onlinePayAdminEnabled && $upPayReady)
                 <p class="portal-settle-note">قبل از ورود به درگاه، VPN را خاموش کنید.</p>
-            @else
+            @elseif($onlinePayAdminEnabled)
                 <p class="portal-settle-note">درگاه پرداخت در حال حاضر فعال نیست.</p>
             @endif
         </form>
@@ -56,10 +62,20 @@
             </div>
             <p class="portal-settle-wallet-hint" id="{{ $settleNs }}-wallet-hint" style="display:none" aria-live="polite"></p>
             <div id="{{ $settleNs }}-wallet-topup-wrap" class="portal-settle-actions" style="display:none">
-                <button type="button" class="portal-loan__btn portal-loan__btn--ghost portal-loan__btn--block" id="{{ $settleNs }}-wallet-topup-btn">
-                    <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                    شارژ کیف پول
-                </button>
+                @if(!empty($customerOnlinePaymentEnabled))
+                    <button type="button" class="portal-loan__btn portal-loan__btn--ghost portal-loan__btn--block" id="{{ $settleNs }}-wallet-topup-btn">
+                        <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                        شارژ کیف پول
+                    </button>
+                @else
+                    <span class="portal-online-pay-stack" style="width:100%">
+                        <button type="button" class="portal-loan__btn portal-loan__btn--ghost portal-loan__btn--block portal-loan__btn--disabled" id="{{ $settleNs }}-wallet-topup-btn" disabled aria-disabled="true" title="پرداخت آنلاین توسط مدیریت غیرفعال شده است.">
+                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                            شارژ کیف پول
+                        </button>
+                        <span class="portal-online-pay-off-label">غیرفعال</span>
+                    </span>
+                @endif
             </div>
             <form class="portal-settle-actions" method="post" action="{{ $upWalletFsUrl }}" id="{{ $settleNs }}-wallet-form">
                 @csrf

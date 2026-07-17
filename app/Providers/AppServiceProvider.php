@@ -6,6 +6,7 @@ use App\Models\Admin;
 use App\Models\AppSetting;
 use App\Support\AdminLayoutThemeSettings;
 use App\Support\AdminReportsDisplaySettings;
+use App\Support\CustomerOnlinePaymentSettings;
 use App\Services\Admin\AdminPermissionService;
 use App\Models\Customer;
 use App\Models\CustomerDepositDeclaration;
@@ -123,9 +124,13 @@ class AppServiceProvider extends ServiceProvider
             $merchantTrim = is_string($zibalMerchant) ? trim($zibalMerchant) : '';
             $resolvedGateway = is_string($paymentGateway) && $paymentGateway !== '' ? $paymentGateway : 'zibal';
             $gatewayNormalized = in_array($resolvedGateway, ['zibal'], true) ? $resolvedGateway : 'zibal';
-            $userOnlinePaymentReady = $gatewayNormalized === 'zibal' && $merchantTrim !== '';
+            $customerOnlinePaymentEnabled = CustomerOnlinePaymentSettings::isEnabled();
+            $userOnlinePaymentReady = $customerOnlinePaymentEnabled
+                && $gatewayNormalized === 'zibal'
+                && $merchantTrim !== '';
 
             View::share('userOnlinePaymentReady', $userOnlinePaymentReady);
+            View::share('customerOnlinePaymentEnabled', $customerOnlinePaymentEnabled);
 
             $view->with('appDisplayName', is_string($displayName) && $displayName !== '' ? $displayName : config('app.name'));
             $view->with('appFontSize', is_string($fontSize) && in_array($fontSize, ['small', 'normal', 'large', 'xlarge'], true) ? $fontSize : 'normal');
@@ -142,6 +147,7 @@ class AppServiceProvider extends ServiceProvider
             $view->with('zibalCallbackUrl', $zibalCallbackUrl);
             $view->with('paymentGateway', $gatewayNormalized);
             $view->with('userOnlinePaymentReady', $userOnlinePaymentReady);
+            $view->with('customerOnlinePaymentEnabled', $customerOnlinePaymentEnabled);
             $view->with('userInstallmentOnlinePayUrl', route('user.installments.online-pay.start'));
             $view->with('userWalletOnlineTopupUrl', route('user.wallet.online-topup.start'));
             $view->with('bankingInfoHtml', is_string($bankingInfoHtml) ? $bankingInfoHtml : '');

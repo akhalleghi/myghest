@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Models\AppSetting;
+use App\Support\CustomerOnlinePaymentSettings;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
@@ -27,8 +28,12 @@ final class ShareCustomerPortalOnlinePaymentFlags
         $merchantTrim = is_string($zibalMerchant) ? trim($zibalMerchant) : '';
         $resolvedGateway = is_string($paymentGateway) && $paymentGateway !== '' ? $paymentGateway : 'zibal';
         $gatewayNormalized = in_array($resolvedGateway, ['zibal'], true) ? $resolvedGateway : 'zibal';
-        $ready = $gatewayNormalized === 'zibal' && $merchantTrim !== '';
+        $customerOnlinePaymentEnabled = CustomerOnlinePaymentSettings::isEnabled();
+        $ready = $customerOnlinePaymentEnabled
+            && $gatewayNormalized === 'zibal'
+            && $merchantTrim !== '';
 
+        View::share('customerOnlinePaymentEnabled', $customerOnlinePaymentEnabled);
         View::share('userOnlinePaymentReady', $ready);
         View::share('userLoanFullSettlementOnlinePayUrl', route('user.loans.full-settlement.online-pay.start'));
         View::share('userInstallmentWalletPayUrl', route('user.installments.wallet-pay'));

@@ -17,6 +17,7 @@ final class AdminDashboardWidgetRegistry
         'summary-loan-requests' => 'درخواست وام‌ها',
         'summary-sms-email' => 'وضعیت پیامک',
         'summary-counterparty-matured' => 'سررسید شده‌های طرف حساب',
+        'summary-customer-wallets' => 'کیف پول مشتریان',
         'tbl-online-installments' => 'جدول واریز قسط‌های آنلاین',
         'tbl-bank-transactions' => 'جدول تراکنش‌های بانک',
         'tbl-fund-transactions' => 'جدول تراکنش‌های صندوق',

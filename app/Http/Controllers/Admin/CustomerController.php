@@ -3853,6 +3853,7 @@ final class CustomerController extends Controller
                 'paid_installments_amount_toman' => 0,
                 'discount_amount_toman' => 0,
                 'late_fee_so_far_toman' => 0,
+                'early_benefit_toman' => 0,
                 'schedule_remaining_before_discount_toman' => 0,
             ];
         }
@@ -3862,6 +3863,7 @@ final class CustomerController extends Controller
         $remainingAmount = $file->is_settled
             ? 0
             : max(0, $scheduleRemaining - $discount);
+        $earlyCoef = (float) ($file->loanType?->daily_early_coefficient ?? 0);
 
         return [
             'id' => $file->id,
@@ -3896,6 +3898,7 @@ final class CustomerController extends Controller
             'paid_installments_amount_toman' => $snap['total_paid_toman'],
             'discount_amount_toman' => $discount,
             'late_fee_so_far_toman' => $snap['late_fee_so_far_toman'],
+            'early_benefit_toman' => $this->aggregateEarlyBenefitToman($file->installments, $earlyCoef),
             'schedule_remaining_before_discount_toman' => $scheduleRemaining,
         ];
     }

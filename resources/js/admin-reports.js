@@ -1737,6 +1737,36 @@ function rptBindReportCardOpens(registry) {
     });
 }
 
+/**
+ * باز کردن خودکار مدال گزارش در صورت وجود ?open=report-id در آدرس (مثلاً از داشبورد).
+ *
+ * @param {Record<string, { openModal?: function } | undefined>} registry
+ */
+function rptAutoOpenFromQuery(registry) {
+    try {
+        var params = new URLSearchParams(window.location.search);
+        var key = String(params.get('open') || '').trim();
+        if (!key || !Object.prototype.hasOwnProperty.call(registry, key)) {
+            return;
+        }
+        var report = registry[key];
+        if (!report || typeof report.openModal !== 'function') {
+            return;
+        }
+        var card = document.querySelector('.rpt-card[data-rpt-open="' + key.replace(/"/g, '') + '"]');
+        if (!card || card.disabled) {
+            return;
+        }
+        report.openModal();
+        params.delete('open');
+        var qs = params.toString();
+        var next = window.location.pathname + (qs ? '?' + qs : '') + window.location.hash;
+        window.history.replaceState({}, '', next);
+    } catch (e) {
+        /* noop */
+    }
+}
+
 function rptInitQuickSms(cfg) {
     var overlay = document.getElementById('rpt-quick-sms-overlay');
     var form = document.getElementById('rpt-quick-sms-form');
@@ -3304,6 +3334,7 @@ function rptInitReportsPage() {
         'admin-activity': adminActivity,
     };
     rptBindReportCardOpens(reportRegistry);
+    rptAutoOpenFromQuery(reportRegistry);
     rptBindReportEscapeHandlers([
         memberLoans,
         installmentDue,

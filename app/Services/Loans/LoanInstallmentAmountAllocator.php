@@ -7,7 +7,7 @@ namespace App\Services\Loans;
 use App\Support\LoanInstallmentRoundingSettings;
 
 /**
- * تقسیم مبلغ قابل بازپرداخت به اقساط با رندسازی پایه تا ۱۰٬۰۰۰ تومان.
+ * تقسیم مبلغ قابل بازپرداخت به اقساط با رندسازی پایه بر اساس حد رند تنظیم‌شده.
  */
 final class LoanInstallmentAmountAllocator
 {
@@ -26,24 +26,27 @@ final class LoanInstallmentAmountAllocator
         int $downPaymentToman,
         int $installmentsCount,
         ?string $remainderTarget = null,
+        ?int $roundingStepToman = null,
     ): array {
         $downPaymentToman = max(0, $downPaymentToman);
         $payable = max(0, ($amountToman + $profitToman) - $downPaymentToman);
         $target = $this->normalizeRemainderTarget($remainderTarget);
+        $step = $this->normalizeRoundingStep($roundingStepToman);
 
-        $schedule = $this->allocate($payable, $installmentsCount, $target);
+        $schedule = $this->allocate($payable, $installmentsCount, $target, $step);
         $adjustedDownPayment = $downPaymentToman;
+        $reportedRemainder = (int) $schedule['remainder_toman'];
 
         if ($target === LoanInstallmentRoundingSettings::REMAINDER_DOWN_PAYMENT && $schedule['remainder_toman'] > 0) {
             $adjustedDownPayment += $schedule['remainder_toman'];
             $payable = max(0, ($amountToman + $profitToman) - $adjustedDownPayment);
-            $schedule = $this->allocate($payable, $installmentsCount, $target);
+            $schedule = $this->allocate($payable, $installmentsCount, $target, $step);
         }
 
         return [
             'base_amount_toman' => $schedule['base_amount_toman'],
             'amounts_toman' => $schedule['amounts_toman'],
-            'remainder_toman' => $schedule['remainder_toman'],
+            'remainder_toman' => $reportedRemainder,
             'payable_after_down_payment_toman' => $payable,
             'adjusted_down_payment_toman' => $adjustedDownPayment,
         ];
@@ -56,11 +59,12 @@ final class LoanInstallmentAmountAllocator
         int $payableAfterDownPaymentToman,
         int $installmentsCount,
         ?string $remainderTarget = null,
+        ?int $roundingStepToman = null,
     ): array {
         $installmentsCount = max(0, $installmentsCount);
         $payableAfterDownPaymentToman = max(0, $payableAfterDownPaymentToman);
         $target = $this->normalizeRemainderTarget($remainderTarget);
-        $step = LoanInstallmentRoundingSettings::ROUNDING_STEP_TOMAN;
+        $step = $this->normalizeRoundingStep($roundingStepToman);
 
         if ($installmentsCount < 1 || $payableAfterDownPaymentToman < 1) {
             return [
@@ -84,6 +88,13 @@ final class LoanInstallmentAmountAllocator
                 $amounts[0] = $base + $remainder;
             } elseif ($target === LoanInstallmentRoundingSettings::REMAINDER_DOWN_PAYMENT) {
                 // remainder is applied outside this method via down payment adjustment.
+            } elseif ($target === LoanInstallmentRoundingSettings::REMAINDER_DISTRIBUTE) {
+                $share = intdiv($remainder, $installmentsCount);
+                $extra = $remainder % $installmentsCount;
+                for ($i = 0; $i < $installmentsCount; $i++) {
+                    $amounts[$i] = $base + $share + ($i < $extra ? 1 : 0);
+                }
+                $base = $base + $share;
             } else {
                 $amounts[$installmentsCount - 1] = $base + $remainder;
             }
@@ -103,5 +114,14 @@ final class LoanInstallmentAmountAllocator
         }
 
         return LoanInstallmentRoundingSettings::remainderTarget();
+    }
+
+    private function normalizeRoundingStep(?int $roundingStepToman): int
+    {
+        if (is_int($roundingStepToman) && LoanInstallmentRoundingSettings::isValidRoundingStep($roundingStepToman)) {
+            return $roundingStepToman;
+        }
+
+        return LoanInstallmentRoundingSettings::roundingStepToman();
     }
 }

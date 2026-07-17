@@ -279,29 +279,47 @@
                                                             پرداخت از کیف پول
                                                         </button>
                                                     @endif
-                                                    @if(!empty($inst['online_pay_eligible']))
-                                                        <button
-                                                            type="button"
-                                                            class="portal-loan__btn portal-loan__btn--primary"
-                                                            data-portal-pay-online
-                                                            data-installment-label="قسط {{ $inst['sequence_fa'] }}"
-                                                        >
-                                                            <i class="fa-solid fa-credit-card" aria-hidden="true"></i>
-                                                            پرداخت آنلاین
-                                                        </button>
-                                                    @elseif(!empty($inst['online_pay_prior_sequence_block']))
-                                                        <button
-                                                            type="button"
-                                                            class="portal-loan__btn portal-loan__btn--primary"
-                                                            data-portal-pay-online-blocked
-                                                            data-installment-label="قسط {{ $inst['sequence_fa'] }}"
-                                                        >
-                                                            <i class="fa-solid fa-credit-card" aria-hidden="true"></i>
-                                                            پرداخت آنلاین
-                                                        </button>
+                                                    @if(!empty($inst['online_pay_eligible']) || !empty($inst['online_pay_prior_sequence_block']))
+                                                        @if(!empty($customerOnlinePaymentEnabled))
+                                                            @if(!empty($inst['online_pay_eligible']))
+                                                                <button
+                                                                    type="button"
+                                                                    class="portal-loan__btn portal-loan__btn--primary"
+                                                                    data-portal-pay-online
+                                                                    data-installment-label="قسط {{ $inst['sequence_fa'] }}"
+                                                                >
+                                                                    <i class="fa-solid fa-credit-card" aria-hidden="true"></i>
+                                                                    پرداخت آنلاین
+                                                                </button>
+                                                            @else
+                                                                <button
+                                                                    type="button"
+                                                                    class="portal-loan__btn portal-loan__btn--primary"
+                                                                    data-portal-pay-online-blocked
+                                                                    data-installment-label="قسط {{ $inst['sequence_fa'] }}"
+                                                                >
+                                                                    <i class="fa-solid fa-credit-card" aria-hidden="true"></i>
+                                                                    پرداخت آنلاین
+                                                                </button>
+                                                            @endif
+                                                        @else
+                                                            <span class="portal-online-pay-stack">
+                                                                <button
+                                                                    type="button"
+                                                                    class="portal-loan__btn portal-loan__btn--primary portal-loan__btn--disabled"
+                                                                    disabled
+                                                                    aria-disabled="true"
+                                                                    title="پرداخت آنلاین توسط مدیریت غیرفعال شده است."
+                                                                >
+                                                                    <i class="fa-solid fa-credit-card" aria-hidden="true"></i>
+                                                                    پرداخت آنلاین
+                                                                </button>
+                                                                <span class="portal-online-pay-off-label">غیرفعال</span>
+                                                            </span>
+                                                        @endif
                                                     @endif
                                                 </div>
-                                                @if(!empty($inst['online_pay_prior_sequence_block']))
+                                                @if(!empty($inst['online_pay_prior_sequence_block']) && !empty($customerOnlinePaymentEnabled))
                                                     <p class="portal-inst__note" role="note">برای پرداخت آنلاین این قسط، ابتدا قسط‌های قبلی را به‌طور کامل تسویه کنید.</p>
                                                 @endif
                                             @else

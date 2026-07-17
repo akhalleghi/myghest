@@ -9,6 +9,7 @@ use App\Models\AppSetting;
 use App\Support\AdminLayoutThemeSettings;
 use App\Support\AdminReportsDisplaySettings;
 use App\Support\BankingHtmlSanitizer;
+use App\Support\CustomerOnlinePaymentSettings;
 use App\Models\LoginAccessBlock;
 use App\Services\Auth\LoginAccessBlockService;
 use App\Support\AdminLoginSecuritySettings;
@@ -160,11 +161,13 @@ final class AppSettingsController extends Controller
             'payment_gateway' => ['required', 'string', 'in:zibal'],
             'zibal_merchant' => ['required', 'string', 'max:128'],
             'banking_info_show_in_user_panel' => ['required', 'string', 'in:0,1'],
+            'customer_online_payment_enabled' => ['required', 'string', 'in:0,1'],
             'banking_info_html' => ['nullable', 'string', 'max:65000'],
         ], [], [
             'payment_gateway' => 'درگاه پرداخت',
             'zibal_merchant' => 'شناسه مرچنت زیبال',
             'banking_info_show_in_user_panel' => 'نمایش اطلاعات بانکی در پنل کاربر',
+            'customer_online_payment_enabled' => 'پرداخت آنلاین پنل مشتری',
             'banking_info_html' => 'توضیحات اطلاعات بانکی',
         ]);
 
@@ -189,6 +192,11 @@ final class AppSettingsController extends Controller
             ['value' => $validated['banking_info_show_in_user_panel'] === '1' ? '1' : '0']
         );
 
+        AppSetting::query()->updateOrCreate(
+            ['key' => CustomerOnlinePaymentSettings::SETTING_KEY],
+            ['value' => $validated['customer_online_payment_enabled'] === '1' ? '1' : '0']
+        );
+
         AppSetting::query()->where('key', 'zibal_callback_url')->delete();
 
         return back()
@@ -201,10 +209,17 @@ final class AppSettingsController extends Controller
         $validated = $request->validate([
             'loan_creation_customer_otp_enabled' => ['required', 'string', 'in:0,1'],
             'guarantee_return_customer_otp_enabled' => ['required', 'string', 'in:0,1'],
+            'loan_installment_rounding_step_toman' => [
+                'required',
+                'integer',
+                'min:'.LoanInstallmentRoundingSettings::ROUNDING_STEP_MIN_TOMAN,
+                'max:'.LoanInstallmentRoundingSettings::ROUNDING_STEP_MAX_TOMAN,
+            ],
             'loan_installment_remainder_target' => ['required', 'string', Rule::in(LoanInstallmentRoundingSettings::remainderTargetOptions())],
         ], [], [
             'loan_creation_customer_otp_enabled' => 'تایید پیامکی ایجاد وام',
             'guarantee_return_customer_otp_enabled' => 'تایید پیامکی عودت ضمانت',
+            'loan_installment_rounding_step_toman' => 'حد رندسازی اقساط',
             'loan_installment_remainder_target' => 'محل لحاظ مبلغ خرد اقساط',
         ]);
 
@@ -216,6 +231,11 @@ final class AppSettingsController extends Controller
         AppSetting::query()->updateOrCreate(
             ['key' => GuaranteeReturnOtpSettings::SETTING_KEY],
             ['value' => $validated['guarantee_return_customer_otp_enabled'] === '1' ? '1' : '0'],
+        );
+
+        AppSetting::query()->updateOrCreate(
+            ['key' => LoanInstallmentRoundingSettings::SETTING_KEY_ROUNDING_STEP],
+            ['value' => (string) LoanInstallmentRoundingSettings::normalizeRoundingStep((int) $validated['loan_installment_rounding_step_toman'])],
         );
 
         AppSetting::query()->updateOrCreate(

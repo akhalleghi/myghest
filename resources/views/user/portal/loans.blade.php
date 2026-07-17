@@ -210,6 +210,7 @@
     <script>
         window.__PORTAL_LOANS_LIST__ = @json($pl['loans'] ?? []);
         window.__PORTAL_LOANS_ROUTES__ = { depositsIndex: @json(route('user.deposits.index')) };
+        window.__PORTAL_ONLINE_PAYMENT_ENABLED__ = @json((bool) ($customerOnlinePaymentEnabled ?? true));
     </script>
     <script>
         (function () {
@@ -455,24 +456,43 @@
                         btnWallet.innerHTML = '<i class="fa-solid fa-wallet" aria-hidden="true"></i> پرداخت از کیف پول';
                         wrap.appendChild(btnWallet);
                     }
-                    if (inst.online_pay_eligible) {
-                        var btnPay = document.createElement('button');
-                        btnPay.type = 'button';
-                        btnPay.className = 'portal-loan__btn portal-loan__btn--primary portal-loan__btn--table';
-                        btnPay.setAttribute('data-portal-pay-online', '');
-                        btnPay.setAttribute('data-installment-label', 'قسط ' + (inst.sequence_fa || String(inst.sequence || '')));
-                        btnPay.innerHTML = '<i class="fa-solid fa-credit-card" aria-hidden="true"></i> پرداخت آنلاین';
-                        setInstallmentPayDataset(btnPay, loan, inst);
-                        wrap.appendChild(btnPay);
-                    } else if (inst.online_pay_prior_sequence_block) {
-                        var btnBlock = document.createElement('button');
-                        btnBlock.type = 'button';
-                        btnBlock.className = 'portal-loan__btn portal-loan__btn--primary portal-loan__btn--table';
-                        btnBlock.setAttribute('data-portal-pay-online-blocked', '');
-                        btnBlock.setAttribute('data-installment-label', 'قسط ' + (inst.sequence_fa || String(inst.sequence || '')));
-                        btnBlock.innerHTML = '<i class="fa-solid fa-credit-card" aria-hidden="true"></i> پرداخت آنلاین';
-                        setInstallmentPayDataset(btnBlock, loan, inst);
-                        wrap.appendChild(btnBlock);
+                    if (inst.online_pay_eligible || inst.online_pay_prior_sequence_block) {
+                        var onlineEnabled = window.__PORTAL_ONLINE_PAYMENT_ENABLED__ !== false;
+                        if (!onlineEnabled) {
+                            var stackOff = document.createElement('span');
+                            stackOff.className = 'portal-online-pay-stack';
+                            var btnOff = document.createElement('button');
+                            btnOff.type = 'button';
+                            btnOff.className = 'portal-loan__btn portal-loan__btn--primary portal-loan__btn--table portal-loan__btn--disabled';
+                            btnOff.disabled = true;
+                            btnOff.setAttribute('aria-disabled', 'true');
+                            btnOff.title = 'پرداخت آنلاین توسط مدیریت غیرفعال شده است.';
+                            btnOff.innerHTML = '<i class="fa-solid fa-credit-card" aria-hidden="true"></i> پرداخت آنلاین';
+                            var offLabel = document.createElement('span');
+                            offLabel.className = 'portal-online-pay-off-label';
+                            offLabel.textContent = 'غیرفعال';
+                            stackOff.appendChild(btnOff);
+                            stackOff.appendChild(offLabel);
+                            wrap.appendChild(stackOff);
+                        } else if (inst.online_pay_eligible) {
+                            var btnPay = document.createElement('button');
+                            btnPay.type = 'button';
+                            btnPay.className = 'portal-loan__btn portal-loan__btn--primary portal-loan__btn--table';
+                            btnPay.setAttribute('data-portal-pay-online', '');
+                            btnPay.setAttribute('data-installment-label', 'قسط ' + (inst.sequence_fa || String(inst.sequence || '')));
+                            btnPay.innerHTML = '<i class="fa-solid fa-credit-card" aria-hidden="true"></i> پرداخت آنلاین';
+                            setInstallmentPayDataset(btnPay, loan, inst);
+                            wrap.appendChild(btnPay);
+                        } else {
+                            var btnBlock = document.createElement('button');
+                            btnBlock.type = 'button';
+                            btnBlock.className = 'portal-loan__btn portal-loan__btn--primary portal-loan__btn--table';
+                            btnBlock.setAttribute('data-portal-pay-online-blocked', '');
+                            btnBlock.setAttribute('data-installment-label', 'قسط ' + (inst.sequence_fa || String(inst.sequence || '')));
+                            btnBlock.innerHTML = '<i class="fa-solid fa-credit-card" aria-hidden="true"></i> پرداخت آنلاین';
+                            setInstallmentPayDataset(btnBlock, loan, inst);
+                            wrap.appendChild(btnBlock);
+                        }
                     }
                 } else {
                     var span = document.createElement('span');

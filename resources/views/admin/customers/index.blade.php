@@ -2702,7 +2702,7 @@
                     </div>
                     <div class="cust-field">
                         <label for="loan-installments-count">تعداد اقساط <span class="req">*</span></label>
-                        <input id="loan-installments-count" name="installments_count" type="number" min="1" step="1" required value="12">
+                        <input id="loan-installments-count" name="installments_count" type="number" min="1" step="1" required value="6">
                     </div>
                     <div class="cust-field">
                         <label for="loan-installment-interval-count">فاصله اقساط <span class="req">*</span></label>
@@ -2947,7 +2947,7 @@
                         <div id="loan-inst-pay-col-schedule">—</div>
                     </div>
                     <div class="loan-inst-edit-banner__col">
-                        <strong>باقیمانده برنامه</strong>
+                        <strong>باقیمانده اقساط</strong>
                         <div id="loan-inst-pay-col-remaining">—</div>
                     </div>
                     <div class="loan-inst-edit-banner__col">
@@ -4082,6 +4082,7 @@
             function allocateLoanInstallmentAmounts(amountToman, profitToman, downPaymentToman, installmentsCount, roundingConfig) {
                 var cfg = roundingConfig || loanInstallmentRounding || {};
                 var step = Number(cfg.step_toman || 10000);
+                if (!Number.isFinite(step) || step < 1) step = 10000;
                 var target = String(cfg.remainder_target || 'last');
                 var amount = Number(amountToman || 0);
                 var profit = Number(profitToman || 0);
@@ -4103,7 +4104,16 @@
                     if (remainder > 0) {
                         if (target === 'first') {
                             amounts[0] = base + remainder;
-                        } else if (target !== 'down_payment') {
+                        } else if (target === 'down_payment') {
+                            // remainder applied via down payment below
+                        } else if (target === 'distribute') {
+                            var share = Math.floor(remainder / count);
+                            var extra = remainder % count;
+                            for (i = 0; i < count; i++) {
+                                amounts[i] = base + share + (i < extra ? 1 : 0);
+                            }
+                            base = base + share;
+                        } else {
                             amounts[count - 1] = base + remainder;
                         }
                     }
@@ -4123,8 +4133,12 @@
 
             function loanInstallmentRoundingNote(allocation) {
                 if (!allocation || !allocation.remainder || allocation.remainder <= 0) return '';
-                if (String((loanInstallmentRounding && loanInstallmentRounding.remainder_target) || 'last') === 'down_payment') {
+                var target = String((loanInstallmentRounding && loanInstallmentRounding.remainder_target) || 'last');
+                if (target === 'down_payment') {
                     return ' | مبلغ خرد ' + formatToman(allocation.remainder) + ' به پیش‌پرداخت اضافه می‌شود';
+                }
+                if (target === 'distribute') {
+                    return ' | مبلغ خرد ' + formatToman(allocation.remainder) + ' بین اقساط تقسیم می‌شود';
                 }
                 return ' | مبلغ خرد ' + formatToman(allocation.remainder) + ' به ' + String((loanInstallmentRounding && loanInstallmentRounding.remainder_target_label) || 'قسط آخر') + ' اضافه می‌شود';
             }
@@ -5872,7 +5886,16 @@
                                                 ' — ماندهٔ نامی بعضی دوره‌ها صفر نشده؛ ولی تعهد کل تسویه است.</span></span></div>' : '');
                                     })() +
                                     '<div class="loan-file-item"><span class="loan-file-k">مجموع مبلغ اقساط پرداخت شده:</span><span class="loan-file-v">' + formatToman(paidAmount) + ' تومان</span></div>' +
-                                    '<div class="loan-file-item"><span class="loan-file-k">دیرکرد / زودکرد:</span><span class="loan-file-v">—</span></div>' +
+                                    (function () {
+                                        if (row.is_revoked) {
+                                            return '<div class="loan-file-item"><span class="loan-file-k">دیرکرد / زودکرد:</span><span class="loan-file-v">—</span></div>';
+                                        }
+                                        var lateFee = Number(row.late_fee_so_far_toman || 0);
+                                        var earlyBenefit = Number(row.early_benefit_toman || 0);
+                                        var lateEarlyText = 'دیرکرد: ' + formatToman(lateFee) + ' تومان · زودکرد: ' + formatToman(earlyBenefit) + ' تومان';
+                                        var lateEarlyClass = lateFee > 0 ? ' loan-file-v--danger' : (earlyBenefit > 0 ? ' loan-file-v--ok' : '');
+                                        return '<div class="loan-file-item"><span class="loan-file-k">دیرکرد / زودکرد:</span><span class="loan-file-v' + lateEarlyClass + '">' + lateEarlyText + '</span></div>';
+                                    })() +
                                     '<div class="loan-file-item loan-file-item--stack">' +
                                         '<span class="loan-file-k">تخفیف:</span>' +
                                         '<span class="loan-file-v">' + formatToman(discountAmount) + ' تومان</span>' +
@@ -5976,7 +5999,7 @@
                 if (loanSettledWrap) loanSettledWrap.hidden = true;
                 if (loanSettledSection) loanSettledSection.hidden = true;
                 if (loanCustomInterestWrap) loanCustomInterestWrap.hidden = true;
-                if (loanInstallmentsCountInput) loanInstallmentsCountInput.value = '12';
+                if (loanInstallmentsCountInput) loanInstallmentsCountInput.value = '6';
                 if (loanInstallmentIntervalCountInput) loanInstallmentIntervalCountInput.value = '1';
                 if (loanStartJdateInput && adminTodayJdate) loanStartJdateInput.value = adminTodayJdate;
                 if (loanDisbursementDueJdateInput && adminTodayJdate) loanDisbursementDueJdateInput.value = adminTodayJdate;

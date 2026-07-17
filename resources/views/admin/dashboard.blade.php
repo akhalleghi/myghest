@@ -104,6 +104,12 @@
             unicode-bidi: isolate;
         }
 
+        .stat-sys__currency {
+            display: inline-block;
+            unicode-bidi: isolate;
+            margin-inline-start: 0.2rem;
+        }
+
         .quick-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -727,7 +733,13 @@
                             @foreach ($chunk as $sr)
                                 <div class="stat-sys__row">
                                     <span>{{ $sr['label'] }}:</span>
-                                    <span class="stat-sys__val"><span class="stat-sys__val-ltr">{{ $sr['value'] }}</span></span>
+                                    <span class="stat-sys__val">
+                                        @if (\Illuminate\Support\Str::endsWith((string) ($sr['value'] ?? ''), ' تومان'))
+                                            <span class="stat-sys__val-ltr">{{ \Illuminate\Support\Str::beforeLast((string) $sr['value'], ' تومان') }}</span><span class="stat-sys__currency"> تومان</span>
+                                        @else
+                                            <span class="stat-sys__val-ltr">{{ $sr['value'] }}</span>
+                                        @endif
+                                    </span>
                                 </div>
                             @endforeach
                         </div>

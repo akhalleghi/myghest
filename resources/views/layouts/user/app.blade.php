@@ -1511,6 +1511,26 @@
             pointer-events: auto;
         }
 
+        .portal-online-pay-stack {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.12rem;
+            max-width: 100%;
+        }
+
+        .portal-online-pay-stack .portal-loan__btn {
+            width: 100%;
+        }
+
+        .portal-online-pay-off-label {
+            font-size: 0.62rem;
+            font-weight: 800;
+            color: var(--muted);
+            line-height: 1.2;
+            letter-spacing: 0.01em;
+        }
+
         .portal-loan__btn--table {
             font-size: 0.68rem;
             padding: 0.32rem 0.45rem;
