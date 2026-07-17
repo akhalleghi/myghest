@@ -342,6 +342,165 @@ final class PortalLoanWalletPaymentService
         }
     }
 
+    /**
+     * @return array{ok: bool, message: string, amount_toman?: int, shortfall_toman?: int, needs_topup?: bool, replay?: bool}
+     */
+    public function payAllFullSettlementsFromWallet(Customer $customer, string $idempotencyKey): array
+    {
+        $key = $this->normalizeIdempotencyKey($idempotencyKey);
+        if ($key === null) {
+            return ['ok' => false, 'message' => 'شناسهٔ یکتای درخواست نامعتبر است؛ صفحه را تازه کنید و دوباره تلاش کنید.'];
+        }
+
+        $requestUuid = Str::lower($key);
+
+        try {
+            return DB::transaction(function () use ($customer, $requestUuid): array {
+                $existing = CustomerWalletTransaction::query()
+                    ->where('customer_id', (int) $customer->id)
+                    ->where('request_uuid', $requestUuid)
+                    ->first();
+                if ($existing !== null) {
+                    return $this->replayFullSettlementWalletResponse($existing);
+                }
+
+                $quote = $this->portalPresenter->fullSettlementQuoteForAllOpenFiles($customer);
+                if ($quote === null) {
+                    return ['ok' => false, 'message' => 'تسویهٔ کلی برای پرونده‌های باز در دسترس نیست.'];
+                }
+
+                $amountToman = (int) $quote['amount_toman'];
+                $principalToman = (int) $quote['principal_toman'];
+                $lateFeeToman = (int) $quote['late_fee_toman'];
+                if ($amountToman < 1) {
+                    return ['ok' => false, 'message' => 'مبلغ تسویه نامعتبر است.'];
+                }
+
+                $fileIds = array_map(
+                    static fn (array $item): int => (int) $item['loan_file_id'],
+                    $quote['files']
+                );
+
+                $balance = $this->lockedWalletBalanceToman($customer);
+                if ($balance < $amountToman) {
+                    return [
+                        'ok' => false,
+                        'message' => 'موجودی کیف پول برای تسویهٔ کلی کافی نیست.',
+                        'amount_toman' => $amountToman,
+                        'shortfall_toman' => $amountToman - $balance,
+                        'needs_topup' => true,
+                    ];
+                }
+
+                $metaBase = [
+                    'purpose' => 'loan_full_settlement_wallet_all',
+                    'file_ids' => $fileIds,
+                    'principal_toman' => $principalToman,
+                    'late_fee_toman' => $lateFeeToman,
+                    'total_amount_toman' => $amountToman,
+                    'files_count' => (int) $quote['files_count'],
+                ];
+
+                $desc = 'تسویهٔ کلی همهٔ پرونده‌های باز — '.(int) $quote['files_count'].' پرونده';
+                try {
+                    [, $wtx, $dedup] = $this->walletService->adjust(
+                        $customer,
+                        CustomerWalletTransaction::DIRECTION_WITHDRAW,
+                        $amountToman,
+                        $desc,
+                        null,
+                        (string) (request()->ip() ?? ''),
+                        (string) (request()->userAgent() ?? ''),
+                        $requestUuid,
+                        $metaBase
+                    );
+                } catch (\RuntimeException $e) {
+                    $msg = $e->getMessage();
+
+                    return str_contains($msg, 'کافی نیست')
+                        ? [
+                            'ok' => false,
+                            'message' => 'موجودی کیف پول برای تسویهٔ کلی کافی نیست.',
+                            'amount_toman' => $amountToman,
+                            'shortfall_toman' => max(0, $amountToman - $this->lockedWalletBalanceToman($customer)),
+                            'needs_topup' => true,
+                        ]
+                        : ['ok' => false, 'message' => $msg];
+                }
+
+                if ($dedup) {
+                    return $this->replayFullSettlementWalletResponse($wtx);
+                }
+
+                $ref = 'wtx-'.(int) $wtx->id;
+
+                foreach ($quote['files'] as $item) {
+                    $fileId = (int) $item['loan_file_id'];
+                    $expectedPrincipal = (int) $item['principal_toman'];
+                    $expectedLateFee = (int) $item['late_fee_toman'];
+                    $expectedAmount = (int) $item['amount_toman'];
+
+                    $file = CustomerLoanFile::query()
+                        ->where('customer_id', (int) $customer->id)
+                        ->whereKey($fileId)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($file === null) {
+                        throw new \RuntimeException('CONCURRENT_QUOTE_MISMATCH');
+                    }
+
+                    $quote2 = $this->portalPresenter->fullSettlementOnlinePaymentQuote($file);
+                    if ($quote2 === null
+                        || (int) $quote2['amount_toman'] !== $expectedAmount
+                        || (int) $quote2['principal_toman'] !== $expectedPrincipal
+                        || (int) $quote2['late_fee_toman'] !== $expectedLateFee) {
+                        throw new \RuntimeException('CONCURRENT_QUOTE_MISMATCH');
+                    }
+
+                    try {
+                        $this->fullSettlementAllocator->allocatePrincipalAcrossInstallments(
+                            $file,
+                            $expectedPrincipal,
+                            $ref,
+                            CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET,
+                        );
+                    } catch (\RuntimeException $e) {
+                        throw new \RuntimeException('ALLOC_FAIL:'.$e->getMessage(), 0, $e);
+                    }
+
+                    $file->refresh();
+                    $file->is_settled = true;
+                    $file->settled_at = Carbon::now()->startOfDay();
+                    $file->save();
+
+                    $this->ledger->syncFromWalletFullSettlementBatchFilePayment($wtx, $file, $quote2, $expectedAmount);
+
+                    PortalAdminSmsDispatcher::afterFullSettlement((int) $customer->id, (int) $file->id, $expectedAmount);
+                }
+
+                $meta = array_merge($metaBase, ['wallet_tx_id' => (int) $wtx->id]);
+                $wtx->meta = $meta;
+                $wtx->save();
+
+                return [
+                    'ok' => true,
+                    'message' => 'تسویهٔ کلی همهٔ پرونده‌های باز از کیف پول با موفقیت انجام شد.',
+                    'amount_toman' => $amountToman,
+                ];
+            });
+        } catch (Throwable $e) {
+            if ($e->getMessage() === 'CONCURRENT_QUOTE_MISMATCH') {
+                return ['ok' => false, 'message' => 'وضعیت وام هنگام پرداخت تغییر کرد؛ لطفاً صفحه را تازه کنید.'];
+            }
+            if (str_starts_with($e->getMessage(), 'ALLOC_FAIL:')) {
+                return ['ok' => false, 'message' => 'ثبت تسویه با جدول اقساط هم‌خوان نیست؛ با پشتیبانی تماس بگیرید.'];
+            }
+
+            return ['ok' => false, 'message' => 'خطای غیرمنتظره هنگام تسویه؛ لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.'];
+        }
+    }
+
     private function lockedWalletBalanceToman(Customer $customer): int
     {
         $this->walletService->ensureWallet($customer);
@@ -379,13 +538,16 @@ final class PortalLoanWalletPaymentService
     private function replayFullSettlementWalletResponse(CustomerWalletTransaction $tx): array
     {
         $meta = $tx->meta ?? [];
-        if (($meta['purpose'] ?? '') !== 'loan_full_settlement_wallet') {
+        $purpose = (string) ($meta['purpose'] ?? '');
+        if (! in_array($purpose, ['loan_full_settlement_wallet', 'loan_full_settlement_wallet_all'], true)) {
             return ['ok' => false, 'message' => 'این شناسهٔ یکتا برای عملیات دیگری ثبت شده است.'];
         }
 
         return [
             'ok' => true,
-            'message' => 'تسویهٔ کلی از کیف پول قبلاً برای این درخواست ثبت شده است.',
+            'message' => $purpose === 'loan_full_settlement_wallet_all'
+                ? 'تسویهٔ کلی همهٔ پرونده‌ها از کیف پول قبلاً برای این درخواست ثبت شده است.'
+                : 'تسویهٔ کلی از کیف پول قبلاً برای این درخواست ثبت شده است.',
             'amount_toman' => (int) $tx->amount_toman,
             'replay' => true,
         ];

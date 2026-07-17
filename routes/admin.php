@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
 use App\Http\Controllers\Admin\Auth\AdminDashboardController;
 use App\Http\Controllers\Admin\Auth\AdminLoginController;
 use App\Http\Controllers\Admin\Auth\AdminLoginTwoFactorController;
+use App\Http\Controllers\Admin\AdminCustomerNoteController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\CustomerWalletController;
 use App\Http\Controllers\Admin\GuaranteeReturnOtpController;
@@ -421,6 +422,22 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
         ->middleware('throttle:60,1')
         ->name('customers.edit-data');
 
+    Route::get('/customers/{customer}/notes', [AdminCustomerNoteController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('customers.notes.index');
+
+    Route::post('/customers/{customer}/notes', [AdminCustomerNoteController::class, 'store'])
+        ->middleware('throttle:30,1')
+        ->name('customers.notes.store');
+
+    Route::put('/customers/{customer}/notes/{note}', [AdminCustomerNoteController::class, 'update'])
+        ->middleware('throttle:30,1')
+        ->name('customers.notes.update');
+
+    Route::delete('/customers/{customer}/notes/{note}', [AdminCustomerNoteController::class, 'destroy'])
+        ->middleware('throttle:30,1')
+        ->name('customers.notes.destroy');
+
     Route::get('/customers/{customer}/loan-manage-modal-context', [CustomerController::class, 'loanManageModalContext'])
         ->middleware('throttle:60,1')
         ->name('customers.loan-manage-modal-context');
@@ -536,6 +553,14 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
     Route::get('/customers/{customer}/loan-files/{loanFile}/instant-settlement-preview', [CustomerController::class, 'loanInstantSettlementPreview'])
         ->middleware('throttle:60,1')
         ->name('customers.loan-files.instant-settlement-preview');
+
+    Route::get('/customers/{customer}/instant-settlement-all-preview', [CustomerController::class, 'loanInstantSettlementAllPreview'])
+        ->middleware('throttle:60,1')
+        ->name('customers.instant-settlement-all-preview');
+
+    Route::post('/customers/{customer}/settle-all-loans', [CustomerController::class, 'settleAllLoans'])
+        ->middleware('throttle:30,1')
+        ->name('customers.settle-all-loans');
 
     Route::get('/customers/{customer}/loan-files/{loanFile}/discount-preview', [CustomerController::class, 'loanDiscountPreview'])
         ->middleware('throttle:60,1')

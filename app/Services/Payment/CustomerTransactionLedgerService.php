@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Payment;
 
 use App\Models\CustomerLoanFile;
+use App\Models\CustomerLoanFullSettlementBatchOnlinePaymentIntent;
 use App\Models\CustomerLoanFullSettlementOnlinePaymentIntent;
 use App\Models\CustomerLoanInstallment;
 use App\Models\CustomerLoanInstallmentOnlinePaymentIntent;
@@ -245,6 +246,101 @@ final class CustomerTransactionLedgerService
         $row->track_id = null;
         $row->bank_reference = 'wtx-'.(string) $wtx->id;
         $row->title = 'تسویهٔ کلی بدهی (کیف پول)';
+        $row->detail = $detail;
+        $row->meta = $meta;
+        $row->failure_reason = null;
+
+        $row->save();
+    }
+
+    public function syncFromFullSettlementBatchIntent(CustomerLoanFullSettlementBatchOnlinePaymentIntent $intent): void
+    {
+        $items = is_array($intent->items_json) ? $intent->items_json : [];
+        $filesCount = count($items);
+
+        $detailParts = array_filter([
+            $filesCount > 0 ? Jalali::enToFaNumbers((string) $filesCount).' پرونده' : null,
+            'تسویهٔ کلی همهٔ پرونده‌ها (درگاه)',
+        ]);
+        $detail = $detailParts !== [] ? implode(' — ', $detailParts) : null;
+
+        $meta = [
+            'files_count' => $filesCount,
+            'principal_component_toman' => (int) $intent->principal_component_toman,
+            'late_fee_component_toman' => (int) $intent->late_fee_component_toman,
+            'items' => $items,
+        ];
+
+        $row = CustomerTransaction::query()->firstOrNew([
+            'source_type' => CustomerLoanFullSettlementBatchOnlinePaymentIntent::class,
+            'source_id' => (int) $intent->id,
+        ]);
+
+        $row->customer_id = (int) $intent->customer_id;
+        $row->kind = CustomerTransaction::KIND_FULL_SETTLEMENT_ONLINE_PAYMENT;
+        $row->status = (string) $intent->status;
+        $row->amount_toman = (int) $intent->expected_amount_toman;
+        $row->amount_rial = (int) $intent->expected_amount_rial;
+        $row->gateway_key = $intent->gateway_key !== null && trim((string) $intent->gateway_key) !== ''
+            ? trim((string) $intent->gateway_key)
+            : null;
+        $row->track_id = $intent->track_id !== null ? (int) $intent->track_id : null;
+        $ref = $intent->zibal_ref_number;
+        $row->bank_reference = $ref !== null && trim((string) $ref) !== '' ? trim((string) $ref) : null;
+        $row->title = 'تسویهٔ کلی همهٔ پرونده‌ها (درگاه)';
+        $row->detail = $detail;
+        $row->meta = $meta;
+        $fail = $intent->failure_reason;
+        $row->failure_reason = $fail !== null && trim((string) $fail) !== '' ? (string) $fail : null;
+
+        $row->save();
+    }
+
+    /**
+     * @param  array{principal_toman: int, late_fee_toman: int, amount_toman: int}  $quote
+     */
+    public function syncFromWalletFullSettlementBatchFilePayment(
+        CustomerWalletTransaction $wtx,
+        CustomerLoanFile $file,
+        array $quote,
+        int $amountToman,
+    ): void {
+        $file->loadMissing('loanType');
+
+        $loanTitle = (string) ($file->loanType?->title ?? 'وام');
+        $loanCode = (string) ($file->loan_code ?? '');
+        $loanCodeFa = $loanCode !== '' ? Jalali::enToFaNumbers($loanCode) : '—';
+
+        $detailParts = array_filter([
+            $loanTitle !== '' && $loanTitle !== 'وام' ? 'نوع وام: '.$loanTitle : null,
+            $loanCode !== '' ? 'کد پرونده: '.$loanCodeFa : null,
+            'تسویهٔ کلی بدهی (کیف پول — همهٔ پرونده‌ها)',
+        ]);
+        $detail = $detailParts !== [] ? implode(' — ', $detailParts) : null;
+
+        $meta = [
+            'loan_file_id' => (int) $file->id,
+            'loan_code' => $loanCode !== '' ? $loanCode : null,
+            'principal_component_toman' => (int) $quote['principal_toman'],
+            'late_fee_component_toman' => (int) $quote['late_fee_toman'],
+            'wallet_transaction_id' => (int) $wtx->id,
+            'batch_settlement' => true,
+        ];
+
+        $row = CustomerTransaction::query()->firstOrNew([
+            'source_type' => CustomerWalletTransaction::class.'#batch_settlement_file',
+            'source_id' => ((int) $wtx->id * 1000000) + (int) $file->id,
+        ]);
+
+        $row->customer_id = (int) $wtx->customer_id;
+        $row->kind = CustomerTransaction::KIND_FULL_SETTLEMENT_WALLET_PAYMENT;
+        $row->status = CustomerTransaction::STATUS_COMPLETED;
+        $row->amount_toman = $amountToman;
+        $row->amount_rial = $amountToman * 10;
+        $row->gateway_key = null;
+        $row->track_id = null;
+        $row->bank_reference = 'wtx-'.(string) $wtx->id;
+        $row->title = 'تسویهٔ کلی بدهی (کیف پول — همهٔ پرونده‌ها)';
         $row->detail = $detail;
         $row->meta = $meta;
         $row->failure_reason = null;

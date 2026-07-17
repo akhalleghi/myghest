@@ -34,6 +34,7 @@ final class CustomerLoginController extends Controller
     {
         return view('user.auth.login', [
             'customerLoginTwoFactorEnabled' => CustomerLoginSecuritySettings::isTwoFactorEnabled(),
+            'customerLoginSmsOtpEnabled' => CustomerLoginSecuritySettings::isSmsOtpLoginEnabled(),
         ]);
     }
 
@@ -42,16 +43,22 @@ final class CustomerLoginController extends Controller
      */
     public function store(Request $request, CustomerLoginLogService $loginLogService): RedirectResponse|JsonResponse
     {
+        if ($request->has('captcha')) {
+            $request->merge([
+                'captcha' => $this->normalizeCaptchaDigits((string) $request->input('captcha')),
+            ]);
+        }
+
         $credentials = $request->validate([
             'username' => ['required', 'string', 'min:3', 'max:64'],
             'password' => ['required', 'string', 'max:255'],
-            'captcha' => ['required', 'string', 'size:5'],
+            'captcha' => ['required', 'string', 'regex:/^\d{5}$/'],
             'remember' => ['sometimes', 'boolean'],
         ], [
             'username.required' => 'نام کاربری را وارد کنید.',
             'password.required' => 'رمز عبور را وارد کنید.',
             'captcha.required' => 'کد تأیید را وارد کنید.',
-            'captcha.size' => 'کپچا باید ۵ کاراکتر باشد.',
+            'captcha.regex' => 'کپچا باید ۵ رقم باشد.',
         ]);
 
         $remember = (bool) $request->boolean('remember');
@@ -152,6 +159,13 @@ final class CustomerLoginController extends Controller
         $step = str_replace($ar, $en, str_replace($fa, $en, $value));
 
         return trim($step);
+    }
+
+    private function normalizeCaptchaDigits(string $value): string
+    {
+        $ascii = $this->normalizeLoginUsername($value);
+
+        return preg_replace('/\D+/', '', $ascii) ?? '';
     }
 
     private function expectsLoginJson(Request $request): bool

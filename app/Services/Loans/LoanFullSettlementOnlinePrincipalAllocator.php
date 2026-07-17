@@ -27,6 +27,8 @@ final class LoanFullSettlementOnlinePrincipalAllocator
         int $principalToman,
         string $bankRefTrim,
         string $installmentPaymentMethod = CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_ONLINE,
+        ?int $recordedByAdminId = null,
+        ?string $depositedAtDate = null,
     ): void {
         if ($principalToman < 0) {
             throw new \RuntimeException('مبلغ اصلی نامعتبر است.');
@@ -37,9 +39,12 @@ final class LoanFullSettlementOnlinePrincipalAllocator
 
         $note = match ($installmentPaymentMethod) {
             CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET => 'تسویهٔ یکجای بدهی از کیف پول'.($bankRefTrim !== '' ? ' — مرجع: '.$bankRefTrim : ''),
-            default => 'تسویهٔ یکجای بدهی از درگاه'.($bankRefTrim !== '' ? ' — مرجع: '.$bankRefTrim : ''),
+            CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_ONLINE => 'تسویهٔ یکجای بدهی از درگاه'.($bankRefTrim !== '' ? ' — مرجع: '.$bankRefTrim : ''),
+            default => 'تسویهٔ یکجای بدهی'.($bankRefTrim !== '' ? ' — '.$bankRefTrim : ''),
         };
-        $today = Carbon::now()->startOfDay()->format('Y-m-d');
+        $depositedAt = $depositedAtDate !== null && trim($depositedAtDate) !== ''
+            ? trim($depositedAtDate)
+            : Carbon::now()->startOfDay()->format('Y-m-d');
 
         $file->loadMissing([
             'installments' => static function ($q): void {
@@ -68,9 +73,9 @@ final class LoanFullSettlementOnlinePrincipalAllocator
                 'payment_method' => $installmentPaymentMethod,
                 'amount_toman' => $pay,
                 'reference_due_date' => null,
-                'deposited_at' => $today,
+                'deposited_at' => $depositedAt,
                 'note' => $note,
-                'recorded_by_admin_id' => null,
+                'recorded_by_admin_id' => $recordedByAdminId,
             ]);
             $inst->refresh();
             $this->syncer->syncFromPaymentRows($inst);

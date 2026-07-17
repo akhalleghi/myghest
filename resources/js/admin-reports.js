@@ -836,6 +836,7 @@ function rptInitDepositsByDateReport(cfg) {
     var form = document.getElementById('rpt-deposits-by-date-form');
     var tbody = document.getElementById('rpt-dep-tbody');
     var meta = document.getElementById('rpt-dep-meta');
+    var summaryEl = document.getElementById('rpt-dep-summary');
     var searchInput = document.getElementById('rpt-dep-search');
     var paymentMethodSelect = document.getElementById('rpt-dep-payment-method');
     var fromInput = document.getElementById('rpt-dep-from');
@@ -917,6 +918,7 @@ function rptInitDepositsByDateReport(cfg) {
     }
 
     var allRows = [];
+    var summaryCache = null;
     var serverSearch = '';
     var serverPaymentMethod = '';
 
@@ -932,6 +934,74 @@ function rptInitDepositsByDateReport(cfg) {
         overlay.hidden = true;
         overlay.setAttribute('aria-hidden', 'true');
         document.body.style.overflow = '';
+    }
+
+    function clearSummary() {
+        summaryCache = null;
+        if (!summaryEl) {
+            return;
+        }
+        summaryEl.hidden = true;
+        summaryEl.replaceChildren();
+    }
+
+    function renderSummary(summary) {
+        if (!summaryEl) {
+            return;
+        }
+        summaryCache = summary && typeof summary === 'object' ? summary : null;
+        summaryEl.replaceChildren();
+        if (!summaryCache) {
+            summaryEl.hidden = true;
+
+            return;
+        }
+
+        var totalCard = document.createElement('div');
+        totalCard.className = 'rpt-dep-summary__card rpt-dep-summary__card--total';
+        var totalLabel = document.createElement('p');
+        totalLabel.className = 'rpt-dep-summary__label';
+        totalLabel.textContent = 'جمع کل واریزی‌های بازه';
+        var totalValue = document.createElement('p');
+        totalValue.className = 'rpt-dep-summary__value';
+        totalValue.textContent =
+            summaryCache.total_amount_formatted || rptFormatAmount(summaryCache.total_amount_toman || 0);
+        var totalCount = document.createElement('p');
+        totalCount.className = 'rpt-dep-summary__count';
+        totalCount.textContent = rptFaNum(summaryCache.count || 0) + ' تراکنش';
+        totalCard.appendChild(totalLabel);
+        totalCard.appendChild(totalValue);
+        totalCard.appendChild(totalCount);
+        summaryEl.appendChild(totalCard);
+
+        var methods = Array.isArray(summaryCache.by_payment_method) ? summaryCache.by_payment_method : [];
+        methods.forEach(function (item) {
+            if (!item) {
+                return;
+            }
+            var card = document.createElement('div');
+            card.className = 'rpt-dep-summary__card';
+            var label = document.createElement('p');
+            label.className = 'rpt-dep-summary__label';
+            label.textContent = item.label || item.key || '—';
+            var value = document.createElement('p');
+            value.className = 'rpt-dep-summary__value';
+            value.textContent = item.amount_formatted || rptFormatAmount(item.amount_toman || 0);
+            var count = document.createElement('p');
+            count.className = 'rpt-dep-summary__count';
+            count.textContent = rptFaNum(item.count || 0) + ' تراکنش';
+            card.appendChild(label);
+            card.appendChild(value);
+            card.appendChild(count);
+            summaryEl.appendChild(card);
+        });
+
+        var note = document.createElement('p');
+        note.className = 'rpt-dep-summary__note';
+        note.textContent =
+            'جمع و تفکیک بالا بر اساس بازهٔ تاریخ واریز است؛ فیلتر نحوه پرداخت و جستجو فقط برای جزئیات جدول اعمال می‌شود.';
+        summaryEl.appendChild(note);
+        summaryEl.hidden = false;
     }
 
     function renderRows(rows) {
@@ -1065,6 +1135,7 @@ function rptInitDepositsByDateReport(cfg) {
         if (meta) {
             meta.textContent = 'در حال دریافت اطلاعات…';
         }
+        clearSummary();
 
         var url = new URL(cfg.depositsByDateDataUrl || '', window.location.origin);
         url.searchParams.set('from_jdate', fromVal);
@@ -1097,7 +1168,12 @@ function rptInitDepositsByDateReport(cfg) {
                         String(data.meta.to_jdate || '') +
                         ' — ' +
                         rptFaNum(data.meta.count || allRows.length) +
-                        ' واریز';
+                        ' واریز در جدول';
+                }
+                if (data.meta && data.meta.summary) {
+                    renderSummary(data.meta.summary);
+                } else {
+                    clearSummary();
                 }
                 if (searchInput) {
                     searchInput.value = serverSearch;
@@ -1113,6 +1189,7 @@ function rptInitDepositsByDateReport(cfg) {
                 if (meta) {
                     meta.textContent = 'خطا در دریافت اطلاعات.';
                 }
+                clearSummary();
             });
     }
 

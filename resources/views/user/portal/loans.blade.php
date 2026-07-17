@@ -12,7 +12,20 @@
                 <i class="fa-solid fa-file-invoice-dollar portal-loans-page__head-ico" aria-hidden="true"></i>
                 <h1 id="portal-loans-page-title" class="portal-loans-page__title">لیست وام‌ها</h1>
             </div>
-            <span class="portal-loans-page__badge" title="تعداد پرونده‌ها">{{ $pl['loan_count_fa'] }} پرونده</span>
+            <div style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap;justify-content:flex-end">
+                @if(!empty($settleAllQuote) && (int) ($settleAllQuote['amount_toman'] ?? 0) > 0)
+                    <button
+                        type="button"
+                        class="portal-loan__btn portal-loan__btn--settle"
+                        data-portal-settle-all-open
+                        data-settlement-toman="{{ (int) $settleAllQuote['amount_toman'] }}"
+                    >
+                        <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+                        تسویه همزمان همه
+                    </button>
+                @endif
+                <span class="portal-loans-page__badge" title="تعداد پرونده‌ها">{{ $pl['loan_count_fa'] }} پرونده</span>
+            </div>
         </header>
 
         @if(empty($pl['loans']))
@@ -173,6 +186,14 @@
         'settleDialogNamespace' => 'portal-loans-settle',
         'settleReturnRouteName' => 'user.loans.index',
         'settleCloseDataAttr' => 'data-portal-loans-dialog-close',
+    ])
+
+    @include('user.portal.partials.full-settlement-all-dialog', [
+        'settleAllDialogNamespace' => 'portal-settle-all',
+        'settleAllReturnRouteName' => 'user.loans.index',
+        'settleAllCloseDataAttr' => 'data-portal-settle-all-close',
+        'settleAllQuote' => $settleAllQuote ?? null,
+        'customerWalletBalanceToman' => $portalWalletBal,
     ])
 
     <dialog id="portal-loans-inst-dialog" class="portal-dialog portal-dialog--wide" aria-labelledby="portal-loans-inst-title">
@@ -629,6 +650,75 @@
                     if (typeof instDialog.showModal === 'function') instDialog.showModal();
                 });
             });
+
+            (function initSettleAll() {
+                var allDialog = document.getElementById('portal-settle-all-dialog');
+                if (!allDialog) return;
+                var lastAllShort = 0;
+
+                function refreshWalletUi() {
+                    var balHeader = 0;
+                    if (typeof window.portalApplyWalletBalanceToGlobals === 'function') {
+                        balHeader = window.portalApplyWalletBalanceToGlobals();
+                    }
+                    var wLineEl = document.getElementById('portal-settle-all-wallet-line');
+                    if (wLineEl && typeof window.portalFormatFaTomanLine === 'function') {
+                        wLineEl.textContent = window.portalFormatFaTomanLine(balHeader);
+                    }
+                    var wSub = document.getElementById('portal-settle-all-wallet-submit');
+                    var wHint = document.getElementById('portal-settle-all-wallet-hint');
+                    var topWrap = document.getElementById('portal-settle-all-wallet-topup-wrap');
+                    var wIdem = document.getElementById('portal-settle-all-wallet-idem');
+                    if (wIdem) wIdem.value = newIdempotencyKey();
+                    var needT = wSub ? (parseInt(wSub.getAttribute('data-need-toman') || '0', 10) || 0) : 0;
+                    var bal = typeof window.__PORTAL_WALLET_BALANCE_TOMAN__ === 'number' ? window.__PORTAL_WALLET_BALANCE_TOMAN__ : balHeader;
+                    var short = needT > bal ? (needT - bal) : 0;
+                    lastAllShort = short;
+                    if (topWrap) topWrap.style.display = needT > 0 && short > 0 ? 'block' : 'none';
+                    if (wHint) {
+                        if (needT > 0 && short > 0) {
+                            wHint.style.display = 'block';
+                            wHint.textContent = 'موجودی کافی نیست؛ کمبود: ' + faMoneyFromToman(short);
+                        } else {
+                            wHint.style.display = 'none';
+                            wHint.textContent = '';
+                        }
+                    }
+                    if (wSub) {
+                        wSub.disabled = needT < 1 || short > 0;
+                        wSub.title = short > 0 ? 'موجودی کیف پول کافی نیست.' : '';
+                    }
+                }
+
+                document.querySelectorAll('[data-portal-settle-all-open]').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        refreshWalletUi();
+                        if (typeof allDialog.showModal === 'function') allDialog.showModal();
+                    });
+                });
+
+                allDialog.querySelectorAll('[data-portal-settle-all-close]').forEach(function (b) {
+                    b.addEventListener('click', function () {
+                        if (allDialog.open) allDialog.close();
+                    });
+                });
+
+                allDialog.addEventListener('click', function (e) {
+                    if (e.target === allDialog) {
+                        if (allDialog.open) allDialog.close();
+                    }
+                });
+
+                var topBtn = document.getElementById('portal-settle-all-wallet-topup-btn');
+                if (topBtn) {
+                    topBtn.addEventListener('click', function () {
+                        if (allDialog.open) allDialog.close();
+                        if (typeof window.portalOpenWalletTopupPrefill === 'function') {
+                            window.portalOpenWalletTopupPrefill(lastAllShort);
+                        }
+                    });
+                }
+            })();
 
         })();
     </script>

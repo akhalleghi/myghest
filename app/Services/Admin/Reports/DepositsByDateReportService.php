@@ -110,6 +110,86 @@ final class DepositsByDateReportService
     }
 
     /**
+     * جمع واریزهای بازهٔ تاریخ (بدون فیلتر نحوه پرداخت / جستجو — برای کارت‌های خلاصه بالای گزارش).
+     *
+     * @return array{
+     *     total_amount_toman: int,
+     *     total_amount_formatted: string,
+     *     count: int,
+     *     by_payment_method: list<array{key: string, label: string, amount_toman: int, amount_formatted: string, count: int}>
+     * }
+     */
+    public function summarizeRange(Carbon $from, Carbon $to): array
+    {
+        /** @var Collection<int, object{payment_method: string, cnt: int|string, total_amount: int|string|null}> $grouped */
+        $grouped = CustomerLoanInstallmentPayment::query()
+            ->whereNotNull('deposited_at')
+            ->whereBetween('deposited_at', [$from->toDateString(), $to->toDateString()])
+            ->whereHas('installment.loanFile', static function (Builder $lf): void {
+                $lf->whereNull('revoked_at');
+            })
+            ->selectRaw('payment_method, COUNT(*) as cnt, COALESCE(SUM(amount_toman), 0) as total_amount')
+            ->groupBy('payment_method')
+            ->get();
+
+        $labels = CustomerLoanInstallmentPayment::methodLabels();
+        $amountsByKey = [];
+        $countsByKey = [];
+        $totalAmount = 0;
+        $totalCount = 0;
+
+        foreach ($grouped as $row) {
+            $key = (string) $row->payment_method;
+            $amount = (int) $row->total_amount;
+            $count = (int) $row->cnt;
+            $amountsByKey[$key] = $amount;
+            $countsByKey[$key] = $count;
+            $totalAmount += $amount;
+            $totalCount += $count;
+        }
+
+        $byMethod = [];
+        foreach ($labels as $key => $label) {
+            $amount = (int) ($amountsByKey[$key] ?? 0);
+            $count = (int) ($countsByKey[$key] ?? 0);
+            if ($amount <= 0 && $count <= 0) {
+                continue;
+            }
+            $byMethod[] = [
+                'key' => $key,
+                'label' => $label,
+                'amount_toman' => $amount,
+                'amount_formatted' => $this->formatAmount($amount),
+                'count' => $count,
+            ];
+        }
+
+        foreach ($amountsByKey as $key => $amount) {
+            if (isset($labels[$key])) {
+                continue;
+            }
+            $count = (int) ($countsByKey[$key] ?? 0);
+            if ($amount <= 0 && $count <= 0) {
+                continue;
+            }
+            $byMethod[] = [
+                'key' => $key,
+                'label' => $key,
+                'amount_toman' => (int) $amount,
+                'amount_formatted' => $this->formatAmount((int) $amount),
+                'count' => $count,
+            ];
+        }
+
+        return [
+            'total_amount_toman' => $totalAmount,
+            'total_amount_formatted' => $this->formatAmount($totalAmount),
+            'count' => $totalCount,
+            'by_payment_method' => $byMethod,
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public function excelHeaderRow(): array

@@ -512,6 +512,62 @@
         .rpt-table--deposits-by-date col.rpt-col-dep-notes { width: 11%; }
         .rpt-table--deposits-by-date col.rpt-col-dep-ops { width: 5.5%; }
 
+        .rpt-dep-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+            gap: 0.4rem;
+            margin: 0 0 0.6rem;
+        }
+        .rpt-dep-summary[hidden] { display: none !important; }
+        .rpt-dep-summary__card {
+            border: 1px solid var(--border);
+            border-radius: 0.62rem;
+            background: var(--bg-card);
+            padding: 0.48rem 0.55rem 0.45rem;
+            min-width: 0;
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.035);
+        }
+        .rpt-dep-summary__card--total {
+            border-color: rgba(37, 99, 235, 0.35);
+            background: linear-gradient(160deg, rgba(37, 99, 235, 0.1), rgba(37, 99, 235, 0.02));
+        }
+        html[data-theme="dark"] .rpt-dep-summary__card--total {
+            background: linear-gradient(160deg, rgba(37, 99, 235, 0.22), rgba(15, 23, 42, 0.2));
+        }
+        .rpt-dep-summary__label {
+            margin: 0;
+            font-size: 0.64rem;
+            font-weight: 700;
+            color: var(--muted);
+            line-height: 1.35;
+        }
+        .rpt-dep-summary__value {
+            margin: 0.18rem 0 0;
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: var(--text);
+            font-variant-numeric: tabular-nums;
+            direction: ltr;
+            unicode-bidi: plaintext;
+            line-height: 1.25;
+            word-break: break-word;
+        }
+        .rpt-dep-summary__card--total .rpt-dep-summary__value { color: var(--primary-dark, #1d4ed8); }
+        .rpt-dep-summary__count {
+            margin: 0.12rem 0 0;
+            font-size: 0.59rem;
+            font-weight: 650;
+            color: var(--muted);
+        }
+        .rpt-dep-summary__note {
+            grid-column: 1 / -1;
+            margin: 0;
+            font-size: 0.68rem;
+            color: var(--muted);
+            font-weight: 600;
+            line-height: 1.55;
+        }
+
         .rpt-table--deposits-by-date .rpt-td--text {
             white-space: normal;
             font-size: 0.64rem;
@@ -1181,6 +1237,8 @@
                 </div>
 
                 <p class="rpt-meta" id="rpt-dep-meta">بازهٔ تاریخ را انتخاب کنید و «دریافت اطلاعات» را بزنید.</p>
+
+                <div class="rpt-dep-summary" id="rpt-dep-summary" hidden aria-live="polite"></div>
 
                 <div class="rpt-table-card">
                     <div class="rpt-table-wrap">

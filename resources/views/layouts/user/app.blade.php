@@ -1433,10 +1433,28 @@
             border-bottom: 1px dashed rgba(148, 163, 184, 0.55);
         }
 
+        .portal-settle-summary__total--stack {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0.35rem;
+        }
+
+        .portal-settle-summary__total--stack .portal-settle-summary__v {
+            text-align: start;
+            white-space: nowrap;
+        }
+
         .portal-settle-summary__total .portal-settle-summary__v {
             font-size: 1.05rem;
             font-weight: 900;
             color: var(--primary-dark);
+            flex: 0 0 auto;
+            white-space: nowrap;
+        }
+
+        .portal-settle-summary__total .portal-settle-summary__k {
+            flex: 1 1 auto;
+            min-width: 0;
         }
 
         .portal-settle-summary__rows {

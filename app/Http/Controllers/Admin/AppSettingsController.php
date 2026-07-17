@@ -69,6 +69,7 @@ final class AppSettingsController extends Controller
             'remove_app_icon' => ['nullable', 'boolean'],
             'remove_app_logo' => ['nullable', 'boolean'],
             'remove_favicon' => ['nullable', 'boolean'],
+            'customer_login_message' => ['nullable', 'string', 'max:500'],
         ], [], [
             'font_size' => 'اندازه فونت',
             'ui_font' => 'فونت',
@@ -80,6 +81,7 @@ final class AppSettingsController extends Controller
             'remove_app_icon' => 'حذف آیکون برنامه',
             'remove_app_logo' => 'حذف لوگوی سامانه',
             'remove_favicon' => 'حذف فاوآیکون',
+            'customer_login_message' => 'متن صفحه ورود مشتریان',
         ]);
 
         AppSetting::query()->updateOrCreate(
@@ -98,6 +100,12 @@ final class AppSettingsController extends Controller
         AppSetting::query()->updateOrCreate(
             ['key' => 'favicon_fa'],
             ['value' => trim((string) ($validated['favicon_fa'] ?? ''))]
+        );
+
+        $loginMessage = trim((string) ($validated['customer_login_message'] ?? ''));
+        AppSetting::query()->updateOrCreate(
+            ['key' => 'customer_login_message'],
+            ['value' => mb_substr($loginMessage, 0, 500)]
         );
 
         if ($request->boolean('remove_app_icon')) {
@@ -357,6 +365,7 @@ final class AppSettingsController extends Controller
     {
         $validated = $request->validate([
             'customer_login_two_factor_enabled' => ['required', 'string', 'in:0,1'],
+            'customer_login_sms_otp_enabled' => ['required', 'string', 'in:0,1'],
             'admin_login_two_factor_enabled' => ['required', 'string', 'in:0,1'],
             'customer_login_session_lifetime_minutes' => ['required', 'integer', 'min:5', 'max:1440'],
             'customer_login_max_failed_attempts' => ['required', 'integer', 'min:3', 'max:50'],
@@ -364,6 +373,7 @@ final class AppSettingsController extends Controller
             'admin_login_max_failed_attempts' => ['required', 'integer', 'min:3', 'max:50'],
         ], [], [
             'customer_login_two_factor_enabled' => 'تأیید دو مرحله‌ای ورود مشتریان',
+            'customer_login_sms_otp_enabled' => 'ورود پیامکی مشتریان',
             'admin_login_two_factor_enabled' => 'تأیید دو مرحله‌ای ورود ادمین',
             'customer_login_session_lifetime_minutes' => 'زمان نشست فعال مشتری',
             'customer_login_max_failed_attempts' => 'تعداد تلاش ناموفق ورود مشتری',
@@ -374,6 +384,11 @@ final class AppSettingsController extends Controller
         AppSetting::query()->updateOrCreate(
             ['key' => CustomerLoginSecuritySettings::SETTING_KEY],
             ['value' => $validated['customer_login_two_factor_enabled'] === '1' ? '1' : '0'],
+        );
+
+        AppSetting::query()->updateOrCreate(
+            ['key' => CustomerLoginSecuritySettings::SMS_OTP_LOGIN_SETTING_KEY],
+            ['value' => $validated['customer_login_sms_otp_enabled'] === '1' ? '1' : '0'],
         );
 
         AppSetting::query()->updateOrCreate(

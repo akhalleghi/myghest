@@ -7,6 +7,7 @@ namespace App\Services\Payment;
 use App\Models\AppSetting;
 use App\Models\Customer;
 use App\Models\CustomerLoanFile;
+use App\Models\CustomerLoanFullSettlementBatchOnlinePaymentIntent;
 use App\Models\CustomerLoanFullSettlementOnlinePaymentIntent;
 use App\Models\CustomerLoanInstallmentOnlinePaymentIntent;
 use App\Models\CustomerLoanInstallmentPayment;
@@ -56,6 +57,7 @@ final class InstallmentOnlinePaymentCompletionService
             $this->markInstallmentIntentsFailedByTrackId($trackId, 'کاربر از ادامهٔ پرداخت انصراف داد یا تراکنش ناموفق بود.');
             $this->markWalletIntentsFailedByTrackId($trackId, 'کاربر از ادامهٔ پرداخت انصراف داد یا تراکنش ناموفق بود.');
             $this->markFullSettlementIntentsFailedByTrackId($trackId, 'کاربر از ادامهٔ پرداخت انصراف داد یا تراکنش ناموفق بود.');
+            $this->markBatchFullSettlementIntentsFailedByTrackId($trackId, 'کاربر از ادامهٔ پرداخت انصراف داد یا تراکنش ناموفق بود.');
 
             return $this->redirectPortalPay($this->payResultPayload(false, 'پرداخت تکمیل نشد یا توسط شما لغو شد.', $trackId, null));
         }
@@ -90,6 +92,16 @@ final class InstallmentOnlinePaymentCompletionService
 
                 if ($fullSettlementIntent !== null) {
                     return $this->finalizeLoanFullSettlementIntent($fullSettlementIntent, $merchant, $trackId);
+                }
+
+                /** @var CustomerLoanFullSettlementBatchOnlinePaymentIntent|null $batchFullSettlementIntent */
+                $batchFullSettlementIntent = CustomerLoanFullSettlementBatchOnlinePaymentIntent::query()
+                    ->where('track_id', $trackId)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($batchFullSettlementIntent !== null) {
+                    return $this->finalizeLoanFullSettlementBatchIntent($batchFullSettlementIntent, $merchant, $trackId);
                 }
 
                 return $this->redirectPortalPay($this->payResultPayload(false, 'شناسهٔ تراکنش شناخته نشد.', $trackId, null));
@@ -604,6 +616,240 @@ final class InstallmentOnlinePaymentCompletionService
         ));
     }
 
+    private function finalizeLoanFullSettlementBatchIntent(
+        CustomerLoanFullSettlementBatchOnlinePaymentIntent $intent,
+        string $merchant,
+        int $trackId
+    ): RedirectResponse {
+        if ($intent->status === CustomerLoanFullSettlementBatchOnlinePaymentIntent::STATUS_COMPLETED) {
+            $bank = $intent->zibal_ref_number !== null && trim((string) $intent->zibal_ref_number) !== ''
+                ? trim((string) $intent->zibal_ref_number)
+                : null;
+            $this->ledger->syncFromFullSettlementBatchIntent($intent);
+
+            return $this->redirectPortalPay($this->payResultPayload(
+                true,
+                'تسویهٔ کلی همهٔ پرونده‌ها قبلاً با موفقیت ثبت شده است.',
+                $trackId,
+                $bank,
+                (int) $intent->expected_amount_toman
+            ));
+        }
+
+        $items = is_array($intent->items_json) ? $intent->items_json : [];
+        if ($items === []) {
+            $intent->update([
+                'status' => CustomerLoanFullSettlementBatchOnlinePaymentIntent::STATUS_FAILED,
+                'failure_reason' => 'لیست پرونده‌ها خالی است.',
+            ]);
+            $this->ledger->syncFromFullSettlementBatchIntent($intent->fresh());
+
+            return $this->redirectPortalPay($this->payResultPayload(
+                false,
+                'اطلاعات تسویهٔ دسته‌ای ناقص است.',
+                $trackId,
+                null,
+                (int) $intent->expected_amount_toman
+            ));
+        }
+
+        $verify = $this->zibal->verify($merchant, $trackId);
+        if (! $verify['ok']) {
+            $intent->update([
+                'status' => CustomerLoanFullSettlementBatchOnlinePaymentIntent::STATUS_FAILED,
+                'failure_reason' => $verify['message'],
+            ]);
+            $this->ledger->syncFromFullSettlementBatchIntent($intent->fresh());
+
+            return $this->redirectPortalPay($this->payResultPayload(
+                false,
+                'تأیید پرداخت توسط درگاه انجام نشد: '.$verify['message'],
+                $trackId,
+                null,
+                (int) $intent->expected_amount_toman
+            ));
+        }
+
+        $paidRial = (int) $verify['amount_rial'];
+        if ($paidRial !== (int) $intent->expected_amount_rial) {
+            $intent->update([
+                'status' => CustomerLoanFullSettlementBatchOnlinePaymentIntent::STATUS_FAILED,
+                'failure_reason' => 'مبلغ تأییدشده با مبلغ درخواست هم‌خوانی ندارد.',
+            ]);
+            $this->ledger->syncFromFullSettlementBatchIntent($intent->fresh());
+
+            return $this->redirectPortalPay($this->payResultPayload(
+                false,
+                'مبلغ تأییدشده با سفارش هم‌خوانی ندارد؛ با پشتیبانی تماس بگیرید.',
+                $trackId,
+                null,
+                (int) $intent->expected_amount_toman
+            ));
+        }
+
+        $paidToman = intdiv($paidRial, 10);
+        if ($paidToman < 1 || $paidToman !== (int) $intent->expected_amount_toman) {
+            $intent->update([
+                'status' => CustomerLoanFullSettlementBatchOnlinePaymentIntent::STATUS_FAILED,
+                'failure_reason' => 'تبدیل مبلغ نامعتبر است.',
+            ]);
+            $this->ledger->syncFromFullSettlementBatchIntent($intent->fresh());
+
+            return $this->redirectPortalPay($this->payResultPayload(
+                false,
+                'خطا در پردازش مبلغ پرداخت.',
+                $trackId,
+                null,
+                (int) $intent->expected_amount_toman
+            ));
+        }
+
+        $ref = trim((string) $verify['ref_number']);
+
+        /** @var list<array{file: CustomerLoanFile, principal: int, amount: int}> $prepared */
+        $prepared = [];
+
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                $intent->update([
+                    'status' => CustomerLoanFullSettlementBatchOnlinePaymentIntent::STATUS_FAILED,
+                    'failure_reason' => 'ساختار آیتم‌های تسویه نامعتبر است.',
+                ]);
+                $this->ledger->syncFromFullSettlementBatchIntent($intent->fresh());
+
+                return $this->redirectPortalPay($this->payResultPayload(
+                    false,
+                    'اطلاعات تسویهٔ دسته‌ای نامعتبر است.',
+                    $trackId,
+                    null,
+                    $paidToman
+                ));
+            }
+
+            $fileId = (int) ($item['loan_file_id'] ?? 0);
+            $expectedPrincipal = (int) ($item['principal_toman'] ?? 0);
+            $expectedLateFee = (int) ($item['late_fee_toman'] ?? 0);
+            $expectedAmount = (int) ($item['amount_toman'] ?? 0);
+
+            $file = CustomerLoanFile::query()
+                ->whereKey($fileId)
+                ->where('customer_id', (int) $intent->customer_id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($file === null) {
+                $intent->update([
+                    'status' => CustomerLoanFullSettlementBatchOnlinePaymentIntent::STATUS_FAILED,
+                    'failure_reason' => 'پروندهٔ وام یافت نشد.',
+                ]);
+                $this->ledger->syncFromFullSettlementBatchIntent($intent->fresh());
+
+                return $this->redirectPortalPay($this->payResultPayload(
+                    false,
+                    'یکی از پرونده‌های وام برای این پرداخت یافت نشد.',
+                    $trackId,
+                    null,
+                    $paidToman
+                ));
+            }
+
+            if ($file->revoked_at !== null) {
+                $intent->update([
+                    'status' => CustomerLoanFullSettlementBatchOnlinePaymentIntent::STATUS_FAILED,
+                    'failure_reason' => 'قرارداد فسخ شده است.',
+                ]);
+                $this->ledger->syncFromFullSettlementBatchIntent($intent->fresh());
+
+                return $this->redirectPortalPay($this->payResultPayload(
+                    false,
+                    'یکی از پرونده‌ها فسخ شده است؛ امکان تسویهٔ آنلاین وجود ندارد.',
+                    $trackId,
+                    null,
+                    (int) $intent->expected_amount_toman
+                ));
+            }
+
+            if ($file->is_settled) {
+                $intent->update([
+                    'status' => CustomerLoanFullSettlementBatchOnlinePaymentIntent::STATUS_FAILED,
+                    'failure_reason' => 'پرونده قبلاً تسویه شده است.',
+                ]);
+                $this->ledger->syncFromFullSettlementBatchIntent($intent->fresh());
+
+                return $this->redirectPortalPay($this->payResultPayload(
+                    false,
+                    'یکی از پرونده‌ها قبلاً تسویه شده است.',
+                    $trackId,
+                    null,
+                    (int) $intent->expected_amount_toman
+                ));
+            }
+
+            $quote = $this->portalPresenter->fullSettlementOnlinePaymentQuote($file);
+            if ($quote === null
+                || (int) $quote['amount_toman'] !== $expectedAmount
+                || (int) $quote['principal_toman'] !== $expectedPrincipal
+                || (int) $quote['late_fee_toman'] !== $expectedLateFee) {
+                $intent->update([
+                    'status' => CustomerLoanFullSettlementBatchOnlinePaymentIntent::STATUS_FAILED,
+                    'failure_reason' => 'وضعیت پرونده پس از شروع پرداخت تغییر کرده است.',
+                ]);
+                $this->ledger->syncFromFullSettlementBatchIntent($intent->fresh());
+
+                return $this->redirectPortalPay($this->payResultPayload(
+                    false,
+                    'وضعیت وام پس از شروع پرداخت تغییر کرده است. در صورت کسر مبلغ از حساب، با پشتیبانی تماس بگیرید.',
+                    $trackId,
+                    null,
+                    (int) $intent->expected_amount_toman
+                ));
+            }
+
+            $prepared[] = [
+                'file' => $file,
+                'principal' => $expectedPrincipal,
+                'amount' => $expectedAmount,
+            ];
+        }
+
+        foreach ($prepared as $row) {
+            $this->fullSettlementAllocator->allocatePrincipalAcrossInstallments(
+                $row['file'],
+                $row['principal'],
+                $ref
+            );
+
+            $file = $row['file'];
+            $file->refresh();
+            $file->is_settled = true;
+            $file->settled_at = Carbon::now()->startOfDay();
+            $file->save();
+        }
+
+        $intent->update([
+            'status' => CustomerLoanFullSettlementBatchOnlinePaymentIntent::STATUS_COMPLETED,
+            'zibal_ref_number' => $ref !== '' ? mb_substr($ref, 0, 64) : null,
+            'failure_reason' => null,
+        ]);
+        $this->ledger->syncFromFullSettlementBatchIntent($intent->fresh());
+
+        foreach ($prepared as $row) {
+            PortalAdminSmsDispatcher::afterFullSettlement(
+                (int) $intent->customer_id,
+                (int) $row['file']->id,
+                $row['amount']
+            );
+        }
+
+        return $this->redirectPortalPay($this->payResultPayload(
+            true,
+            'تسویهٔ کلی همهٔ پرونده‌های باز با موفقیت انجام شد.',
+            $trackId,
+            $ref !== '' ? $ref : null,
+            $paidToman
+        ));
+    }
+
     private function markInstallmentIntentsFailedByTrackId(int $trackId, string $reason): void
     {
         $ids = CustomerLoanInstallmentOnlinePaymentIntent::query()
@@ -666,6 +912,28 @@ final class InstallmentOnlinePaymentCompletionService
             $intent = CustomerLoanFullSettlementOnlinePaymentIntent::query()->find($id);
             if ($intent !== null) {
                 $this->ledger->syncFromFullSettlementIntent($intent);
+            }
+        }
+    }
+
+    private function markBatchFullSettlementIntentsFailedByTrackId(int $trackId, string $reason): void
+    {
+        $ids = CustomerLoanFullSettlementBatchOnlinePaymentIntent::query()
+            ->where('track_id', $trackId)
+            ->where('status', '!=', CustomerLoanFullSettlementBatchOnlinePaymentIntent::STATUS_COMPLETED)
+            ->pluck('id');
+
+        CustomerLoanFullSettlementBatchOnlinePaymentIntent::query()
+            ->whereIn('id', $ids)
+            ->update([
+                'status' => CustomerLoanFullSettlementBatchOnlinePaymentIntent::STATUS_FAILED,
+                'failure_reason' => mb_substr($reason, 0, 2000),
+            ]);
+
+        foreach ($ids as $id) {
+            $intent = CustomerLoanFullSettlementBatchOnlinePaymentIntent::query()->find($id);
+            if ($intent !== null) {
+                $this->ledger->syncFromFullSettlementBatchIntent($intent);
             }
         }
     }

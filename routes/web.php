@@ -7,6 +7,7 @@ use App\Http\Controllers\User\Auth\CustomerCaptchaController;
 use App\Http\Controllers\User\Auth\CustomerLoginController;
 use App\Http\Controllers\User\Auth\CustomerLoginTwoFactorController;
 use App\Http\Controllers\User\Auth\CustomerPasswordForgotController;
+use App\Http\Controllers\User\Auth\CustomerSmsOtpLoginController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -22,7 +23,7 @@ Route::middleware(['guest.customer'])->group(function (): void {
 
     Route::prefix('auth')->name('customer.auth.')->group(function (): void {
         Route::get('captcha/{purpose}', [CustomerCaptchaController::class, 'show'])
-            ->whereIn('purpose', ['login', 'forgot'])
+            ->whereIn('purpose', ['login', 'forgot', 'otp-login'])
             ->middleware('throttle:120,1')
             ->name('captcha');
 
@@ -49,6 +50,18 @@ Route::middleware(['guest.customer'])->group(function (): void {
         Route::post('login/resend-otp', [CustomerLoginTwoFactorController::class, 'resend'])
             ->middleware('throttle:12,1')
             ->name('login.resend-otp');
+
+        Route::post('login-otp/request', [CustomerSmsOtpLoginController::class, 'requestOtp'])
+            ->middleware('throttle:5,1')
+            ->name('login-otp.request');
+
+        Route::post('login-otp/verify', [CustomerSmsOtpLoginController::class, 'verify'])
+            ->middleware('throttle:30,1')
+            ->name('login-otp.verify');
+
+        Route::post('login-otp/resend', [CustomerSmsOtpLoginController::class, 'resend'])
+            ->middleware('throttle:12,1')
+            ->name('login-otp.resend');
     });
 });
 

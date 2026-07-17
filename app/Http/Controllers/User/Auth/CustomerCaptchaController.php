@@ -17,6 +17,7 @@ final class CustomerCaptchaController extends Controller
         return match ($purpose) {
             'login' => CaptchaService::PURPOSE_USER_LOGIN,
             'forgot' => CaptchaService::PURPOSE_USER_FORGOT,
+            'otp-login' => CaptchaService::PURPOSE_USER_OTP_LOGIN,
             default => CaptchaService::PURPOSE_USER_LOGIN,
         };
     }
@@ -42,7 +43,7 @@ final class CustomerCaptchaController extends Controller
     public function refresh(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'purpose' => ['required', 'string', 'in:login,forgot'],
+            'purpose' => ['required', 'string', 'in:login,forgot,otp-login'],
         ]);
 
         $p = $this->purposeFromRouteSegment($validated['purpose']);

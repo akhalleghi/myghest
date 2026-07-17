@@ -19,6 +19,7 @@
             <h4>ورود مشتریان (پنل کاربر)</h4>
             <p class="app-settings-card-desc">
                 با فعال‌سازی تأیید دو مرحله‌ای، پس از تأیید نام کاربری، رمز عبور و کپچا، کد یک‌بارمصرف پیامکی ارسال می‌شود.
+                ورود با رمز یکبار مصرف (پیامکی) مسیر جداگانه‌ای برای ورود بدون رمز ثابت است و مستقل از تأیید دو مرحله‌ای تنظیم می‌شود.
                 زمان نشست، حداکثر تلاش ناموفق و مسدودی‌ها فقط برای صفحه ورود مشتریان اعمال می‌شود.
             </p>
             <div class="app-settings-field">
@@ -28,6 +29,16 @@
                     <option value="1" @selected(old('customer_login_two_factor_enabled', CustomerLoginSecuritySettings::isTwoFactorEnabled() ? '1' : '0') === '1')>فعال</option>
                 </select>
                 @error('customer_login_two_factor_enabled')
+                    <div class="app-settings-error">{{ $message }}</div>
+                @enderror
+            </div>
+            <div class="app-settings-field">
+                <label for="customer-login-sms-otp">فعال بودن ورود با رمز یکبار مصرف (پیامکی)</label>
+                <select id="customer-login-sms-otp" name="customer_login_sms_otp_enabled" required>
+                    <option value="0" @selected(old('customer_login_sms_otp_enabled', CustomerLoginSecuritySettings::isSmsOtpLoginEnabled() ? '1' : '0') === '0')>غیرفعال</option>
+                    <option value="1" @selected(old('customer_login_sms_otp_enabled', CustomerLoginSecuritySettings::isSmsOtpLoginEnabled() ? '1' : '0') === '1')>فعال</option>
+                </select>
+                @error('customer_login_sms_otp_enabled')
                     <div class="app-settings-error">{{ $message }}</div>
                 @enderror
             </div>

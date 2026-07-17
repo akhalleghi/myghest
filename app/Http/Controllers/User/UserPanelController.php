@@ -23,6 +23,9 @@ final class UserPanelController extends Controller
     public function dashboard(): View
     {
         $customer = Auth::guard('customer')->user();
+        if ($customer !== null) {
+            $customer->loadMissing('wallet');
+        }
         $portalLoans = $customer !== null
             ? app(CustomerLoanPortalPresenter::class)->forDashboard($customer)
             : ['loan_count' => 0, 'loans' => []];
@@ -30,6 +33,10 @@ final class UserPanelController extends Controller
 
         $portalSummary = $customer !== null
             ? app(CustomerPortalSummaryBuilder::class)->build($customer, $portalLoans)
+            : null;
+
+        $settleAllQuote = $customer !== null
+            ? app(CustomerLoanPortalPresenter::class)->fullSettlementQuoteForAllOpenFiles($customer)
             : null;
 
         $showInPanel = AppSetting::query()
@@ -50,20 +57,31 @@ final class UserPanelController extends Controller
             'bankingInfoHtmlSafe' => $bankingHtmlSafe,
             'portalLoans' => $portalLoans,
             'portalSummary' => $portalSummary,
+            'settleAllQuote' => $settleAllQuote,
+            'customerWalletBalanceToman' => (int) ($customer?->wallet?->balance_toman ?? $portalSummary['wallet_balance_toman'] ?? 0),
         ]);
     }
 
     public function loans(): View
     {
         $customer = Auth::guard('customer')->user();
+        if ($customer !== null) {
+            $customer->loadMissing('wallet');
+        }
         $portalLoans = $customer !== null
             ? app(CustomerLoanPortalPresenter::class)->forDashboard($customer)
             : ['loan_count' => 0, 'loans' => []];
         $portalLoans['loan_count_fa'] = Jalali::enToFaNumbers((string) (int) ($portalLoans['loan_count'] ?? 0));
 
+        $settleAllQuote = $customer !== null
+            ? app(CustomerLoanPortalPresenter::class)->fullSettlementQuoteForAllOpenFiles($customer)
+            : null;
+
         return view('user.portal.loans', [
             'pageTitle' => 'لیست وام‌ها',
             'portalLoans' => $portalLoans,
+            'settleAllQuote' => $settleAllQuote,
+            'customerWalletBalanceToman' => (int) ($customer?->wallet?->balance_toman ?? 0),
         ]);
     }
 

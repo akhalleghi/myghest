@@ -48,6 +48,16 @@ return [
                 ['key' => 'customers.delete', 'label' => 'حذف مشتری', 'routes' => ['admin.customers.destroy']],
                 ['key' => 'customers.quick_sms', 'label' => 'ارسال پیامک سریع', 'routes' => ['admin.customers.quick-sms']],
                 [
+                    'key' => 'customers.notes',
+                    'label' => 'یادداشت‌های مشتری',
+                    'children' => [
+                        ['key' => 'customers.notes.view', 'label' => 'مشاهده یادداشت‌ها', 'routes' => ['admin.customers.notes.index']],
+                        ['key' => 'customers.notes.create', 'label' => 'ثبت یادداشت', 'routes' => ['admin.customers.notes.store']],
+                        ['key' => 'customers.notes.update', 'label' => 'ویرایش یادداشت خود', 'routes' => ['admin.customers.notes.update']],
+                        ['key' => 'customers.notes.delete', 'label' => 'حذف یادداشت خود', 'routes' => ['admin.customers.notes.destroy']],
+                    ],
+                ],
+                [
                     'key' => 'customers.loans',
                     'label' => 'پرونده وام مشتری',
                     'children' => [
@@ -63,6 +73,8 @@ return [
                         ['key' => 'customers.loans.booklet', 'label' => 'چاپ دفترچه اقساط', 'routes' => ['admin.customers.loan-files.installment-booklet']],
                         ['key' => 'customers.loans.settlement', 'label' => 'تسویه آنی / پیش‌نمایش', 'routes' => [
                             'admin.customers.loan-files.instant-settlement-preview',
+                            'admin.customers.instant-settlement-all-preview',
+                            'admin.customers.settle-all-loans',
                             'admin.customers.loan-files.discount-preview',
                             'admin.customers.loan-files.discount.store',
                         ]],

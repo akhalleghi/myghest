@@ -325,12 +325,15 @@ final class AdminReportsController extends Controller
             (string) ($validated['payment_method'] ?? ''),
         );
 
+        $summary = $this->depositsByDate->summarizeRange($range['from'], $range['to']);
+
         return response()->json([
             'rows' => $rows,
             'meta' => [
                 'from_jdate' => Jalali::enToFaNumbers(Jalali::instance($range['from'])->format('Y/m/d')),
                 'to_jdate' => Jalali::enToFaNumbers(Jalali::instance($range['to'])->format('Y/m/d')),
                 'count' => count($rows),
+                'summary' => $summary,
             ],
         ]);
     }

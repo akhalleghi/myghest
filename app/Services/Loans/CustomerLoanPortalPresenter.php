@@ -291,6 +291,71 @@ final class CustomerLoanPortalPresenter
     }
 
     /**
+     * @return array{
+     *     files: list<array{loan_file_id: int, loan_code: string, principal_toman: int, late_fee_toman: int, amount_toman: int}>,
+     *     files_count: int,
+     *     principal_toman: int,
+     *     late_fee_toman: int,
+     *     amount_toman: int,
+     *     principal_fa: string,
+     *     late_fee_fa: string,
+     *     amount_fa: string,
+     * }|null
+     */
+    public function fullSettlementQuoteForAllOpenFiles(Customer $customer): ?array
+    {
+        $files = CustomerLoanFile::query()
+            ->where('customer_id', (int) $customer->id)
+            ->whereNull('revoked_at')
+            ->where('is_settled', false)
+            ->orderBy('id')
+            ->get();
+
+        $items = [];
+        $principalTotal = 0;
+        $lateFeeTotal = 0;
+        $amountTotal = 0;
+
+        foreach ($files as $file) {
+            $quote = $this->fullSettlementOnlinePaymentQuote($file);
+            if ($quote === null) {
+                continue;
+            }
+
+            $principalToman = (int) $quote['principal_toman'];
+            $lateFeeToman = (int) $quote['late_fee_toman'];
+            $amountToman = (int) $quote['amount_toman'];
+
+            $items[] = [
+                'loan_file_id' => (int) $file->id,
+                'loan_code' => (string) $file->loan_code,
+                'principal_toman' => $principalToman,
+                'late_fee_toman' => $lateFeeToman,
+                'amount_toman' => $amountToman,
+            ];
+
+            $principalTotal += $principalToman;
+            $lateFeeTotal += $lateFeeToman;
+            $amountTotal += $amountToman;
+        }
+
+        if ($items === []) {
+            return null;
+        }
+
+        return [
+            'files' => $items,
+            'files_count' => count($items),
+            'principal_toman' => $principalTotal,
+            'late_fee_toman' => $lateFeeTotal,
+            'amount_toman' => $amountTotal,
+            'principal_fa' => $this->formatMoneyFa($principalTotal),
+            'late_fee_fa' => $this->formatMoneyFa($lateFeeTotal),
+            'amount_fa' => $this->formatMoneyFa($amountTotal),
+        ];
+    }
+
+    /**
      * @param  Collection<int, CustomerLoanInstallment>  $installments
      */
     private function loanHasEarlyFullyPaidInstallment(Collection $installments): bool

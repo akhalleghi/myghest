@@ -688,6 +688,174 @@
         .cust-ops-item:hover { background: var(--primary-soft); }
         .cust-ops-item--danger { color: #b91c1c; }
         .cust-ops-item--danger:hover { background: rgba(248, 113, 113, 0.14); }
+        .cust-notes-modal {
+            width: min(640px, 100%);
+            max-height: min(88vh, 44rem);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .cust-notes-modal .cust-modal-body {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            min-height: 0;
+            flex: 1 1 auto;
+            overflow: hidden;
+        }
+        .cust-notes-paper {
+            flex: 1 1 auto;
+            min-height: 14rem;
+            max-height: min(48vh, 22rem);
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 0.85rem 0.9rem;
+            border-radius: 0.85rem;
+            border: 1px solid color-mix(in oklab, var(--border) 85%, #f59e0b);
+            background:
+                repeating-linear-gradient(
+                    to bottom,
+                    transparent,
+                    transparent 1.7rem,
+                    rgba(148, 163, 184, 0.18) 1.7rem,
+                    rgba(148, 163, 184, 0.18) calc(1.7rem + 1px)
+                ),
+                linear-gradient(180deg, #fffdf7 0%, #faf6ea 100%);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+            scroll-behavior: smooth;
+        }
+        html[data-theme="dark"] .cust-notes-paper {
+            background:
+                repeating-linear-gradient(
+                    to bottom,
+                    transparent,
+                    transparent 1.7rem,
+                    rgba(148, 163, 184, 0.12) 1.7rem,
+                    rgba(148, 163, 184, 0.12) calc(1.7rem + 1px)
+                ),
+                linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.92) 100%);
+            border-color: rgba(245, 158, 11, 0.28);
+        }
+        .cust-notes-empty {
+            margin: 1.4rem 0.4rem;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.84rem;
+            font-weight: 700;
+            line-height: 1.7;
+        }
+        .cust-note-card {
+            position: relative;
+            margin: 0 0 0.7rem;
+            padding: 0.65rem 0.75rem 0.55rem;
+            border-radius: 0.7rem;
+            border: 1px solid rgba(180, 83, 9, 0.18);
+            background: rgba(255, 255, 255, 0.78);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+        }
+        html[data-theme="dark"] .cust-note-card {
+            background: rgba(15, 23, 42, 0.72);
+            border-color: rgba(245, 158, 11, 0.22);
+        }
+        .cust-note-card--mine {
+            border-color: rgba(37, 99, 235, 0.28);
+            background: color-mix(in oklab, var(--primary-soft) 45%, #fff);
+        }
+        html[data-theme="dark"] .cust-note-card--mine {
+            background: rgba(37, 99, 235, 0.14);
+        }
+        .cust-note-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem 0.65rem;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.35rem;
+            font-size: 0.7rem;
+            font-weight: 800;
+            color: var(--muted);
+        }
+        .cust-note-author {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            color: var(--text);
+        }
+        .cust-note-body {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 0.84rem;
+            line-height: 1.75;
+            color: var(--text);
+            font-weight: 600;
+        }
+        .cust-note-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            margin-top: 0.45rem;
+            justify-content: flex-end;
+        }
+        .cust-note-btn {
+            font-family: inherit;
+            font-size: 0.7rem;
+            font-weight: 800;
+            padding: 0.28rem 0.55rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.28rem;
+        }
+        .cust-note-btn:hover { background: var(--primary-soft); }
+        .cust-note-btn--danger { color: #b91c1c; }
+        .cust-note-btn--danger:hover { background: rgba(248, 113, 113, 0.14); }
+        .cust-notes-compose {
+            flex: 0 0 auto;
+            padding: 0.75rem;
+            border: 1px dashed var(--border);
+            border-radius: 0.8rem;
+            background: color-mix(in oklab, var(--bg-card) 90%, var(--primary-soft));
+        }
+        .cust-notes-compose label {
+            display: block;
+            font-size: 0.74rem;
+            font-weight: 800;
+            color: var(--muted);
+            margin-bottom: 0.3rem;
+        }
+        .cust-notes-compose textarea {
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 5.2rem;
+            resize: vertical;
+            border: 1px solid var(--border);
+            border-radius: 0.65rem;
+            padding: 0.55rem 0.65rem;
+            background: var(--bg-card);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.84rem;
+            line-height: 1.7;
+        }
+        .cust-notes-compose-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            justify-content: flex-end;
+            margin-top: 0.55rem;
+        }
+        .cust-notes-hint {
+            margin: 0;
+            font-size: 0.72rem;
+            color: var(--muted);
+            font-weight: 700;
+            line-height: 1.55;
+        }
         .cust-empty { text-align: center; padding: 1.5rem; color: var(--muted); }
         .cust-pagination { padding: 0.65rem 0.85rem; }
 
@@ -2183,7 +2351,9 @@
                                 <td class="cust-amount">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($loanTotalWithProfit, 0)) }} تومان</td>
                                 <td class="cust-amount">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($loanRemainInstallments, 0)) }} تومان</td>
                                 <td class="cust-amount" data-cust-wallet-cell="{{ $c->id }}">
-                                    @php($walletIsLocked = (bool) ($c->wallet?->is_locked ?? false))
+                                    @php
+                                        $walletIsLocked = (bool) ($c->wallet?->is_locked ?? false);
+                                    @endphp
                                     <span class="cust-wallet-cell @if($walletIsLocked) cust-wallet-cell--locked @endif">
                                         <span class="cust-wallet-balance">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format((int) ($c->wallet?->balance_toman ?? 0), 0)) }} تومان</span>
                                         @if ($walletIsLocked)
@@ -2244,6 +2414,12 @@
                                                 <i class="fa-solid fa-wallet" aria-hidden="true"></i>
                                                 کیف پول
                                             </button>
+                                            @adminCan('customers.notes.view')
+                                                <button type="button" class="cust-ops-item" data-cust-notes data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}" data-customer-mobile="{{ $c->mobile }}">
+                                                    <i class="fa-solid fa-book" aria-hidden="true"></i>
+                                                    یادداشت‌ها
+                                                </button>
+                                            @endadminCan
                                             <button type="button" class="cust-ops-item" data-cust-edit data-customer-id="{{ $c->id }}">
                                                 <i class="fa-regular fa-pen-to-square" aria-hidden="true"></i>
                                                 ویرایش
@@ -2534,6 +2710,44 @@
         </div>
     </div>
 
+    @adminCanPrefix('customers.notes')
+    <div class="cust-overlay" id="cust-notes-overlay" hidden aria-hidden="true">
+        <div class="cust-modal cust-notes-modal" role="dialog" aria-modal="true" aria-labelledby="cust-notes-title">
+            <div class="cust-modal-head">
+                <div>
+                    <h2 id="cust-notes-title">
+                        <i class="fa-solid fa-book-open" aria-hidden="true"></i>
+                        دفترچه یادداشت مشتری
+                    </h2>
+                    <p id="cust-notes-subtitle">سابقه پیگیری داخلی برای همکاران ادمین</p>
+                </div>
+                <button type="button" class="cust-modal-close" id="cust-notes-close" aria-label="بستن">&times;</button>
+            </div>
+            <div class="cust-modal-body">
+                <p class="cust-notes-hint">
+                    این یادداشت‌ها فقط در پنل ادمین دیده می‌شوند و برای مشتری نمایش داده نمی‌شوند.
+                    هر همکار می‌تواند یادداشت‌های دیگران را ببیند؛ ویرایش/حذف فقط برای نویسنده همان یادداشت است.
+                </p>
+                <div class="cust-notes-paper" id="cust-notes-list" aria-live="polite">
+                    <p class="cust-notes-empty">در حال بارگذاری…</p>
+                </div>
+                @adminCan('customers.notes.create')
+                    <form id="cust-notes-form" class="cust-notes-compose" novalidate>
+                        <label for="cust-notes-body">یادداشت جدید (مثلاً نتیجه پیگیری تلفنی)</label>
+                        <textarea id="cust-notes-body" name="body" maxlength="5000" placeholder="مثلاً: امروز تماس گرفته شد؛ وعده واریز تا پنج‌شنبه دادند…"></textarea>
+                        <div class="cust-notes-compose-actions">
+                            <button type="submit" class="cust-submit" id="cust-notes-submit">
+                                <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+                                ثبت یادداشت
+                            </button>
+                        </div>
+                    </form>
+                @endadminCan
+            </div>
+        </div>
+    </div>
+    @endadminCanPrefix
+
     <div class="cust-overlay" id="wallet-adjust-overlay" hidden aria-hidden="true">
         <div class="cust-modal" style="width:min(560px,100%)" role="dialog" aria-modal="true" aria-labelledby="wallet-adjust-title">
             <div class="cust-modal-head">
@@ -2683,10 +2897,16 @@
                 <div class="loan-tab-panel" data-loan-panel="files">
                     <div class="loan-files-head">
                         <div class="loan-files-summary" id="loan-files-summary">برای این مشتری هنوز پرونده وام ثبت نشده است.</div>
-                        <button type="button" class="cust-mini-btn" id="loan-open-create-modal">
-                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                            افزودن وام
-                        </button>
+                        <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center">
+                            <button type="button" class="cust-mini-btn" id="loan-settle-all-open" hidden>
+                                <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+                                تسویه همزمان همه پرونده‌ها
+                            </button>
+                            <button type="button" class="cust-mini-btn" id="loan-open-create-modal">
+                                <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                                افزودن وام
+                            </button>
+                        </div>
                     </div>
                     <div id="loan-files-list" class="loan-files-list">
                         <div class="loan-files-empty">در حال بارگذاری...</div>
@@ -3184,6 +3404,49 @@
         </div>
     </div>
 
+    <div class="cust-overlay" id="loan-settle-all-overlay" hidden aria-hidden="true">
+        <div class="cust-modal" style="width:min(640px,100%)" role="dialog" aria-modal="true" aria-labelledby="loan-settle-all-title">
+            <div class="cust-modal-head">
+                <div>
+                    <h2 id="loan-settle-all-title">تسویه همزمان همه پرونده‌ها</h2>
+                    <p id="loan-settle-all-subtitle" class="loan-inst-modal-sub">پیش‌نمایش مبلغ قابل تسویه همه دفاتر قسط</p>
+                </div>
+                <button type="button" class="cust-modal-close" id="loan-settle-all-close" aria-label="بستن">&times;</button>
+            </div>
+            <div class="cust-modal-body">
+                <div class="loan-is-hero">
+                    <span class="loan-is-hero__label">جمع مبلغ قابل تسویه</span>
+                    <div class="loan-is-hero__amount" id="loan-settle-all-primary-amount">—</div>
+                </div>
+                <p class="loan-is-summary" id="loan-settle-all-summary"></p>
+                <div class="loan-is-rows" id="loan-settle-all-rows"></div>
+                <div class="wallet-form-grid" style="margin-top:0.85rem">
+                    <div class="cust-field">
+                        <label for="loan-settle-all-method">نحوه پرداخت</label>
+                        <select id="loan-settle-all-method" required>
+                            @foreach (\App\Models\CustomerLoanInstallmentPayment::creatablePaymentMethodKeys() as $methodKey)
+                                <option value="{{ $methodKey }}">{{ \App\Models\CustomerLoanInstallmentPayment::methodLabels()[$methodKey] ?? $methodKey }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="cust-field">
+                        <label for="loan-settle-all-deposited">تاریخ واریز</label>
+                        <input id="loan-settle-all-deposited" type="text" autocomplete="off" placeholder="۱۴۰۴/۰۴/۲۶" required>
+                    </div>
+                    <div class="cust-field" style="grid-column:1/-1">
+                        <label for="loan-settle-all-note">توضیحات (اختیاری)</label>
+                        <textarea id="loan-settle-all-note" rows="2" maxlength="5000" placeholder="مثلاً فیش واریزی یا کارتخوان"></textarea>
+                    </div>
+                </div>
+                <p id="loan-settle-all-msg" class="loan-is-summary" style="min-height:1.2em" role="status"></p>
+                <div class="cust-actions" style="margin-top:0.85rem;justify-content:flex-end;gap:0.5rem">
+                    <button type="button" class="cust-cancel" id="loan-settle-all-cancel">انصراف</button>
+                    <button type="button" class="cust-submit" id="loan-settle-all-submit">ثبت تسویه همه پرونده‌ها</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="cust-overlay" id="loan-discount-overlay" hidden aria-hidden="true">
         <div class="cust-modal" style="width:min(480px,100%)" role="dialog" aria-modal="true" aria-labelledby="loan-discount-title">
             <div class="cust-modal-head">
@@ -3516,6 +3779,26 @@
                 return custListBaseUrl + '/' + id + '/wallet/transactions/export-excel';
             }
 
+            function custNotesIndexUrl(id) {
+                return custListBaseUrl + '/' + id + '/notes';
+            }
+
+            function custNotesStoreUrl(id) {
+                return custListBaseUrl + '/' + id + '/notes';
+            }
+
+            function custNotesUpdateUrl(customerId, noteId) {
+                return custListBaseUrl + '/' + customerId + '/notes/' + noteId;
+            }
+
+            function custNotesDeleteUrl(customerId, noteId) {
+                return custListBaseUrl + '/' + customerId + '/notes/' + noteId;
+            }
+
+            var custNotesCanCreate = @json(auth()->guard('admin')->check() && app(\App\Services\Admin\AdminPermissionService::class)->hasPermission(auth()->guard('admin')->user(), 'customers.notes.create'));
+            var custNotesCanUpdate = @json(auth()->guard('admin')->check() && app(\App\Services\Admin\AdminPermissionService::class)->hasPermission(auth()->guard('admin')->user(), 'customers.notes.update'));
+            var custNotesCanDelete = @json(auth()->guard('admin')->check() && app(\App\Services\Admin\AdminPermissionService::class)->hasPermission(auth()->guard('admin')->user(), 'customers.notes.delete'));
+
             function quickSmsUrl(id) {
                 return custListBaseUrl + '/' + id + '/quick-sms';
             }
@@ -3569,6 +3852,12 @@
             }
             function customerLoanInstantSettlementUrl(customerId, loanFileId) {
                 return custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/loan-files/' + encodeURIComponent(String(loanFileId || '')) + '/instant-settlement-preview';
+            }
+            function customerLoanInstantSettlementAllUrl(customerId) {
+                return custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/instant-settlement-all-preview';
+            }
+            function customerLoanSettleAllUrl(customerId) {
+                return custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/settle-all-loans';
             }
             function customerLoanDiscountPreviewUrl(customerId, loanFileId) {
                 return custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/loan-files/' + encodeURIComponent(String(loanFileId || '')) + '/discount-preview';
@@ -3989,6 +4278,18 @@
             var loanSmsSelectedDate = loanSmsDefaultDate;
             var adminTodayJdate = @json(\Hekmatinasser\Jalali\Jalali::now()->format('Y/m/d'));
             var walletCurrentCustomerId = null;
+            var custNotesOverlay = document.getElementById('cust-notes-overlay');
+            var custNotesClose = document.getElementById('cust-notes-close');
+            var custNotesSubtitle = document.getElementById('cust-notes-subtitle');
+            var custNotesList = document.getElementById('cust-notes-list');
+            var custNotesForm = document.getElementById('cust-notes-form');
+            var custNotesBody = document.getElementById('cust-notes-body');
+            var custNotesSubmit = document.getElementById('cust-notes-submit');
+            var custNotesCurrentCustomerId = null;
+            var custNotesCurrentCustomerName = '';
+            var custNotesCurrentCustomerMobile = '';
+            var custNotesEditingId = null;
+            var custNotesLoading = false;
             var walletCurrentCustomerName = '';
             var walletCurrentCustomerMobile = '';
             var quickSmsCurrentCustomerId = null;
@@ -4645,6 +4946,217 @@
                 if (!walletModalOverlay) return;
                 walletModalOverlay.hidden = true;
                 walletModalOverlay.setAttribute('aria-hidden', 'true');
+            }
+
+            function custNotesCustomerLabel(name, mobile) {
+                var label = String(name || '').trim();
+                if (!label) {
+                    label = 'مشتری';
+                }
+                var mob = String(mobile || '').trim();
+                if (mob) {
+                    label += ' — ' + mob;
+                }
+                return label;
+            }
+
+            function custNotesSetLoading(isLoading) {
+                custNotesLoading = !!isLoading;
+                if (custNotesList) {
+                    custNotesList.setAttribute('aria-busy', custNotesLoading ? 'true' : 'false');
+                }
+                if (custNotesSubmit) {
+                    custNotesSubmit.disabled = custNotesLoading;
+                }
+            }
+
+            function custNotesResetCompose() {
+                custNotesEditingId = null;
+                if (custNotesForm) {
+                    custNotesForm.reset();
+                }
+                if (custNotesSubmit) {
+                    custNotesSubmit.innerHTML = '<i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> ثبت یادداشت';
+                }
+            }
+
+            function custNotesRenderList(notes) {
+                if (!custNotesList) {
+                    return;
+                }
+                if (!Array.isArray(notes) || !notes.length) {
+                    custNotesList.innerHTML = '<p class="cust-notes-empty"><i class="fa-regular fa-note-sticky" aria-hidden="true"></i><br>هنوز یادداشتی ثبت نشده است.<br>اولین نتیجه پیگیری تلفنی یا یادداشت داخلی را اینجا بنویسید.</p>';
+                    return;
+                }
+                custNotesList.innerHTML = notes.map(function (note) {
+                    var mineClass = note.is_mine ? ' cust-note-card--mine' : '';
+                    var edited = note.was_edited ? ' <span>(ویرایش‌شده)</span>' : '';
+                    var actions = '';
+                    if (note.is_mine && (custNotesCanUpdate || custNotesCanDelete)) {
+                        actions = '<div class="cust-note-actions">';
+                        if (custNotesCanUpdate) {
+                            actions += '<button type="button" class="cust-note-btn" data-cust-note-edit data-note-id="' + escapeHtmlText(String(note.id)) + '"><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i> ویرایش</button>';
+                        }
+                        if (custNotesCanDelete) {
+                            actions += '<button type="button" class="cust-note-btn cust-note-btn--danger" data-cust-note-delete data-note-id="' + escapeHtmlText(String(note.id)) + '"><i class="fa-regular fa-trash-can" aria-hidden="true"></i> حذف</button>';
+                        }
+                        actions += '</div>';
+                    }
+                    return '<article class="cust-note-card' + mineClass + '" data-note-id="' + escapeHtmlText(String(note.id)) + '">' +
+                        '<div class="cust-note-meta">' +
+                        '<span class="cust-note-author"><i class="fa-solid fa-user-pen" aria-hidden="true"></i> ' + escapeHtmlText(note.author_name || 'ادمین') + (note.is_mine ? ' (شما)' : '') + '</span>' +
+                        '<span>' + escapeHtmlText(note.created_at_fa || '') + edited + '</span>' +
+                        '</div>' +
+                        '<p class="cust-note-body">' + escapeHtmlText(note.body || '') + '</p>' +
+                        actions +
+                        '</article>';
+                }).join('');
+            }
+
+            function custNotesLoad(customerId) {
+                if (!custNotesList || !customerId) {
+                    return Promise.resolve();
+                }
+                custNotesSetLoading(true);
+                custNotesList.innerHTML = '<p class="cust-notes-empty">در حال بارگذاری یادداشت‌ها…</p>';
+                return fetch(custNotesIndexUrl(customerId), {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                }).then(function (r) {
+                    if (!r.ok) {
+                        throw new Error('bad');
+                    }
+                    return r.json();
+                }).then(function (data) {
+                    custNotesRenderList(data.notes || []);
+                }).catch(function () {
+                    custNotesList.innerHTML = '<p class="cust-notes-empty">خطا در بارگذاری یادداشت‌ها.</p>';
+                }).finally(function () {
+                    custNotesSetLoading(false);
+                });
+            }
+
+            function openCustNotesModal(customerId, customerName, customerMobile) {
+                if (!custNotesOverlay) {
+                    return;
+                }
+                custNotesCurrentCustomerId = customerId;
+                custNotesCurrentCustomerName = customerName || '';
+                custNotesCurrentCustomerMobile = customerMobile || '';
+                custNotesResetCompose();
+                if (custNotesSubtitle) {
+                    custNotesSubtitle.textContent = 'یادداشت‌های داخلی «' + custNotesCustomerLabel(customerName, customerMobile) + '»';
+                }
+                custNotesOverlay.hidden = false;
+                custNotesOverlay.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('app-settings-open');
+                custNotesLoad(customerId);
+            }
+
+            function closeCustNotesModal() {
+                if (!custNotesOverlay) {
+                    return;
+                }
+                custNotesOverlay.hidden = true;
+                custNotesOverlay.setAttribute('aria-hidden', 'true');
+                document.body.classList.remove('app-settings-open');
+                custNotesCurrentCustomerId = null;
+                custNotesResetCompose();
+            }
+
+            function custNotesSubmitBody(body, noteId) {
+                if (!custNotesCurrentCustomerId) {
+                    return Promise.reject(new Error('no customer'));
+                }
+                var clean = String(body || '').trim();
+                if (!clean) {
+                    if (window.AdminSwal && window.AdminSwal.error) {
+                        AdminSwal.error('متن یادداشت الزامی است.');
+                    }
+                    return Promise.reject(new Error('empty'));
+                }
+                var isEdit = !!noteId;
+                var url = isEdit
+                    ? custNotesUpdateUrl(custNotesCurrentCustomerId, noteId)
+                    : custNotesStoreUrl(custNotesCurrentCustomerId);
+                var method = isEdit ? 'PUT' : 'POST';
+                custNotesSetLoading(true);
+                return fetch(url, {
+                    method: method,
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': @json(csrf_token()),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ body: clean })
+                }).then(function (r) {
+                    return r.json().then(function (data) {
+                        if (!r.ok) {
+                            throw new Error((data && data.message) ? data.message : 'خطا در ذخیره یادداشت');
+                        }
+                        return data;
+                    });
+                }).then(function () {
+                    custNotesResetCompose();
+                    return custNotesLoad(custNotesCurrentCustomerId);
+                }).finally(function () {
+                    custNotesSetLoading(false);
+                });
+            }
+
+            function custNotesDelete(noteId) {
+                if (!custNotesCurrentCustomerId || !noteId) {
+                    return;
+                }
+                var doDelete = function () {
+                    custNotesSetLoading(true);
+                    fetch(custNotesDeleteUrl(custNotesCurrentCustomerId, noteId), {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': @json(csrf_token()),
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        credentials: 'same-origin'
+                    }).then(function (r) {
+                        return r.json().then(function (data) {
+                            if (!r.ok) {
+                                throw new Error((data && data.message) ? data.message : 'خطا در حذف یادداشت');
+                            }
+                            return data;
+                        });
+                    }).then(function () {
+                        return custNotesLoad(custNotesCurrentCustomerId);
+                    }).catch(function (err) {
+                        if (window.AdminSwal && window.AdminSwal.error) {
+                            AdminSwal.error(err.message || 'خطا در حذف یادداشت');
+                        }
+                    }).finally(function () {
+                        custNotesSetLoading(false);
+                    });
+                };
+                if (window.AdminSwal && window.AdminSwal.confirm) {
+                    AdminSwal.confirm({
+                        title: 'حذف یادداشت',
+                        text: 'این یادداشت برای همه همکاران حذف می‌شود. ادامه می‌دهید؟',
+                        icon: 'warning',
+                        confirmButtonText: 'بله، حذف شود',
+                        cancelButtonText: 'انصراف'
+                    }).then(function (result) {
+                        if (result && result.isConfirmed) {
+                            doDelete();
+                        }
+                    });
+                    return;
+                }
+                if (window.confirm('این یادداشت حذف شود؟')) {
+                    doDelete();
+                }
             }
 
             function openWalletAdjustModal() {
@@ -5515,6 +6027,161 @@
                 });
             }
 
+            var loanSettleAllOverlay = document.getElementById('loan-settle-all-overlay');
+            var loanSettleAllPrimaryAmount = document.getElementById('loan-settle-all-primary-amount');
+            var loanSettleAllSummary = document.getElementById('loan-settle-all-summary');
+            var loanSettleAllRows = document.getElementById('loan-settle-all-rows');
+            var loanSettleAllMsg = document.getElementById('loan-settle-all-msg');
+            var loanSettleAllMethod = document.getElementById('loan-settle-all-method');
+            var loanSettleAllDeposited = document.getElementById('loan-settle-all-deposited');
+            var loanSettleAllNote = document.getElementById('loan-settle-all-note');
+            var loanSettleAllSubmit = document.getElementById('loan-settle-all-submit');
+            var loanSettleAllPreviewCache = null;
+
+            function closeLoanSettleAllModal() {
+                if (!loanSettleAllOverlay) return;
+                loanSettleAllOverlay.hidden = true;
+                loanSettleAllOverlay.setAttribute('aria-hidden', 'true');
+                loanSettleAllPreviewCache = null;
+                if (loanSettleAllMsg) loanSettleAllMsg.textContent = '';
+            }
+
+            function initLoanSettleAllDatePicker() {
+                if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.pDatepicker || !loanSettleAllDeposited) return;
+                var $el = window.jQuery(loanSettleAllDeposited);
+                try { $el.pDatepicker('destroy'); } catch (e) {}
+                $el.pDatepicker({
+                    format: 'YYYY/MM/DD',
+                    autoClose: true,
+                    initialValue: false,
+                    calendarType: 'persian',
+                    initialValueType: 'persian',
+                    toolbox: { calendarSwitch: false }
+                });
+            }
+
+            function openLoanSettleAllModal() {
+                if (!loanSettleAllOverlay || !loanManageCurrentCustomerId) return;
+                loanSettleAllOverlay.hidden = false;
+                loanSettleAllOverlay.setAttribute('aria-hidden', 'false');
+                if (loanSettleAllPrimaryAmount) loanSettleAllPrimaryAmount.textContent = '…';
+                if (loanSettleAllSummary) loanSettleAllSummary.textContent = 'در حال بارگذاری…';
+                if (loanSettleAllRows) loanSettleAllRows.innerHTML = '';
+                if (loanSettleAllMsg) loanSettleAllMsg.textContent = '';
+                if (loanSettleAllNote) loanSettleAllNote.value = '';
+                if (loanSettleAllSubmit) loanSettleAllSubmit.disabled = true;
+                initLoanSettleAllDatePicker();
+                fetch(customerLoanInstantSettlementAllUrl(loanManageCurrentCustomerId), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                }).then(function (r) {
+                    if (!r.ok) throw new Error('bad');
+                    return r.json();
+                }).then(function (data) {
+                    loanSettleAllPreviewCache = data || null;
+                    var settleable = !!(data && data.settleable);
+                    var amount = Number((data && data.amount_toman) || 0);
+                    var principal = Number((data && data.principal_toman) || 0);
+                    var lateFee = Number((data && data.late_fee_toman) || 0);
+                    var files = Array.isArray(data && data.files) ? data.files : [];
+                    if (loanSettleAllPrimaryAmount) {
+                        loanSettleAllPrimaryAmount.textContent = settleable
+                            ? (String(data.amount_fa || (formatToman(amount) + ' تومان')))
+                            : '۰ تومان';
+                    }
+                    if (loanSettleAllSummary) {
+                        loanSettleAllSummary.textContent = settleable
+                            ? ('تعداد پرونده قابل تسویه: ' + formatToman(Number(data.files_count || files.length || 0))
+                                + ' | مانده: ' + String(data.principal_fa || (formatToman(principal) + ' تومان'))
+                                + (lateFee > 0 ? (' | جریمه: ' + String(data.late_fee_fa || (formatToman(lateFee) + ' تومان'))) : ''))
+                            : 'پروندهٔ قابل تسویه‌ای یافت نشد.';
+                    }
+                    if (loanSettleAllRows) {
+                        if (!files.length) {
+                            loanSettleAllRows.innerHTML = '';
+                        } else {
+                            loanSettleAllRows.innerHTML = files.map(function (f) {
+                                return '<div class="loan-is-row">' +
+                                    '<span class="loan-is-row__left"><span class="loan-is-row__label">پرونده ' + escapeHtmlText(String(f.loan_code || f.loan_file_id || '')) + '</span></span>' +
+                                    '<span class="loan-is-row__amt">' + escapeHtmlText(formatToman(Number(f.amount_toman || 0)) + ' تومان') + '</span>' +
+                                    '</div>';
+                            }).join('');
+                        }
+                    }
+                    if (loanSettleAllSubmit) loanSettleAllSubmit.disabled = !settleable || amount < 1;
+                }).catch(function () {
+                    loanSettleAllPreviewCache = null;
+                    if (loanSettleAllSummary) loanSettleAllSummary.textContent = 'خطا در دریافت پیش‌نمایش.';
+                    if (loanSettleAllPrimaryAmount) loanSettleAllPrimaryAmount.textContent = '—';
+                    if (loanSettleAllSubmit) loanSettleAllSubmit.disabled = true;
+                });
+            }
+
+            var loanSettleAllOpenBtn = document.getElementById('loan-settle-all-open');
+            if (loanSettleAllOpenBtn) {
+                loanSettleAllOpenBtn.addEventListener('click', openLoanSettleAllModal);
+            }
+            ['loan-settle-all-close', 'loan-settle-all-cancel'].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el) el.addEventListener('click', closeLoanSettleAllModal);
+            });
+            if (loanSettleAllOverlay) {
+                loanSettleAllOverlay.addEventListener('click', function (e) {
+                    if (e.target === loanSettleAllOverlay) closeLoanSettleAllModal();
+                });
+            }
+            if (loanSettleAllSubmit) {
+                loanSettleAllSubmit.addEventListener('click', function () {
+                    if (!loanManageCurrentCustomerId || !loanSettleAllPreviewCache || !loanSettleAllPreviewCache.settleable) return;
+                    var method = loanSettleAllMethod ? String(loanSettleAllMethod.value || '') : '';
+                    var dep = loanSettleAllDeposited ? String(loanSettleAllDeposited.value || '').trim() : '';
+                    var note = loanSettleAllNote ? String(loanSettleAllNote.value || '').trim() : '';
+                    if (!method || !dep) {
+                        if (loanSettleAllMsg) loanSettleAllMsg.textContent = 'نحوه پرداخت و تاریخ واریز الزامی است.';
+                        return;
+                    }
+                    loanSettleAllSubmit.disabled = true;
+                    if (loanSettleAllMsg) loanSettleAllMsg.textContent = 'در حال ثبت تسویه…';
+                    fetch(customerLoanSettleAllUrl(loanManageCurrentCustomerId), {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': @json(csrf_token())
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({
+                            payment_method: method,
+                            deposited_jdate: dep,
+                            note: note
+                        })
+                    }).then(function (r) {
+                        return r.json().then(function (j) {
+                            return { ok: r.ok, status: r.status, data: j };
+                        });
+                    }).then(function (res) {
+                        var msg = (res.data && res.data.message) ? String(res.data.message) : 'خطا';
+                        if (res.ok) {
+                            if (loanSettleAllMsg) loanSettleAllMsg.textContent = msg;
+                            if (window.AdminSwal && AdminSwal.success) {
+                                AdminSwal.success(msg);
+                            }
+                            closeLoanSettleAllModal();
+                            if (loanManageCurrentCustomerId && typeof refreshLoanManageMapFromServer === 'function') {
+                                refreshLoanManageMapFromServer(loanManageCurrentCustomerId);
+                            }
+                            return;
+                        }
+                        if (loanSettleAllMsg) loanSettleAllMsg.textContent = msg;
+                        loanSettleAllSubmit.disabled = false;
+                    }).catch(function () {
+                        if (loanSettleAllMsg) loanSettleAllMsg.textContent = 'ارتباط با سرور برقرار نشد.';
+                        loanSettleAllSubmit.disabled = false;
+                    });
+                });
+            }
+
             function renderLoanInstallmentsPayload(data) {
                 loanInstCachedPayload = data || null;
                 var loan = loanInstCachedPayload ? (loanInstCachedPayload.loan || {}) : {};
@@ -5968,9 +6635,15 @@
                         ? (formatToman(settledCount) + ' پرونده تسویه‌شده مخفی است')
                         : 'فیلتر پرونده‌ها';
                 }
+                var settleableOpenDebtCount = rows.filter(function (r) {
+                    return !r.is_settled && !r.is_revoked && Number(r.remaining_amount_toman || 0) > 0;
+                }).length;
+
                 if (!count) {
                     loanFilesList.innerHTML = '<div class="loan-files-empty">هنوز پرونده‌ای ثبت نشده است.</div>';
                     loanFilesList.classList.remove('loan-files-list--multi');
+                    var settleAllBtnEmpty = document.getElementById('loan-settle-all-open');
+                    if (settleAllBtnEmpty) settleAllBtnEmpty.hidden = true;
                     var activeTabBtnEmpty = document.querySelector('.loan-tab-btn.is-active');
                     if (activeTabBtnEmpty && String(activeTabBtnEmpty.getAttribute('data-loan-tab') || '') === 'guarantees' && loanManageCurrentCustomerId) {
                         loadLoanGuaranteesReport(loanManageCurrentCustomerId);
@@ -5984,7 +6657,16 @@
                             : 'هنوز پرونده‌ای ثبت نشده است.') +
                         '</div>';
                     loanFilesList.classList.remove('loan-files-list--multi');
+                    var settleAllBtnHiddenOnly = document.getElementById('loan-settle-all-open');
+                    if (settleAllBtnHiddenOnly) {
+                        settleAllBtnHiddenOnly.hidden = settleableOpenDebtCount < 1;
+                    }
                     return;
+                }
+
+                var settleAllBtn = document.getElementById('loan-settle-all-open');
+                if (settleAllBtn) {
+                    settleAllBtn.hidden = settleableOpenDebtCount < 1;
                 }
 
                 var multiLoanFiles = visibleCount >= 2;
@@ -6948,6 +7630,19 @@
                     }
                     return;
                 }
+                var notesBtn = e.target.closest('[data-cust-notes]');
+                if (notesBtn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var notesCustomerId = notesBtn.getAttribute('data-customer-id');
+                    var notesCustomerName = notesBtn.getAttribute('data-customer-name') || '';
+                    var notesCustomerMobile = notesBtn.getAttribute('data-customer-mobile') || '';
+                    if (notesCustomerId) {
+                        closeAllCustMenus();
+                        openCustNotesModal(parseInt(notesCustomerId, 10), notesCustomerName, notesCustomerMobile);
+                    }
+                    return;
+                }
                 var editBtn = e.target.closest('[data-cust-edit]');
                 if (!editBtn) {
                     return;
@@ -6971,6 +7666,56 @@
             if (walletModalOverlay) {
                 walletModalOverlay.addEventListener('click', function (e) {
                     if (e.target === walletModalOverlay) closeWalletModal();
+                });
+            }
+            if (custNotesClose) custNotesClose.addEventListener('click', closeCustNotesModal);
+            if (custNotesOverlay) {
+                custNotesOverlay.addEventListener('click', function (e) {
+                    if (e.target === custNotesOverlay) closeCustNotesModal();
+                });
+            }
+            if (custNotesList) {
+                custNotesList.addEventListener('click', function (e) {
+                    var editBtn = e.target.closest('[data-cust-note-edit]');
+                    if (editBtn) {
+                        var noteId = parseInt(editBtn.getAttribute('data-note-id') || '0', 10);
+                        var card = editBtn.closest('[data-note-id]');
+                        var bodyEl = card ? card.querySelector('.cust-note-body') : null;
+                        if (!noteId || !bodyEl || !custNotesBody) {
+                            return;
+                        }
+                        custNotesEditingId = noteId;
+                        custNotesBody.value = bodyEl.textContent || '';
+                        if (custNotesSubmit) {
+                            custNotesSubmit.innerHTML = '<i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> ذخیره ویرایش';
+                        }
+                        custNotesBody.focus();
+                        return;
+                    }
+                    var deleteBtn = e.target.closest('[data-cust-note-delete]');
+                    if (deleteBtn) {
+                        var delId = parseInt(deleteBtn.getAttribute('data-note-id') || '0', 10);
+                        if (delId) {
+                            custNotesDelete(delId);
+                        }
+                    }
+                });
+            }
+            if (custNotesForm) {
+                custNotesForm.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    if (!custNotesCanCreate && !custNotesEditingId) {
+                        return;
+                    }
+                    if (custNotesEditingId && !custNotesCanUpdate) {
+                        return;
+                    }
+                    custNotesSubmitBody(custNotesBody ? custNotesBody.value : '', custNotesEditingId)
+                        .catch(function (err) {
+                            if (err && err.message && err.message !== 'empty' && window.AdminSwal && window.AdminSwal.error) {
+                                AdminSwal.error(err.message);
+                            }
+                        });
                 });
             }
             if (walletAdjustClose) walletAdjustClose.addEventListener('click', closeWalletAdjustModal);

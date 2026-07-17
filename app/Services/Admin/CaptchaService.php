@@ -14,19 +14,24 @@ final class CaptchaService
 
     public const PURPOSE_USER_FORGOT = 'user_forgot';
 
+    public const PURPOSE_USER_OTP_LOGIN = 'user_otp_login';
+
     private const SESSION_KEYS = [
         self::PURPOSE_ADMIN_LOGIN => 'security.admin_login_captcha',
         self::PURPOSE_USER_LOGIN => 'security.user_login_captcha',
         self::PURPOSE_USER_FORGOT => 'security.user_forgot_captcha',
+        self::PURPOSE_USER_OTP_LOGIN => 'security.user_otp_login_captcha',
     ];
 
     public static function issueNewCaptchaForRendering(string $purpose = self::PURPOSE_ADMIN_LOGIN): string
     {
-        $code = self::randomCode(5);
+        $code = self::isDigitsOnlyPurpose($purpose)
+            ? self::randomDigits(5)
+            : self::randomCode(5);
 
         Session::put(
             self::sessionKey($purpose),
-            hash_hmac('sha256', self::normalize($code), config('app.key')),
+            hash_hmac('sha256', self::normalize($code, $purpose), config('app.key')),
         );
 
         return $code;
@@ -41,7 +46,7 @@ final class CaptchaService
             return false;
         }
 
-        $expected = hash_hmac('sha256', self::normalize($userInput), config('app.key'));
+        $expected = hash_hmac('sha256', self::normalize($userInput, $purpose), config('app.key'));
 
         return hash_equals($stored, $expected);
     }
@@ -51,12 +56,28 @@ final class CaptchaService
         return self::SESSION_KEYS[$purpose] ?? self::SESSION_KEYS[self::PURPOSE_ADMIN_LOGIN];
     }
 
+    private static function isDigitsOnlyPurpose(string $purpose): bool
+    {
+        return in_array($purpose, [
+            self::PURPOSE_USER_LOGIN,
+            self::PURPOSE_USER_FORGOT,
+            self::PURPOSE_USER_OTP_LOGIN,
+        ], true);
+    }
+
     /**
      * نرمال‌سازی شامل تبدیل اعداد فارسی/عربی به لاتنی است تا ورود کلید فارسی هم پذیرفته شود.
+     * برای کپچای مشتریان فقط ارقام نگه داشته می‌شوند.
      */
-    private static function normalize(string $input): string
+    private static function normalize(string $input, string $purpose = self::PURPOSE_ADMIN_LOGIN): string
     {
-        return strtolower(self::digitsToAscii(trim($input)));
+        $value = self::digitsToAscii(trim($input));
+
+        if (self::isDigitsOnlyPurpose($purpose)) {
+            return preg_replace('/\D+/', '', $value) ?? '';
+        }
+
+        return strtolower($value);
     }
 
     private static function digitsToAscii(string $value): string
@@ -68,6 +89,16 @@ final class CaptchaService
         $step = str_replace($persian, $latin, $value);
 
         return str_replace($arabic, $latin, $step);
+    }
+
+    private static function randomDigits(int $length): string
+    {
+        $out = '';
+        for ($i = 0; $i < $length; $i++) {
+            $out .= (string) random_int(0, 9);
+        }
+
+        return $out;
     }
 
     private static function randomCode(int $length): string

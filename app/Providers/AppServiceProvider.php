@@ -76,7 +76,7 @@ class AppServiceProvider extends ServiceProvider
         Paginator::defaultView('vendor.pagination.myghest');
         Paginator::defaultSimpleView('vendor.pagination.myghest');
 
-        View::composer(['layouts.admin.app', 'layouts.admin.auth', 'layouts.admin.embed_iframe', 'layouts.user.app', 'errors.layout', 'errors.403'], function ($view): void {
+        View::composer(['layouts.admin.app', 'layouts.admin.auth', 'layouts.admin.embed_iframe', 'layouts.user.app', 'admin.auth.login', 'user.auth.login', 'errors.layout', 'errors.403'], function ($view): void {
             $displayName = AppSetting::query()
                 ->where('key', 'app_display_name')
                 ->value('value');
@@ -102,6 +102,9 @@ class AppServiceProvider extends ServiceProvider
                 ->value('value');
             $faviconFa = AppSetting::query()
                 ->where('key', 'favicon_fa')
+                ->value('value');
+            $customerLoginMessageRaw = AppSetting::query()
+                ->where('key', 'customer_login_message')
                 ->value('value');
 
             $zibalMerchant = AppSetting::query()
@@ -143,6 +146,13 @@ class AppServiceProvider extends ServiceProvider
                 ? $faviconFa
                 : 'fa-solid fa-globe';
             $view->with('faviconFaClass', $resolvedFaviconFaClass);
+            $defaultCustomerLoginMessage = 'نام کاربری و رمزی را که از طرف مدیریت دریافت کرده‌اید وارد کنید.';
+            $customerLoginMessageStored = is_string($customerLoginMessageRaw) ? trim($customerLoginMessageRaw) : '';
+            $view->with('customerLoginMessageStored', $customerLoginMessageStored);
+            $view->with(
+                'customerLoginMessage',
+                $customerLoginMessageStored !== '' ? $customerLoginMessageStored : $defaultCustomerLoginMessage
+            );
             $view->with('zibalMerchant', is_string($zibalMerchant) ? $zibalMerchant : '');
             $view->with('zibalCallbackUrl', $zibalCallbackUrl);
             $view->with('paymentGateway', $gatewayNormalized);

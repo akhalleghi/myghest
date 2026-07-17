@@ -27,6 +27,7 @@ use App\Models\SmsLog;
 use App\Models\SmsTemplate;
 use App\Rules\IranNationalId;
 use App\Services\Admin\RawSmsDispatcher;
+use App\Services\Customers\AdminCustomerSettleAllLoansService;
 use App\Services\Loans\LoanFileFinanceCalculator;
 use App\Services\Loans\LoanInstallmentAmountAllocator;
 use App\Services\Loans\LoanInstallmentScheduleService;
@@ -1917,6 +1918,57 @@ final class CustomerController extends Controller
         $loanFile->load('loanType');
 
         return response()->json($this->buildInstantSettlementPreview($loanFile));
+    }
+
+    public function loanInstantSettlementAllPreview(
+        Customer $customer,
+        AdminCustomerSettleAllLoansService $settleAllService,
+    ): JsonResponse {
+        return response()->json($settleAllService->preview($customer));
+    }
+
+    public function settleAllLoans(
+        Request $request,
+        Customer $customer,
+        AdminCustomerSettleAllLoansService $settleAllService,
+    ): JsonResponse {
+        $adminId = auth('admin')->id();
+        if ($adminId === null) {
+            return response()->json(['message' => 'احراز هویت مدیر الزامی است.'], 401);
+        }
+
+        $validated = $request->validate([
+            'payment_method' => ['required', 'string', Rule::in(CustomerLoanInstallmentPayment::creatablePaymentMethodKeys())],
+            'deposited_jdate' => ['required', 'string', 'max:20'],
+            'note' => ['nullable', 'string', 'max:5000'],
+        ], [], [
+            'payment_method' => 'نحوه پرداخت',
+            'deposited_jdate' => 'تاریخ واریز',
+            'note' => 'توضیحات',
+        ]);
+
+        $depCarbon = $this->parseJalaliDate(trim((string) $validated['deposited_jdate']));
+        if ($depCarbon === null) {
+            return response()->json(['message' => 'تاریخ واریز معتبر نیست. فرمت: ۱۴۰۳/۰۶/۱۵'], 422);
+        }
+
+        $result = $settleAllService->settle(
+            $customer,
+            (string) $validated['payment_method'],
+            $depCarbon,
+            isset($validated['note']) ? (string) $validated['note'] : null,
+            (int) $adminId,
+        );
+
+        if (! ($result['ok'] ?? false)) {
+            return response()->json(['message' => (string) ($result['message'] ?? 'تسویه انجام نشد.')], 422);
+        }
+
+        return response()->json([
+            'message' => (string) ($result['message'] ?? ''),
+            'settled_count' => (int) ($result['settled_count'] ?? 0),
+            'total_principal_toman' => (int) ($result['total_principal_toman'] ?? 0),
+        ]);
     }
 
     public function loanDiscountPreview(Customer $customer, CustomerLoanFile $loanFile): JsonResponse

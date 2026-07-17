@@ -96,6 +96,11 @@ final class Customer extends Authenticatable
         return $this->hasMany(CustomerLoginLog::class)->orderByDesc('logged_in_at')->orderByDesc('id');
     }
 
+    public function adminNotes(): HasMany
+    {
+        return $this->hasMany(CustomerAdminNote::class)->latest('id');
+    }
+
     public function fullName(): string
     {
         return trim($this->first_name.' '.$this->last_name);

@@ -35,10 +35,10 @@ final class CustomerPasswordForgotController extends Controller
 
         $validated = $request->validate([
             'mobile' => ['required', 'string', 'regex:/^(09|9)\d{9}$/'],
-            'captcha' => ['required', 'string', 'size:5'],
+            'captcha' => ['required', 'string', 'regex:/^\d{5}$/'],
         ], [
             'mobile.regex' => 'شماره موبایل معتبر نیست (مثال: ۰۹۱۲۳۴۵۶۷۸۹).',
-            'captcha.size' => 'کپچا باید ۵ کاراکتر باشد.',
+            'captcha.regex' => 'کپچا باید ۵ رقم باشد.',
         ]);
 
         $this->ensureForgotOtpSendNotLocked($request);
@@ -281,7 +281,10 @@ final class CustomerPasswordForgotController extends Controller
             if (! $request->has($key)) {
                 continue;
             }
-            $merge[$key] = $this->toEnglishDigits(trim((string) $request->input($key)));
+            $ascii = $this->toEnglishDigits(trim((string) $request->input($key)));
+            $merge[$key] = $key === 'captcha'
+                ? (preg_replace('/\D+/', '', $ascii) ?? '')
+                : $ascii;
         }
         if ($merge !== []) {
             $request->merge($merge);

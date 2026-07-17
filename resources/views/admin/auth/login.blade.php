@@ -1,10 +1,57 @@
 @extends('layouts.admin.auth')
 
-@section('title', 'ورود مدیر')
+@section('title', 'ورود مدیر' . (! empty($appDisplayName ?? null) ? ' — ' . $appDisplayName : ''))
 
-@if (!empty($adminLoginTwoFactorEnabled))
 @push('head')
     <style>
+        .admin-login-brand {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 0.75rem;
+            margin-bottom: 1.35rem;
+        }
+        .admin-login-logo {
+            width: min(100%, 11.5rem);
+            max-height: 4.75rem;
+            display: grid;
+            place-items: center;
+        }
+        .admin-login-logo img {
+            display: block;
+            width: auto;
+            max-width: 100%;
+            max-height: 4.75rem;
+            object-fit: contain;
+        }
+        .admin-login-logo-fallback {
+            width: 3.4rem;
+            height: 3.4rem;
+            border-radius: 0.95rem;
+            background: linear-gradient(145deg, var(--accent), var(--accent-strong));
+            color: #fff;
+            display: grid;
+            place-items: center;
+            font-size: 1.35rem;
+            box-shadow: 0 10px 22px rgba(37, 99, 235, 0.28);
+        }
+        .admin-login-title {
+            margin: 0.15rem 0 0;
+            font-size: 1.12rem;
+            font-weight: 780;
+            letter-spacing: -0.02em;
+            color: var(--brand-heading);
+            line-height: 1.45;
+        }
+        .admin-login-lead {
+            margin: 0.35rem 0 0;
+            font-size: 0.86rem;
+            color: var(--muted);
+            max-width: 30em;
+            line-height: 1.6;
+        }
+        @if (!empty($adminLoginTwoFactorEnabled))
         .pwr-modal {
             position: fixed; inset: 0; z-index: 220;
             display: none; align-items: center; justify-content: center;
@@ -60,30 +107,37 @@
         .login-2fa-actions { margin-top: 1rem; }
         .login-2fa-resend:disabled { opacity: 0.65; cursor: not-allowed; }
         .login-2fa-resend.is-waiting { border-style: dashed; }
+        @endif
     </style>
 @endpush
-@endif
 
 @section('content')
-    <div class="brand">
-        <div class="brand-row">
-            <div class="brand-ico" aria-hidden="true">
-                @if(!empty($appIconUrl ?? null))
-                    <img src="{{ $appIconUrl }}" alt="app icon" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block">
-                @else
+    <div class="admin-login-brand">
+        <div class="admin-login-logo">
+            @if(!empty($appLogoUrl ?? null))
+                <img src="{{ $appLogoUrl }}" alt="{{ $appDisplayName ?? 'لوگوی سامانه' }}">
+            @elseif(!empty($appIconUrl ?? null))
+                <img src="{{ $appIconUrl }}" alt="{{ $appDisplayName ?? 'آیکون سامانه' }}">
+            @else
+                <div class="admin-login-logo-fallback" aria-hidden="true">
                     <i class="{{ $appIconFaClass ?? 'fa-solid fa-shield-halved' }}"></i>
+                </div>
+            @endif
+        </div>
+        <div>
+            <h1 class="admin-login-title">
+                ورود به پنل مدیریت
+                @if(!empty($appDisplayName ?? null))
+                    ({{ $appDisplayName }})
                 @endif
-            </div>
-            <div>
-                <h1>ورود به پنل مدیریت</h1>
-                <p class="lead">
-                    @if (!empty($adminLoginTwoFactorEnabled))
-                        نام کاربری و رمز عبور را وارد کنید؛ پس از آن کد پیامکی تأیید می‌شود.
-                    @else
-                        نام کاربری و رمز عبور خود را به‌همراه کپچا وارد کنید.
-                    @endif
-                </p>
-            </div>
+            </h1>
+            <p class="admin-login-lead">
+                @if (!empty($adminLoginTwoFactorEnabled))
+                    نام کاربری و رمز عبور را وارد کنید؛ پس از آن کد پیامکی تأیید می‌شود.
+                @else
+                    نام کاربری و رمز عبور خود را به‌همراه کپچا وارد کنید.
+                @endif
+            </p>
         </div>
     </div>
 

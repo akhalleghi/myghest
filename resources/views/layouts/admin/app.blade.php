@@ -2755,7 +2755,7 @@
                             </div>
                             <div class="app-settings-card">
                                 <h4>لوگوی سامانه</h4>
-                                <p class="app-settings-card-desc">لوگو در بالای منوی کناری (کنار نام سامانه) در پنل ادمین و پنل کاربران نمایش داده می‌شود. در صورت آپلود نشدن لوگو، از آیکون برنامه یا Font Awesome استفاده می‌شود.</p>
+                                <p class="app-settings-card-desc">لوگو در بالای صفحه ورود مشتریان و همچنین در منوی کناری پنل ادمین و پنل کاربران نمایش داده می‌شود. در صورت آپلود نشدن لوگو، از آیکون برنامه یا Font Awesome استفاده می‌شود.</p>
                                 <div class="app-logo-preview-row" aria-hidden="true">
                                     <div class="app-logo-preview-row__mark">
                                         <div id="app-logo-preview-box" class="app-logo-preview-box">
@@ -2783,6 +2783,24 @@
                                             حذف لوگوی فعلی
                                         </label>
                                     @endif
+                                </div>
+                            </div>
+                            <div class="app-settings-card">
+                                <h4>متن صفحه ورود مشتریان</h4>
+                                <p class="app-settings-card-desc">این متن دقیقاً زیر لوگوی سامانه در صفحه ورود مشتریان نمایش داده می‌شود؛ مناسب پیام تبلیغاتی، انگیزشی، نکته کوتاه یا راهنمایی ورود.</p>
+                                <div class="app-settings-field">
+                                    <label for="customer-login-message">متن زیر لوگو</label>
+                                    <textarea
+                                        id="customer-login-message"
+                                        name="customer_login_message"
+                                        rows="3"
+                                        maxlength="500"
+                                        placeholder="مثلاً: خوش آمدید؛ برای ورود از نام کاربری و رمز دریافتی از مدیریت استفاده کنید."
+                                    >{{ old('customer_login_message', $customerLoginMessageStored ?? '') }}</textarea>
+                                    <p class="app-field-help">حداکثر ۵۰۰ نویسه. اگر خالی بماند، متن پیش‌فرض راهنمای ورود نمایش داده می‌شود.</p>
+                                    @error('customer_login_message')
+                                        <div class="app-settings-error">{{ $message }}</div>
+                                    @enderror
                                 </div>
                             </div>
                             @php
@@ -3594,7 +3612,7 @@
                 }
                 renderFaviconFaPreview();
 
-                @if($errors->has('font_size') || $errors->has('ui_font') || $errors->has('app_icon') || $errors->has('app_logo') || $errors->has('favicon') || $errors->has('app_icon_fa') || $errors->has('favicon_fa'))
+                @if($errors->has('font_size') || $errors->has('ui_font') || $errors->has('app_icon') || $errors->has('app_logo') || $errors->has('favicon') || $errors->has('app_icon_fa') || $errors->has('favicon_fa') || $errors->has('customer_login_message'))
                 activateSettingsTab('ui');
                 openSettings();
                 @elseif($errors->has('display_name'))
@@ -3620,6 +3638,7 @@
                 openSettings();
                 @elseif(
                     $errors->has('customer_login_two_factor_enabled')
+                    || $errors->has('customer_login_sms_otp_enabled')
                     || $errors->has('admin_login_two_factor_enabled')
                     || $errors->has('customer_login_session_lifetime_minutes')
                     || $errors->has('customer_login_max_failed_attempts')
