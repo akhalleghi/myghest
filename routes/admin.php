@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\AdminNotificationController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminCustomerSupportTicketController;
 use App\Http\Controllers\Admin\AdminSupportTicketController;
+use App\Http\Controllers\Admin\AdminInternalTicketController;
 use App\Http\Controllers\Admin\AdminDatabaseBackupController;
 use App\Http\Controllers\Admin\AppSettingsController;
 use App\Http\Controllers\Admin\LoginBackgroundSettingsController;
@@ -223,6 +224,38 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
     Route::get('/tickets/attachments/{attachment}', [AdminSupportTicketController::class, 'attachment'])
         ->middleware('throttle:120,1')
         ->name('tickets.attachment');
+
+    Route::get('/internal-tickets', [AdminInternalTicketController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('internal-tickets.index');
+
+    Route::get('/internal-tickets/list', [AdminInternalTicketController::class, 'list'])
+        ->middleware('throttle:90,1')
+        ->name('internal-tickets.list');
+
+    Route::get('/internal-tickets/admins-search', [AdminInternalTicketController::class, 'adminsSearch'])
+        ->middleware('throttle:90,1')
+        ->name('internal-tickets.admins-search');
+
+    Route::get('/internal-tickets/attachments/{attachment}', [AdminInternalTicketController::class, 'attachment'])
+        ->middleware('throttle:120,1')
+        ->name('internal-tickets.attachment');
+
+    Route::get('/internal-tickets/{ticket}', [AdminInternalTicketController::class, 'show'])
+        ->middleware('throttle:90,1')
+        ->name('internal-tickets.show');
+
+    Route::post('/internal-tickets', [AdminInternalTicketController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('internal-tickets.store');
+
+    Route::post('/internal-tickets/{ticket}/reply', [AdminInternalTicketController::class, 'reply'])
+        ->middleware('throttle:30,1')
+        ->name('internal-tickets.reply');
+
+    Route::patch('/internal-tickets/{ticket}/status', [AdminInternalTicketController::class, 'updateStatus'])
+        ->middleware('throttle:30,1')
+        ->name('internal-tickets.status');
 
     Route::get('/customer-transactions/export', [AdminCustomerTransactionController::class, 'export'])
         ->middleware('throttle:15,1')

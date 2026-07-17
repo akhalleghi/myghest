@@ -126,6 +126,70 @@
             color: var(--text); font-size: 0.76rem; font-weight: 800; text-decoration: none;
         }
         .cust-list-filter-clear:hover { border-color: rgba(37, 99, 235, 0.35); color: var(--primary-dark); }
+        .cust-scope-stats {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0.65rem;
+            margin-bottom: 0.95rem;
+        }
+        @media (max-width: 980px) {
+            .cust-scope-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 520px) {
+            .cust-scope-stats { grid-template-columns: 1fr; }
+        }
+        .cust-scope-stat {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            padding: 0.7rem 0.8rem;
+            border: 1px solid var(--border);
+            border-radius: 0.85rem;
+            background: var(--bg-card);
+            text-decoration: none;
+            color: inherit;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+        }
+        .cust-scope-stat:hover {
+            border-color: rgba(37, 99, 235, 0.35);
+            box-shadow: 0 8px 18px rgba(37, 99, 235, 0.1);
+            transform: translateY(-1px);
+        }
+        .cust-scope-stat.is-active {
+            border-color: rgba(37, 99, 235, 0.45);
+            background: var(--primary-soft);
+            box-shadow: 0 8px 18px rgba(37, 99, 235, 0.12);
+        }
+        .cust-scope-stat__ico {
+            width: 2.25rem;
+            height: 2.25rem;
+            border-radius: 0.7rem;
+            display: inline-grid;
+            place-items: center;
+            flex: 0 0 auto;
+            font-size: 0.92rem;
+        }
+        .cust-scope-stat__body { min-width: 0; }
+        .cust-scope-stat__label {
+            display: block;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--muted);
+            line-height: 1.35;
+            margin-bottom: 0.12rem;
+        }
+        .cust-scope-stat__value {
+            display: block;
+            font-size: 1.05rem;
+            font-weight: 900;
+            color: var(--text);
+            line-height: 1.2;
+        }
+        .cust-scope-stat--all .cust-scope-stat__ico { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
+        .cust-scope-stat--active .cust-scope-stat__ico { background: rgba(16, 185, 129, 0.14); color: #047857; }
+        .cust-scope-stat--overdue .cust-scope-stat__ico { background: rgba(239, 68, 68, 0.13); color: #b91c1c; }
+        .cust-scope-stat--nodebt .cust-scope-stat__ico { background: rgba(14, 165, 233, 0.14); color: #0369a1; }
         .cust-card {
             border: 1px solid var(--border); border-radius: 0.9rem; background: var(--bg-card);
             overflow: visible; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
@@ -156,6 +220,35 @@
         .cust-loan-count { font-size: 0.9rem; font-weight: 900; color: var(--text); line-height: 1.2; }
         .cust-loan-ids { font-size: 0.65rem; color: var(--muted); margin-top: 0.18rem; max-width: 11rem; white-space: normal; word-break: break-word; }
         .cust-amount { font-size: 0.8rem; font-weight: 800; color: var(--text); }
+        .cust-wallet-cell {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.28rem;
+        }
+        .cust-wallet-cell--locked .cust-wallet-balance {
+            color: #b91c1c;
+        }
+        .cust-wallet-lock-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.28rem;
+            border-radius: 999px;
+            padding: 0.14rem 0.45rem;
+            font-size: 0.66rem;
+            font-weight: 800;
+            background: rgba(239, 68, 68, 0.13);
+            color: #991b1b;
+            line-height: 1.3;
+            white-space: nowrap;
+        }
+        html[data-theme="dark"] .cust-wallet-cell--locked .cust-wallet-balance {
+            color: #fca5a5;
+        }
+        html[data-theme="dark"] .cust-wallet-lock-badge {
+            background: rgba(248, 113, 113, 0.18);
+            color: #fecaca;
+        }
         .cust-sms-actions { display: inline-flex; align-items: center; gap: 0.35rem; }
         .cust-sms-circle-btn {
             width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--border);
@@ -1869,10 +1962,24 @@
         $listScope = $listScope ?? 'all';
         $listSort = $listSort ?? null;
         $listSortDir = $listSortDir ?? 'asc';
+        $customerListScopeStats = $customerListScopeStats ?? [
+            'all' => 0,
+            'active_loan' => 0,
+            'overdue_installment' => 0,
+            'no_debt' => 0,
+        ];
         $listExportQuery = array_filter(array_merge(
             $listFilterQuery,
             ['q' => ($search ?? '') !== '' ? $search : null]
         ));
+        $custScopeUrl = static function (string $scope) use ($search, $listSort, $listSortDir): string {
+            return route('admin.customers.index', array_filter([
+                'list_scope' => $scope !== 'all' ? $scope : null,
+                'q' => ($search ?? '') !== '' ? $search : null,
+                'sort' => $listSort ?: null,
+                'dir' => $listSort ? $listSortDir : null,
+            ]));
+        };
         $custSortUrl = static function (string $column) use ($listFilterQuery, $search, $listSort, $listSortDir): string {
             $nextDir = ($listSort === $column && $listSortDir === 'asc') ? 'desc' : 'asc';
 
@@ -1923,6 +2030,37 @@
             </div>
         </div>
 
+        <div class="cust-scope-stats" role="navigation" aria-label="آمار و فیلتر سریع مشتریان">
+            <a href="{{ $custScopeUrl('all') }}" class="cust-scope-stat cust-scope-stat--all @if($listScope === 'all') is-active @endif" title="نمایش همه مشتریان">
+                <span class="cust-scope-stat__ico" aria-hidden="true"><i class="fa-solid fa-users"></i></span>
+                <span class="cust-scope-stat__body">
+                    <span class="cust-scope-stat__label">همه مشتریان</span>
+                    <span class="cust-scope-stat__value">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format((int) ($customerListScopeStats['all'] ?? 0), 0)) }}</span>
+                </span>
+            </a>
+            <a href="{{ $custScopeUrl('active_loan') }}" class="cust-scope-stat cust-scope-stat--active @if($listScope === 'active_loan') is-active @endif" title="فیلتر مشتریان دارای وام فعال">
+                <span class="cust-scope-stat__ico" aria-hidden="true"><i class="fa-solid fa-file-invoice-dollar"></i></span>
+                <span class="cust-scope-stat__body">
+                    <span class="cust-scope-stat__label">دارای وام فعال</span>
+                    <span class="cust-scope-stat__value">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format((int) ($customerListScopeStats['active_loan'] ?? 0), 0)) }}</span>
+                </span>
+            </a>
+            <a href="{{ $custScopeUrl('overdue_installment') }}" class="cust-scope-stat cust-scope-stat--overdue @if($listScope === 'overdue_installment') is-active @endif" title="فیلتر مشتریان دارای بدهی معوق">
+                <span class="cust-scope-stat__ico" aria-hidden="true"><i class="fa-solid fa-triangle-exclamation"></i></span>
+                <span class="cust-scope-stat__body">
+                    <span class="cust-scope-stat__label">دارای بدهی معوق</span>
+                    <span class="cust-scope-stat__value">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format((int) ($customerListScopeStats['overdue_installment'] ?? 0), 0)) }}</span>
+                </span>
+            </a>
+            <a href="{{ $custScopeUrl('no_debt') }}" class="cust-scope-stat cust-scope-stat--nodebt @if($listScope === 'no_debt') is-active @endif" title="فیلتر مشتریان بدون بدهی">
+                <span class="cust-scope-stat__ico" aria-hidden="true"><i class="fa-solid fa-circle-check"></i></span>
+                <span class="cust-scope-stat__body">
+                    <span class="cust-scope-stat__label">بدون بدهی</span>
+                    <span class="cust-scope-stat__value">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format((int) ($customerListScopeStats['no_debt'] ?? 0), 0)) }}</span>
+                </span>
+            </a>
+        </div>
+
         @if (!empty($listFilterLabel))
             <div class="cust-list-filter-banner" role="status">
                 <span><strong>فیلتر فعال:</strong> {{ $listFilterLabel }}</span>
@@ -1942,6 +2080,7 @@
                     <option value="all" @selected($listScope === 'all')>همه مشتریان</option>
                     <option value="active_loan" @selected($listScope === 'active_loan')>دارای وام فعال</option>
                     <option value="overdue_installment" @selected($listScope === 'overdue_installment')>دارای قسط معوق</option>
+                    <option value="no_debt" @selected($listScope === 'no_debt')>بدون بدهی</option>
                 </select>
                 @if ($listSort)
                     <input type="hidden" name="sort" value="{{ $listSort }}">
@@ -2043,7 +2182,18 @@
                                 </td>
                                 <td class="cust-amount">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($loanTotalWithProfit, 0)) }} تومان</td>
                                 <td class="cust-amount">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($loanRemainInstallments, 0)) }} تومان</td>
-                                <td class="cust-amount">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format((int) ($c->wallet?->balance_toman ?? 0), 0)) }} تومان</td>
+                                <td class="cust-amount" data-cust-wallet-cell="{{ $c->id }}">
+                                    @php($walletIsLocked = (bool) ($c->wallet?->is_locked ?? false))
+                                    <span class="cust-wallet-cell @if($walletIsLocked) cust-wallet-cell--locked @endif">
+                                        <span class="cust-wallet-balance">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format((int) ($c->wallet?->balance_toman ?? 0), 0)) }} تومان</span>
+                                        @if ($walletIsLocked)
+                                            <span class="cust-wallet-lock-badge" title="کیف پول این مشتری قفل است">
+                                                <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                                                قفل
+                                            </span>
+                                        @endif
+                                    </span>
+                                </td>
                                 <td>
                                     @if ($c->membership_at)
                                         {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(jalali($c->membership_at)->format('Y/m/d')) }}
@@ -4436,6 +4586,27 @@
                     walletLockToggleBtn.classList.add('wallet-btn--danger');
                     walletLockToggleBtn.innerHTML = '<i class="fa-solid fa-lock"></i> قفل کیف پول';
                 }
+            }
+
+            function syncCustomerListWalletLockCell(customerId, isLocked, balanceToman) {
+                var cell = document.querySelector('[data-cust-wallet-cell="' + String(customerId) + '"]');
+                if (!cell) return;
+                var bal = Number(balanceToman);
+                if (!Number.isFinite(bal)) bal = 0;
+                var wrap = document.createElement('span');
+                wrap.className = 'cust-wallet-cell' + (isLocked ? ' cust-wallet-cell--locked' : '');
+                var balEl = document.createElement('span');
+                balEl.className = 'cust-wallet-balance';
+                balEl.textContent = formatToman(bal) + ' تومان';
+                wrap.appendChild(balEl);
+                if (isLocked) {
+                    var badge = document.createElement('span');
+                    badge.className = 'cust-wallet-lock-badge';
+                    badge.title = 'کیف پول این مشتری قفل است';
+                    badge.innerHTML = '<i class="fa-solid fa-lock" aria-hidden="true"></i> قفل';
+                    wrap.appendChild(badge);
+                }
+                cell.replaceChildren(wrap);
             }
 
             function openWalletModal(customerId, customerName, customerMobile) {
@@ -8952,6 +9123,13 @@
                         }
                         walletState = res.json.wallet || walletState;
                         setWalletVisualState();
+                        if (walletCurrentCustomerId) {
+                            syncCustomerListWalletLockCell(
+                                walletCurrentCustomerId,
+                                !!walletState.is_locked,
+                                walletState.balance_toman
+                            );
+                        }
                         if (window.AdminSwal && window.AdminSwal.success) {
                             AdminSwal.success(res.json.message || 'وضعیت کیف پول به‌روزرسانی شد.');
                         }

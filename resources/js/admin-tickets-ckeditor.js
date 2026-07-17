@@ -173,6 +173,38 @@ window.destroyCtkEmbedReplyEditor = function () {
     destroyTicketEditor('ctk-reply-body');
 };
 
+window.initItkComposeEditor = function () {
+    scheduleMount('itk-compose-body');
+};
+
+window.initItkReplyEditor = function () {
+    scheduleMount('itk-reply-body');
+};
+
+window.syncItkComposeEditor = function () {
+    const editor = ticketEditors['itk-compose-body'];
+    const ta = document.getElementById('itk-compose-body');
+    if (editor && ta) {
+        ta.value = editor.getData();
+    }
+};
+
+window.syncItkReplyEditor = function () {
+    const editor = ticketEditors['itk-reply-body'];
+    const ta = document.getElementById('itk-reply-body');
+    if (editor && ta) {
+        ta.value = editor.getData();
+    }
+};
+
+window.destroyItkComposeEditor = function () {
+    destroyTicketEditor('itk-compose-body');
+};
+
+window.destroyItkReplyEditor = function () {
+    destroyTicketEditor('itk-reply-body');
+};
+
 /**
  * @param {string} elementId
  * @returns {boolean}

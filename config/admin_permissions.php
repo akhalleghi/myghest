@@ -163,6 +163,19 @@ return [
             ],
         ],
         [
+            'key' => 'internal_tickets',
+            'label' => 'تیکت داخلی',
+            'children' => [
+                ['key' => 'internal_tickets.view', 'label' => 'مشاهده تیکت داخلی', 'routes' => [
+                    'admin.internal-tickets.index', 'admin.internal-tickets.list', 'admin.internal-tickets.admins-search',
+                    'admin.internal-tickets.show', 'admin.internal-tickets.attachment',
+                ]],
+                ['key' => 'internal_tickets.create', 'label' => 'ایجاد تیکت داخلی', 'routes' => ['admin.internal-tickets.store']],
+                ['key' => 'internal_tickets.reply', 'label' => 'پاسخ به تیکت داخلی', 'routes' => ['admin.internal-tickets.reply']],
+                ['key' => 'internal_tickets.status', 'label' => 'تغییر وضعیت تیکت داخلی', 'routes' => ['admin.internal-tickets.status']],
+            ],
+        ],
+        [
             'key' => 'sms',
             'label' => 'مدیریت پیامک',
             'children' => [
@@ -414,6 +427,7 @@ return [
         ['label' => 'اعلام واریزها', 'href' => 'admin.deposit-declarations.index', 'icon' => 'fa-building-columns', 'route' => 'admin.deposit-declarations.index', 'permission' => 'deposit_declarations.view'],
         ['label' => 'تراکنش‌ها', 'href' => 'admin.customer-transactions.index', 'icon' => 'fa-receipt', 'route' => 'admin.customer-transactions.index', 'permission' => 'customer_transactions.view'],
         ['label' => 'تیکت‌ها', 'href' => 'admin.tickets.index', 'icon' => 'fa-ticket', 'route' => 'admin.tickets.index', 'permission' => 'tickets.view'],
+        ['label' => 'تیکت داخلی', 'href' => 'admin.internal-tickets.index', 'icon' => 'fa-comments', 'route' => 'admin.internal-tickets.index', 'permission' => 'internal_tickets.view'],
         ['label' => 'مدیریت پیامک', 'href' => 'admin.sms.index', 'icon' => 'fa-envelope', 'route' => 'admin.sms.index', 'permission' => 'sms.reports'],
         ['label' => 'درخواست وام‌ها', 'href' => 'admin.loan-requests.index', 'icon' => 'fa-file-invoice', 'route' => 'admin.loan-requests.index', 'permission' => 'loan_requests.view'],
         ['label' => 'گزارش ورود', 'href' => 'admin.customer-login-logs.index', 'icon' => 'fa-right-to-bracket', 'route' => 'admin.customer-login-logs.index', 'permission' => 'customer_login_logs'],

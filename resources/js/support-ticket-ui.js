@@ -20,6 +20,8 @@ export const TICKET_DIALOG_IDS = [
     'ctk-detail-dialog',
     'ut-compose-dialog',
     'ut-detail-dialog',
+    'itk-compose-dialog',
+    'itk-detail-dialog',
 ];
 
 function closeDialogs(ids) {

@@ -12,6 +12,7 @@ export default defineConfig({
                 'resources/js/admin-tickets-ckeditor.js',
                 'resources/js/support-ticket-ui.js',
                 'resources/js/admin-tickets-index.js',
+                'resources/js/admin-internal-tickets-index.js',
                 'resources/js/admin-customer-tickets-embed.js',
                 'resources/js/user-tickets-portal.js',
                 'resources/js/admin-dashboard-charts.js',

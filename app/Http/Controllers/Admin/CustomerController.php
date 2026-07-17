@@ -88,6 +88,7 @@ final class CustomerController extends Controller
             'listSortDir' => $listSort['dir'],
             'listFilterLabel' => $this->customerListFilterLabel($listFilter),
             'listFilterQuery' => $this->customerListFilterQueryParams($listFilter, $listSort),
+            'customerListScopeStats' => $this->buildCustomerListScopeStats(),
             'appDisplayName' => $this->appDisplayName(),
             'loanTypes' => LoanType::query()
                 ->latest('id')
@@ -3575,7 +3576,7 @@ final class CustomerController extends Controller
     }
 
     /** @var list<string> */
-    private const CUSTOMER_LIST_SCOPES = ['all', 'active_loan', 'overdue_installment'];
+    private const CUSTOMER_LIST_SCOPES = ['all', 'active_loan', 'overdue_installment', 'no_debt'];
 
     /** @var list<string> */
     private const CUSTOMER_LIST_SORT_COLUMNS = [
@@ -3604,6 +3605,49 @@ final class CustomerController extends Controller
         return [
             'list_scope' => $scope,
             'disbursement_due_overdue' => $request->boolean('disbursement_due_overdue'),
+        ];
+    }
+
+    /**
+     * آمار کلی کارت‌های بالای لیست مشتریان (بدون وابستگی به جستجوی جاری).
+     *
+     * @return array{all: int, active_loan: int, overdue_installment: int, no_debt: int}
+     */
+    private function buildCustomerListScopeStats(): array
+    {
+        $today = now()->toDateString();
+
+        $activeLoanConstraint = static function ($loanFileQuery): void {
+            $loanFileQuery
+                ->whereNull('revoked_at')
+                ->where('is_settled', false);
+        };
+
+        $overdueConstraint = static function ($loanFileQuery) use ($today): void {
+            $loanFileQuery
+                ->whereNull('revoked_at')
+                ->where('is_settled', false)
+                ->whereHas('installments', static function ($installmentQuery) use ($today): void {
+                    $installmentQuery
+                        ->whereColumn('paid_amount_toman', '<', 'amount_toman')
+                        ->whereDate('due_date', '<', $today);
+                });
+        };
+
+        $hasOpenDebtConstraint = static function ($loanFileQuery): void {
+            $loanFileQuery
+                ->whereNull('revoked_at')
+                ->where('is_settled', false)
+                ->whereHas('installments', static function ($installmentQuery): void {
+                    $installmentQuery->whereColumn('paid_amount_toman', '<', 'amount_toman');
+                });
+        };
+
+        return [
+            'all' => (int) Customer::query()->count(),
+            'active_loan' => (int) Customer::query()->whereHas('loanFiles', $activeLoanConstraint)->count(),
+            'overdue_installment' => (int) Customer::query()->whereHas('loanFiles', $overdueConstraint)->count(),
+            'no_debt' => (int) Customer::query()->whereDoesntHave('loanFiles', $hasOpenDebtConstraint)->count(),
         ];
     }
 
@@ -3645,6 +3689,17 @@ final class CustomerController extends Controller
                         $installmentQuery
                             ->whereColumn('paid_amount_toman', '<', 'amount_toman')
                             ->whereDate('due_date', '<', $today);
+                    });
+            });
+        }
+
+        if ($filters['list_scope'] === 'no_debt') {
+            $query->whereDoesntHave('loanFiles', static function ($loanFileQuery): void {
+                $loanFileQuery
+                    ->whereNull('revoked_at')
+                    ->where('is_settled', false)
+                    ->whereHas('installments', static function ($installmentQuery): void {
+                        $installmentQuery->whereColumn('paid_amount_toman', '<', 'amount_toman');
                     });
             });
         }
@@ -3721,6 +3776,9 @@ final class CustomerController extends Controller
         }
         if ($filters['list_scope'] === 'active_loan') {
             return 'مشتریان دارای وام فعال';
+        }
+        if ($filters['list_scope'] === 'no_debt') {
+            return 'مشتریان بدون بدهی';
         }
         if ($filters['disbursement_due_overdue']) {
             return 'مشتریان دارای سررسید واریز به طرف حساب (گذشته از موعد)';
