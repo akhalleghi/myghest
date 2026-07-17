@@ -67,7 +67,14 @@ final class CustomerInstallmentPaymentNotifyAdminSmsService
             return;
         }
 
-        $message = $this->renderMessage($template, $customer, $installment, $file, (int) $payment->amount_toman);
+        $message = $this->renderMessage(
+            $template,
+            $customer,
+            $installment,
+            $file,
+            (int) $payment->amount_toman,
+            (string) $payment->payment_method,
+        );
 
         $recipients = Admin::query()
             ->whereIn('id', $recipientIds)
@@ -135,12 +142,14 @@ final class CustomerInstallmentPaymentNotifyAdminSmsService
         CustomerLoanInstallment $installment,
         CustomerLoanFile $file,
         int $amountToman,
+        string $paymentMethod = '',
     ): string {
         $fullName = $customer->fullName();
         $username = trim((string) ($customer->username ?? ''));
         $loanCode = trim((string) ($file->loan_code ?? ''));
         $seq = max(1, (int) $installment->sequence);
         $amountFormatted = Jalali::enToFaNumbers(number_format(max(0, $amountToman), 0, '.', ','));
+        $paymentMethodFa = $this->paymentMethodLabelFa($paymentMethod);
 
         $replacements = [
             '{customer_full_name}' => $fullName !== '' ? $fullName : $username,
@@ -154,17 +163,38 @@ final class CustomerInstallmentPaymentNotifyAdminSmsService
             '{installment_amount_toman}' => $amountFormatted,
             '{loan_number}' => $loanCode !== '' ? Jalali::enToFaNumbers($loanCode) : '—',
             '{loan_code}' => $loanCode !== '' ? Jalali::enToFaNumbers($loanCode) : '—',
+            '{payment_method}' => $paymentMethodFa,
             '{app_name}' => $this->appDisplayName(),
         ];
 
         $text = str_replace(array_keys($replacements), array_values($replacements), $template);
+        $text = trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
 
-        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+        // قالب‌های ذخیره‌شدهٔ قدیمی بدون توکن نحوهٔ پرداخت را هم مشخص نگه می‌داریم.
+        if ($paymentMethodFa !== '' && $paymentMethodFa !== '—' && ! str_contains($template, '{payment_method}')) {
+            $text = rtrim($text, " .\u{200c}").' از طریق '.$paymentMethodFa.'.';
+        }
+
+        return $text;
     }
 
     public function defaultMessageTemplate(): string
     {
-        return 'مشتری {customer_full_name} قسط شماره {installment_number} به مبلغ {installment_amount} از وام شماره {loan_number} را پرداخت نمود.';
+        return 'مشتری {customer_full_name} قسط شماره {installment_number} به مبلغ {installment_amount} از وام شماره {loan_number} را از طریق {payment_method} پرداخت نمود.';
+    }
+
+    private function paymentMethodLabelFa(string $method): string
+    {
+        return match ($method) {
+            CustomerLoanInstallmentPayment::METHOD_ONLINE => 'درگاه بانکی',
+            CustomerLoanInstallmentPayment::METHOD_WALLET => 'کیف پول',
+            CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_ONLINE => 'تسویه کلی (درگاه)',
+            CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET => 'تسویه کلی (کیف پول)',
+            CustomerLoanInstallmentPayment::METHOD_CASH => 'نقدی (فروشگاه)',
+            CustomerLoanInstallmentPayment::METHOD_BANK_TRANSFER => 'واریز بانکی',
+            CustomerLoanInstallmentPayment::METHOD_CARD_TERMINAL => 'کارتخوان',
+            default => CustomerLoanInstallmentPayment::methodLabels()[$method] ?? ($method !== '' ? $method : '—'),
+        };
     }
 
     private function appDisplayName(): string

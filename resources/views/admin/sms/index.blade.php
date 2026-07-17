@@ -1699,6 +1699,7 @@
                         .replace(/\{installment_amount_toman\}/g, '۱,۲۵۰,۰۰۰')
                         .replace(/\{loan_number\}/g, 'LN-۱۰۲۴')
                         .replace(/\{loan_code\}/g, 'LN-۱۰۲۴')
+                        .replace(/\{payment_method\}/g, 'درگاه بانکی')
                         .replace(/\{app_name\}/g, smsLoginNotifyAppName);
                 }
             });
@@ -1770,6 +1771,7 @@
                             .replace(/\{customer_full_name\}/g, 'رضا محمدی')
                             .replace(/\{loan_number\}/g, 'LN-۱۰۲۴')
                             .replace(/\{settlement_amount\}/g, '۱۵,۰۰۰,۰۰۰')
+                            .replace(/\{payment_method\}/g, 'درگاه بانکی')
                             .replace(/\{app_name\}/g, smsLoginNotifyAppName);
                     }
                 },

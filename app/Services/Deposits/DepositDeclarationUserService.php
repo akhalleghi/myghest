@@ -156,6 +156,9 @@ final class DepositDeclarationUserService
         if ($file === null || $file->revoked_at !== null) {
             throw ValidationException::withMessages(['customer_loan_file_id' => ['پروندهٔ وام معتبر نیست یا فسخ شده است.']]);
         }
+        if ($file->is_settled || $file->settled_at !== null) {
+            throw ValidationException::withMessages(['customer_loan_file_id' => ['برای وام تسویه‌شده نمی‌توان اعلام واریزی ثبت کرد.']]);
+        }
 
         $this->schedule->ensureSchedule($file);
 

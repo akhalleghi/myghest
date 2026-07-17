@@ -36,13 +36,22 @@ final class PortalAdminSmsDispatcher
         SendCustomerInstallmentPaymentNotifyAdminSmsJob::dispatchAfterResponse((int) $payment->id);
     }
 
-    public static function afterFullSettlement(int $customerId, int $loanFileId, int $amountToman): void
-    {
+    public static function afterFullSettlement(
+        int $customerId,
+        int $loanFileId,
+        int $amountToman,
+        ?string $paymentMethod = null,
+    ): void {
         if ($customerId < 1 || $loanFileId < 1 || $amountToman < 1) {
             return;
         }
 
-        SendCustomerFullSettlementNotifyAdminSmsJob::dispatchAfterResponse($customerId, $loanFileId, $amountToman);
+        SendCustomerFullSettlementNotifyAdminSmsJob::dispatchAfterResponse(
+            $customerId,
+            $loanFileId,
+            $amountToman,
+            $paymentMethod,
+        );
     }
 
     public static function afterDepositDeclaration(CustomerDepositDeclaration $declaration): void

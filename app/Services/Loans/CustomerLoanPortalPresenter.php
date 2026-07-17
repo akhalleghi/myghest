@@ -431,8 +431,8 @@ final class CustomerLoanPortalPresenter
         $onlinePayPriorSequenceBlock = $actionsEnabled && $priorNominalSlotUnpaid;
         $walletPayEligible = $actionsEnabled && ! $priorNominalSlotUnpaid && $installmentPayCeilingToman > 0;
 
-        $depositCarbon = $this->resolveLatestDepositCarbon($inst);
-        $depositJalali = $depositCarbon !== null ? $this->toJalaliFa($depositCarbon) : '—';
+        $depositJalali = $this->resolveDepositDatesFa($inst);
+        $mismatch = $this->resolveInstallmentAmountMismatch($amount, $paid);
 
         $hasDepositDeclaration = $depositDeclarationMeta !== null;
         $depositDeclarationCreatedJalali = $hasDepositDeclaration
@@ -510,6 +510,10 @@ final class CustomerLoanPortalPresenter
             'payment_ceiling_toman' => $installmentPayCeilingToman,
             'payment_ceiling_fa' => $installmentPayCeilingToman > 0 ? $this->formatMoneyFa($installmentPayCeilingToman) : '—',
             'deposit_jalali' => $depositJalali,
+            'payment_methods_label' => $this->resolvePortalInstallmentPaymentMethodsLabel($inst, $paid),
+            'amount_mismatch_kind' => $mismatch['kind'],
+            'amount_mismatch_toman' => $mismatch['diff_toman'],
+            'amount_mismatch_label' => $mismatch['label'],
             'has_deposit_declaration' => $hasDepositDeclaration,
             'deposit_declaration_created_jalali' => $depositDeclarationCreatedJalali,
             'early_late_cell_fa' => $this->formatInstallmentEarlyLateCellFa(
@@ -624,6 +628,105 @@ final class CustomerLoanPortalPresenter
         }
 
         return null;
+    }
+
+    /**
+     * برچسب‌های نحوهٔ پرداخت برای نمایش در پنل مشتری.
+     */
+    private function resolvePortalInstallmentPaymentMethodsLabel(CustomerLoanInstallment $inst, int $paidToman): string
+    {
+        /** @var Collection<int, CustomerLoanInstallmentPayment> $payments */
+        $payments = $inst->payments;
+        $parts = [];
+        $seen = [];
+
+        foreach ($payments as $payment) {
+            $label = $this->portalPaymentMethodLabelFa((string) $payment->payment_method);
+            if ($label === '' || isset($seen[$label])) {
+                continue;
+            }
+            $seen[$label] = true;
+            $parts[] = $label;
+        }
+
+        if ($parts === [] && $paidToman > 0) {
+            return $this->portalPaymentMethodLabelFa(CustomerLoanInstallmentPayment::METHOD_LEGACY_IMPORTED);
+        }
+
+        return $parts !== [] ? implode('، ', $parts) : '—';
+    }
+
+    private function portalPaymentMethodLabelFa(string $method): string
+    {
+        return match ($method) {
+            CustomerLoanInstallmentPayment::METHOD_CASH => 'نقدی (فروشگاه)',
+            CustomerLoanInstallmentPayment::METHOD_BANK_TRANSFER => 'واریز بانکی',
+            CustomerLoanInstallmentPayment::METHOD_CARD_TERMINAL => 'کارتخوان',
+            CustomerLoanInstallmentPayment::METHOD_GOLD => 'طلا',
+            CustomerLoanInstallmentPayment::METHOD_ONLINE => 'درگاه بانکی',
+            CustomerLoanInstallmentPayment::METHOD_WALLET => 'کیف پول',
+            CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_ONLINE => 'تسویه کلی (درگاه)',
+            CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET => 'تسویه کلی (کیف پول)',
+            CustomerLoanInstallmentPayment::METHOD_LEGACY_IMPORTED => 'ثبت قبلی',
+            default => CustomerLoanInstallmentPayment::methodLabels()[$method] ?? $method,
+        };
+    }
+
+    /**
+     * همهٔ تاریخ‌های واریز یکتای ثبت‌شده روی قسط (مرتب؛ برای پرداخت چندمرحله‌ای).
+     */
+    private function resolveDepositDatesFa(CustomerLoanInstallment $inst): string
+    {
+        /** @var Collection<int, CustomerLoanInstallmentPayment> $payments */
+        $payments = $inst->payments;
+        if ($payments->isNotEmpty()) {
+            $dates = [];
+            foreach ($payments as $p) {
+                if ($p->deposited_at === null) {
+                    continue;
+                }
+                $d = Carbon::parse($p->deposited_at)->startOfDay();
+                $dates[$d->format('Y-m-d')] = $this->toJalaliFa($d);
+            }
+            if ($dates !== []) {
+                ksort($dates);
+
+                return implode('، ', array_values($dates));
+            }
+        }
+
+        $latest = $this->resolveLatestDepositCarbon($inst);
+
+        return $latest !== null ? $this->toJalaliFa($latest) : '—';
+    }
+
+    /**
+     * @return array{kind: string, diff_toman: int, label: ?string}
+     */
+    private function resolveInstallmentAmountMismatch(int $nominalToman, int $paidToman): array
+    {
+        if ($paidToman <= 0 || $nominalToman <= 0) {
+            return ['kind' => 'none', 'diff_toman' => 0, 'label' => null];
+        }
+
+        $diff = $paidToman - $nominalToman;
+        if ($diff === 0) {
+            return ['kind' => 'none', 'diff_toman' => 0, 'label' => null];
+        }
+
+        if ($diff > 0) {
+            return [
+                'kind' => 'over',
+                'diff_toman' => $diff,
+                'label' => 'اضافه‌پرداخت: '.$this->formatMoneyFa($diff),
+            ];
+        }
+
+        return [
+            'kind' => 'under',
+            'diff_toman' => $diff,
+            'label' => 'کسری: '.$this->formatMoneyFa(abs($diff)),
+        ];
     }
 
     private function toJalaliFa(mixed $date): string

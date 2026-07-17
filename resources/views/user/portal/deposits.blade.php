@@ -304,6 +304,37 @@
         .dep-file-row { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
         .dep-file-prev { max-width: 100%; max-height: 8rem; border-radius: 0.45rem; border: 1px solid var(--border); }
         .dep-pagination-wrap { margin-top: 0.65rem; }
+        .dep-prefill-hint {
+            display: none;
+            margin: 0 0 0.65rem;
+            padding: 0.55rem 0.7rem;
+            border-radius: 0.65rem;
+            border: 1px solid rgba(37, 99, 235, 0.28);
+            background: rgba(239, 246, 255, 0.75);
+            color: var(--text);
+            font-size: 0.78rem;
+            font-weight: 700;
+            line-height: 1.55;
+        }
+        html[data-theme="dark"] .dep-prefill-hint {
+            background: rgba(37, 99, 235, 0.18);
+            border-color: rgba(96, 165, 250, 0.35);
+        }
+        .dep-field select:disabled,
+        .dep-field input:disabled {
+            opacity: 0.92;
+            cursor: not-allowed;
+            background: rgba(148, 163, 184, 0.12);
+        }
+        /* SweetAlert2 داخل <dialog> تا بالای محتوای مودال (همان top layer) بماند */
+        #dep-dialog .swal2-container {
+            position: absolute !important;
+            inset: 0 !important;
+            z-index: 200 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
         @media (max-width: 720px) {
             .dep-desktop-only { display: none !important; }
             .dep-mobile-only { display: flex !important; }
@@ -363,6 +394,9 @@
             <button type="button" class="portal-dialog__close" data-dep-dialog-close aria-label="بستن">&times;</button>
             <h2 id="dep-dialog-title" class="portal-dialog__title">اعلام واریزی جدید</h2>
             <div class="dep-dialog__scroll">
+                <p id="dep-prefill-hint" class="dep-prefill-hint" role="status">
+                    وام، قسط و مبلغ از ردیف انتخاب‌شده پر شده‌اند؛ تاریخ واریز، شماره پیگیری و در صورت نیاز پیوست را وارد کنید.
+                </p>
                 <form id="dep-form" class="dep-modal-grid">
                     <input type="hidden" name="edit_id" id="dep-edit-id" value="">
                     <div class="dep-field">
@@ -756,40 +790,166 @@
             });
 
             var dialog = document.getElementById('dep-dialog');
+            var loanSel = document.getElementById('dep-loan');
+            var instSel = document.getElementById('dep-inst');
+            var amountInp = document.getElementById('dep-amount');
+            var prefillHint = document.getElementById('dep-prefill-hint');
+            var contextLocked = false;
+
             function closeDepDialog() { if (dialog && dialog.open) dialog.close(); }
             document.querySelectorAll('[data-dep-dialog-close]').forEach(function (b) {
                 b.addEventListener('click', closeDepDialog);
             });
             if (dialog) {
                 dialog.addEventListener('click', function (e) { if (e.target === dialog) closeDepDialog(); });
-                dialog.addEventListener('close', function () { destroyDepDatepicker(); });
+                dialog.addEventListener('close', function () {
+                    destroyDepDatepicker();
+                    unlockContextFields();
+                    if (prefillHint) prefillHint.style.display = 'none';
+                });
             }
 
-            var loanSel = document.getElementById('dep-loan');
-            var instSel = document.getElementById('dep-inst');
-            loans.forEach(function (L) {
-                if (L.is_revoked) return;
-                var o = document.createElement('option');
-                o.value = String(L.id);
-                o.textContent = (L.loan_title || 'وام') + ' — ' + (L.loan_code || '');
-                loanSel.appendChild(o);
-            });
+            function installmentRemaining(ins) {
+                var rem = Number(ins && ins.slot_remaining_toman != null ? ins.slot_remaining_toman : 0);
+                return Number.isFinite(rem) ? rem : 0;
+            }
 
-            function fillInstForLoan(loanId) {
+            function isInstallmentEligibleForNewDeposit(ins) {
+                if (!ins) return false;
+                if (ins.slot_fully_paid) return false;
+                return installmentRemaining(ins) >= 1;
+            }
+
+            function isLoanEligibleForNewDeposit(L) {
+                if (!L || L.is_revoked) return false;
+                if (L.settled_for_ui || L.is_settled || L.contract_locked) return false;
+                if (!Array.isArray(L.installments)) return false;
+                return L.installments.some(isInstallmentEligibleForNewDeposit);
+            }
+
+            function installmentOptionLabel(ins) {
+                var rem = installmentRemaining(ins);
+                var amtLabel = rem > 0 && rem !== Number(ins.amount_toman || 0)
+                    ? ('مانده ' + (ins.slot_remaining_fa || rem))
+                    : (ins.amount_fa || '');
+                return 'قسط ' + (ins.sequence_fa || ins.sequence) + ' — ' + amtLabel + ' — سررسید ' + (ins.due_jalali || '');
+            }
+
+            function appendInstallmentOption(ins) {
+                var o = document.createElement('option');
+                o.value = String(ins.id);
+                o.textContent = installmentOptionLabel(ins);
+                instSel.appendChild(o);
+            }
+
+            function rebuildLoanOptions(extraLoan) {
+                var keep = loanSel.value;
+                loanSel.innerHTML = '<option value="">— انتخاب کنید —</option>';
+                loans.forEach(function (L) {
+                    if (!isLoanEligibleForNewDeposit(L) && !(extraLoan && String(L.id) === String(extraLoan.id))) {
+                        return;
+                    }
+                    var o = document.createElement('option');
+                    o.value = String(L.id);
+                    o.textContent = (L.loan_title || 'وام') + ' — ' + (L.loan_code || '');
+                    loanSel.appendChild(o);
+                });
+                if (extraLoan && !isLoanEligibleForNewDeposit(extraLoan)) {
+                    var has = Array.prototype.some.call(loanSel.options, function (opt) {
+                        return String(opt.value) === String(extraLoan.id);
+                    });
+                    if (!has) {
+                        var ox = document.createElement('option');
+                        ox.value = String(extraLoan.id);
+                        ox.textContent = (extraLoan.loan_title || 'وام') + ' — ' + (extraLoan.loan_code || '');
+                        loanSel.appendChild(ox);
+                    }
+                }
+                if (keep) loanSel.value = keep;
+            }
+
+            rebuildLoanOptions(null);
+
+            function fillInstForLoan(loanId, opts) {
+                opts = opts || {};
+                var forceId = opts.forceInstallmentId != null ? String(opts.forceInstallmentId) : '';
+                var includeAllForEdit = !!opts.includeAllForEdit;
                 instSel.innerHTML = '<option value="">— انتخاب قسط —</option>';
-                instSel.disabled = true;
+                if (!contextLocked) instSel.disabled = true;
                 if (!loanId) return;
                 var L = loans.find(function (x) { return String(x.id) === String(loanId); });
                 if (!L || !Array.isArray(L.installments)) return;
-                instSel.disabled = false;
+                var added = 0;
                 L.installments.forEach(function (ins) {
-                    var o = document.createElement('option');
-                    o.value = String(ins.id);
-                    o.textContent = 'قسط ' + (ins.sequence_fa || ins.sequence) + ' — ' + (ins.amount_fa || '') + ' — سررسید ' + (ins.due_jalali || '');
-                    instSel.appendChild(o);
+                    var forceThis = forceId !== '' && String(ins.id) === forceId;
+                    if (!includeAllForEdit && !isInstallmentEligibleForNewDeposit(ins) && !forceThis) return;
+                    appendInstallmentOption(ins);
+                    added += 1;
                 });
+                if (added === 0) {
+                    instSel.innerHTML = '<option value="">قسط قابل اعلامی برای این وام نیست</option>';
+                    if (!contextLocked) instSel.disabled = true;
+                    return;
+                }
+                if (!contextLocked) instSel.disabled = false;
             }
-            loanSel.addEventListener('change', function () { fillInstForLoan(loanSel.value); });
+
+            function unlockContextFields() {
+                contextLocked = false;
+                loanSel.disabled = false;
+                if (amountInp) {
+                    amountInp.readOnly = false;
+                    amountInp.removeAttribute('aria-readonly');
+                }
+                if (instSel.value) instSel.disabled = false;
+            }
+
+            function lockContextFields() {
+                contextLocked = true;
+                loanSel.disabled = true;
+                instSel.disabled = true;
+                if (amountInp) {
+                    amountInp.readOnly = true;
+                    amountInp.setAttribute('aria-readonly', 'true');
+                }
+            }
+
+            function findInstallmentContext(installmentId) {
+                var sid = String(installmentId || '');
+                if (!sid) return null;
+                for (var i = 0; i < loans.length; i++) {
+                    var L = loans[i];
+                    if (!L || !Array.isArray(L.installments)) continue;
+                    for (var j = 0; j < L.installments.length; j++) {
+                        var ins = L.installments[j];
+                        if (String(ins.id) === sid) {
+                            return { loan: L, installment: ins };
+                        }
+                    }
+                }
+                return null;
+            }
+
+            function applyAmountFromInstallment(ins) {
+                if (!amountInp || !ins) return;
+                var rem = installmentRemaining(ins);
+                var fallback = Number(ins.amount_toman || 0);
+                var val = rem >= 1 ? rem : fallback;
+                amountInp.value = val >= 1 ? String(val) : '';
+            }
+
+            loanSel.addEventListener('change', function () {
+                if (contextLocked) return;
+                fillInstForLoan(loanSel.value);
+                if (amountInp) amountInp.value = '';
+            });
+            instSel.addEventListener('change', function () {
+                if (contextLocked) return;
+                var L = loans.find(function (x) { return String(x.id) === String(loanSel.value); });
+                if (!L || !Array.isArray(L.installments)) return;
+                var ins = L.installments.find(function (x) { return String(x.id) === String(instSel.value); });
+                if (ins) applyAmountFromInstallment(ins);
+            });
 
             var fileInput = document.getElementById('dep-file');
             var prevWrap = document.getElementById('dep-file-preview-wrap');
@@ -928,9 +1088,12 @@
 
             function resetForm() {
                 destroyDepDatepicker();
+                unlockContextFields();
+                if (prefillHint) prefillHint.style.display = 'none';
                 document.getElementById('dep-edit-id').value = '';
                 document.getElementById('dep-dialog-title').textContent = 'اعلام واریزی جدید';
                 document.getElementById('dep-form').reset();
+                rebuildLoanOptions(null);
                 instSel.innerHTML = '<option value="">ابتدا وام را انتخاب کنید</option>';
                 instSel.disabled = true;
                 fileClear.click();
@@ -938,10 +1101,56 @@
                 fileDl.removeAttribute('href');
             }
 
-            document.getElementById('dep-open-create').addEventListener('click', function () {
+            function openModalForCreate() {
                 resetForm();
                 if (typeof dialog.showModal === 'function') dialog.showModal();
                 setTimeout(initDepDatepicker, 50);
+            }
+
+            function openModalForInstallment(installmentId) {
+                var ctx = findInstallmentContext(installmentId);
+                if (!ctx) {
+                    openModalForCreate();
+                    if (window.AdminSwal) {
+                        AdminSwal.fire({
+                            icon: 'warning',
+                            title: 'قسط انتخاب‌شده یافت نشد یا دیگر قابل اعلام واریزی نیست.',
+                            target: dialog || document.body,
+                        });
+                    }
+                    return;
+                }
+                if (!isInstallmentEligibleForNewDeposit(ctx.installment) || !isLoanEligibleForNewDeposit(ctx.loan)) {
+                    openModalForCreate();
+                    if (window.AdminSwal) {
+                        AdminSwal.fire({
+                            icon: 'warning',
+                            title: 'این قسط مانده‌ای برای اعلام واریزی ندارد یا وام مربوطه تسویه/فسخ شده است.',
+                            target: dialog || document.body,
+                        });
+                    }
+                    return;
+                }
+                resetForm();
+                document.getElementById('dep-dialog-title').textContent = 'اعلام واریزی قسط '
+                    + (ctx.installment.sequence_fa || ctx.installment.sequence || '');
+                if (prefillHint) prefillHint.style.display = 'block';
+                loanSel.value = String(ctx.loan.id);
+                fillInstForLoan(loanSel.value, { forceInstallmentId: ctx.installment.id });
+                instSel.value = String(ctx.installment.id);
+                applyAmountFromInstallment(ctx.installment);
+                document.getElementById('dep-method').value = 'bank';
+                lockContextFields();
+                if (typeof dialog.showModal === 'function') dialog.showModal();
+                setTimeout(initDepDatepicker, 50);
+                setTimeout(function () {
+                    var dateEl = document.getElementById('dep-deposited-jdate');
+                    if (dateEl) dateEl.focus();
+                }, 80);
+            }
+
+            document.getElementById('dep-open-create').addEventListener('click', function () {
+                openModalForCreate();
             });
 
             function openModalForEdit(id) {
@@ -950,8 +1159,15 @@
                 resetForm();
                 document.getElementById('dep-edit-id').value = String(id);
                 document.getElementById('dep-dialog-title').textContent = 'ویرایش اعلام واریزی';
+                var editLoan = loans.find(function (x) {
+                    return String(x.id) === String(row.customer_loan_file_id || '');
+                });
+                rebuildLoanOptions(editLoan || null);
                 loanSel.value = String(row.customer_loan_file_id || '');
-                fillInstForLoan(loanSel.value);
+                fillInstForLoan(loanSel.value, {
+                    includeAllForEdit: true,
+                    forceInstallmentId: row.customer_loan_installment_id,
+                });
                 instSel.value = String(row.customer_loan_installment_id || '');
                 document.getElementById('dep-deposited-jdate').value = row.deposited_jdate || '';
                 document.getElementById('dep-amount').value = String(row.amount_toman || '');
@@ -964,6 +1180,18 @@
                 }
                 if (typeof dialog.showModal === 'function') dialog.showModal();
                 setTimeout(initDepDatepicker, 50);
+            }
+
+            function showDepFormError(msg) {
+                if (window.AdminSwal) {
+                    AdminSwal.fire({
+                        icon: 'error',
+                        title: msg,
+                        target: (dialog && dialog.open) ? dialog : document.body,
+                    });
+                    return;
+                }
+                window.alert(msg);
             }
 
             document.getElementById('dep-form').addEventListener('submit', function (e) {
@@ -998,8 +1226,11 @@
                                 var k = Object.keys(x.j.errors)[0];
                                 if (k && x.j.errors[k] && x.j.errors[k][0]) msg = x.j.errors[k][0];
                             }
-                            if (window.AdminSwal) AdminSwal.fire({ icon: 'error', title: msg });
+                            showDepFormError(msg);
                         }
+                    })
+                    .catch(function () {
+                        showDepFormError('خطا در ارتباط با سرور. لطفاً دوباره تلاش کنید.');
                     });
             });
 
@@ -1007,6 +1238,21 @@
             if (routes.ackReview) {
                 fetch(routes.ackReview, { method: 'POST', headers: headersJson() }).catch(function () {});
             }
+
+            (function openFromQuery() {
+                try {
+                    var params = new URLSearchParams(window.location.search || '');
+                    var instQ = params.get('installment');
+                    if (!instQ) return;
+                    openModalForInstallment(instQ);
+                    if (window.history && typeof window.history.replaceState === 'function') {
+                        params.delete('installment');
+                        var q = params.toString();
+                        var next = window.location.pathname + (q ? ('?' + q) : '') + (window.location.hash || '');
+                        window.history.replaceState({}, '', next);
+                    }
+                } catch (err) { /* noop */ }
+            })();
         })();
     </script>
 @endpush

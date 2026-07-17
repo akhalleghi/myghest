@@ -283,6 +283,7 @@
                         ['token' => '{installment_number}', 'label' => 'شماره قسط'],
                         ['token' => '{installment_amount}', 'label' => 'مبلغ قسط'],
                         ['token' => '{loan_number}', 'label' => 'شماره وام'],
+                        ['token' => '{payment_method}', 'label' => 'نحوه پرداخت'],
                         ['token' => '{app_name}', 'label' => 'نام سامانه'],
                     ],
                 ])

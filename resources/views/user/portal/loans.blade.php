@@ -12,7 +12,14 @@
                 <i class="fa-solid fa-file-invoice-dollar portal-loans-page__head-ico" aria-hidden="true"></i>
                 <h1 id="portal-loans-page-title" class="portal-loans-page__title">لیست وام‌ها</h1>
             </div>
-            <div style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap;justify-content:flex-end">
+            @if(!empty($pl['loans']))
+                <nav class="portal-loans-page__filters" aria-label="فیلتر وضعیت پرونده‌ها" data-portal-loans-filters>
+                    <button type="button" class="portal-loans-page__filter" data-portal-loans-filter="all" aria-pressed="false">همه وام‌ها</button>
+                    <button type="button" class="portal-loans-page__filter" data-portal-loans-filter="settled" aria-pressed="false">وام‌های تسویه‌شده</button>
+                    <button type="button" class="portal-loans-page__filter is-active" data-portal-loans-filter="open" aria-pressed="true">وام‌های تسویه‌نشده یا در جریان</button>
+                </nav>
+            @endif
+            <div class="portal-loans-page__head-actions">
                 @if(!empty($settleAllQuote) && (int) ($settleAllQuote['amount_toman'] ?? 0) > 0)
                     <button
                         type="button"
@@ -24,7 +31,7 @@
                         تسویه همزمان همه
                     </button>
                 @endif
-                <span class="portal-loans-page__badge" title="تعداد پرونده‌ها">{{ $pl['loan_count_fa'] }} پرونده</span>
+                <span class="portal-loans-page__badge" title="تعداد پرونده‌های نمایش‌داده‌شده" data-portal-loans-badge>{{ $pl['loan_count_fa'] }} پرونده</span>
             </div>
         </header>
 
@@ -34,12 +41,18 @@
                 <p>پرونده‌ای ثبت نشده است.</p>
             </div>
         @else
-            <div class="portal-loans-page__grid">
+            <div class="portal-loans-page__filter-empty" data-portal-loans-filter-empty hidden>
+                پرونده‌ای در این وضعیت وجود ندارد.
+            </div>
+            <div class="portal-loans-page__grid" data-portal-loans-grid>
                 @foreach ($pl['loans'] as $loan)
                     @php($ribbon = $loan['ribbon'] ?? null)
+                    @php($loanStatus = (!empty($loan['settled_for_ui']) || $ribbon === 'settled') ? 'settled' : 'open')
                     <article
-                        class="portal-loan-board {{ $ribbon ? 'portal-loan-board--state-'.$ribbon : '' }}"
+                        class="portal-loan-board {{ $ribbon ? 'portal-loan-board--state-'.$ribbon : '' }}{{ $loanStatus === 'settled' ? ' is-filter-hidden' : '' }}"
                         data-loan-id="{{ (int) $loan['id'] }}"
+                        data-loan-status="{{ $loanStatus }}"
+                        @if($loanStatus === 'settled') hidden @endif
                     >
                         <div class="portal-loan-board__bar">
                             <div class="portal-loan-board__code-card">
@@ -213,6 +226,8 @@
                                 <th scope="col">مبلغ قسط</th>
                                 <th scope="col">سررسید</th>
                                 <th scope="col">مبلغ پرداختی</th>
+                                <th scope="col">مغایرت</th>
+                                <th scope="col">نحوه پرداخت</th>
                                 <th scope="col">تاریخ واریز</th>
                                 <th scope="col">دیرکرد / زودکرد</th>
                                 <th scope="col">عملیات</th>
@@ -232,6 +247,63 @@
         window.__PORTAL_LOANS_LIST__ = @json($pl['loans'] ?? []);
         window.__PORTAL_LOANS_ROUTES__ = { depositsIndex: @json(route('user.deposits.index')) };
         window.__PORTAL_ONLINE_PAYMENT_ENABLED__ = @json((bool) ($customerOnlinePaymentEnabled ?? true));
+    </script>
+    <script>
+        (function () {
+            var filtersNav = document.querySelector('[data-portal-loans-filters]');
+            var grid = document.querySelector('[data-portal-loans-grid]');
+            if (!filtersNav || !grid) return;
+
+            var cards = Array.prototype.slice.call(grid.querySelectorAll('[data-loan-status]'));
+            var emptyEl = document.querySelector('[data-portal-loans-filter-empty]');
+            var badge = document.querySelector('[data-portal-loans-badge]');
+            var buttons = Array.prototype.slice.call(filtersNav.querySelectorAll('[data-portal-loans-filter]'));
+            var activeFilter = 'open';
+
+            function toFaDigits(n) {
+                return String(n).replace(/\d/g, function (d) {
+                    return '۰۱۲۳۴۵۶۷۸۹'[parseInt(d, 10)];
+                });
+            }
+
+            function applyFilter(filter) {
+                activeFilter = filter === 'settled' || filter === 'all' ? filter : 'open';
+                var visible = 0;
+
+                cards.forEach(function (card) {
+                    var status = String(card.getAttribute('data-loan-status') || 'open');
+                    var show = activeFilter === 'all' || status === activeFilter;
+                    card.classList.toggle('is-filter-hidden', !show);
+                    card.hidden = !show;
+                    if (show) visible += 1;
+                });
+
+                buttons.forEach(function (btn) {
+                    var isActive = String(btn.getAttribute('data-portal-loans-filter') || '') === activeFilter;
+                    btn.classList.toggle('is-active', isActive);
+                    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+                });
+
+                if (emptyEl) {
+                    emptyEl.hidden = visible !== 0;
+                }
+
+                if (badge) {
+                    badge.textContent = toFaDigits(visible) + ' پرونده';
+                }
+
+                grid.classList.toggle('is-filter-hidden', visible === 0);
+                grid.hidden = visible === 0;
+            }
+
+            buttons.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    applyFilter(String(btn.getAttribute('data-portal-loans-filter') || 'open'));
+                });
+            });
+
+            applyFilter('open');
+        })();
     </script>
     <script>
         (function () {
@@ -569,7 +641,24 @@
                     tdDue.textContent = inst.due_jalali != null ? String(inst.due_jalali) : '';
                     var tdPaid = document.createElement('td');
                     tdPaid.textContent = inst.paid_fa != null ? String(inst.paid_fa) : '';
+                    var tdMismatch = document.createElement('td');
+                    var mismatchKind = String(inst.amount_mismatch_kind || 'none');
+                    var mismatchLabel = String(inst.amount_mismatch_label || '').trim();
+                    if ((mismatchKind === 'over' || mismatchKind === 'under') && mismatchLabel !== '') {
+                        var mismatchSpan = document.createElement('span');
+                        mismatchSpan.className = 'portal-loans-inst__mismatch portal-loans-inst__mismatch--' + mismatchKind;
+                        mismatchSpan.textContent = mismatchLabel;
+                        tdMismatch.appendChild(mismatchSpan);
+                    } else {
+                        tdMismatch.textContent = '—';
+                    }
+                    var tdMethod = document.createElement('td');
+                    tdMethod.className = 'portal-loans-inst__cell-method';
+                    tdMethod.textContent = inst.payment_methods_label != null && String(inst.payment_methods_label).trim() !== ''
+                        ? String(inst.payment_methods_label)
+                        : '—';
                     var tdDep = document.createElement('td');
+                    tdDep.className = 'portal-loans-inst__cell-deposit';
                     tdDep.textContent = inst.deposit_jalali != null ? String(inst.deposit_jalali) : '';
                     var tdLate = document.createElement('td');
                     tdLate.className = 'portal-loans-inst__cell-late';
@@ -580,6 +669,8 @@
                     tr.appendChild(tdAmt);
                     tr.appendChild(tdDue);
                     tr.appendChild(tdPaid);
+                    tr.appendChild(tdMismatch);
+                    tr.appendChild(tdMethod);
                     tr.appendChild(tdDep);
                     tr.appendChild(tdLate);
                     tr.appendChild(tdAct);
@@ -629,6 +720,24 @@
                         }
                         dl.appendChild(cardKvRow('سررسید', inst.due_jalali));
                         dl.appendChild(cardKvRow('مبلغ پرداختی', inst.paid_fa));
+                        var mismatchKindCard = String(inst.amount_mismatch_kind || 'none');
+                        var mismatchLabelCard = String(inst.amount_mismatch_label || '').trim();
+                        if ((mismatchKindCard === 'over' || mismatchKindCard === 'under') && mismatchLabelCard !== '') {
+                            var mismatchRow = cardKvRow('مغایرت', mismatchLabelCard);
+                            var mismatchDd = mismatchRow.querySelector('dd');
+                            if (mismatchDd) {
+                                mismatchDd.className = 'portal-loans-inst__mismatch portal-loans-inst__mismatch--' + mismatchKindCard;
+                            }
+                            dl.appendChild(mismatchRow);
+                        } else {
+                            dl.appendChild(cardKvRow('مغایرت', '—'));
+                        }
+                        dl.appendChild(cardKvRow(
+                            'نحوه پرداخت',
+                            inst.payment_methods_label != null && String(inst.payment_methods_label).trim() !== ''
+                                ? String(inst.payment_methods_label)
+                                : '—'
+                        ));
                         dl.appendChild(cardKvRow('تاریخ واریز', inst.deposit_jalali));
                         dl.appendChild(cardKvRow('دیرکرد / زودکرد', inst.early_late_cell_fa != null ? String(inst.early_late_cell_fa) : '—'));
                         card.appendChild(dl);

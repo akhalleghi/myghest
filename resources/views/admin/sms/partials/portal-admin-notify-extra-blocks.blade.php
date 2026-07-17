@@ -62,6 +62,7 @@
         ['token' => '{customer_full_name}', 'label' => 'نام مشتری'],
         ['token' => '{loan_number}', 'label' => 'شماره وام'],
         ['token' => '{settlement_amount}', 'label' => 'مبلغ تسویه'],
+        ['token' => '{payment_method}', 'label' => 'نحوه پرداخت'],
         ['token' => '{app_name}', 'label' => 'نام سامانه'],
     ],
     'submitLabel' => 'ذخیره پیامک تسویه یکجا',

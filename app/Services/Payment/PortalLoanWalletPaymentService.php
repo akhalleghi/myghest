@@ -322,7 +322,12 @@ final class PortalLoanWalletPaymentService
 
                 $this->ledger->syncFromWalletFullSettlementPayment($wtx, $file, $quote, $amountToman);
 
-                PortalAdminSmsDispatcher::afterFullSettlement((int) $customer->id, (int) $file->id, $amountToman);
+                PortalAdminSmsDispatcher::afterFullSettlement(
+                    (int) $customer->id,
+                    (int) $file->id,
+                    $amountToman,
+                    CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET,
+                );
 
                 return [
                     'ok' => true,
@@ -476,7 +481,12 @@ final class PortalLoanWalletPaymentService
 
                     $this->ledger->syncFromWalletFullSettlementBatchFilePayment($wtx, $file, $quote2, $expectedAmount);
 
-                    PortalAdminSmsDispatcher::afterFullSettlement((int) $customer->id, (int) $file->id, $expectedAmount);
+                    PortalAdminSmsDispatcher::afterFullSettlement(
+                        (int) $customer->id,
+                        (int) $file->id,
+                        $expectedAmount,
+                        CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET,
+                    );
                 }
 
                 $meta = array_merge($metaBase, ['wallet_tx_id' => (int) $wtx->id]);

@@ -18,12 +18,18 @@ final class SendCustomerFullSettlementNotifyAdminSmsJob
         public readonly int $customerId,
         public readonly int $loanFileId,
         public readonly int $amountToman,
+        public readonly ?string $paymentMethod = null,
     ) {}
 
     public function handle(CustomerFullSettlementNotifyAdminSmsService $service): void
     {
         try {
-            $service->notifyAdminsOnSettlement($this->customerId, $this->loanFileId, $this->amountToman);
+            $service->notifyAdminsOnSettlement(
+                $this->customerId,
+                $this->loanFileId,
+                $this->amountToman,
+                $this->paymentMethod,
+            );
         } catch (\Throwable $e) {
             Log::warning('customer_full_settlement_notify_admin_job_failed', [
                 'customer_id' => $this->customerId,

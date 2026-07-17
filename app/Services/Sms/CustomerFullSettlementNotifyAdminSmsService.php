@@ -6,6 +6,7 @@ namespace App\Services\Sms;
 
 use App\Models\Customer;
 use App\Models\CustomerLoanFile;
+use App\Models\CustomerLoanInstallmentPayment;
 use App\Services\Admin\RawSmsDispatcher;
 use App\Services\Sms\Concerns\SendsAdminRecipientSms;
 use Hekmatinasser\Jalali\Jalali;
@@ -21,8 +22,12 @@ final class CustomerFullSettlementNotifyAdminSmsService
         private readonly RawSmsDispatcher $rawSms,
     ) {}
 
-    public function notifyAdminsOnSettlement(int $customerId, int $loanFileId, int $amountToman): void
-    {
+    public function notifyAdminsOnSettlement(
+        int $customerId,
+        int $loanFileId,
+        int $amountToman,
+        ?string $paymentMethod = null,
+    ): void {
         $file = CustomerLoanFile::query()
             ->with('customer')
             ->find($loanFileId);
@@ -37,6 +42,7 @@ final class CustomerFullSettlementNotifyAdminSmsService
             $customer,
             $file,
             $amountToman,
+            $paymentMethod,
         );
         if ($message === '') {
             return;
@@ -52,13 +58,19 @@ final class CustomerFullSettlementNotifyAdminSmsService
                 'customer_id' => $customerId,
                 'loan_file_id' => $loanFileId,
                 'amount_toman' => $amountToman,
+                'payment_method' => $paymentMethod,
             ],
             'customer_full_settlement_notify_admin_sms',
         );
     }
 
-    public function renderMessage(string $template, Customer $customer, CustomerLoanFile $file, int $amountToman): string
-    {
+    public function renderMessage(
+        string $template,
+        Customer $customer,
+        CustomerLoanFile $file,
+        int $amountToman,
+        ?string $paymentMethod = null,
+    ): string {
         if ($template === '') {
             return '';
         }
@@ -66,6 +78,7 @@ final class CustomerFullSettlementNotifyAdminSmsService
         $fullName = $customer->fullName();
         $username = trim((string) ($customer->username ?? ''));
         $loanCode = trim((string) ($file->loan_code ?? ''));
+        $paymentMethodFa = $this->paymentMethodLabelFa((string) ($paymentMethod ?? ''));
 
         $replacements = [
             '{customer_full_name}' => $fullName !== '' ? $fullName : $username,
@@ -75,14 +88,35 @@ final class CustomerFullSettlementNotifyAdminSmsService
             '{loan_code}' => $loanCode !== '' ? Jalali::enToFaNumbers($loanCode) : '—',
             '{settlement_amount}' => $this->smsFormatToman($amountToman),
             '{settlement_amount_toman}' => $this->smsFormatToman($amountToman),
+            '{payment_method}' => $paymentMethodFa,
             '{app_name}' => $this->smsAppDisplayName(),
         ];
 
-        return $this->smsNormalizeText(str_replace(array_keys($replacements), array_values($replacements), $template));
+        $text = $this->smsNormalizeText(str_replace(array_keys($replacements), array_values($replacements), $template));
+
+        if ($paymentMethodFa !== '' && $paymentMethodFa !== '—' && ! str_contains($template, '{payment_method}')) {
+            $text = rtrim($text, " .\u{200c}").' از طریق '.$paymentMethodFa.'.';
+        }
+
+        return $text;
     }
 
     public function defaultMessageTemplate(): string
     {
-        return 'مشتری {customer_full_name} تسویهٔ یکجای وام شماره {loan_number} به مبلغ {settlement_amount} تومان را پرداخت نمود.';
+        return 'مشتری {customer_full_name} تسویهٔ یکجای وام شماره {loan_number} به مبلغ {settlement_amount} تومان را از طریق {payment_method} پرداخت نمود.';
+    }
+
+    private function paymentMethodLabelFa(string $method): string
+    {
+        return match ($method) {
+            CustomerLoanInstallmentPayment::METHOD_ONLINE => 'درگاه بانکی',
+            CustomerLoanInstallmentPayment::METHOD_WALLET => 'کیف پول',
+            CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_ONLINE => 'تسویه کلی (درگاه)',
+            CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET => 'تسویه کلی (کیف پول)',
+            CustomerLoanInstallmentPayment::METHOD_CASH => 'نقدی (فروشگاه)',
+            CustomerLoanInstallmentPayment::METHOD_BANK_TRANSFER => 'واریز بانکی',
+            CustomerLoanInstallmentPayment::METHOD_CARD_TERMINAL => 'کارتخوان',
+            default => CustomerLoanInstallmentPayment::methodLabels()[$method] ?? ($method !== '' ? $method : '—'),
+        };
     }
 }

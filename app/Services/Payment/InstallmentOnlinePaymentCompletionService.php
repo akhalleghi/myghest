@@ -605,7 +605,12 @@ final class InstallmentOnlinePaymentCompletionService
         ]);
         $this->ledger->syncFromFullSettlementIntent($intent->fresh());
 
-        PortalAdminSmsDispatcher::afterFullSettlement((int) $intent->customer_id, (int) $file->id, $paidToman);
+        PortalAdminSmsDispatcher::afterFullSettlement(
+            (int) $intent->customer_id,
+            (int) $file->id,
+            $paidToman,
+            CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_ONLINE,
+        );
 
         return $this->redirectPortalPay($this->payResultPayload(
             true,
@@ -837,7 +842,8 @@ final class InstallmentOnlinePaymentCompletionService
             PortalAdminSmsDispatcher::afterFullSettlement(
                 (int) $intent->customer_id,
                 (int) $row['file']->id,
-                $row['amount']
+                $row['amount'],
+                CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_ONLINE,
             );
         }
 

@@ -1914,6 +1914,60 @@
             letter-spacing: -0.02em;
         }
 
+        .portal-loans-page__head-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .portal-loans-page__filters {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 0.15rem 0.35rem;
+            flex: 1 1 auto;
+            min-width: min(100%, 16rem);
+            text-align: center;
+        }
+
+        .portal-loans-page__filter {
+            appearance: none;
+            border: none;
+            background: transparent;
+            color: var(--muted);
+            font: inherit;
+            font-size: 0.8rem;
+            font-weight: 700;
+            line-height: 1.35;
+            padding: 0.28rem 0.55rem;
+            border-radius: 0.45rem;
+            cursor: pointer;
+            transition: color 0.15s ease, background 0.15s ease;
+        }
+
+        .portal-loans-page__filter:hover {
+            color: var(--text);
+            background: rgba(148, 163, 184, 0.14);
+        }
+
+        .portal-loans-page__filter.is-active {
+            color: var(--primary-dark);
+            background: var(--primary-soft);
+            font-weight: 800;
+        }
+
+        .portal-loans-page__filter:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+        }
+
+        html[data-theme="dark"] .portal-loans-page__filter.is-active {
+            color: #93c5fd;
+        }
+
         .portal-loans-page__badge {
             font-size: 0.78rem;
             font-weight: 800;
@@ -1949,11 +2003,35 @@
             font-weight: 700;
         }
 
+        .portal-loans-page__filter-empty {
+            text-align: center;
+            padding: 1.5rem 1rem;
+            color: var(--muted);
+            background: var(--bg-card);
+            border: 1px dashed var(--border);
+            border-radius: 1rem;
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        @media (max-width: 720px) {
+            .portal-loans-page__filters {
+                order: 3;
+                flex: 1 1 100%;
+                justify-content: center;
+                margin-top: 0.15rem;
+            }
+        }
+
         .portal-loans-page__grid {
             display: grid;
             grid-template-columns: 1fr;
             gap: 1rem;
             align-items: stretch;
+        }
+
+        .portal-loans-page__grid.is-filter-hidden {
+            display: none !important;
         }
 
         @media (min-width: 960px) {
@@ -1972,6 +2050,10 @@
             flex-direction: column;
             gap: 0.55rem;
             min-width: 0;
+        }
+
+        .portal-loan-board.is-filter-hidden {
+            display: none !important;
         }
 
         html[data-theme="dark"] .portal-loan-board {
@@ -2251,6 +2333,45 @@
             max-width: 14rem;
             white-space: normal;
             word-break: break-word;
+        }
+
+        .portal-loans-inst__cell-deposit {
+            white-space: normal;
+            line-height: 1.45;
+            max-width: 8.5rem;
+            word-break: break-word;
+        }
+
+        .portal-loans-inst__cell-method {
+            white-space: normal;
+            line-height: 1.45;
+            max-width: 7.5rem;
+            word-break: break-word;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .portal-loans-inst__mismatch {
+            font-size: 0.72rem;
+            font-weight: 800;
+            line-height: 1.45;
+            white-space: normal;
+        }
+
+        .portal-loans-inst__mismatch--over {
+            color: #b91c1c;
+        }
+
+        .portal-loans-inst__mismatch--under {
+            color: #b45309;
+        }
+
+        html[data-theme="dark"] .portal-loans-inst__mismatch--over {
+            color: #fca5a5;
+        }
+
+        html[data-theme="dark"] .portal-loans-inst__mismatch--under {
+            color: #fcd34d;
         }
 
         .portal-loans-inst__actions {
