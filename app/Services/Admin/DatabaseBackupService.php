@@ -183,8 +183,18 @@ final class DatabaseBackupService
         try {
             DB::statement('SET FOREIGN_KEY_CHECKS=0');
 
+            $executed = 0;
             foreach ($statements as $statement) {
+                if ($this->isDatabaseBoundSqlStatement($statement)) {
+                    continue;
+                }
+
                 DB::unprepared($statement);
+                $executed++;
+            }
+
+            if ($executed === 0) {
+                throw new RuntimeException('پس از حذف دستورهای وابسته به نام پایگاه‌داده، دستور قابل اجرایی باقی نماند.');
             }
 
             DB::statement('SET FOREIGN_KEY_CHECKS=1');
@@ -200,6 +210,99 @@ final class DatabaseBackupService
                 @set_time_limit((int) $previousLimit);
             }
         }
+    }
+
+    /**
+     * دستورهایی که هدف را به نام دیگری از پایگاه‌داده می‌برند یا آن را می‌سازند/حذف می‌کنند
+     * — در بازگردانی نادیده گرفته می‌شوند تا همیشه روی اتصال فعال Laravel اعمال شود.
+     */
+    private function isDatabaseBoundSqlStatement(string $statement): bool
+    {
+        $normalized = ltrim($statement);
+        if ($normalized === '') {
+            return true;
+        }
+
+        return (bool) preg_match(
+            '/^(USE\b|(CREATE|DROP|ALTER)\s+DATABASE\b|(CREATE|DROP|ALTER)\s+SCHEMA\b)/i',
+            $normalized
+        );
+    }
+
+    /**
+     * حذف USE / CREATE|DROP DATABASE و مشابه از فایل dump تا وابسته به نام دیتابیس مبدأ نباشد.
+     */
+    private function rewriteDumpFileToBeDatabaseAgnostic(string $absolutePath): void
+    {
+        if (! is_file($absolutePath) || filesize($absolutePath) === 0) {
+            return;
+        }
+
+        $tempPath = $absolutePath.'.portable-'.Str::random(8).'.tmp';
+        $input = fopen($absolutePath, 'rb');
+        if ($input === false) {
+            throw new RuntimeException('خواندن فایل بکاپ برای قابل‌حمل‌سازی ممکن نشد.');
+        }
+
+        $output = fopen($tempPath, 'wb');
+        if ($output === false) {
+            fclose($input);
+            throw new RuntimeException('ایجاد فایل موقت بکاپ قابل‌حمل ممکن نشد.');
+        }
+
+        try {
+            $wrotePortableHeaderNote = false;
+            while (($line = fgets($input)) !== false) {
+                $trimmed = ltrim($line);
+
+                if (preg_match('/^--\s*Database:\s*/i', $trimmed) === 1) {
+                    if (! $wrotePortableHeaderNote) {
+                        fwrite(
+                            $output,
+                            '-- Database: (portable — restore into the active connection database; source name ignored)'.PHP_EOL
+                        );
+                        $wrotePortableHeaderNote = true;
+                    }
+
+                    continue;
+                }
+
+                if ($this->isDatabaseBoundSqlLine($trimmed)) {
+                    continue;
+                }
+
+                fwrite($output, $line);
+            }
+        } finally {
+            fclose($input);
+            fclose($output);
+        }
+
+        if (! @rename($tempPath, $absolutePath)) {
+            // روی ویندوز گاهی rename روی فایل موجود شکست می‌خورد.
+            if (! @copy($tempPath, $absolutePath)) {
+                @unlink($tempPath);
+                throw new RuntimeException('ذخیرهٔ نهایی بکاپ قابل‌حمل ناموفق بود.');
+            }
+            @unlink($tempPath);
+        }
+    }
+
+    private function isDatabaseBoundSqlLine(string $trimmedLine): bool
+    {
+        if ($trimmedLine === '') {
+            return false;
+        }
+
+        // دستورهای شرطی mysqldump مثل: /*!40100 DROP DATABASE IF EXISTS `x` */;
+        if (preg_match('/^\/\*!\d+\s+(USE\b|(CREATE|DROP|ALTER)\s+(DATABASE|SCHEMA)\b)/i', $trimmedLine) === 1) {
+            return true;
+        }
+
+        return (bool) preg_match(
+            '/^(USE\b|(CREATE|DROP|ALTER)\s+DATABASE\b|(CREATE|DROP|ALTER)\s+SCHEMA\b)/i',
+            $trimmedLine
+        );
     }
 
     /**
@@ -425,6 +528,7 @@ final class DatabaseBackupService
 
         try {
             $this->runMysqldump($binary, $config, $database, $absolutePath);
+            $this->rewriteDumpFileToBeDatabaseAgnostic($absolutePath);
         } catch (RuntimeException $exception) {
             if ($strategy === 'mysqldump') {
                 throw $exception;
@@ -463,22 +567,35 @@ final class DatabaseBackupService
     {
         $defaultsFile = $this->writeMysqlDefaultsFile($config);
         try {
-            $process = new Process([
+            // بدون --databases تا CREATE DATABASE / USE در خروجی نیاید؛ dump فقط جداول اتصال فعلی است.
+            $baseCommand = [
                 $binary,
                 '--defaults-extra-file='.$defaultsFile,
                 '--single-transaction',
                 '--quick',
                 '--lock-tables=false',
-                '--result-file='.$absolutePath,
-                $database,
-            ]);
-            $process->setTimeout(600);
-            $process->run();
+                '--no-create-db',
+            ];
 
-            if (! $process->isSuccessful()) {
-                $error = trim($process->getErrorOutput() ?: $process->getOutput());
-                throw new RuntimeException($error !== '' ? $error : 'اجرای mysqldump ناموفق بود.');
+            $attempts = [
+                array_merge($baseCommand, ['--set-gtid-purged=OFF', '--result-file='.$absolutePath, $database]),
+                array_merge($baseCommand, ['--result-file='.$absolutePath, $database]),
+            ];
+
+            $lastError = '';
+            foreach ($attempts as $command) {
+                $process = new Process($command);
+                $process->setTimeout(600);
+                $process->run();
+
+                if ($process->isSuccessful()) {
+                    return;
+                }
+
+                $lastError = trim($process->getErrorOutput() ?: $process->getOutput());
             }
+
+            throw new RuntimeException($lastError !== '' ? $lastError : 'اجرای mysqldump ناموفق بود.');
         } finally {
             @unlink($defaultsFile);
         }
@@ -494,22 +611,22 @@ final class DatabaseBackupService
         try {
             $pdo = DB::connection()->getPdo();
             $header = implode(PHP_EOL, [
-                '-- MyGhest database backup (PHP)',
-                '-- Database: '.$database,
+                '-- MyGhest portable database backup (PHP)',
+                '-- Database: (portable — restore into the active connection database; source name ignored)',
+                '-- Source connection database (informational only): '.$database,
                 '-- Generated: '.now()->toDateTimeString(),
                 '',
                 'SET NAMES utf8mb4;',
                 'SET FOREIGN_KEY_CHECKS=0;',
-                'SET SQL_MODE="NO_AUTO_VALUE_ON_ZERO";',
+                'SET SQL_MODE=\'NO_AUTO_VALUE_ON_ZERO\';',
                 '',
             ]);
             fwrite($handle, $header);
 
-            $tableKey = 'Tables_in_'.$database;
             $tables = DB::select('SHOW FULL TABLES WHERE Table_type = ?', ['BASE TABLE']);
 
             foreach ($tables as $tableRow) {
-                $tableName = (string) ($tableRow->{$tableKey} ?? '');
+                $tableName = $this->resolveShowTablesName($tableRow);
                 if ($tableName === '' || ! $this->isSafeSqlIdentifier($tableName)) {
                     continue;
                 }
@@ -563,6 +680,18 @@ final class DatabaseBackupService
         } finally {
             fclose($handle);
         }
+
+        $this->rewriteDumpFileToBeDatabaseAgnostic($absolutePath);
+    }
+
+    /**
+     * نام جدول را از نتیجهٔ SHOW FULL TABLES بدون وابستگی به نام دیتابیس در کلید ستون می‌خواند.
+     */
+    private function resolveShowTablesName(object $tableRow): string
+    {
+        $values = array_values((array) $tableRow);
+
+        return isset($values[0]) ? (string) $values[0] : '';
     }
 
     private function quoteSqlValue(PDO $pdo, mixed $value): string
