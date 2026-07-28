@@ -52,7 +52,7 @@ Route::middleware(['guest.customer'])->group(function (): void {
             ->name('login.resend-otp');
 
         Route::post('login-otp/request', [CustomerSmsOtpLoginController::class, 'requestOtp'])
-            ->middleware('throttle:5,1')
+            ->middleware('throttle:20,1')
             ->name('login-otp.request');
 
         Route::post('login-otp/verify', [CustomerSmsOtpLoginController::class, 'verify'])

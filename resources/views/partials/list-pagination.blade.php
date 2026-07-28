@@ -9,8 +9,15 @@
     /** @var \Illuminate\Contracts\Pagination\LengthAwarePaginator|\Illuminate\Pagination\LengthAwarePaginator $paginator */
     $standalone = $standalone ?? false;
     $ajax = $ajax ?? false;
-    $allowed = ListPerPage::allowedOptions();
+    $allowed = isset($perPageOptions) && is_array($perPageOptions) && $perPageOptions !== []
+        ? array_values(array_unique(array_map('intval', $perPageOptions)))
+        : ListPerPage::allowedOptions();
+    sort($allowed);
     $currentPer = (int) $paginator->perPage();
+    if ($currentPer > 0 && ! in_array($currentPer, $allowed, true)) {
+        $allowed[] = $currentPer;
+        sort($allowed);
+    }
     $total = (int) $paginator->total();
     $from = $total > 0 ? (int) $paginator->firstItem() : 0;
     $to = $total > 0 ? (int) $paginator->lastItem() : 0;

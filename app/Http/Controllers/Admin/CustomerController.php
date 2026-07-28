@@ -53,6 +53,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class CustomerController extends Controller
 {
+    /** @var list<int> */
+    private const CUSTOMER_LIST_PER_PAGE_PRESETS = [10, 15, 20, 25, 50, 100];
+
+    private const CUSTOMER_LIST_PER_PAGE_MAX = 200;
+
     public function __construct(
         private readonly SmsPanelManager $panelManager,
         private readonly RawSmsDispatcher $rawSms,
@@ -64,8 +69,11 @@ final class CustomerController extends Controller
         $listFilter = $this->customerListFilterFromRequest($request);
         $listSort = $this->customerListSortFromRequest($request);
 
+        $listPerPage = $this->resolvePersistedCustomerListPerPage($request);
+
         $customers = Customer::query()
             ->with(['loanFiles.loanType', 'loanFiles.installments', 'wallet'])
+            ->withCount('adminNotes')
             ->when($q !== '', function ($query) use ($q): void {
                 $query->where(function ($w) use ($q): void {
                     $w->where('customer_code', 'like', '%'.$q.'%')
@@ -78,12 +86,15 @@ final class CustomerController extends Controller
         $this->applyCustomerListFilters($customers, $listFilter);
         $this->applyCustomerListSort($customers, $listSort);
         $customers = $customers
-            ->paginate(ListPerPage::resolve($request))
+            ->paginate($listPerPage)
             ->withQueryString();
 
         return view('admin.customers.index', [
             'customers' => $customers,
             'search' => $q,
+            'listPerPage' => $listPerPage,
+            'listPerPagePresets' => self::CUSTOMER_LIST_PER_PAGE_PRESETS,
+            'listPerPageMax' => self::CUSTOMER_LIST_PER_PAGE_MAX,
             'listScope' => $listFilter['list_scope'],
             'listSort' => $listSort['sort'],
             'listSortDir' => $listSort['dir'],
@@ -3642,6 +3653,39 @@ final class CustomerController extends Controller
     ];
 
     /**
+     * تعداد ردیف در صفحهٔ لیست مشتریان را از کوئری می‌خواند و برای همان ادمین در سامانه ذخیره می‌کند.
+     */
+    private function resolvePersistedCustomerListPerPage(Request $request): int
+    {
+        $admin = $request->user('admin');
+        $adminId = $admin instanceof Admin ? (int) $admin->id : 0;
+        $settingKey = $adminId > 0
+            ? 'admin_ui.customers.list_per_page.'.$adminId
+            : null;
+
+        if ($request->query->has('per_page')) {
+            $listPerPage = ListPerPage::resolveBounded($request, self::CUSTOMER_LIST_PER_PAGE_MAX);
+            if ($settingKey !== null) {
+                AppSetting::query()->updateOrCreate(
+                    ['key' => $settingKey],
+                    ['value' => (string) $listPerPage],
+                );
+            }
+
+            return $listPerPage;
+        }
+
+        if ($settingKey !== null) {
+            $stored = AppSetting::query()->where('key', $settingKey)->value('value');
+            if (is_numeric($stored)) {
+                return ListPerPage::clamp((int) $stored, self::CUSTOMER_LIST_PER_PAGE_MAX);
+            }
+        }
+
+        return ListPerPage::DEFAULT;
+    }
+
+    /**
      * @return array{list_scope: string, disbursement_due_overdue: bool}
      */
     private function customerListFilterFromRequest(Request $request): array
@@ -3973,7 +4017,12 @@ final class CustomerController extends Controller
         $remainingAmount = $file->is_settled
             ? 0
             : max(0, $scheduleRemaining - $discount);
+        $lateCoef = (float) ($file->loanType?->daily_late_coefficient ?? 0);
         $earlyCoef = (float) ($file->loanType?->daily_early_coefficient ?? 0);
+        // هم‌سو با خلاصهٔ مدال اقساط: دیرکرد اقساط معوق پرداخت‌نشده + دیرکرد اقساط پرداخت‌شده با تأخیر
+        $latePenalty = $file->is_settled
+            ? 0
+            : $this->aggregateLatePenaltyToman($file->installments, $lateCoef, $remainingAmount);
 
         return [
             'id' => $file->id,
@@ -4007,7 +4056,7 @@ final class CustomerController extends Controller
             'paid_installments_slot_count' => $snap['paid_installments_slot_count'],
             'paid_installments_amount_toman' => $snap['total_paid_toman'],
             'discount_amount_toman' => $discount,
-            'late_fee_so_far_toman' => $snap['late_fee_so_far_toman'],
+            'late_fee_so_far_toman' => $latePenalty,
             'early_benefit_toman' => $this->aggregateEarlyBenefitToman($file->installments, $earlyCoef),
             'schedule_remaining_before_discount_toman' => $scheduleRemaining,
         ];
@@ -4390,10 +4439,13 @@ final class CustomerController extends Controller
         return Jalali::enToFaNumbers(number_format($amount, 0, '.', ',')).' تومان';
     }
 
-    private function formatInstallmentEarlyLateLabel(CustomerLoanInstallment $inst, CustomerLoanFile $file): string
+    /**
+     * @return array{label: string, kind: 'late'|'early'|'ontime'|'none'}
+     */
+    private function formatInstallmentEarlyLateLabel(CustomerLoanInstallment $inst, CustomerLoanFile $file): array
     {
         if ($file->revoked_at !== null) {
-            return '—';
+            return ['label' => '—', 'kind' => 'none'];
         }
 
         $file->loadMissing('loanType');
@@ -4413,7 +4465,10 @@ final class CustomerController extends Controller
                 $days = (int) $due->diffInDays($today);
                 $pen = $finance->estimateBookletPenaltyTomanForInstallment($inst, $lateCoef);
 
-                return 'دیرکرد: '.Jalali::enToFaNumbers((string) $days).' روز — '.$this->formatBookletMoneyFa($pen);
+                return [
+                    'label' => 'دیرکرد: '.Jalali::enToFaNumbers((string) $days).' روز — '.$this->formatBookletMoneyFa($pen),
+                    'kind' => 'late',
+                ];
             }
 
             if ($today->lt($due) && $earlyCoef > 0 && $amount > 0) {
@@ -4422,12 +4477,15 @@ final class CustomerController extends Controller
                 if ($days >= 1 && $unpaid > 0) {
                     $benefit = max(0, (int) round($unpaid * $earlyCoef * $days));
                     if ($benefit > 0) {
-                        return 'زودکرد احتمالی: '.Jalali::enToFaNumbers((string) $days).' روز — '.$this->formatBookletMoneyFa($benefit);
+                        return [
+                            'label' => 'زودکرد احتمالی: '.Jalali::enToFaNumbers((string) $days).' روز — '.$this->formatBookletMoneyFa($benefit),
+                            'kind' => 'early',
+                        ];
                     }
                 }
             }
 
-            return '—';
+            return ['label' => '—', 'kind' => 'none'];
         }
 
         $paidAt = $inst->paid_at !== null ? Carbon::parse($inst->paid_at)->startOfDay() : null;
@@ -4443,19 +4501,22 @@ final class CustomerController extends Controller
                     }
                 }
 
-                return $label;
+                return ['label' => $label, 'kind' => 'early'];
             }
             if ($paidAt->gt($due)) {
                 $days = (int) $due->diffInDays($paidAt);
                 $pen = $finance->estimatePenaltyAtDateToman($inst, $lateCoef, $paidAt);
 
-                return 'دیرکرد: '.Jalali::enToFaNumbers((string) $days).' روز — '.$this->formatBookletMoneyFa($pen);
+                return [
+                    'label' => 'دیرکرد: '.Jalali::enToFaNumbers((string) $days).' روز — '.$this->formatBookletMoneyFa($pen),
+                    'kind' => 'late',
+                ];
             }
 
-            return 'به‌موقع';
+            return ['label' => 'به‌موقع', 'kind' => 'ontime'];
         }
 
-        return 'تسویهٔ قسط';
+        return ['label' => 'تسویهٔ قسط', 'kind' => 'none'];
     }
 
     private function resolveInstallmentPaymentMethodsLabel(CustomerLoanInstallment $inst): ?string
@@ -5311,7 +5372,8 @@ final class CustomerController extends Controller
             'paid_jdate_fa' => $paidJalaliFa,
             'payment_methods_label' => $paymentMethodsLabel,
             'payment_method_lines' => $paymentMethodLines,
-            'early_late_label' => $earlyLate,
+            'early_late_label' => $earlyLate['label'],
+            'early_late_kind' => $earlyLate['kind'],
             'amount_mismatch_kind' => $mismatch['kind'],
             'amount_mismatch_toman' => $mismatch['diff_toman'],
             'amount_mismatch_label' => $mismatch['label'],

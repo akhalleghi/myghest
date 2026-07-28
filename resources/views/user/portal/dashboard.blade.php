@@ -382,6 +382,18 @@
                     </div>
                     <p class="portal-sum-card__value portal-sum-card__value--money">{{ $portalSummary['remaining_installments_fa'] }}</p>
                     <p class="portal-sum-card__hint">ماندهٔ تعهد (پس از تخفیف)</p>
+                    @if(!empty($overdueAllQuote) && (int) ($overdueAllQuote['amount_toman'] ?? 0) > 0)
+                        <button
+                            type="button"
+                            class="portal-loan__btn portal-loan__btn--overdue portal-loan__btn--block"
+                            style="margin-top:0.65rem"
+                            data-portal-overdue-all-open
+                            title="{{ $overdueAllQuote['amount_fa'] ?? '' }}"
+                        >
+                            <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                            تسویه بدهی معوق کل وام‌ها
+                        </button>
+                    @endif
                     @if(!empty($settleAllQuote) && (int) ($settleAllQuote['amount_toman'] ?? 0) > 0)
                         <button
                             type="button"
@@ -391,7 +403,7 @@
                             data-settlement-toman="{{ (int) $settleAllQuote['amount_toman'] }}"
                         >
                             <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
-                            تسویه همزمان همه پرونده‌ها
+                            تسویه کامل همه وام‌ها
                         </button>
                     @endif
                 </article>
@@ -441,6 +453,13 @@
         'settleAllReturnRouteName' => 'user.dashboard',
         'settleAllCloseDataAttr' => 'data-portal-settle-all-close',
         'settleAllQuote' => $settleAllQuote ?? null,
+        'customerWalletBalanceToman' => $customerWalletBalanceToman ?? 0,
+    ])
+
+    @include('user.portal.partials.overdue-settlement-all-dialog', [
+        'overdueAllDialogNamespace' => 'portal-overdue-all',
+        'overdueAllCloseDataAttr' => 'data-portal-overdue-all-close',
+        'overdueAllQuote' => $overdueAllQuote ?? null,
         'customerWalletBalanceToman' => $customerWalletBalanceToman ?? 0,
     ])
 @endsection
@@ -674,6 +693,29 @@
                     }
                 });
             }
+        })();
+
+        (function () {
+            var overdueDialog = document.getElementById('portal-overdue-all-dialog');
+            if (!overdueDialog) return;
+
+            document.querySelectorAll('[data-portal-overdue-all-open]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    if (typeof overdueDialog.showModal === 'function') overdueDialog.showModal();
+                });
+            });
+
+            overdueDialog.querySelectorAll('[data-portal-overdue-all-close]').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    if (overdueDialog.open) overdueDialog.close();
+                });
+            });
+
+            overdueDialog.addEventListener('click', function (e) {
+                if (e.target === overdueDialog && overdueDialog.open) {
+                    overdueDialog.close();
+                }
+            });
         })();
     </script>
 @endpush

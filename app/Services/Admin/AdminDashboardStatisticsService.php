@@ -13,6 +13,7 @@ use App\Models\CustomerLoanRequest;
 use App\Models\CustomerTransaction;
 use App\Models\CustomerWallet;
 use App\Models\CustomerWalletTransaction;
+use App\Models\LoanType;
 use App\Services\Loans\LoanFileFinanceCalculator;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
@@ -62,27 +63,44 @@ final class AdminDashboardStatisticsService
     private function buildSystemStats(Collection $activeFiles): array
     {
         $today = Carbon::now()->startOfDay();
-        $customersCount = Customer::query()->count();
+        $customersWithActiveLoanCount = Customer::query()
+            ->whereHas('loanFiles', static function ($q): void {
+                $q->whereNull('revoked_at')->where('is_settled', false);
+            })
+            ->count();
         $loanFilesCount = $activeFiles->count();
         $settledCount = $activeFiles->where('is_settled', true)->count();
 
         $principalSum = 0;
         $withProfitSum = 0;
         $withProfitAndLateSum = 0;
+        $commissionSum = 0;
+        $lateFeeSum = 0;
+        $earlyBenefitSum = 0;
         $collectedSum = 0;
         $uncollectedSum = 0;
         $uncollectedNotDueSum = 0;
 
         foreach ($activeFiles as $file) {
             $principal = (int) $file->amount_toman;
+            $commission = $this->financeCalculator->calculateLoanProfitToman(
+                $principal,
+                (float) $file->effective_interest_rate,
+                (string) ($file->profit_calculation_method ?: LoanType::PROFIT_MONTHLY),
+                (int) $file->installments_count,
+                (int) $file->installment_interval_count,
+                (string) $file->installment_interval_unit
+            );
             $totalRepayable = $this->financeCalculator->totalRepayableToman($file);
             $snapshot = $this->financeCalculator->loanInstallmentFinancialSnapshot($file, $totalRepayable);
             $lateCoef = (float) ($file->loanType?->daily_late_coefficient ?? 0);
+            $earlyCoef = (float) ($file->loanType?->daily_early_coefficient ?? 0);
             $lateFee = $this->financeCalculator->estimateLateFeeSoFarToman(
                 $file->installments,
                 $lateCoef,
                 (int) ($snapshot['schedule_remaining_toman'] ?? 0)
             );
+            $earlyBenefit = $this->aggregateEarlyBenefitToman($file->installments, $earlyCoef);
             $discount = (int) ($file->discount_amount_toman ?? 0);
             $remainingAfterDiscount = $file->is_settled
                 ? 0
@@ -92,6 +110,9 @@ final class AdminDashboardStatisticsService
             $principalSum += $principal;
             $withProfitSum += $totalRepayable;
             $withProfitAndLateSum += $totalRepayable + $lateFee;
+            $commissionSum += $commission;
+            $lateFeeSum += $lateFee;
+            $earlyBenefitSum += $earlyBenefit;
             $collectedSum += $paid;
             $uncollectedSum += $remainingAfterDiscount + $lateFee;
 
@@ -111,12 +132,15 @@ final class AdminDashboardStatisticsService
         $currentMonthInstallments = $this->buildCurrentMonthInstallmentStats($today);
 
         return [
-            ['label' => 'تعداد مشتری', 'value' => $this->formatCount($customersCount)],
+            ['label' => 'تعداد مشتری دارای پرونده وام فعال', 'value' => $this->formatCount($customersWithActiveLoanCount)],
             ['label' => 'تعداد پرونده وام', 'value' => $this->formatCount($loanFilesCount)],
             ['label' => 'تعداد وام تسویه', 'value' => $this->formatCount($settledCount)],
             ['label' => 'مجموع خالص وام ها', 'value' => $this->formatToman($principalSum)],
-            ['label' => 'مجموع وام ها با احتساب بهره', 'value' => $this->formatToman($withProfitSum)],
-            ['label' => 'مجموع وام ها با احتساب بهره و دیرکرد', 'value' => $this->formatToman($withProfitAndLateSum)],
+            ['label' => 'مجموع وام ها با احتساب کارمزد', 'value' => $this->formatToman($withProfitSum)],
+            ['label' => 'مجموع وام ها با احتساب کارمزد و دیرکرد', 'value' => $this->formatToman($withProfitAndLateSum)],
+            ['label' => 'مجموع کارمزد', 'value' => $this->formatToman($commissionSum)],
+            ['label' => 'مجموع دیرکرد', 'value' => $this->formatToman($lateFeeSum)],
+            ['label' => 'مجموع زودکرد', 'value' => $this->formatToman($earlyBenefitSum)],
             ['label' => 'مجموع وصول شده', 'value' => $this->formatToman($collectedSum)],
             ['label' => 'مجموع وصول نشده', 'value' => $this->formatToman($uncollectedSum)],
             ['label' => 'مجموع وصول نشده سررسید نشده', 'value' => $this->formatToman($uncollectedNotDueSum)],
@@ -625,5 +649,42 @@ final class AdminDashboardStatisticsService
     private function formatTomanPlain(int $amount): string
     {
         return Jalali::enToFaNumbers(number_format($amount, 0, '.', ','));
+    }
+
+    /**
+     * برآورد مجموع سود زودکرد اقساط پرداخت‌شده قبل از سررسید (هم‌سو با پنل مشتری).
+     *
+     * @param  Collection<int, CustomerLoanInstallment>  $installments
+     */
+    private function aggregateEarlyBenefitToman(Collection $installments, float $earlyCoef): int
+    {
+        if ($earlyCoef <= 0) {
+            return 0;
+        }
+
+        $sum = 0;
+
+        foreach ($installments as $inst) {
+            $amount = (int) $inst->amount_toman;
+            $paid = (int) $inst->paid_amount_toman;
+            if ($amount <= 0 || $paid < $amount || $inst->paid_at === null) {
+                continue;
+            }
+
+            $due = Carbon::parse($inst->due_date)->startOfDay();
+            $paidAt = Carbon::parse($inst->paid_at)->startOfDay();
+            if ($paidAt->gte($due)) {
+                continue;
+            }
+
+            $days = (int) $paidAt->diffInDays($due);
+            if ($days < 1) {
+                continue;
+            }
+
+            $sum += (int) round($amount * $earlyCoef * $days);
+        }
+
+        return max(0, $sum);
     }
 }

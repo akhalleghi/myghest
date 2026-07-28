@@ -35,8 +35,12 @@ final class UserPanelController extends Controller
             ? app(CustomerPortalSummaryBuilder::class)->build($customer, $portalLoans)
             : null;
 
+        $presenter = app(CustomerLoanPortalPresenter::class);
         $settleAllQuote = $customer !== null
-            ? app(CustomerLoanPortalPresenter::class)->fullSettlementQuoteForAllOpenFiles($customer)
+            ? $presenter->fullSettlementQuoteForAllOpenFiles($customer)
+            : null;
+        $overdueAllQuote = $customer !== null
+            ? $presenter->overdueDebtQuoteFromPortalLoans($portalLoans)
             : null;
 
         $showInPanel = AppSetting::query()
@@ -58,6 +62,7 @@ final class UserPanelController extends Controller
             'portalLoans' => $portalLoans,
             'portalSummary' => $portalSummary,
             'settleAllQuote' => $settleAllQuote,
+            'overdueAllQuote' => $overdueAllQuote,
             'customerWalletBalanceToman' => (int) ($customer?->wallet?->balance_toman ?? $portalSummary['wallet_balance_toman'] ?? 0),
         ]);
     }
@@ -68,19 +73,24 @@ final class UserPanelController extends Controller
         if ($customer !== null) {
             $customer->loadMissing('wallet');
         }
+        $presenter = app(CustomerLoanPortalPresenter::class);
         $portalLoans = $customer !== null
-            ? app(CustomerLoanPortalPresenter::class)->forDashboard($customer)
+            ? $presenter->forDashboard($customer)
             : ['loan_count' => 0, 'loans' => []];
         $portalLoans['loan_count_fa'] = Jalali::enToFaNumbers((string) (int) ($portalLoans['loan_count'] ?? 0));
 
         $settleAllQuote = $customer !== null
-            ? app(CustomerLoanPortalPresenter::class)->fullSettlementQuoteForAllOpenFiles($customer)
+            ? $presenter->fullSettlementQuoteForAllOpenFiles($customer)
+            : null;
+        $overdueAllQuote = $customer !== null
+            ? $presenter->overdueDebtQuoteFromPortalLoans($portalLoans)
             : null;
 
         return view('user.portal.loans', [
             'pageTitle' => 'لیست وام‌ها',
             'portalLoans' => $portalLoans,
             'settleAllQuote' => $settleAllQuote,
+            'overdueAllQuote' => $overdueAllQuote,
             'customerWalletBalanceToman' => (int) ($customer?->wallet?->balance_toman ?? 0),
         ]);
     }

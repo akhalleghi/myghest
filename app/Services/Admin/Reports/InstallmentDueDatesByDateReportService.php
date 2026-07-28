@@ -118,6 +118,53 @@ final class InstallmentDueDatesByDateReportService
     }
 
     /**
+     * آمار بازه/فیلتر فعلی گزارش سررسید اقساط.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return array{
+     *     customers_count: int,
+     *     installment_amount_total: int,
+     *     installment_amount_formatted: string,
+     *     paid_amount_total: int,
+     *     paid_amount_formatted: string,
+     *     unpaid_amount_total: int,
+     *     unpaid_amount_formatted: string,
+     *     installment_count: int
+     * }
+     */
+    public function summarizeRows(array $rows): array
+    {
+        $customerIds = [];
+        $installmentAmountTotal = 0;
+        $paidAmountTotal = 0;
+        $unpaidAmountTotal = 0;
+
+        foreach ($rows as $row) {
+            $customerId = (int) ($row['customer_id'] ?? 0);
+            if ($customerId > 0) {
+                $customerIds[$customerId] = true;
+            }
+
+            $amount = (int) ($row['installment_amount_toman'] ?? 0);
+            $paid = (int) ($row['paid_amount_toman'] ?? 0);
+            $installmentAmountTotal += $amount;
+            $paidAmountTotal += max(0, $paid);
+            $unpaidAmountTotal += max(0, $amount - $paid);
+        }
+
+        return [
+            'customers_count' => count($customerIds),
+            'installment_amount_total' => $installmentAmountTotal,
+            'installment_amount_formatted' => $this->formatAmount($installmentAmountTotal),
+            'paid_amount_total' => $paidAmountTotal,
+            'paid_amount_formatted' => $this->formatAmount($paidAmountTotal),
+            'unpaid_amount_total' => $unpaidAmountTotal,
+            'unpaid_amount_formatted' => $this->formatAmount($unpaidAmountTotal),
+            'installment_count' => count($rows),
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public function excelHeaderRow(): array

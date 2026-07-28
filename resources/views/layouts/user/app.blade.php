@@ -1186,6 +1186,96 @@
             background: var(--primary-soft);
         }
 
+        .portal-loan__btn--overdue {
+            background: #fff;
+            color: #b45309;
+            border-color: rgba(245, 158, 11, 0.55);
+        }
+
+        html[data-theme="dark"] .portal-loan__btn--overdue {
+            background: #1e293b;
+            color: #fbbf24;
+        }
+
+        .portal-loan__btn--overdue:hover {
+            background: rgba(245, 158, 11, 0.12);
+        }
+
+        .portal-overdue-all-list {
+            margin-top: 0.85rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-height: min(42vh, 22rem);
+            overflow: auto;
+        }
+
+        .portal-overdue-all-file {
+            border: 1px solid var(--border);
+            border-radius: 0.7rem;
+            padding: 0.65rem 0.75rem;
+            background: var(--bg-card);
+        }
+
+        .portal-overdue-all-file__head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin-bottom: 0.45rem;
+            font-size: 0.86rem;
+        }
+
+        .portal-overdue-all-file__code {
+            color: var(--muted);
+            font-weight: 700;
+            font-size: 0.78rem;
+            direction: ltr;
+        }
+
+        .portal-overdue-all-insts {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .portal-overdue-all-inst {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.55rem;
+            flex-wrap: wrap;
+            padding: 0.4rem 0.35rem;
+            border-radius: 0.5rem;
+            background: rgba(148, 163, 184, 0.08);
+        }
+
+        .portal-overdue-all-inst__meta {
+            display: flex;
+            flex-direction: column;
+            gap: 0.1rem;
+            font-size: 0.82rem;
+            min-width: 0;
+        }
+
+        .portal-overdue-all-inst__meta strong {
+            font-size: 0.86rem;
+        }
+
+        .portal-overdue-all-inst__actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+
+        .portal-overdue-all-inst__actions .portal-loan__btn {
+            padding: 0.32rem 0.55rem;
+            font-size: 0.78rem;
+        }
+
         .portal-loan__btn--primary {
             background: var(--primary);
             color: #fff;

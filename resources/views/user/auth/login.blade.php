@@ -13,8 +13,8 @@
             margin-bottom: 1.35rem;
         }
         .user-login-logo {
-            width: min(100%, 11.5rem);
-            max-height: 4.75rem;
+            width: min(100%, 14rem);
+            max-height: 6rem;
             display: grid;
             place-items: center;
         }
@@ -22,18 +22,18 @@
             display: block;
             width: auto;
             max-width: 100%;
-            max-height: 4.75rem;
+            max-height: 6rem;
             object-fit: contain;
         }
         .user-login-logo-fallback {
-            width: 3.4rem;
-            height: 3.4rem;
+            width: 4rem;
+            height: 4rem;
             border-radius: 0.95rem;
             background: linear-gradient(145deg, var(--accent), var(--accent-strong));
             color: #fff;
             display: grid;
             place-items: center;
-            font-size: 1.35rem;
+            font-size: 1.55rem;
             box-shadow: 0 10px 22px rgba(37, 99, 235, 0.28);
         }
         .user-login-message {

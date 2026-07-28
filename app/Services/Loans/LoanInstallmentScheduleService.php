@@ -8,6 +8,7 @@ use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanInstallment;
 use App\Models\LoanType;
 use Carbon\Carbon;
+use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -238,15 +239,23 @@ final class LoanInstallmentScheduleService
         }
     }
 
+    /**
+     * تاریخ سررسید قسط Nاُم بر اساس تاریخ شروع وام.
+     * برای فاصلهٔ ماهانه از تقویم شمسی استفاده می‌شود تا روز ماه (مثلاً ۳) در همهٔ ماه‌ها ثابت بماند.
+     */
     private function dueDateForInstallment(Carbon $start, int $sequence, int $intervalCount, string $unit): Carbon
     {
-        $due = $start->copy();
         if ($unit === LoanType::GAP_WEEKLY) {
-            $due->addWeeks($sequence * $intervalCount);
-        } else {
-            $due->addMonths($sequence * $intervalCount);
+            return $start->copy()->addWeeks($sequence * $intervalCount)->startOfDay();
         }
 
-        return $due;
+        $jalaliDue = Jalali::instance($start->copy())
+            ->startDay()
+            ->addMonths($sequence * $intervalCount);
+
+        return Carbon::createFromTimestamp(
+            $jalaliDue->getTimestamp(),
+            $start->getTimezone()
+        )->startOfDay();
     }
 }

@@ -70,6 +70,72 @@
             background: linear-gradient(180deg, rgba(99, 102, 241, 0.28), rgba(67, 56, 202, 0.15));
             border-color: rgba(165, 180, 252, 0.35);
         }
+        .cust-head-actions {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            align-items: center;
+            justify-content: flex-end;
+        }
+        .cust-per-page-form {
+            display: inline-flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.35rem;
+            margin: 0;
+            padding: 0.28rem 0.45rem;
+            border: 1px solid var(--border);
+            border-radius: 0.7rem;
+            background: var(--bg-card);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+        }
+        .cust-per-page-form label {
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+        .cust-per-page-form select,
+        .cust-per-page-form input[type="number"] {
+            font-family: inherit;
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            padding: 0.28rem 0.45rem;
+            background: var(--bg-card);
+            min-height: 2rem;
+        }
+        .cust-per-page-form select {
+            min-width: 4.5rem;
+            cursor: pointer;
+        }
+        .cust-per-page-form input[type="number"] {
+            width: 4.6rem;
+        }
+        .cust-per-page-form input[type="number"][hidden] {
+            display: none !important;
+        }
+        .cust-per-page-apply {
+            border: 1px solid rgba(37, 99, 235, 0.35);
+            border-radius: 0.5rem;
+            padding: 0.28rem 0.55rem;
+            background: var(--primary-soft);
+            color: var(--primary-dark);
+            font-family: inherit;
+            font-size: 0.72rem;
+            font-weight: 800;
+            cursor: pointer;
+            min-height: 2rem;
+        }
+        .cust-per-page-apply[hidden] {
+            display: none !important;
+        }
+        .cust-per-page-apply:hover {
+            filter: brightness(1.03);
+            border-color: rgba(37, 99, 235, 0.55);
+        }
         #cust-import-overlay { z-index: 1450; }
         .cust-import-modal .cust-import-help {
             margin: 0.45rem 0 0.85rem;
@@ -214,8 +280,33 @@
         .cust-th-sort-icon { font-size: 0.62rem; opacity: 0.55; }
         .cust-th-sort.is-active .cust-th-sort-icon { opacity: 1; }
         .cust-main-text { font-size: 0.82rem; font-weight: 800; color: var(--text); line-height: 1.4; }
+        .cust-name-row {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
         .cust-name-link { color: inherit; text-decoration: none; border-bottom: 1px dashed rgba(37, 99, 235, 0.35); }
         .cust-name-link:hover { color: var(--primary-dark); }
+        .cust-notes-flag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.28rem;
+            border-radius: 999px;
+            padding: 0.12rem 0.42rem;
+            font-size: 0.64rem;
+            font-weight: 800;
+            background: rgba(217, 119, 6, 0.14);
+            color: #92400e;
+            line-height: 1.3;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+        .cust-notes-flag[hidden] { display: none !important; }
+        html[data-theme="dark"] .cust-notes-flag {
+            background: rgba(251, 191, 36, 0.16);
+            color: #fcd34d;
+        }
         .cust-sub-text { font-size: 0.68rem; color: var(--muted); line-height: 1.55; margin-top: 0.1rem; }
         .cust-loan-count { font-size: 0.9rem; font-weight: 900; color: var(--text); line-height: 1.2; }
         .cust-loan-ids { font-size: 0.65rem; color: var(--muted); margin-top: 0.18rem; max-width: 11rem; white-space: normal; word-break: break-word; }
@@ -501,6 +592,34 @@
         }
         html[data-theme="dark"] .loan-inst-mismatch--under {
             color: #fcd34d;
+        }
+        .loan-inst-early-late {
+            font-size: 0.72rem;
+            font-weight: 800;
+            line-height: 1.45;
+            white-space: normal;
+        }
+        .loan-inst-early-late--late {
+            color: #b91c1c;
+        }
+        .loan-inst-early-late--early {
+            color: #047857;
+        }
+        .loan-inst-early-late--ontime {
+            color: #1d4ed8;
+        }
+        .loan-inst-early-late--none {
+            color: var(--muted);
+            font-weight: 700;
+        }
+        html[data-theme="dark"] .loan-inst-early-late--late {
+            color: #fca5a5;
+        }
+        html[data-theme="dark"] .loan-inst-early-late--early {
+            color: #6ee7b7;
+        }
+        html[data-theme="dark"] .loan-inst-early-late--ontime {
+            color: #93c5fd;
         }
         .loan-inst-sms-actions {
             display: inline-flex;
@@ -2120,6 +2239,8 @@
 
 @section('content')
     @php
+        use App\Support\ListPerPage;
+
         $oldAccounts = old('accounts', []);
         $oldReferrers = old('referrers', []);
         $quickSmsTemplates = $smsTemplates ?? collect();
@@ -2130,6 +2251,10 @@
         $listScope = $listScope ?? 'all';
         $listSort = $listSort ?? null;
         $listSortDir = $listSortDir ?? 'asc';
+        $listPerPage = (int) ($listPerPage ?? ListPerPage::DEFAULT);
+        $listPerPagePresets = $listPerPagePresets ?? [10, 15, 20, 25, 50, 100];
+        $listPerPageMax = (int) ($listPerPageMax ?? 200);
+        $listPerPageIsCustom = ! in_array($listPerPage, $listPerPagePresets, true);
         $customerListScopeStats = $customerListScopeStats ?? [
             'all' => 0,
             'active_loan' => 0,
@@ -2140,19 +2265,21 @@
             $listFilterQuery,
             ['q' => ($search ?? '') !== '' ? $search : null]
         ));
-        $custScopeUrl = static function (string $scope) use ($search, $listSort, $listSortDir): string {
-            return route('admin.customers.index', array_filter([
+        $custPerPageQuery = $listPerPage !== ListPerPage::DEFAULT ? ['per_page' => $listPerPage] : [];
+        $custScopeUrl = static function (string $scope) use ($search, $listSort, $listSortDir, $custPerPageQuery): string {
+            return route('admin.customers.index', array_filter(array_merge($custPerPageQuery, [
                 'list_scope' => $scope !== 'all' ? $scope : null,
                 'q' => ($search ?? '') !== '' ? $search : null,
                 'sort' => $listSort ?: null,
                 'dir' => $listSort ? $listSortDir : null,
-            ]));
+            ])));
         };
-        $custSortUrl = static function (string $column) use ($listFilterQuery, $search, $listSort, $listSortDir): string {
+        $custSortUrl = static function (string $column) use ($listFilterQuery, $search, $listSort, $listSortDir, $custPerPageQuery): string {
             $nextDir = ($listSort === $column && $listSortDir === 'asc') ? 'desc' : 'asc';
 
             return route('admin.customers.index', array_filter(array_merge(
                 $listFilterQuery,
+                $custPerPageQuery,
                 [
                     'q' => ($search ?? '') !== '' ? $search : null,
                     'sort' => $column,
@@ -2175,7 +2302,46 @@
                 <h1>لیست مشتریان</h1>
                 <p>مشاهده و ثبت مشتری جدید با اطلاعات هویتی، حساب بانکی و معرف‌ها.</p>
             </div>
-            <div style="display:inline-flex; gap:0.45rem; align-items:center;">
+            <div class="cust-head-actions">
+                <form method="get" action="{{ route('admin.customers.index') }}" class="cust-per-page-form" id="cust-per-page-form" title="تعیین تعداد مشتریان در هر صفحه جدول">
+                    @if (($search ?? '') !== '')
+                        <input type="hidden" name="q" value="{{ $search }}">
+                    @endif
+                    @if ($listScope !== 'all')
+                        <input type="hidden" name="list_scope" value="{{ $listScope }}">
+                    @endif
+                    @if ($listSort)
+                        <input type="hidden" name="sort" value="{{ $listSort }}">
+                        <input type="hidden" name="dir" value="{{ $listSortDir }}">
+                    @endif
+                    @if (!empty($listFilterQuery['disbursement_due_overdue']))
+                        <input type="hidden" name="disbursement_due_overdue" value="1">
+                    @endif
+                    <label for="cust-per-page-preset">تعداد در صفحه</label>
+                    <select id="cust-per-page-preset" aria-label="انتخاب تعداد مشتریان در هر صفحه">
+                        @foreach ($listPerPagePresets as $preset)
+                            <option value="{{ $preset }}" @selected(! $listPerPageIsCustom && $listPerPage === (int) $preset)>
+                                {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $preset) }}
+                            </option>
+                        @endforeach
+                        <option value="custom" @selected($listPerPageIsCustom)>دلخواه</option>
+                    </select>
+                    <input
+                        type="number"
+                        id="cust-per-page-custom"
+                        name="per_page"
+                        min="1"
+                        max="{{ $listPerPageMax }}"
+                        step="1"
+                        inputmode="numeric"
+                        value="{{ $listPerPage }}"
+                        aria-label="عدد دلخواه تعداد در هر صفحه"
+                        @unless($listPerPageIsCustom) hidden @endunless
+                    >
+                    <button type="submit" class="cust-per-page-apply" id="cust-per-page-apply" @unless($listPerPageIsCustom) hidden @endunless>
+                        اعمال
+                    </button>
+                </form>
                 <button type="button" class="cust-reload-btn" onclick="window.location.reload()" title="بارگذاری مجدد" aria-label="بارگذاری مجدد">
                     <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
                 </button>
@@ -2232,7 +2398,7 @@
         @if (!empty($listFilterLabel))
             <div class="cust-list-filter-banner" role="status">
                 <span><strong>فیلتر فعال:</strong> {{ $listFilterLabel }}</span>
-                <a href="{{ route('admin.customers.index', array_filter(['q' => ($search ?? '') !== '' ? $search : null])) }}" class="cust-list-filter-clear">
+                <a href="{{ route('admin.customers.index', array_filter(array_merge($custPerPageQuery, ['q' => ($search ?? '') !== '' ? $search : null]))) }}" class="cust-list-filter-clear">
                     <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                     حذف فیلتر
                 </a>
@@ -2256,6 +2422,9 @@
                 @endif
                 @if (!empty($listFilterQuery['disbursement_due_overdue']))
                     <input type="hidden" name="disbursement_due_overdue" value="1">
+                @endif
+                @if ($listPerPage !== \App\Support\ListPerPage::DEFAULT)
+                    <input type="hidden" name="per_page" value="{{ $listPerPage }}">
                 @endif
             </form>
         </div>
@@ -2331,9 +2500,22 @@
                                 <td>{{ $c->customer_code }}</td>
                                 <td>
                                     <div class="cust-main-text">
-                                        <a href="#" class="cust-name-link" data-cust-manage-loans data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}" data-customer-mobile="{{ $c->mobile }}">
-                                            {{ $c->fullName() }}
-                                        </a>
+                                        <span class="cust-name-row">
+                                            <a href="#" class="cust-name-link" data-cust-manage-loans data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}" data-customer-mobile="{{ $c->mobile }}">
+                                                {{ $c->fullName() }}
+                                            </a>
+                                            @adminCan('customers.notes.view')
+                                                <span
+                                                    class="cust-notes-flag"
+                                                    data-cust-notes-flag="{{ $c->id }}"
+                                                    title="این مشتری یادداشت دارد"
+                                                    @if ((int) ($c->admin_notes_count ?? 0) <= 0) hidden @endif
+                                                >
+                                                    <i class="fa-solid fa-note-sticky" aria-hidden="true"></i>
+                                                    یادداشت
+                                                </span>
+                                            @endadminCan
+                                        </span>
                                     </div>
                                     <div class="cust-sub-text">تماس: {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers($c->mobile) }}</div>
                                     <div class="cust-sub-text">کد ملی: {{ $c->national_id !== null && $c->national_id !== '' ? \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $c->national_id) : '—' }}</div>
@@ -2444,7 +2626,10 @@
                     </tbody>
                 </table>
             </div>
-            @include('partials.list-pagination', ['paginator' => $customers])
+            @include('partials.list-pagination', [
+                'paginator' => $customers,
+                'perPageOptions' => $listPerPagePresets,
+            ])
         </div>
     </div>
 
@@ -4133,6 +4318,52 @@
                 updateGuarantorOtpButtonChrome();
             }
 
+            (function initCustPerPageForm() {
+                var formEl = document.getElementById('cust-per-page-form');
+                var presetEl = document.getElementById('cust-per-page-preset');
+                var customEl = document.getElementById('cust-per-page-custom');
+                var applyEl = document.getElementById('cust-per-page-apply');
+                if (!formEl || !presetEl || !customEl) {
+                    return;
+                }
+                var maxPerPage = {{ (int) $listPerPageMax }};
+
+                function setCustomMode(isCustom) {
+                    customEl.hidden = !isCustom;
+                    if (applyEl) {
+                        applyEl.hidden = !isCustom;
+                    }
+                }
+
+                function clampPerPage(raw) {
+                    var n = parseInt(String(raw || ''), 10);
+                    if (!Number.isFinite(n) || n < 1) {
+                        return 1;
+                    }
+                    if (n > maxPerPage) {
+                        return maxPerPage;
+                    }
+                    return n;
+                }
+
+                presetEl.addEventListener('change', function () {
+                    if (presetEl.value === 'custom') {
+                        setCustomMode(true);
+                        customEl.focus();
+                        customEl.select();
+                        return;
+                    }
+                    setCustomMode(false);
+                    customEl.value = String(clampPerPage(presetEl.value));
+                    formEl.submit();
+                });
+
+                formEl.addEventListener('submit', function () {
+                    customEl.value = String(clampPerPage(customEl.value));
+                    customEl.hidden = false;
+                });
+            })();
+
             var overlay = document.getElementById('cust-modal-overlay');
             var openBtn = document.getElementById('cust-open-modal');
             var closeBtn = document.getElementById('cust-close-modal');
@@ -4980,9 +5211,20 @@
                 }
             }
 
+            function syncCustomerListNotesFlag(customerId, hasNotes) {
+                var flag = document.querySelector('[data-cust-notes-flag="' + String(customerId) + '"]');
+                if (!flag) {
+                    return;
+                }
+                flag.hidden = !hasNotes;
+            }
+
             function custNotesRenderList(notes) {
                 if (!custNotesList) {
                     return;
+                }
+                if (custNotesCurrentCustomerId) {
+                    syncCustomerListNotesFlag(custNotesCurrentCustomerId, Array.isArray(notes) && notes.length > 0);
                 }
                 if (!Array.isArray(notes) || !notes.length) {
                     custNotesList.innerHTML = '<p class="cust-notes-empty"><i class="fa-regular fa-note-sticky" aria-hidden="true"></i><br>هنوز یادداشتی ثبت نشده است.<br>اولین نتیجه پیگیری تلفنی یا یادداشت داخلی را اینجا بنویسید.</p>';
@@ -6190,7 +6432,11 @@
                     : [];
                 var loanLocked = !!(loan.is_settled === true || loan.is_settled === 1 || loan.is_revoked === true || loan.is_revoked === 1);
                 if (loanInstSubtitle) {
-                    loanInstSubtitle.textContent = 'پرونده «' + String(loan.loan_code || '') + '» — «' + String(loan.loan_type_title || '') + '»';
+                    var customerName = String(loanManageCurrentCustomerName || '').trim();
+                    var loanLabel = 'پرونده «' + String(loan.loan_code || '') + '» — «' + String(loan.loan_type_title || '') + '»';
+                    loanInstSubtitle.textContent = customerName !== ''
+                        ? ('مشتری: ' + customerName + ' | ' + loanLabel)
+                        : loanLabel;
                 }
                 if (loanInstSummary) loanInstSummary.hidden = false;
                 if (loanInstSumType) loanInstSumType.textContent = String(loan.loan_type_title || '—');
@@ -6264,6 +6510,14 @@
                     var payData = loanLocked ? '' : ' data-loan-inst-pay="' + payAttr + '"';
                     var clearPayDisabled = loanLocked || paidAmt <= 0 ? ' disabled' : '';
                     var clearPayData = loanLocked || paidAmt <= 0 ? '' : ' data-loan-inst-clear-payments="' + payAttr + '"';
+                    var earlyLateKind = String(row.early_late_kind || 'none');
+                    if (['late', 'early', 'ontime', 'none'].indexOf(earlyLateKind) === -1) {
+                        earlyLateKind = 'none';
+                    }
+                    var earlyLateCell =
+                        '<span class="loan-inst-early-late loan-inst-early-late--' + earlyLateKind + '">' +
+                        escapeHtmlText(String(row.early_late_label || '—')) +
+                        '</span>';
                     return '<tr>' +
                         '<td>' + formatToman(row.sequence || 0) + '</td>' +
                         '<td>' + escapeHtmlText(formatToman(row.amount_toman || 0) + ' تومان') + '</td>' +
@@ -6271,7 +6525,7 @@
                         '<td>' + paidCell + '</td>' +
                         '<td>' + mismatchCell + '</td>' +
                         '<td>' + escapeHtmlText(paidDate) + '</td>' +
-                        '<td>' + escapeHtmlText(String(row.early_late_label || '—')) + '</td>' +
+                        '<td>' + earlyLateCell + '</td>' +
                         '<td>' + escapeHtmlText(String(row.recorded_by || '—')) + '</td>' +
                         '<td class="loan-inst-td--sms">' + loanInstMakeSmsCell(row) + '</td>' +
                         '<td><div class="loan-inst-ops">' +
@@ -6290,7 +6544,12 @@
                 loanInstActiveLoanFileId = loanFileId;
                 loanInstallmentsOverlay.hidden = false;
                 loanInstallmentsOverlay.setAttribute('aria-hidden', 'false');
-                if (loanInstSubtitle) loanInstSubtitle.textContent = 'در حال بارگذاری…';
+                if (loanInstSubtitle) {
+                    var customerNameLoading = String(loanManageCurrentCustomerName || '').trim();
+                    loanInstSubtitle.textContent = customerNameLoading !== ''
+                        ? ('مشتری: ' + customerNameLoading + ' | در حال بارگذاری…')
+                        : 'در حال بارگذاری…';
+                }
                 if (loanInstSummary) loanInstSummary.hidden = true;
                 if (loanInstTbody) {
                     loanInstTbody.innerHTML = '<tr><td colspan="10" class="loan-inst-empty">در حال بارگذاری...</td></tr>';
@@ -6304,7 +6563,12 @@
                 }).then(function (data) {
                     renderLoanInstallmentsPayload(data);
                 }).catch(function () {
-                    if (loanInstSubtitle) loanInstSubtitle.textContent = 'خطا در دریافت اقساط';
+                    var customerNameError = String(loanManageCurrentCustomerName || '').trim();
+                    if (loanInstSubtitle) {
+                        loanInstSubtitle.textContent = customerNameError !== ''
+                            ? ('مشتری: ' + customerNameError + ' | خطا در دریافت اقساط')
+                            : 'خطا در دریافت اقساط';
+                    }
                     if (loanInstTbody) {
                         loanInstTbody.innerHTML = '<tr><td colspan="10" class="loan-inst-empty" style="color:#b91c1c">خطا در دریافت اقساط.</td></tr>';
                     }
@@ -6679,10 +6943,15 @@
                 loanFilesList.innerHTML = visibleRows.map(function (row, rowIndex) {
                     var paidInstallments = Number(row.paid_installments_count || 0);
                     var paidAmount = Number(row.paid_installments_amount_toman || 0);
-                    var remainingAmount = Number(row.remaining_amount_toman || 0);
+                    var remainingPrincipal = Number(row.remaining_amount_toman || 0);
+                    var lateFee = Number(row.late_fee_so_far_toman || 0);
+                    var earlyBenefit = Number(row.early_benefit_toman || 0);
                     var discountAmount = Number(row.discount_amount_toman || 0);
                     /** تسویهٔ رسمی یا ماندهٔ محاسبه‌شده صفر (مثلاً بعد از پرداخت‌های ثبت‌شده روی اقساط) */
-                    var settledForUi = !!(row.is_settled || (!row.is_revoked && remainingAmount <= 0));
+                    var settledForUi = !!(row.is_settled || (!row.is_revoked && remainingPrincipal <= 0));
+                    var remainingAmount = row.is_revoked || settledForUi
+                        ? remainingPrincipal
+                        : Math.max(0, remainingPrincipal + lateFee);
                     var settlementText = settledForUi ? 'بلی' : 'خیر';
                     var accountStatus = remainingAmount > 0 ? 'بدهکار' : (remainingAmount < 0 ? 'بستانکار' : 'تراز');
                     var accountClass = remainingAmount > 0 ? 'loan-file-v--danger' : (remainingAmount < 0 ? 'loan-file-v--ok' : 'loan-file-v--warn');
@@ -6731,7 +7000,7 @@
                                     (function () {
                                         var icRow = Number(row.installments_count || 0);
                                         var slotNom = row.paid_installments_slot_count != null ? Number(row.paid_installments_slot_count) : null;
-                                        var showSlotNote = remainingAmount <= 0 && icRow > 0 && slotNom !== null && slotNom < icRow;
+                                        var showSlotNote = remainingPrincipal <= 0 && icRow > 0 && slotNom !== null && slotNom < icRow;
                                         return '<div class="loan-file-item"><span class="loan-file-k">تعداد دورهٔ تحت پوشش تعهد:</span><span class="loan-file-v">' + formatToman(paidInstallments) +
                                             '<span style="font-size:0.65rem;color:var(--muted);"> از ' + formatToman(icRow) + '</span></span></div>' +
                                             (showSlotNote ? '<div class="loan-file-item" style="font-size:0.68rem;line-height:1.45;"><span class="loan-file-k">رسید هر قسط به مبلغ نامی:</span><span class="loan-file-v">' +
@@ -6743,8 +7012,6 @@
                                         if (row.is_revoked) {
                                             return '<div class="loan-file-item"><span class="loan-file-k">دیرکرد / زودکرد:</span><span class="loan-file-v">—</span></div>';
                                         }
-                                        var lateFee = Number(row.late_fee_so_far_toman || 0);
-                                        var earlyBenefit = Number(row.early_benefit_toman || 0);
                                         var lateEarlyText = 'دیرکرد: ' + formatToman(lateFee) + ' تومان · زودکرد: ' + formatToman(earlyBenefit) + ' تومان';
                                         var lateEarlyClass = lateFee > 0 ? ' loan-file-v--danger' : (earlyBenefit > 0 ? ' loan-file-v--ok' : '');
                                         return '<div class="loan-file-item"><span class="loan-file-k">دیرکرد / زودکرد:</span><span class="loan-file-v' + lateEarlyClass + '">' + lateEarlyText + '</span></div>';

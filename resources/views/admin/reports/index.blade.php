@@ -1146,6 +1146,8 @@
 
                 <p class="rpt-meta" id="rpt-id-meta">بازهٔ تاریخ را انتخاب کنید و «دریافت اطلاعات» را بزنید.</p>
 
+                <div class="rpt-dep-summary" id="rpt-id-summary" hidden aria-live="polite"></div>
+
                 <div class="rpt-table-card">
                     <div class="rpt-table-wrap">
                         <table class="rpt-table rpt-table--installment-due">

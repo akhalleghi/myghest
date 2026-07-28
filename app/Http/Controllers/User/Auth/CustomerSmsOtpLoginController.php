@@ -51,8 +51,6 @@ final class CustomerSmsOtpLoginController extends Controller
         }
 
         if (! CaptchaService::validate($validated['captcha'], CaptchaService::PURPOSE_USER_OTP_LOGIN)) {
-            $this->otpLogin->markSendAttempt($request);
-
             return response()->json([
                 'message' => 'کد تأیید تصویر نادرست است؛ تصویر را تازه کنید و دوباره تلاش کنید.',
             ], 422);

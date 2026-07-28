@@ -96,6 +96,11 @@
             color: var(--text);
             text-align: end;
             white-space: nowrap;
+            display: inline-flex;
+            flex-direction: row;
+            align-items: baseline;
+            gap: 0.28rem;
+            justify-content: flex-end;
         }
 
         .stat-sys__val-ltr {
@@ -107,7 +112,6 @@
         .stat-sys__currency {
             display: inline-block;
             unicode-bidi: isolate;
-            margin-inline-start: 0.2rem;
         }
 
         .quick-grid {
@@ -205,7 +209,7 @@
             display: flex;
             flex-direction: column;
             gap: 0.32rem;
-            font-size: 0.74rem;
+            font-size: 0.86rem;
             color: var(--muted);
         }
 
@@ -229,12 +233,28 @@
             font-weight: 700;
             color: var(--text);
             white-space: nowrap;
+            display: inline-flex;
+            flex-direction: row;
+            align-items: baseline;
+            gap: 0.28rem;
         }
 
         .qk-val-ltr {
             direction: ltr;
             display: inline-block;
             unicode-bidi: isolate;
+        }
+
+        .qk-currency {
+            display: inline-block;
+            unicode-bidi: isolate;
+        }
+
+        .qk-line .qk-amount {
+            display: inline-flex;
+            flex-direction: row;
+            align-items: baseline;
+            gap: 0.28rem;
         }
 
         .qk-footer {
@@ -735,7 +755,7 @@
                                     <span>{{ $sr['label'] }}:</span>
                                     <span class="stat-sys__val">
                                         @if (\Illuminate\Support\Str::endsWith((string) ($sr['value'] ?? ''), ' تومان'))
-                                            <span class="stat-sys__val-ltr">{{ \Illuminate\Support\Str::beforeLast((string) $sr['value'], ' تومان') }}</span><span class="stat-sys__currency"> تومان</span>
+                                            <span class="stat-sys__val-ltr">{{ \Illuminate\Support\Str::beforeLast((string) $sr['value'], ' تومان') }}</span><span class="stat-sys__currency">تومان</span>
                                         @else
                                             <span class="stat-sys__val-ltr">{{ $sr['value'] }}</span>
                                         @endif
@@ -775,11 +795,21 @@
                         @isset($ln['k'])
                             <div class="qk-kv">
                                 <span>{{ $ln['k'] }}:</span>
-                                <span><span class="qk-val-ltr">{{ $ln['v'] }}</span></span>
+                                <span>
+                                    @if (\Illuminate\Support\Str::endsWith((string) ($ln['v'] ?? ''), ' تومان'))
+                                        <span class="qk-val-ltr">{{ \Illuminate\Support\Str::beforeLast((string) $ln['v'], ' تومان') }}</span><span class="qk-currency">تومان</span>
+                                    @else
+                                        <span class="qk-val-ltr">{{ $ln['v'] }}</span>
+                                    @endif
+                                </span>
                             </div>
                         @else
                             <div class="qk-line">
-                                @if(! empty($ln['ltr']))
+                                @if(! empty($ln['ltr']) && \Illuminate\Support\Str::endsWith((string) ($ln['text'] ?? ''), ' تومان'))
+                                    <span class="qk-amount">
+                                        <span class="qk-val-ltr">{{ \Illuminate\Support\Str::beforeLast((string) $ln['text'], ' تومان') }}</span><span class="qk-currency">تومان</span>
+                                    </span>
+                                @elseif(! empty($ln['ltr']))
                                     <span class="qk-val-ltr">{{ $ln['text'] }}</span>
                                 @else
                                     {{ $ln['text'] }}

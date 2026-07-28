@@ -20,6 +20,17 @@
                 </nav>
             @endif
             <div class="portal-loans-page__head-actions">
+                @if(!empty($overdueAllQuote) && (int) ($overdueAllQuote['amount_toman'] ?? 0) > 0)
+                    <button
+                        type="button"
+                        class="portal-loan__btn portal-loan__btn--overdue"
+                        data-portal-overdue-all-open
+                        title="{{ $overdueAllQuote['amount_fa'] ?? '' }}"
+                    >
+                        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                        تسویه بدهی معوق کل وام‌ها
+                    </button>
+                @endif
                 @if(!empty($settleAllQuote) && (int) ($settleAllQuote['amount_toman'] ?? 0) > 0)
                     <button
                         type="button"
@@ -28,7 +39,7 @@
                         data-settlement-toman="{{ (int) $settleAllQuote['amount_toman'] }}"
                     >
                         <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
-                        تسویه همزمان همه
+                        تسویه کامل همه وام‌ها
                     </button>
                 @endif
                 <span class="portal-loans-page__badge" title="تعداد پرونده‌های نمایش‌داده‌شده" data-portal-loans-badge>{{ $pl['loan_count_fa'] }} پرونده</span>
@@ -96,10 +107,6 @@
                                     </div>
                                     <div class="portal-loan-board__kv-row">
                                         <dt>مبلغ وام</dt>
-                                        <dd>{{ $loan['amount_fa'] }}</dd>
-                                    </div>
-                                    <div class="portal-loan-board__kv-row">
-                                        <dt>مبلغ وام با بهره</dt>
                                         <dd>{{ $loan['total_repayable_fa'] }}</dd>
                                     </div>
                                     <div class="portal-loan-board__kv-row">
@@ -134,6 +141,19 @@
                                         <dd>
                                             <span class="portal-loan-board__kv-strong">{{ $loan['early_late_money_line_fa'] }}</span>
                                             <span class="portal-loan-board__kv-note">{{ $loan['early_late_detail_fa'] }}</span>
+                                        </dd>
+                                    </div>
+                                    <div class="portal-loan-board__kv-row{{ ((int) ($loan['overdue_debt_toman'] ?? 0) > 0) ? ' portal-loan-board__kv-row--emph' : '' }}">
+                                        <dt>بدهی معوق</dt>
+                                        <dd>
+                                            @if((int) ($loan['overdue_debt_toman'] ?? 0) > 0)
+                                                <span class="portal-loan-board__kv-strong">{{ $loan['overdue_debt_fa'] }}</span>
+                                                @if((int) ($loan['overdue_installments_count'] ?? 0) > 0)
+                                                    <span class="portal-loan-board__kv-note">{{ $loan['overdue_installments_count_fa'] }} قسط معوق</span>
+                                                @endif
+                                            @else
+                                                {{ $loan['overdue_debt_fa'] ?? '۰ تومان' }}
+                                            @endif
                                         </dd>
                                     </div>
                                     <div class="portal-loan-board__kv-row">
@@ -206,6 +226,13 @@
         'settleAllReturnRouteName' => 'user.loans.index',
         'settleAllCloseDataAttr' => 'data-portal-settle-all-close',
         'settleAllQuote' => $settleAllQuote ?? null,
+        'customerWalletBalanceToman' => $portalWalletBal,
+    ])
+
+    @include('user.portal.partials.overdue-settlement-all-dialog', [
+        'overdueAllDialogNamespace' => 'portal-overdue-all',
+        'overdueAllCloseDataAttr' => 'data-portal-overdue-all-close',
+        'overdueAllQuote' => $overdueAllQuote ?? null,
         'customerWalletBalanceToman' => $portalWalletBal,
     ])
 
@@ -827,6 +854,29 @@
                         }
                     });
                 }
+            })();
+
+            (function initOverdueAll() {
+                var overdueDialog = document.getElementById('portal-overdue-all-dialog');
+                if (!overdueDialog) return;
+
+                document.querySelectorAll('[data-portal-overdue-all-open]').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        if (typeof overdueDialog.showModal === 'function') overdueDialog.showModal();
+                    });
+                });
+
+                overdueDialog.querySelectorAll('[data-portal-overdue-all-close]').forEach(function (b) {
+                    b.addEventListener('click', function () {
+                        if (overdueDialog.open) overdueDialog.close();
+                    });
+                });
+
+                overdueDialog.addEventListener('click', function (e) {
+                    if (e.target === overdueDialog && overdueDialog.open) {
+                        overdueDialog.close();
+                    }
+                });
             })();
 
         })();

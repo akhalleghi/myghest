@@ -456,6 +456,7 @@ function rptInitInstallmentDueReport(cfg) {
     var form = document.getElementById('rpt-installment-due-date-form');
     var tbody = document.getElementById('rpt-id-tbody');
     var meta = document.getElementById('rpt-id-meta');
+    var summaryEl = document.getElementById('rpt-id-summary');
     var searchInput = document.getElementById('rpt-id-search');
     var paymentStatusSelect = document.getElementById('rpt-id-payment-status');
     var overdueSelect = document.getElementById('rpt-id-overdue');
@@ -574,6 +575,111 @@ function rptInitInstallmentDueReport(cfg) {
     var serverSearch = '';
     var serverPaymentStatus = '';
     var serverOverdue = '';
+
+    function clearSummary() {
+        if (!summaryEl) {
+            return;
+        }
+        summaryEl.hidden = true;
+        summaryEl.replaceChildren();
+    }
+
+    function summarizeRows(rows) {
+        var customerIds = {};
+        var installmentAmountTotal = 0;
+        var paidAmountTotal = 0;
+        var unpaidAmountTotal = 0;
+
+        rows.forEach(function (row) {
+            var customerId = Number(row.customer_id || 0);
+            if (customerId > 0) {
+                customerIds[String(customerId)] = true;
+            }
+            var amount = Number(row.installment_amount_toman || 0);
+            var paid = Number(row.paid_amount_toman || 0);
+            if (!Number.isFinite(amount)) {
+                amount = 0;
+            }
+            if (!Number.isFinite(paid) || paid < 0) {
+                paid = 0;
+            }
+            installmentAmountTotal += amount;
+            paidAmountTotal += paid;
+            unpaidAmountTotal += Math.max(0, amount - paid);
+        });
+
+        return {
+            customers_count: Object.keys(customerIds).length,
+            installment_amount_total: installmentAmountTotal,
+            installment_amount_formatted: rptFormatAmount(installmentAmountTotal),
+            paid_amount_total: paidAmountTotal,
+            paid_amount_formatted: rptFormatAmount(paidAmountTotal),
+            unpaid_amount_total: unpaidAmountTotal,
+            unpaid_amount_formatted: rptFormatAmount(unpaidAmountTotal),
+            installment_count: rows.length,
+        };
+    }
+
+    function appendSummaryCard(label, valueText, countText, isTotal) {
+        if (!summaryEl) {
+            return;
+        }
+        var card = document.createElement('div');
+        card.className = 'rpt-dep-summary__card' + (isTotal ? ' rpt-dep-summary__card--total' : '');
+        var labelEl = document.createElement('p');
+        labelEl.className = 'rpt-dep-summary__label';
+        labelEl.textContent = label;
+        var valueEl = document.createElement('p');
+        valueEl.className = 'rpt-dep-summary__value';
+        valueEl.textContent = valueText;
+        card.appendChild(labelEl);
+        card.appendChild(valueEl);
+        if (countText) {
+            var countEl = document.createElement('p');
+            countEl.className = 'rpt-dep-summary__count';
+            countEl.textContent = countText;
+            card.appendChild(countEl);
+        }
+        summaryEl.appendChild(card);
+    }
+
+    function renderSummary(summary) {
+        if (!summaryEl) {
+            return;
+        }
+        summaryEl.replaceChildren();
+        if (!summary || typeof summary !== 'object') {
+            summaryEl.hidden = true;
+
+            return;
+        }
+
+        appendSummaryCard(
+            'تعداد مشتری',
+            rptFaNum(summary.customers_count || 0),
+            rptFaNum(summary.installment_count || 0) + ' قسط',
+            true
+        );
+        appendSummaryCard(
+            'جمع مبالغ قسط',
+            summary.installment_amount_formatted || rptFormatAmount(summary.installment_amount_total || 0),
+            '',
+            false
+        );
+        appendSummaryCard(
+            'جمع مبالغ واریزی',
+            summary.paid_amount_formatted || rptFormatAmount(summary.paid_amount_total || 0),
+            '',
+            false
+        );
+        appendSummaryCard(
+            'جمع مبالغ واریز نشده (معوق)',
+            summary.unpaid_amount_formatted || rptFormatAmount(summary.unpaid_amount_total || 0),
+            '',
+            false
+        );
+        summaryEl.hidden = false;
+    }
 
     function openModal() {
         overlay.hidden = false;
@@ -705,6 +811,7 @@ function rptInitInstallmentDueReport(cfg) {
         });
 
         renderRows(filtered);
+        renderSummary(summarizeRows(filtered));
         if (meta) {
             meta.textContent =
                 'نمایش ' + rptFaNum(filtered.length) + ' از ' + rptFaNum(allRows.length) + ' قسط';
@@ -720,6 +827,7 @@ function rptInitInstallmentDueReport(cfg) {
         serverOverdue = overdueSelect ? String(overdueSelect.value || '') : '';
 
         tbody.innerHTML = '<tr><td colspan="11" class="rpt-empty">در حال بارگذاری…</td></tr>';
+        clearSummary();
         if (meta) {
             meta.textContent = 'در حال دریافت اطلاعات…';
         }
@@ -772,6 +880,8 @@ function rptInitInstallmentDueReport(cfg) {
                 applyClientFilters();
             })
             .catch(function () {
+                allRows = [];
+                clearSummary();
                 tbody.innerHTML =
                     '<tr><td colspan="11" class="rpt-empty" style="color:#b91c1c;">خطا در دریافت گزارش.</td></tr>';
                 if (meta) {

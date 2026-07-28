@@ -245,6 +245,7 @@ final class AdminReportsController extends Controller
                 'from_jdate' => Jalali::enToFaNumbers(Jalali::instance($range['from'])->format('Y/m/d')),
                 'to_jdate' => Jalali::enToFaNumbers(Jalali::instance($range['to'])->format('Y/m/d')),
                 'count' => count($rows),
+                'summary' => $this->installmentDueByDate->summarizeRows($rows),
             ],
         ]);
     }

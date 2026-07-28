@@ -141,6 +141,26 @@ final class CustomerLoanPortalPresenter
             );
         }
 
+        $overduePrincipalToman = 0;
+        $overdueInstallmentsCount = 0;
+        if (! $isRevoked && ! $settledForUi && ! $isCreditor) {
+            foreach ($installmentsOut as $mappedInst) {
+                if (($mappedInst['status_line'] ?? '') !== 'معوق') {
+                    continue;
+                }
+                $slotRemaining = max(0, (int) ($mappedInst['slot_remaining_toman'] ?? 0));
+                if ($slotRemaining < 1) {
+                    continue;
+                }
+                $overduePrincipalToman += $slotRemaining;
+                $overdueInstallmentsCount++;
+            }
+        }
+        $overdueLateFeeToman = $overdueInstallmentsCount > 0
+            ? max(0, (int) $snap['late_fee_so_far_toman'])
+            : 0;
+        $overdueDebtToman = $overduePrincipalToman + $overdueLateFeeToman;
+
         $hasEarlyRepayment = $this->loanHasEarlyFullyPaidInstallment($instColl);
 
         $showSettleButton = ! $isRevoked
@@ -221,6 +241,12 @@ final class CustomerLoanPortalPresenter
             'discount_toman' => $discount,
             'discount_fa' => $this->formatMoneyFa($discount),
             'remaining_status_line_fa' => $remainingStatusLineFa,
+            'overdue_principal_toman' => $overduePrincipalToman,
+            'overdue_late_fee_toman' => $overdueLateFeeToman,
+            'overdue_debt_toman' => $overdueDebtToman,
+            'overdue_debt_fa' => $this->formatMoneyFa($overdueDebtToman),
+            'overdue_installments_count' => $overdueInstallmentsCount,
+            'overdue_installments_count_fa' => Jalali::enToFaNumbers((string) $overdueInstallmentsCount),
             'settled_yes_no_fa' => $settledForUi ? 'بله' : 'خیر',
             'settle_disabled_reason_fa' => $settleDisabledReasonFa,
             'is_settled' => (bool) $file->is_settled,
@@ -352,6 +378,102 @@ final class CustomerLoanPortalPresenter
             'principal_fa' => $this->formatMoneyFa($principalTotal),
             'late_fee_fa' => $this->formatMoneyFa($lateFeeTotal),
             'amount_fa' => $this->formatMoneyFa($amountTotal),
+        ];
+    }
+
+    /**
+     * جمع بدهی معوق همهٔ پرونده‌های باز (ماندهٔ اقساط سررسیدگذشته + برآورد جریمهٔ دیرکرد).
+     *
+     * @param  array{loans?: list<array<string, mixed>>}  $portalLoans
+     * @return array{
+     *     files: list<array<string, mixed>>,
+     *     files_count: int,
+     *     installments_count: int,
+     *     principal_toman: int,
+     *     late_fee_toman: int,
+     *     amount_toman: int,
+     *     principal_fa: string,
+     *     late_fee_fa: string,
+     *     amount_fa: string,
+     *     installments_count_fa: string,
+     * }|null
+     */
+    public function overdueDebtQuoteFromPortalLoans(array $portalLoans): ?array
+    {
+        $items = [];
+        $principalTotal = 0;
+        $lateFeeTotal = 0;
+        $amountTotal = 0;
+        $installmentsCount = 0;
+
+        foreach ($portalLoans['loans'] ?? [] as $loan) {
+            if (! is_array($loan)) {
+                continue;
+            }
+            if (! empty($loan['is_revoked']) || ! empty($loan['settled_for_ui']) || ! empty($loan['is_creditor'])) {
+                continue;
+            }
+
+            $overdueInstallments = [];
+            $principalToman = 0;
+
+            foreach ($loan['installments'] ?? [] as $inst) {
+                if (! is_array($inst)) {
+                    continue;
+                }
+                if (($inst['status_line'] ?? '') !== 'معوق') {
+                    continue;
+                }
+                $slotRemaining = max(0, (int) ($inst['slot_remaining_toman'] ?? 0));
+                if ($slotRemaining < 1) {
+                    continue;
+                }
+                $overdueInstallments[] = $inst;
+                $principalToman += $slotRemaining;
+            }
+
+            if ($overdueInstallments === []) {
+                continue;
+            }
+
+            $lateFeeToman = max(0, (int) ($loan['late_fee_estimate_toman'] ?? 0));
+            $amountToman = $principalToman + $lateFeeToman;
+
+            $items[] = [
+                'loan_file_id' => (int) ($loan['id'] ?? 0),
+                'loan_code' => (string) ($loan['loan_code'] ?? ''),
+                'loan_code_fa' => (string) ($loan['loan_code_fa'] ?? ''),
+                'loan_title' => (string) ($loan['loan_title'] ?? 'وام'),
+                'principal_toman' => $principalToman,
+                'late_fee_toman' => $lateFeeToman,
+                'amount_toman' => $amountToman,
+                'principal_fa' => $this->formatMoneyFa($principalToman),
+                'late_fee_fa' => $this->formatMoneyFa($lateFeeToman),
+                'amount_fa' => $this->formatMoneyFa($amountToman),
+                'installments' => $overdueInstallments,
+            ];
+
+            $principalTotal += $principalToman;
+            $lateFeeTotal += $lateFeeToman;
+            $amountTotal += $amountToman;
+            $installmentsCount += count($overdueInstallments);
+        }
+
+        if ($items === [] || $amountTotal < 1) {
+            return null;
+        }
+
+        return [
+            'files' => $items,
+            'files_count' => count($items),
+            'installments_count' => $installmentsCount,
+            'principal_toman' => $principalTotal,
+            'late_fee_toman' => $lateFeeTotal,
+            'amount_toman' => $amountTotal,
+            'principal_fa' => $this->formatMoneyFa($principalTotal),
+            'late_fee_fa' => $this->formatMoneyFa($lateFeeTotal),
+            'amount_fa' => $this->formatMoneyFa($amountTotal),
+            'installments_count_fa' => Jalali::enToFaNumbers((string) $installmentsCount),
         ];
     }
 

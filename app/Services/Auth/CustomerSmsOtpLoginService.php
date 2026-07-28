@@ -25,21 +25,39 @@ final class CustomerSmsOtpLoginService
 
     private const RESEND_COOLDOWN_SECONDS = 60;
 
+    /** سقف درخواست ارسال از یک IP در بازهٔ decay (سازگار با NAT/شبکهٔ اشتراکی). */
+    private const SEND_PER_IP_MAX = 30;
+
+    /** سقف ارسال پیامک واقعی برای یک شماره در بازهٔ decay. */
+    private const SEND_PER_MOBILE_MAX = 5;
+
+    private const SEND_DECAY_SECONDS = 60 * 15;
+
     public function __construct(
         private readonly RawSmsDispatcher $rawSms,
     ) {}
 
-    public function assertSendAllowed(Request $request): void
+    public function assertSendAllowed(Request $request, ?string $normalizedMobile = null): void
     {
-        $key = $this->sendThrottleKey($request);
-        if (RateLimiter::tooManyAttempts($key, 8)) {
-            throw new \RuntimeException('rate_limited:'.RateLimiter::availableIn($key));
+        $ipKey = $this->sendIpThrottleKey($request);
+        if (RateLimiter::tooManyAttempts($ipKey, self::SEND_PER_IP_MAX)) {
+            throw new \RuntimeException('rate_limited:'.RateLimiter::availableIn($ipKey));
+        }
+
+        if ($normalizedMobile !== null && $normalizedMobile !== '') {
+            $mobileKey = $this->sendMobileThrottleKey($normalizedMobile);
+            if (RateLimiter::tooManyAttempts($mobileKey, self::SEND_PER_MOBILE_MAX)) {
+                throw new \RuntimeException('rate_limited:'.RateLimiter::availableIn($mobileKey));
+            }
         }
     }
 
+    /**
+     * ثبت تلاش ارسال برای سقف IP (بدون ارسال پیامک واقعی؛ مثلاً شماره نامعتبر/ناشناخته).
+     */
     public function markSendAttempt(Request $request): void
     {
-        RateLimiter::hit($this->sendThrottleKey($request), 60 * 15);
+        RateLimiter::hit($this->sendIpThrottleKey($request), self::SEND_DECAY_SECONDS);
     }
 
     /**
@@ -58,8 +76,11 @@ final class CustomerSmsOtpLoginService
             return $this->issueOpaqueChallenge($request, $remember, $genericMessage, null);
         }
 
+        $this->assertSendAllowed($request, $mobile);
+
         $customer = Customer::query()->where('mobile', $mobile)->first();
         if ($customer === null) {
+            // بدون سوزاندن سهمیهٔ شماره؛ فقط سقف IP برای جلوگیری از پروب گسترده
             $this->markSendAttempt($request);
 
             return $this->issueOpaqueChallenge($request, $remember, $genericMessage, $mobile);
@@ -91,7 +112,8 @@ final class CustomerSmsOtpLoginService
             throw new \RuntimeException((string) ($result['message'] ?? 'sms_failed'));
         }
 
-        $this->markSendAttempt($request);
+        RateLimiter::hit($this->sendIpThrottleKey($request), self::SEND_DECAY_SECONDS);
+        RateLimiter::hit($this->sendMobileThrottleKey($mobile), self::SEND_DECAY_SECONDS);
 
         return [
             'login_session' => $sessionId,
@@ -353,9 +375,14 @@ final class CustomerSmsOtpLoginService
         return str_replace($en, $fa, $value);
     }
 
-    private function sendThrottleKey(Request $request): string
+    private function sendIpThrottleKey(Request $request): string
     {
-        return 'customer-login-otp-send|'.sha1((string) $request->ip());
+        return 'customer-login-otp-send-ip|'.sha1((string) $request->ip());
+    }
+
+    private function sendMobileThrottleKey(string $normalizedMobile): string
+    {
+        return 'customer-login-otp-send-mobile|'.sha1($normalizedMobile);
     }
 
     private function resendThrottleKey(Request $request, string $sessionId): string

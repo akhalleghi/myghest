@@ -13,7 +13,7 @@
         <button type="button" class="portal-dialog__close" {{ $settleAllCloseAttr }} aria-label="بستن">&times;</button>
         <h3 id="{{ $settleAllNs }}-title" class="portal-dialog__title">
             <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
-            تسویه همزمان همه پرونده‌ها
+            تسویه کامل همه وام‌ها
         </h3>
 
         <p class="portal-settle-note" style="margin-top:0">
