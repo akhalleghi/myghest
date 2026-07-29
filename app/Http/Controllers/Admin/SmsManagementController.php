@@ -12,6 +12,7 @@ use App\Models\AppSetting;
 use App\Models\SmsLog;
 use App\Models\SmsPanelSetting;
 use App\Models\SmsTemplate;
+use App\Services\Admin\RawSmsDispatcher;
 use App\Services\Sms\AdminLoginNotifySmsService;
 use App\Services\Sms\CustomerDepositDeclarationNotifyAdminSmsService;
 use App\Services\Sms\CustomerFullSettlementNotifyAdminSmsService;
@@ -19,13 +20,15 @@ use App\Services\Sms\CustomerInstallmentPaymentNotifyAdminSmsService;
 use App\Services\Sms\CustomerLoanRequestNotifyAdminSmsService;
 use App\Services\Sms\CustomerLoginNotifyAdminSmsService;
 use App\Services\Sms\CustomerSupportTicketNotifyAdminSmsService;
+use App\Services\Sms\SmsPanelCreditService;
 use App\Services\Sms\SmsPanelManager;
+use App\Services\Sms\SmsSettingsService;
 use App\Support\IranMobile;
 use App\Support\ListPerPage;
-use App\Services\Sms\SmsSettingsService;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -40,10 +43,14 @@ final class SmsManagementController extends Controller
 {
     use UpdatesPortalAdminRecipientSmsSettings;
 
+    private const FREE_SEND_MAX_RECIPIENTS = 30;
+
     public function __construct(
         private readonly SmsPanelManager $panelManager,
         private readonly SmsSettingsService $smsSettings,
         private readonly AdminPermissionService $permissions,
+        private readonly SmsPanelCreditService $creditService,
+        private readonly RawSmsDispatcher $rawSms,
     ) {}
 
     public function index(Request $request): View
@@ -139,6 +146,7 @@ final class SmsManagementController extends Controller
             'smsPanelSenderNumber' => (string) ($panelSetting?->sender_number ?? '50003300'),
             'smsPanelConnectionState' => $connectionState,
             'smsPanelLastConnectedAt' => $panelSetting?->last_connected_at,
+            'smsPanelApiTokenStatus' => $this->creditService->activePanelTokenStatus(),
             'smsTemplateCategories' => $templateCategories,
             'smsTemplatePatterns' => $templatePatterns,
             'smsTemplates' => $smsTemplates,
@@ -561,12 +569,18 @@ final class SmsManagementController extends Controller
 
         SmsPanelSetting::query()->where('is_active', true)->update(['is_active' => false]);
 
+        $previousUsername = trim((string) ($setting->username ?? ''));
+        $usernameChanged = $previousUsername !== $username;
+
         $setting->provider = $provider;
         $setting->username = $username;
         $setting->is_active = true;
         $setting->domain_name = (string) ($setting->domain_name ?: 'sepahansms');
         $setting->sender_number = $senderNumber;
         $setting->password = $passwordInput !== '' ? Crypt::encryptString($passwordInput) : $setting->password;
+        if ($usernameChanged) {
+            $setting->api_token = null;
+        }
         $setting->last_connection_status = $connection->ok ? 'connected' : 'disconnected';
         $setting->last_connection_message = $connection->message;
         $setting->last_connected_at = now();
@@ -582,6 +596,55 @@ final class SmsManagementController extends Controller
             ->route('admin.sms.index')
             ->with($connection->ok ? 'flash_success' : 'flash_error', $connection->message)
             ->with('sms_active_tab', 'settings');
+    }
+
+    public function panelCredit(Request $request): JsonResponse
+    {
+        /** @var Admin $admin */
+        $admin = Auth::guard('admin')->user();
+        if (! $this->permissions->canAccessUiFeature($admin, 'sms', 'credit.view')) {
+            abort(403, 'شما به مشاهده اعتبار پنل پیامک دسترسی ندارید.');
+        }
+
+        $result = $this->creditService->fetchActivePanelCredit();
+        $credit = $result->credit;
+        $creditFa = $credit !== null
+            ? Jalali::enToFaNumbers(number_format($credit, 0, '.', ','))
+            : null;
+
+        return response()->json([
+            'ok' => $result->ok,
+            'message' => $result->message,
+            'credit' => $credit,
+            'credit_fa' => $creditFa,
+            'unit' => 'ریال',
+            'checked_at' => now()->toIso8601String(),
+            'checked_at_fa' => Jalali::enToFaNumbers(jalali(now())->format('Y/m/d H:i:s')),
+            'token_status' => $this->creditService->activePanelTokenStatus(),
+        ], $result->ok ? 200 : 422);
+    }
+
+    public function updatePanelApiToken(Request $request): RedirectResponse
+    {
+        /** @var Admin $admin */
+        $admin = Auth::guard('admin')->user();
+        if (! $this->permissions->canAccessUiFeature($admin, 'sms', 'credit.view')) {
+            abort(403, 'شما به تنظیم توکن پنل پیامک دسترسی ندارید.');
+        }
+
+        $validated = $request->validate([
+            'api_token' => ['required', 'string', 'min:16', 'max:128', 'regex:/^[A-Za-z0-9_-]+$/'],
+        ], [], [
+            'api_token' => 'توکن WebAPI',
+        ]);
+
+        $result = $this->creditService->saveActivePanelApiToken((string) $validated['api_token']);
+
+        return redirect()
+            ->route('admin.sms.index')
+            ->with($result->ok ? 'flash_success' : 'flash_error', $result->message)
+            ->with('sms_active_tab', 'credit')
+            ->withInput($result->ok ? [] : $request->only('api_token'));
     }
 
     public function updateScenarioTemplates(Request $request): RedirectResponse
@@ -767,6 +830,142 @@ final class SmsManagementController extends Controller
             ->route('admin.sms.index')
             ->with($result->ok ? 'flash_success' : 'flash_error', $result->message)
             ->with('sms_active_tab', 'settings');
+    }
+
+    public function sendFreeSms(Request $request): RedirectResponse
+    {
+        /** @var Admin $admin */
+        $admin = Auth::guard('admin')->user();
+        if (! $this->permissions->canAccessUiFeature($admin, 'sms', 'free_send.send')) {
+            abort(403, 'شما به ارسال آزاد پیامک دسترسی ندارید.');
+        }
+
+        $validated = $request->validate([
+            'recipients' => ['required', 'string', 'max:4000'],
+            'message' => ['required', 'string', 'min:1', 'max:700'],
+        ], [], [
+            'recipients' => 'شماره‌های گیرنده',
+            'message' => 'متن پیامک',
+        ]);
+
+        $message = trim((string) $validated['message']);
+        $message = preg_replace("/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]/u", '', $message) ?? '';
+        $message = trim($message);
+        if ($message === '') {
+            return redirect()
+                ->route('admin.sms.index')
+                ->withInput()
+                ->withErrors(['message' => 'متن پیامک نمی‌تواند خالی باشد.'])
+                ->with('sms_active_tab', 'free_send');
+        }
+
+        $parsed = $this->parseFreeSmsRecipients((string) $validated['recipients']);
+        if ($parsed['mobiles'] === []) {
+            return redirect()
+                ->route('admin.sms.index')
+                ->withInput()
+                ->withErrors([
+                    'recipients' => $parsed['invalid_count'] > 0
+                        ? 'هیچ شماره موبایل معتبری یافت نشد. شماره را به صورت ۰۹xxxxxxxxx وارد کنید.'
+                        : 'حداقل یک شماره موبایل وارد کنید.',
+                ])
+                ->with('sms_active_tab', 'free_send');
+        }
+
+        if (count($parsed['mobiles']) > self::FREE_SEND_MAX_RECIPIENTS) {
+            return redirect()
+                ->route('admin.sms.index')
+                ->withInput()
+                ->withErrors([
+                    'recipients' => 'حداکثر '.self::FREE_SEND_MAX_RECIPIENTS.' شماره در هر ارسال مجاز است.',
+                ])
+                ->with('sms_active_tab', 'free_send');
+        }
+
+        $okCount = 0;
+        $failCount = 0;
+        $lastError = '';
+
+        foreach ($parsed['mobiles'] as $index => $mobile) {
+            if ($index > 0) {
+                usleep(350_000);
+            }
+
+            $result = $this->rawSms->send($mobile, $message, 'admin-free-send', [
+                'source' => 'sms_management_free_send',
+                'admin_id' => (int) $admin->id,
+            ]);
+
+            if ($result['ok']) {
+                $okCount++;
+            } else {
+                $failCount++;
+                $lastError = (string) ($result['message'] ?? '');
+            }
+        }
+
+        $summaryParts = [
+            'ارسال آزاد: '.$okCount.' موفق',
+        ];
+        if ($failCount > 0) {
+            $summaryParts[] = $failCount.' ناموفق';
+        }
+        if ($parsed['invalid_count'] > 0) {
+            $summaryParts[] = $parsed['invalid_count'].' شماره نامعتبر نادیده گرفته شد';
+        }
+        if ($parsed['duplicate_count'] > 0) {
+            $summaryParts[] = $parsed['duplicate_count'].' شماره تکراری حذف شد';
+        }
+
+        $flashKey = $okCount > 0 ? 'flash_success' : 'flash_error';
+        $flashMessage = implode('؛ ', $summaryParts).'.';
+        if ($okCount === 0 && $lastError !== '') {
+            $flashMessage .= ' '.$lastError;
+        }
+
+        return redirect()
+            ->route('admin.sms.index')
+            ->with($flashKey, $flashMessage)
+            ->with('sms_active_tab', 'free_send');
+    }
+
+    /**
+     * @return array{mobiles: list<string>, invalid_count: int, duplicate_count: int}
+     */
+    private function parseFreeSmsRecipients(string $raw): array
+    {
+        $chunks = preg_split('/[\s,;،]+/u', $raw) ?: [];
+        $mobiles = [];
+        $seen = [];
+        $invalidCount = 0;
+        $duplicateCount = 0;
+
+        foreach ($chunks as $chunk) {
+            $chunk = trim((string) $chunk);
+            if ($chunk === '') {
+                continue;
+            }
+
+            $normalized = IranMobile::normalize($chunk);
+            if ($normalized === null) {
+                $invalidCount++;
+                continue;
+            }
+
+            if (isset($seen[$normalized])) {
+                $duplicateCount++;
+                continue;
+            }
+
+            $seen[$normalized] = true;
+            $mobiles[] = $normalized;
+        }
+
+        return [
+            'mobiles' => $mobiles,
+            'invalid_count' => $invalidCount,
+            'duplicate_count' => $duplicateCount,
+        ];
     }
 
     public function destroyLog(SmsLog $smsLog): RedirectResponse
@@ -1197,6 +1396,14 @@ final class SmsManagementController extends Controller
             if ($request->old($key) !== null) {
                 return 'settings';
             }
+        }
+
+        if ($request->old('api_token') !== null) {
+            return 'credit';
+        }
+
+        if ($request->old('recipients') !== null) {
+            return 'free_send';
         }
 
         return null;

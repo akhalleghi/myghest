@@ -13,6 +13,116 @@
         .sms-tab.is-active { background: var(--primary-soft); color: var(--primary-dark); }
         .sms-tab.is-disabled { opacity: 0.55; cursor: not-allowed; }
         .sms-tab-panel[hidden] { display: none !important; }
+        .sms-credit-layout {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.85rem;
+            align-items: stretch;
+        }
+        .sms-credit-card,
+        .sms-credit-token-card {
+            border: 1px solid var(--border);
+            border-radius: 0.95rem;
+            padding: 1rem 1.05rem 1.1rem;
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+            min-width: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .sms-credit-card {
+            background: linear-gradient(165deg, color-mix(in oklab, var(--primary-soft) 62%, var(--bg-card)), var(--bg-card));
+        }
+        .sms-credit-token-card {
+            background: linear-gradient(165deg, color-mix(in oklab, var(--bg-card) 88%, var(--primary-soft)), var(--bg-card));
+            margin-top: 0;
+        }
+        html[data-theme="dark"] .sms-credit-card,
+        html[data-theme="dark"] .sms-credit-token-card { box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28); }
+        .sms-credit-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.85rem; }
+        .sms-credit-title-wrap { display: flex; align-items: flex-start; gap: 0.65rem; min-width: 0; }
+        .sms-credit-icon {
+            width: 2.35rem; height: 2.35rem; border-radius: 0.7rem; flex-shrink: 0;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: var(--primary-soft); color: var(--primary-dark);
+        }
+        .sms-credit-title { margin: 0; font-size: 0.92rem; font-weight: 900; color: var(--text); }
+        .sms-credit-sub { margin: 0.28rem 0 0; font-size: 0.74rem; color: var(--muted); line-height: 1.65; }
+        .sms-credit-refresh {
+            border: 1px solid rgba(37, 99, 235, 0.35); border-radius: 0.62rem; padding: 0.45rem 0.8rem;
+            background: var(--primary-soft); color: var(--primary-dark); font-size: 0.76rem; font-weight: 800;
+            cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 0.35rem;
+        }
+        .sms-credit-refresh:disabled { opacity: 0.55; cursor: not-allowed; }
+        .sms-credit-amount-box {
+            border: 1px dashed rgba(37, 99, 235, 0.28); border-radius: 0.85rem;
+            background: color-mix(in oklab, var(--bg-card) 88%, var(--primary-soft));
+            padding: 1rem 0.95rem; text-align: center; flex: 1;
+            display: flex; flex-direction: column; justify-content: center;
+        }
+        .sms-credit-amount-label { margin: 0 0 0.35rem; font-size: 0.74rem; font-weight: 700; color: var(--muted); }
+        .sms-credit-amount {
+            margin: 0; font-size: clamp(1.35rem, 3.2vw, 1.85rem); font-weight: 900; color: var(--primary-dark);
+            letter-spacing: 0.01em; line-height: 1.35; direction: ltr; unicode-bidi: isolate;
+        }
+        .sms-credit-unit { margin: 0.35rem 0 0; font-size: 0.78rem; font-weight: 800; color: var(--text); }
+        .sms-credit-meta { margin: 0.75rem 0 0; font-size: 0.72rem; color: var(--muted); line-height: 1.6; }
+        .sms-credit-status { margin: 0.7rem 0 0; font-size: 0.76rem; font-weight: 700; line-height: 1.6; min-height: 1.2rem; }
+        .sms-credit-status.is-ok { color: #047857; }
+        .sms-credit-status.is-err { color: #b91c1c; }
+        .sms-credit-status.is-loading { color: var(--muted); }
+        .sms-credit-token-head { margin: 0 0 0.2rem; font-size: 0.92rem; font-weight: 900; color: var(--text); display: inline-flex; align-items: center; gap: 0.45rem; }
+        .sms-credit-token-sub { margin: 0.28rem 0 0.65rem; font-size: 0.74rem; color: var(--muted); line-height: 1.65; }
+        .sms-credit-token-state {
+            display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; font-weight: 800;
+            border-radius: 999px; padding: 0.22rem 0.55rem; margin-bottom: 0.65rem; width: fit-content;
+        }
+        .sms-credit-token-state.is-on { background: rgba(16, 185, 129, 0.15); color: #047857; }
+        .sms-credit-token-state.is-off { background: rgba(245, 158, 11, 0.16); color: #b45309; }
+        .sms-credit-token-form { display: flex; flex-direction: column; gap: 0.55rem; margin-top: auto; }
+        .sms-credit-token-field { width: 100%; min-width: 0; }
+        .sms-credit-token-field label { display: block; font-size: 0.74rem; font-weight: 700; color: var(--muted); margin-bottom: 0.24rem; }
+        .sms-credit-token-field input {
+            width: 100%; border: 1px solid var(--border); border-radius: 0.62rem; padding: 0.5rem 0.62rem;
+            background: var(--bg-card); color: var(--text); font-family: inherit; font-size: 0.82rem;
+        }
+        .sms-credit-token-submit {
+            border: none; border-radius: 0.62rem; padding: 0.52rem 1rem; align-self: start;
+            background: linear-gradient(180deg, var(--primary), var(--primary-dark)); color: #fff;
+            font-size: 0.78rem; font-weight: 700; cursor: pointer; font-family: inherit;
+            display: inline-flex; align-items: center; gap: 0.35rem;
+        }
+        @media (max-width: 920px) {
+            .sms-credit-layout { grid-template-columns: 1fr; }
+        }
+        .sms-free-card {
+            border: 1px solid var(--border);
+            border-radius: 0.95rem;
+            background: linear-gradient(165deg, color-mix(in oklab, var(--primary-soft) 55%, var(--bg-card)), var(--bg-card));
+            padding: 1rem 1.05rem 1.1rem;
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+            max-width: 46rem;
+        }
+        html[data-theme="dark"] .sms-free-card { box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28); }
+        .sms-free-head { display: flex; align-items: flex-start; gap: 0.65rem; margin-bottom: 0.75rem; }
+        .sms-free-title { margin: 0; font-size: 0.92rem; font-weight: 900; color: var(--text); }
+        .sms-free-sub { margin: 0.28rem 0 0; font-size: 0.74rem; color: var(--muted); line-height: 1.65; }
+        .sms-free-form { display: grid; gap: 0.7rem; }
+        .sms-free-field label { display: block; font-size: 0.74rem; font-weight: 700; color: var(--muted); margin-bottom: 0.24rem; }
+        .sms-free-field textarea {
+            width: 100%; border: 1px solid var(--border); border-radius: 0.62rem; padding: 0.55rem 0.65rem;
+            background: var(--bg-card); color: var(--text); font-family: inherit; font-size: 0.82rem; line-height: 1.65; resize: vertical;
+        }
+        .sms-free-field textarea[name="recipients"] { min-height: 6.2rem; direction: ltr; text-align: left; }
+        .sms-free-field textarea[name="message"] { min-height: 7.2rem; }
+        .sms-free-hint { margin: 0.28rem 0 0; font-size: 0.7rem; color: var(--muted); line-height: 1.55; }
+        .sms-free-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+        .sms-free-submit {
+            border: none; border-radius: 0.62rem; padding: 0.52rem 1.05rem;
+            background: linear-gradient(180deg, var(--primary), var(--primary-dark)); color: #fff;
+            font-size: 0.78rem; font-weight: 800; cursor: pointer; font-family: inherit;
+            display: inline-flex; align-items: center; gap: 0.35rem;
+        }
         .sms-panel-select-card { border: 1px solid var(--border); border-radius: 0.85rem; background: var(--bg-card); padding: 0.75rem 0.85rem; margin-bottom: 0.8rem; }
         .sms-panel-select-head { font-size: 0.8rem; font-weight: 800; color: var(--text); margin-bottom: 0.2rem; display: inline-flex; align-items: center; gap: 0.35rem; }
         .sms-panel-select-sub { margin: 0 0 0.55rem; color: var(--muted); font-size: 0.74rem; }
@@ -227,9 +337,13 @@
                 ? 'تنظیمات اتصال پنل، تست ارسال و سایر گزینه‌های پیامکی که به آن‌ها دسترسی دارید.'
                 : (count($smsAllowedTabs) === 1 && isset($smsAllowedTabs['templates'])
                     ? 'مدیریت الگوهای پیامک مطابق دسترسی‌های تعریف‌شده برای شما.'
-                    : (count($smsAllowedTabs) === 1 && isset($smsAllowedTabs['reports'])
-                        ? 'گزارش ارسال پیامک‌ها، جستجو و فیلتر وضعیت، و بازهٔ زمانی روزانه/دلخواه.'
-                        : 'بخش‌های پیامکی که به آن‌ها دسترسی دارید: '.implode('، ', $smsTabLabels).'.'));
+                    : (count($smsAllowedTabs) === 1 && isset($smsAllowedTabs['credit'])
+                        ? 'مشاهده اعتبار باقیمانده پنل پیامک فعال سامانه.'
+                        : (count($smsAllowedTabs) === 1 && isset($smsAllowedTabs['free_send'])
+                            ? 'ارسال پیامک آزاد به یک یا چند شماره موبایل (ضامن، کارت ویزیت و سایر افراد خارج از لیست مشتریان اقساطی).'
+                            : (count($smsAllowedTabs) === 1 && isset($smsAllowedTabs['reports'])
+                                ? 'گزارش ارسال پیامک‌ها، جستجو و فیلتر وضعیت، و بازهٔ زمانی روزانه/دلخواه.'
+                                : 'بخش‌های پیامکی که به آن‌ها دسترسی دارید: '.implode('، ', $smsTabLabels).'.'))));
         @endphp
         <p class="sms-sub">{{ $smsPageSubtitle }}</p>
 
@@ -320,6 +434,11 @@
                                     default => 'sms-badge--undelivered',
                                 };
                                 $sentAt = $log->sent_at ? jalali($log->sent_at)->format('Y/m/d H:i') : '—';
+                                $typeLabel = match ((string) $log->type) {
+                                    'admin-free-send' => 'ارسال آزاد',
+                                    'panel-test' => 'تست پنل',
+                                    default => (string) $log->type,
+                                };
                             @endphp
                             <tr>
                                 <td>{{ $log->sms_panel }}</td>
@@ -327,7 +446,7 @@
                                 <td>{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers($sentAt) }}</td>
                                 <td><div class="sms-msg" title="{{ $log->message_text }}">{{ $log->message_text }}</div></td>
                                 <td>{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers($log->recipient) }}</td>
-                                <td>{{ $log->type }}</td>
+                                <td>{{ $typeLabel }}</td>
                                 <td>
                                     <div class="sms-actions" data-sms-actions>
                                         <button type="button" class="sms-action-btn" data-sms-actions-toggle>
@@ -372,6 +491,140 @@
             </div>
             @include('partials.list-pagination', ['paginator' => $logs])
         </div>
+        </section>
+        @endif
+
+        @if(isset($smsAllowedTabs['free_send']))
+        <section class="sms-tab-panel" data-sms-panel="free_send" @if($smsActiveTab !== 'free_send') hidden @endif>
+            <div class="sms-free-card">
+                <div class="sms-free-head">
+                    <span class="sms-credit-icon" aria-hidden="true"><i class="fa-solid fa-paper-plane"></i></span>
+                    <div>
+                        <h2 class="sms-free-title">ارسال آزاد پیامک</h2>
+                        <p class="sms-free-sub">
+                            ارسال پیام به یک یا چند شماره موبایل — مناسب ضامن، کارت ویزیت و افرادی که لزوماً مشتری اقساطی سامانه نیستند.
+                            ارسال از طریق پنل پیامک فعال سامانه انجام می‌شود و در گزارش پیامک‌ها ثبت می‌گردد.
+                        </p>
+                    </div>
+                </div>
+
+                @if($smsFeat('free_send.send'))
+                <form method="post" action="{{ route('admin.sms.free-send') }}" class="sms-free-form" autocomplete="off">
+                    @csrf
+                    <div class="sms-free-field">
+                        <label for="sms-free-recipients">شماره‌های گیرنده <span class="req" style="color:#b91c1c;">*</span></label>
+                        <textarea
+                            id="sms-free-recipients"
+                            name="recipients"
+                            maxlength="4000"
+                            placeholder="مثال:&#10;09121234567&#10;09351234567&#10;یا با کاما جدا کنید"
+                        >{{ old('recipients') }}</textarea>
+                        <p class="sms-free-hint">هر خط یک شماره، یا جدا با کاما/فاصله. حداکثر ۳۰ شماره معتبر در هر ارسال. فرمت: ۰۹xxxxxxxxx</p>
+                        @error('recipients')<div class="sms-field-error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="sms-free-field">
+                        <label for="sms-free-message">متن پیامک <span class="req" style="color:#b91c1c;">*</span></label>
+                        <textarea
+                            id="sms-free-message"
+                            name="message"
+                            maxlength="700"
+                            placeholder="متن پیام را وارد کنید…"
+                        >{{ old('message') }}</textarea>
+                        <p class="sms-free-hint">حداکثر ۷۰۰ کاراکتر. همین متن برای همه گیرنده‌ها ارسال می‌شود.</p>
+                        @error('message')<div class="sms-field-error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="sms-free-actions">
+                        <button type="submit" class="sms-free-submit">
+                            <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+                            ارسال پیامک
+                        </button>
+                    </div>
+                </form>
+                @else
+                    <div class="sms-template-empty">شما به ارسال آزاد پیامک دسترسی ندارید.</div>
+                @endif
+            </div>
+        </section>
+        @endif
+
+        @if(isset($smsAllowedTabs['credit']))
+        @php
+            $smsPanelApiTokenStatus = $smsPanelApiTokenStatus ?? ['configured' => false, 'hint' => ''];
+        @endphp
+        <section class="sms-tab-panel" data-sms-panel="credit" @if($smsActiveTab !== 'credit') hidden @endif>
+            <div class="sms-credit-layout">
+            <div class="sms-credit-card" id="sms-credit-card">
+                <div class="sms-credit-head">
+                    <div class="sms-credit-title-wrap">
+                        <span class="sms-credit-icon" aria-hidden="true"><i class="fa-solid fa-wallet"></i></span>
+                        <div>
+                            <h2 class="sms-credit-title">اعتبار باقیمانده پنل پیامک</h2>
+                            <p class="sms-credit-sub">موجودی پنل فعال سپاهان‌گستر با توکن WebAPI ساخته‌شده در پنل پیامک استعلام می‌شود.</p>
+                        </div>
+                    </div>
+                    @if($smsFeat('credit.view'))
+                    <button type="button" class="sms-credit-refresh" id="sms-credit-refresh">
+                        <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
+                        به‌روزرسانی
+                    </button>
+                    @endif
+                </div>
+                <div class="sms-credit-amount-box">
+                    <p class="sms-credit-amount-label">موجودی فعلی</p>
+                    <p class="sms-credit-amount" id="sms-credit-amount">—</p>
+                    <p class="sms-credit-unit" id="sms-credit-unit">ریال</p>
+                </div>
+                <p class="sms-credit-meta" id="sms-credit-meta">برای مشاهده موجودی، روی به‌روزرسانی بزنید.</p>
+                <p class="sms-credit-status is-loading" id="sms-credit-status" role="status" aria-live="polite"></p>
+            </div>
+
+            @if($smsFeat('credit.view'))
+            <div class="sms-credit-token-card">
+                <div class="sms-credit-title-wrap" style="margin-bottom:0.15rem;">
+                    <span class="sms-credit-icon" aria-hidden="true"><i class="fa-solid fa-key"></i></span>
+                    <div>
+                        <h2 class="sms-credit-token-head" style="margin:0;">توکن WebAPI سپاهان‌گستر</h2>
+                    </div>
+                </div>
+                <p class="sms-credit-token-sub">
+                    از پنل سپاهان‌گستر (تنظیمات وب ← تولید توکن) یک توکن بسازید و اینجا ذخیره کنید.
+                    توکن به‌صورت رمزنگاری‌شده نگهداری می‌شود و در مرورگر نمایش داده نمی‌شود.
+                </p>
+                <div class="sms-credit-token-state {{ !empty($smsPanelApiTokenStatus['configured']) ? 'is-on' : 'is-off' }}" id="sms-credit-token-state">
+                    @if(!empty($smsPanelApiTokenStatus['configured']))
+                        <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                        توکن تنظیم شده است
+                        @if(!empty($smsPanelApiTokenStatus['hint']))
+                            <span>({{ $smsPanelApiTokenStatus['hint'] }})</span>
+                        @endif
+                    @else
+                        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                        توکن هنوز تنظیم نشده است
+                    @endif
+                </div>
+                <form method="post" action="{{ route('admin.sms.panel-api-token.update') }}" class="sms-credit-token-form" autocomplete="off">
+                    @csrf
+                    <div class="sms-credit-token-field">
+                        <label for="sms-panel-api-token">توکن جدید</label>
+                        <input
+                            id="sms-panel-api-token"
+                            type="password"
+                            name="api_token"
+                            value="{{ old('api_token') }}"
+                            placeholder="توکن را از پنل سپاهان‌گستر وارد کنید"
+                            maxlength="128"
+                            autocomplete="new-password"
+                        >
+                        @error('api_token')<div class="sms-field-error">{{ $message }}</div>@enderror
+                    </div>
+                    <button class="sms-credit-token-submit" type="submit">
+                        <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+                        ذخیره توکن
+                    </button>
+                </form>
+            </div>
+            @endif
+            </div>
         </section>
         @endif
 
@@ -930,6 +1183,68 @@
             var tabButtons = Array.from(document.querySelectorAll('[data-sms-tab]'));
             var tabPanels = Array.from(document.querySelectorAll('.sms-page [data-sms-panel]'));
             var serverActiveTab = @json($smsActiveTab);
+            var smsCreditUrl = @json(route('admin.sms.panel-credit'));
+            var smsCreditCanView = @json($smsFeat('credit.view'));
+            var smsCreditLoaded = false;
+            var smsCreditLoading = false;
+
+            function setSmsCreditStatus(text, mode) {
+                var el = document.getElementById('sms-credit-status');
+                if (!el) return;
+                el.textContent = text || '';
+                el.classList.remove('is-ok', 'is-err', 'is-loading');
+                if (mode) el.classList.add(mode);
+            }
+
+            function loadSmsPanelCredit(force) {
+                if (!smsCreditCanView || smsCreditLoading) return;
+                if (smsCreditLoaded && !force) return;
+
+                var amountEl = document.getElementById('sms-credit-amount');
+                var unitEl = document.getElementById('sms-credit-unit');
+                var metaEl = document.getElementById('sms-credit-meta');
+                var refreshBtn = document.getElementById('sms-credit-refresh');
+                smsCreditLoading = true;
+                if (refreshBtn) refreshBtn.disabled = true;
+                setSmsCreditStatus('در حال دریافت اعتبار از پنل پیامک…', 'is-loading');
+
+                fetch(smsCreditUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                }).then(function (res) {
+                    return res.json().then(function (data) {
+                        return { okHttp: res.ok, data: data || {} };
+                    }).catch(function () {
+                        return { okHttp: res.ok, data: {} };
+                    });
+                }).then(function (payload) {
+                    var data = payload.data || {};
+                    if (payload.okHttp && data.ok) {
+                        if (amountEl) amountEl.textContent = data.credit_fa || '—';
+                        if (unitEl) unitEl.textContent = data.unit || 'ریال';
+                        if (metaEl) {
+                            metaEl.textContent = data.checked_at_fa
+                                ? ('آخرین استعلام: ' + data.checked_at_fa)
+                                : 'اعتبار با موفقیت دریافت شد.';
+                        }
+                        setSmsCreditStatus(data.message || 'اعتبار باقیمانده با موفقیت دریافت شد.', 'is-ok');
+                        smsCreditLoaded = true;
+                        return;
+                    }
+                    if (amountEl && !smsCreditLoaded) amountEl.textContent = '—';
+                    setSmsCreditStatus((data && data.message) ? data.message : 'دریافت اعتبار ناموفق بود.', 'is-err');
+                }).catch(function () {
+                    setSmsCreditStatus('ارتباط با سرور برای استعلام اعتبار برقرار نشد.', 'is-err');
+                }).finally(function () {
+                    smsCreditLoading = false;
+                    if (refreshBtn) refreshBtn.disabled = false;
+                });
+            }
+
             function activateTab(tabId) {
                 if (!tabId || tabPanels.length === 0) {
                     return;
@@ -948,14 +1263,26 @@
                 tabPanels.forEach(function (tabPanel) {
                     tabPanel.hidden = tabPanel.getAttribute('data-sms-panel') !== tabId;
                 });
+                if (tabId === 'credit') {
+                    loadSmsPanelCredit(false);
+                }
             }
             tabButtons.forEach(function (btn) {
                 btn.addEventListener('click', function () {
                     activateTab(btn.getAttribute('data-sms-tab'));
                 });
             });
+            var creditRefreshBtn = document.getElementById('sms-credit-refresh');
+            if (creditRefreshBtn) {
+                creditRefreshBtn.addEventListener('click', function () {
+                    loadSmsPanelCredit(true);
+                });
+            }
             if (tabPanels.length === 1) {
                 tabPanels[0].hidden = false;
+                if (tabPanels[0].getAttribute('data-sms-panel') === 'credit') {
+                    loadSmsPanelCredit(false);
+                }
             } else if (serverActiveTab) {
                 activateTab(serverActiveTab);
             } else if (tabPanels[0]) {

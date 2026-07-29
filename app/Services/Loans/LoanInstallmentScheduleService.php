@@ -22,7 +22,7 @@ final class LoanInstallmentScheduleService
         private readonly LoanInstallmentAmountAllocator $allocator,
     ) {}
 
-    public function ensureSchedule(CustomerLoanFile $file): void
+    public function ensureSchedule(CustomerLoanFile $file, ?int $equalInstallmentAmountToman = null): void
     {
         if ($file->revoked_at !== null) {
             return;
@@ -32,13 +32,13 @@ final class LoanInstallmentScheduleService
             return;
         }
 
-        $this->createScheduleRows($file);
+        $this->createScheduleRows($file, $equalInstallmentAmountToman);
     }
 
     /**
      * پس از ویرایش پروندهٔ وام، اقساط موجود را با مقادیر و تاریخ‌های جدید همگام می‌کند.
      */
-    public function syncScheduleFromLoanFile(CustomerLoanFile $file): void
+    public function syncScheduleFromLoanFile(CustomerLoanFile $file, ?int $equalInstallmentAmountToman = null): void
     {
         if ($file->revoked_at !== null) {
             return;
@@ -60,7 +60,7 @@ final class LoanInstallmentScheduleService
             return;
         }
 
-        $schedule = $this->buildScheduleData($file);
+        $schedule = $this->buildScheduleData($file, $equalInstallmentAmountToman);
         if ($schedule === null) {
             return;
         }
@@ -159,14 +159,14 @@ final class LoanInstallmentScheduleService
         });
     }
 
-    private function createScheduleRows(CustomerLoanFile $file): void
+    private function createScheduleRows(CustomerLoanFile $file, ?int $equalInstallmentAmountToman = null): void
     {
         $installmentsCount = (int) $file->installments_count;
         if ($installmentsCount < 1) {
             return;
         }
 
-        $schedule = $this->buildScheduleData($file);
+        $schedule = $this->buildScheduleData($file, $equalInstallmentAmountToman);
         if ($schedule === null) {
             return;
         }
@@ -192,11 +192,23 @@ final class LoanInstallmentScheduleService
      *     unit: string
      * }|null
      */
-    private function buildScheduleData(CustomerLoanFile $file): ?array
+    private function buildScheduleData(CustomerLoanFile $file, ?int $equalInstallmentAmountToman = null): ?array
     {
         $installmentsCount = (int) $file->installments_count;
         if ($installmentsCount < 1 || $file->loan_start_date === null) {
             return null;
+        }
+
+        if ($equalInstallmentAmountToman !== null && $equalInstallmentAmountToman > 0) {
+            $amounts = array_fill(0, $installmentsCount, $equalInstallmentAmountToman);
+
+            return [
+                'payable_toman' => $equalInstallmentAmountToman * $installmentsCount,
+                'amounts' => $amounts,
+                'start' => Carbon::parse($file->loan_start_date)->startOfDay(),
+                'interval_count' => max(1, (int) $file->installment_interval_count),
+                'unit' => (string) $file->installment_interval_unit,
+            ];
         }
 
         $payable = $this->calculator->totalRepayableToman($file);

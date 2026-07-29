@@ -13,6 +13,7 @@ final class SmsPanelSetting extends Model
         'is_active',
         'username',
         'password',
+        'api_token',
         'domain_name',
         'sender_number',
         'last_connection_status',

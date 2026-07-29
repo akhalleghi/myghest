@@ -678,6 +678,18 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
         ->middleware('throttle:20,1')
         ->name('sms.panel-test.send');
 
+    Route::post('/sms-management/free-send', [SmsManagementController::class, 'sendFreeSms'])
+        ->middleware('throttle:10,1')
+        ->name('sms.free-send');
+
+    Route::get('/sms-management/panel-credit', [SmsManagementController::class, 'panelCredit'])
+        ->middleware('throttle:12,1')
+        ->name('sms.panel-credit');
+
+    Route::post('/sms-management/panel-api-token', [SmsManagementController::class, 'updatePanelApiToken'])
+        ->middleware('throttle:20,1')
+        ->name('sms.panel-api-token.update');
+
     Route::post('/sms-management/scenario-templates', [SmsManagementController::class, 'updateScenarioTemplates'])
         ->middleware('throttle:20,1')
         ->name('sms.scenario-templates.update');

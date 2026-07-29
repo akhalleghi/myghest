@@ -871,6 +871,8 @@ final class CustomerController extends Controller
             'installment_interval_unit' => ['required', Rule::in([LoanType::GAP_MONTHLY, LoanType::GAP_WEEKLY])],
             'installment_amount_toman' => ['required', 'integer', 'min:1', 'max:999999999999'],
             'down_payment_toman' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
+            'discount_amount_toman' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
+            'installment_amount_is_manual' => ['nullable', 'boolean'],
             'sub_file_number' => ['nullable', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:3000'],
             'is_settled' => ['nullable', 'boolean'],
@@ -881,15 +883,19 @@ final class CustomerController extends Controller
             'sms_text' => ['nullable', 'string', 'max:1000'],
             'sms_template_id' => ['nullable', 'integer', 'exists:sms_templates,id'],
             'customer_verification_token' => ['nullable', 'string', 'max:128'],
+            'skip_customer_verification' => ['nullable', 'boolean'],
         ]);
 
         if (LoanCreationOtpSettings::isEnabled()) {
-            $mobile = $this->normalizeCustomerMobileForSmsFilter((string) $customer->mobile);
-            if ($mobile === '') {
-                return response()->json(['message' => 'شماره موبایل معتبر برای این مشتری ثبت نشده است؛ ثبت وام با تایید پیامکی ممکن نیست.'], 422);
-            }
-            if (! $this->consumeLoanCreationVerificationToken($request, $customer)) {
-                return response()->json(['message' => 'تایید پیامکی مشتری الزامی است. ابتدا کد ارسال‌شده به موبایل مشتری را تایید کنید.'], 422);
+            $skipCustomerVerification = (bool) ($validated['skip_customer_verification'] ?? false);
+            if (! $skipCustomerVerification) {
+                $mobile = $this->normalizeCustomerMobileForSmsFilter((string) $customer->mobile);
+                if ($mobile === '') {
+                    return response()->json(['message' => 'شماره موبایل معتبر برای این مشتری ثبت نشده است؛ ثبت وام با تایید پیامکی ممکن نیست.'], 422);
+                }
+                if (! $this->consumeLoanCreationVerificationToken($request, $customer)) {
+                    return response()->json(['message' => 'تایید پیامکی مشتری الزامی است. ابتدا کد ارسال‌شده به موبایل مشتری را تایید کنید.'], 422);
+                }
             }
         }
 
@@ -913,6 +919,8 @@ final class CustomerController extends Controller
         $installmentsCount = (int) $validated['installments_count'];
         $installmentAmount = (int) $validated['installment_amount_toman'];
         $downPayment = (int) ($validated['down_payment_toman'] ?? 0);
+        $discountAmount = (int) ($validated['discount_amount_toman'] ?? 0);
+        $installmentAmountIsManual = (bool) ($validated['installment_amount_is_manual'] ?? false);
         if ($downPayment > $amount) {
             return response()->json(['message' => 'مبلغ پیش‌پرداخت نمی‌تواند بیشتر از مبلغ وام باشد.'], 422);
         }
@@ -944,79 +952,117 @@ final class CustomerController extends Controller
             $customInterestRate = round((float) $validated['custom_interest_rate'], 2);
         }
         $effectiveInterestRate = $hasCustomInterestRate ? (float) $customInterestRate : $baseInterestRate;
-        $calculatedProfit = $this->calculateLoanProfitToman(
-            $amount,
-            $effectiveInterestRate,
-            $profitMethod,
-            $installmentsCount,
-            $intervalCount,
-            $intervalUnit
-        );
-        $allocation = app(LoanInstallmentAmountAllocator::class)->allocateForLoanFile(
-            $amount,
-            $calculatedProfit,
-            $downPayment,
-            $installmentsCount,
-        );
-        $downPayment = (int) $allocation['adjusted_down_payment_toman'];
-        $installmentAmount = (int) $allocation['base_amount_toman'];
-        $payableAfterDownPayment = (int) $allocation['payable_after_down_payment_toman'];
-        $sumInstallments = array_sum($allocation['amounts_toman']);
-        if ($sumInstallments > $payableAfterDownPayment) {
-            return response()->json(['message' => 'مجموع مبلغ اقساط از مبلغ قابل بازپرداخت (با احتساب بهره نوع وام) بیشتر است.'], 422);
+
+        if ($installmentAmountIsManual) {
+            $expectedAmount = $installmentAmount * $installmentsCount;
+            if ($amount !== $expectedAmount) {
+                return response()->json([
+                    'message' => 'در حالت تعیین دستی مبلغ قسط، مبلغ وام باید برابر «مبلغ هر قسط × تعداد اقساط» باشد.',
+                ], 422);
+            }
+            if ($installmentAmount < 1) {
+                return response()->json(['message' => 'مبلغ هر قسط معتبر نیست.'], 422);
+            }
+        } else {
+            $calculatedProfit = $this->calculateLoanProfitToman(
+                $amount,
+                $effectiveInterestRate,
+                $profitMethod,
+                $installmentsCount,
+                $intervalCount,
+                $intervalUnit
+            );
+            $allocation = app(LoanInstallmentAmountAllocator::class)->allocateForLoanFile(
+                $amount,
+                $calculatedProfit,
+                $downPayment,
+                $installmentsCount,
+            );
+            $downPayment = (int) $allocation['adjusted_down_payment_toman'];
+            $installmentAmount = (int) $allocation['base_amount_toman'];
+            $payableAfterDownPayment = (int) $allocation['payable_after_down_payment_toman'];
+            $sumInstallments = array_sum($allocation['amounts_toman']);
+            if ($sumInstallments > $payableAfterDownPayment) {
+                return response()->json(['message' => 'مجموع مبلغ اقساط از مبلغ قابل بازپرداخت (با احتساب بهره نوع وام) بیشتر است.'], 422);
+            }
+            if ($installmentAmount < 1) {
+                return response()->json(['message' => 'مبلغ هر قسط پس از رندسازی معتبر نیست.'], 422);
+            }
         }
-        if ($installmentAmount < 1) {
-            return response()->json(['message' => 'مبلغ هر قسط پس از رندسازی معتبر نیست.'], 422);
+
+        $adminId = auth('admin')->id();
+        $equalInstallmentForSchedule = $installmentAmountIsManual ? $installmentAmount : null;
+
+        try {
+            $loanFile = DB::transaction(function () use (
+                $customer,
+                $loanType,
+                $startDate,
+                $disbursementDueDate,
+                $amount,
+                $validated,
+                $installmentsCount,
+                $installmentAmount,
+                $downPayment,
+                $discountAmount,
+                $equalInstallmentForSchedule,
+                $isSettled,
+                $settledAt,
+                $baseInterestRate,
+                $profitMethod,
+                $hasCustomInterestRate,
+                $customInterestRate,
+                $effectiveInterestRate,
+                $adminId
+            ): CustomerLoanFile {
+                $discountMeta = $this->loanDiscountPersistMeta($discountAmount, $adminId);
+
+                $file = CustomerLoanFile::query()->create([
+                    'customer_id' => $customer->id,
+                    'loan_type_id' => $loanType->id,
+                    'loan_code' => 'TMP',
+                    'loan_start_date' => $startDate,
+                    'disbursement_due_date' => $disbursementDueDate,
+                    'amount_toman' => $amount,
+                    'installments_count' => $installmentsCount,
+                    'installment_interval_count' => (int) $validated['installment_interval_count'],
+                    'installment_interval_unit' => (string) $validated['installment_interval_unit'],
+                    'installment_amount_toman' => $installmentAmount,
+                    'down_payment_toman' => $downPayment,
+                    'discount_amount_toman' => 0,
+                    'discount_updated_at' => null,
+                    'discount_updated_by_admin_id' => null,
+                    'profit_calculation_method' => $profitMethod,
+                    'sub_file_number' => trim((string) ($validated['sub_file_number'] ?? '')) ?: null,
+                    'description' => trim((string) ($validated['description'] ?? '')) ?: null,
+                    'is_settled' => $isSettled,
+                    'settled_at' => $settledAt,
+                    'base_interest_rate' => $baseInterestRate,
+                    'has_custom_interest_rate' => $hasCustomInterestRate,
+                    'custom_interest_rate' => $customInterestRate,
+                    'effective_interest_rate' => $effectiveInterestRate,
+                    'created_by_admin_id' => $adminId,
+                ]);
+                $file->loan_code = 'LF-'.str_pad((string) $file->id, 7, '0', STR_PAD_LEFT);
+                $file->save();
+                app(LoanInstallmentScheduleService::class)->ensureSchedule($file, $equalInstallmentForSchedule);
+
+                $file->refresh();
+                $file->load(['loanType', 'installments']);
+                $this->assertAndApplyLoanDiscountAmount($file, $discountAmount, $discountMeta);
+
+                return $file->fresh(['loanType', 'installments']) ?? $file;
+            });
+        } catch (ValidationException $e) {
+            $firstMessage = collect($e->errors())->flatten()->first();
+
+            return response()->json([
+                'message' => is_string($firstMessage) && $firstMessage !== ''
+                    ? $firstMessage
+                    : 'ثبت پرونده وام ناموفق بود.',
+                'errors' => $e->errors(),
+            ], 422);
         }
-
-        $loanFile = DB::transaction(function () use (
-            $customer,
-            $loanType,
-            $startDate,
-            $disbursementDueDate,
-            $amount,
-            $validated,
-            $installmentsCount,
-            $installmentAmount,
-            $downPayment,
-            $isSettled,
-            $settledAt,
-            $baseInterestRate,
-            $profitMethod,
-            $hasCustomInterestRate,
-            $customInterestRate,
-            $effectiveInterestRate
-        ): CustomerLoanFile {
-            $file = CustomerLoanFile::query()->create([
-                'customer_id' => $customer->id,
-                'loan_type_id' => $loanType->id,
-                'loan_code' => 'TMP',
-                'loan_start_date' => $startDate,
-                'disbursement_due_date' => $disbursementDueDate,
-                'amount_toman' => $amount,
-                'installments_count' => $installmentsCount,
-                'installment_interval_count' => (int) $validated['installment_interval_count'],
-                'installment_interval_unit' => (string) $validated['installment_interval_unit'],
-                'installment_amount_toman' => $installmentAmount,
-                'down_payment_toman' => $downPayment,
-                'profit_calculation_method' => $profitMethod,
-                'sub_file_number' => trim((string) ($validated['sub_file_number'] ?? '')) ?: null,
-                'description' => trim((string) ($validated['description'] ?? '')) ?: null,
-                'is_settled' => $isSettled,
-                'settled_at' => $settledAt,
-                'base_interest_rate' => $baseInterestRate,
-                'has_custom_interest_rate' => $hasCustomInterestRate,
-                'custom_interest_rate' => $customInterestRate,
-                'effective_interest_rate' => $effectiveInterestRate,
-                'created_by_admin_id' => auth('admin')->id(),
-            ]);
-            $file->loan_code = 'LF-'.str_pad((string) $file->id, 7, '0', STR_PAD_LEFT);
-            $file->save();
-            app(LoanInstallmentScheduleService::class)->ensureSchedule($file);
-
-            return $file->fresh(['loanType']) ?? $file;
-        });
-
         $smsFeedback = '';
         if ((bool) ($validated['send_sms'] ?? false)) {
             $smsText = trim((string) ($validated['sms_text'] ?? ''));
@@ -1059,6 +1105,8 @@ final class CustomerController extends Controller
             'installment_interval_unit' => ['required', Rule::in([LoanType::GAP_MONTHLY, LoanType::GAP_WEEKLY])],
             'installment_amount_toman' => ['required', 'integer', 'min:1', 'max:999999999999'],
             'down_payment_toman' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
+            'discount_amount_toman' => ['nullable', 'integer', 'min:0', 'max:999999999999'],
+            'installment_amount_is_manual' => ['nullable', 'boolean'],
             'sub_file_number' => ['nullable', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:3000'],
             'is_settled' => ['nullable', 'boolean'],
@@ -1098,6 +1146,8 @@ final class CustomerController extends Controller
         $installmentsCount = (int) $validated['installments_count'];
         $installmentAmount = (int) $validated['installment_amount_toman'];
         $downPayment = (int) ($validated['down_payment_toman'] ?? 0);
+        $discountAmount = (int) ($validated['discount_amount_toman'] ?? 0);
+        $installmentAmountIsManual = (bool) ($validated['installment_amount_is_manual'] ?? false);
         if ($downPayment > $amount) {
             return response()->json(['message' => 'مبلغ پیش‌پرداخت نمی‌تواند بیشتر از مبلغ وام باشد.'], 422);
         }
@@ -1129,30 +1179,47 @@ final class CustomerController extends Controller
             $customInterestRate = round((float) $validated['custom_interest_rate'], 2);
         }
         $effectiveInterestRate = $hasCustomInterestRate ? (float) $customInterestRate : $baseInterestRate;
-        $calculatedProfit = $this->calculateLoanProfitToman(
-            $amount,
-            $effectiveInterestRate,
-            $profitMethod,
-            $installmentsCount,
-            $intervalCount,
-            $intervalUnit
-        );
-        $allocation = app(LoanInstallmentAmountAllocator::class)->allocateForLoanFile(
-            $amount,
-            $calculatedProfit,
-            $downPayment,
-            $installmentsCount,
-        );
-        $downPayment = (int) $allocation['adjusted_down_payment_toman'];
-        $installmentAmount = (int) $allocation['base_amount_toman'];
-        $payableAfterDownPayment = (int) $allocation['payable_after_down_payment_toman'];
-        $sumInstallments = array_sum($allocation['amounts_toman']);
-        if ($sumInstallments > $payableAfterDownPayment) {
-            return response()->json(['message' => 'مجموع مبلغ اقساط از مبلغ قابل بازپرداخت (با احتساب بهره نوع وام) بیشتر است.'], 422);
+
+        if ($installmentAmountIsManual) {
+            $expectedAmount = $installmentAmount * $installmentsCount;
+            if ($amount !== $expectedAmount) {
+                return response()->json([
+                    'message' => 'در حالت تعیین دستی مبلغ قسط، مبلغ وام باید برابر «مبلغ هر قسط × تعداد اقساط» باشد.',
+                ], 422);
+            }
+            if ($installmentAmount < 1) {
+                return response()->json(['message' => 'مبلغ هر قسط معتبر نیست.'], 422);
+            }
+        } else {
+            $calculatedProfit = $this->calculateLoanProfitToman(
+                $amount,
+                $effectiveInterestRate,
+                $profitMethod,
+                $installmentsCount,
+                $intervalCount,
+                $intervalUnit
+            );
+            $allocation = app(LoanInstallmentAmountAllocator::class)->allocateForLoanFile(
+                $amount,
+                $calculatedProfit,
+                $downPayment,
+                $installmentsCount,
+            );
+            $downPayment = (int) $allocation['adjusted_down_payment_toman'];
+            $installmentAmount = (int) $allocation['base_amount_toman'];
+            $payableAfterDownPayment = (int) $allocation['payable_after_down_payment_toman'];
+            $sumInstallments = array_sum($allocation['amounts_toman']);
+            if ($sumInstallments > $payableAfterDownPayment) {
+                return response()->json(['message' => 'مجموع مبلغ اقساط از مبلغ قابل بازپرداخت (با احتساب بهره نوع وام) بیشتر است.'], 422);
+            }
+            if ($installmentAmount < 1) {
+                return response()->json(['message' => 'مبلغ هر قسط پس از رندسازی معتبر نیست.'], 422);
+            }
         }
-        if ($installmentAmount < 1) {
-            return response()->json(['message' => 'مبلغ هر قسط پس از رندسازی معتبر نیست.'], 422);
-        }
+
+        $adminId = auth('admin')->id();
+        $equalInstallmentForSchedule = $installmentAmountIsManual ? $installmentAmount : null;
+        $discountMeta = $this->loanDiscountPersistMeta($discountAmount, $adminId);
 
         try {
             DB::transaction(function () use (
@@ -1164,6 +1231,9 @@ final class CustomerController extends Controller
                 $installmentsCount,
                 $installmentAmount,
                 $downPayment,
+                $discountAmount,
+                $discountMeta,
+                $equalInstallmentForSchedule,
                 $intervalCount,
                 $intervalUnit,
                 $profitMethod,
@@ -1198,7 +1268,11 @@ final class CustomerController extends Controller
 
                 $loanFile->refresh();
                 $loanFile->load('loanType');
-                app(LoanInstallmentScheduleService::class)->syncScheduleFromLoanFile($loanFile);
+                app(LoanInstallmentScheduleService::class)->syncScheduleFromLoanFile($loanFile, $equalInstallmentForSchedule);
+
+                $loanFile->refresh();
+                $loanFile->load(['loanType', 'installments']);
+                $this->assertAndApplyLoanDiscountAmount($loanFile, $discountAmount, $discountMeta);
             });
         } catch (ValidationException $e) {
             $firstMessage = collect($e->errors())->flatten()->first();
@@ -5220,6 +5294,62 @@ final class CustomerController extends Controller
     private function ensureLoanInstallmentSchedule(CustomerLoanFile $file): void
     {
         app(LoanInstallmentScheduleService::class)->ensureSchedule($file);
+    }
+
+    /**
+     * @return array{discount_updated_at: \Carbon\Carbon|null, discount_updated_by_admin_id: int|null}
+     */
+    private function loanDiscountPersistMeta(int $discountAmount, int|string|null $adminId): array
+    {
+        if ($discountAmount > 0 && $adminId !== null) {
+            return [
+                'discount_updated_at' => now(),
+                'discount_updated_by_admin_id' => (int) $adminId,
+            ];
+        }
+
+        return [
+            'discount_updated_at' => null,
+            'discount_updated_by_admin_id' => null,
+        ];
+    }
+
+    /**
+     * @param  array{discount_updated_at: \Carbon\Carbon|null, discount_updated_by_admin_id: int|null}  $discountMeta
+     */
+    private function assertAndApplyLoanDiscountAmount(
+        CustomerLoanFile $loanFile,
+        int $discountAmount,
+        array $discountMeta,
+    ): void {
+        $discountAmount = max(0, $discountAmount);
+        $loanFile->loadMissing(['loanType', 'installments']);
+
+        $profit = $this->calculateLoanProfitToman(
+            (int) $loanFile->amount_toman,
+            (float) $loanFile->effective_interest_rate,
+            (string) ($loanFile->profit_calculation_method ?: LoanType::PROFIT_MONTHLY),
+            (int) $loanFile->installments_count,
+            (int) $loanFile->installment_interval_count,
+            (string) $loanFile->installment_interval_unit
+        );
+        $totalRepayable = max(0, ((int) $loanFile->amount_toman + $profit) - (int) $loanFile->down_payment_toman);
+        $snap = $this->loanInstallmentFinancialSnapshot($loanFile, $totalRepayable);
+        $scheduleRemaining = (int) $snap['schedule_remaining_toman'];
+
+        if ($discountAmount > $scheduleRemaining) {
+            throw ValidationException::withMessages([
+                'discount_amount_toman' => [
+                    'مبلغ تخفیف نمی‌تواند از مانده قسطی بیشتر باشد. حداکثر: '.number_format($scheduleRemaining, 0, '.', ',').' تومان',
+                ],
+            ]);
+        }
+
+        $loanFile->update([
+            'discount_amount_toman' => $discountAmount,
+            'discount_updated_at' => $discountMeta['discount_updated_at'],
+            'discount_updated_by_admin_id' => $discountMeta['discount_updated_by_admin_id'],
+        ]);
     }
 
     private function resyncInstallmentPaidTotalsFromPayments(CustomerLoanInstallment $installment): void

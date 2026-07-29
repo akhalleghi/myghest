@@ -194,6 +194,14 @@ return [
                 ['key' => 'sms.reports', 'label' => 'گزارش پیامک‌ها', 'routes' => [
                     'admin.sms.index', 'admin.sms.export-excel', 'admin.sms.destroy',
                 ]],
+                ['key' => 'sms.free_send', 'label' => 'ارسال آزاد', 'routes' => [
+                    'admin.sms.index', 'admin.sms.free-send',
+                ]],
+                ['key' => 'sms.credit', 'label' => 'اعتبار پنل', 'routes' => [
+                    'admin.sms.index',
+                    'admin.sms.panel-credit',
+                    'admin.sms.panel-api-token.update',
+                ]],
                 [
                     'key' => 'sms.templates',
                     'label' => 'الگوهای پیامک',
@@ -381,6 +389,10 @@ return [
                     'label' => 'گزارش پیامک‌ها',
                     'permissions' => ['sms.reports'],
                 ],
+                'free_send' => [
+                    'label' => 'ارسال آزاد',
+                    'permissions' => ['sms.free_send'],
+                ],
                 'templates' => [
                     'label' => 'الگوهای پیامک',
                     'any_prefix' => 'sms.templates.',
@@ -389,14 +401,20 @@ return [
                     'label' => 'تنظیمات پنل',
                     'any_prefix' => 'sms.settings.',
                 ],
+                'credit' => [
+                    'label' => 'اعتبار پنل',
+                    'permissions' => ['sms.credit'],
+                ],
             ],
             'features' => [
                 'reports.export' => ['permissions' => ['sms.reports']],
                 'reports.destroy' => ['permissions' => ['sms.reports']],
+                'free_send.send' => ['permissions' => ['sms.free_send']],
                 'templates.view' => ['permissions' => ['sms.templates.view']],
                 'templates.create' => ['permissions' => ['sms.templates.create']],
                 'templates.update' => ['permissions' => ['sms.templates.update']],
                 'templates.delete' => ['permissions' => ['sms.templates.delete']],
+                'credit.view' => ['permissions' => ['sms.credit']],
                 'settings.panel' => ['permissions' => ['sms.settings.panel']],
                 'settings.scenarios' => ['permissions' => ['sms.settings.scenarios']],
                 'settings.reminders' => ['permissions' => ['sms.settings.reminders']],
