@@ -31,6 +31,7 @@ final class Customer extends Authenticatable
         'city',
         'address',
         'postal_code',
+        'purchase_credit_ceiling_toman',
         'credentials_sms_sent_at',
     ];
 
@@ -52,6 +53,7 @@ final class Customer extends Authenticatable
             'membership_at' => 'date',
             'birth_date' => 'date',
             'credentials_sms_sent_at' => 'datetime',
+            'purchase_credit_ceiling_toman' => 'integer',
             'password' => 'hashed',
         ];
     }

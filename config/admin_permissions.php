@@ -44,7 +44,10 @@ return [
                 ['key' => 'customers.export', 'label' => 'خروجی اکسل مشتریان', 'routes' => ['admin.customers.export-excel', 'admin.customers.sms-logs.export-excel', 'admin.customers.guarantees-report.export-excel']],
                 ['key' => 'customers.import', 'label' => 'ورود اکسل مشتریان', 'routes' => ['admin.customers.import.sample-excel', 'admin.customers.import-excel']],
                 ['key' => 'customers.create', 'label' => 'افزودن مشتری', 'routes' => ['admin.customers.store']],
-                ['key' => 'customers.update', 'label' => 'ویرایش مشتری', 'routes' => ['admin.customers.update']],
+                ['key' => 'customers.update', 'label' => 'ویرایش مشتری', 'routes' => [
+                    'admin.customers.update',
+                    'admin.customers.purchase-credit-ceiling',
+                ]],
                 ['key' => 'customers.delete', 'label' => 'حذف مشتری', 'routes' => ['admin.customers.destroy']],
                 ['key' => 'customers.quick_sms', 'label' => 'ارسال پیامک سریع', 'routes' => ['admin.customers.quick-sms']],
                 [

@@ -474,6 +474,10 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
         ->middleware('throttle:60,1')
         ->name('customers.loan-board-summary');
 
+    Route::put('/customers/{customer}/purchase-credit-ceiling', [CustomerController::class, 'updatePurchaseCreditCeiling'])
+        ->middleware('throttle:30,1')
+        ->name('customers.purchase-credit-ceiling');
+
     Route::put('/customers/{customer}', [CustomerController::class, 'update'])
         ->middleware('throttle:20,1')
         ->name('customers.update');
@@ -561,6 +565,14 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
     Route::post('/customers/{customer}/settle-all-loans', [CustomerController::class, 'settleAllLoans'])
         ->middleware('throttle:30,1')
         ->name('customers.settle-all-loans');
+
+    Route::get('/customers/{customer}/overdue-all-preview', [CustomerController::class, 'loanOverdueAllPreview'])
+        ->middleware('throttle:60,1')
+        ->name('customers.overdue-all-preview');
+
+    Route::post('/customers/{customer}/settle-all-overdue', [CustomerController::class, 'settleAllOverdue'])
+        ->middleware('throttle:30,1')
+        ->name('customers.settle-all-overdue');
 
     Route::get('/customers/{customer}/loan-files/{loanFile}/discount-preview', [CustomerController::class, 'loanDiscountPreview'])
         ->middleware('throttle:60,1')

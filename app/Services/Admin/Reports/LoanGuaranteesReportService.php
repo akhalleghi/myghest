@@ -314,6 +314,11 @@ final class LoanGuaranteesReportService
             $lines[] = 'تاریخ چک: '.trim((string) $meta['cheque_due_jdate']);
         }
         if ($type === CustomerLoanGuarantee::TYPE_CHEQUE) {
+            $chequeAmt = isset($meta['amount_toman']) ? (int) $meta['amount_toman'] : 0;
+            // رکوردهای قدیمی ممکن است مبلغ چک نداشته باشند؛ فقط در صورت وجود نمایش بده
+            if ($chequeAmt > 0) {
+                $lines[] = 'مبلغ چک: '.number_format($chequeAmt, 0, '.', ',').' تومان';
+            }
             $lines[] = 'وصول شده؟ '.(! empty($meta['cheque_collected']) ? 'بله' : 'خیر');
             $lines[] = 'عودت شده؟ '.(! empty($meta['cheque_returned']) ? 'بله' : 'خیر');
         }

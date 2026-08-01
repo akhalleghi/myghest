@@ -28,6 +28,7 @@ use App\Models\SmsTemplate;
 use App\Rules\IranNationalId;
 use App\Services\Admin\RawSmsDispatcher;
 use App\Services\Customers\AdminCustomerSettleAllLoansService;
+use App\Services\Customers\AdminCustomerSettleAllOverdueService;
 use App\Services\Loans\LoanFileFinanceCalculator;
 use App\Services\Loans\LoanInstallmentAmountAllocator;
 use App\Services\Loans\LoanInstallmentScheduleService;
@@ -116,6 +117,7 @@ final class CustomerController extends Controller
                         'overdue_installment_count' => $overdueSummary['count'] ?? 0,
                         'overdue_total_toman' => $overdueSummary['total_toman'] ?? 0,
                         'nearest_due_date' => $nearestDue?->toDateString(),
+                        ...$this->purchaseCreditSnapshot($customer, $loanFiles, true),
                     ],
                 ];
             }),
@@ -2043,6 +2045,58 @@ final class CustomerController extends Controller
         ]);
     }
 
+    public function loanOverdueAllPreview(
+        Customer $customer,
+        AdminCustomerSettleAllOverdueService $overdueService,
+    ): JsonResponse {
+        return response()->json($overdueService->preview($customer));
+    }
+
+    public function settleAllOverdue(
+        Request $request,
+        Customer $customer,
+        AdminCustomerSettleAllOverdueService $overdueService,
+    ): JsonResponse {
+        $adminId = auth('admin')->id();
+        if ($adminId === null) {
+            return response()->json(['message' => 'احراز هویت مدیر الزامی است.'], 401);
+        }
+
+        $validated = $request->validate([
+            'payment_method' => ['required', 'string', Rule::in(CustomerLoanInstallmentPayment::creatablePaymentMethodKeys())],
+            'deposited_jdate' => ['required', 'string', 'max:20'],
+            'note' => ['nullable', 'string', 'max:5000'],
+        ], [], [
+            'payment_method' => 'نحوه پرداخت',
+            'deposited_jdate' => 'تاریخ واریز',
+            'note' => 'توضیحات',
+        ]);
+
+        $depCarbon = $this->parseJalaliDate(trim((string) $validated['deposited_jdate']));
+        if ($depCarbon === null) {
+            return response()->json(['message' => 'تاریخ واریز معتبر نیست. فرمت: ۱۴۰۳/۰۶/۱۵'], 422);
+        }
+
+        $result = $overdueService->settle(
+            $customer,
+            (string) $validated['payment_method'],
+            $depCarbon,
+            isset($validated['note']) ? (string) $validated['note'] : null,
+            (int) $adminId,
+        );
+
+        if (! ($result['ok'] ?? false)) {
+            return response()->json(['message' => (string) ($result['message'] ?? 'ثبت پرداخت معوق انجام نشد.')], 422);
+        }
+
+        return response()->json([
+            'message' => (string) ($result['message'] ?? ''),
+            'paid_installments_count' => (int) ($result['paid_installments_count'] ?? 0),
+            'total_principal_toman' => (int) ($result['total_principal_toman'] ?? 0),
+            'files_count' => (int) ($result['files_count'] ?? 0),
+        ]);
+    }
+
     public function loanDiscountPreview(Customer $customer, CustomerLoanFile $loanFile): JsonResponse
     {
         if ((int) $loanFile->customer_id !== (int) $customer->id) {
@@ -2549,6 +2603,11 @@ final class CustomerController extends Controller
             $lines[] = 'تاریخ چک: '.trim((string) $meta['cheque_due_jdate']);
         }
         if ($type === CustomerLoanGuarantee::TYPE_CHEQUE) {
+            $chequeAmt = isset($meta['amount_toman']) ? (int) $meta['amount_toman'] : 0;
+            // رکوردهای قدیمی ممکن است مبلغ چک نداشته باشند؛ فقط در صورت وجود نمایش بده
+            if ($chequeAmt > 0) {
+                $lines[] = 'مبلغ چک: '.number_format($chequeAmt, 0, '.', ',').' تومان';
+            }
             $lines[] = 'وصول شده؟ '.(! empty($meta['cheque_collected']) ? 'بله' : 'خیر');
             $lines[] = 'عودت شده؟ '.(! empty($meta['cheque_returned']) ? 'بله' : 'خیر');
         }
@@ -2626,6 +2685,10 @@ final class CustomerController extends Controller
             $rules['gold_rate_toman'] = ['required', 'integer', 'min:1', 'max:999999999999'];
         }
 
+        if ((string) $request->input('type', '') === CustomerLoanGuarantee::TYPE_CHEQUE) {
+            $rules['amount_toman'] = ['required', 'integer', 'min:1', 'max:999999999999'];
+        }
+
         if ((string) $request->input('type', '') === CustomerLoanGuarantee::TYPE_ORG_SELF) {
             $rules['organization_id'] = ['required', 'integer', 'exists:organizations,id'];
         }
@@ -2695,6 +2758,9 @@ final class CustomerController extends Controller
                 return response()->json(['message' => 'تاریخ چک معتبر نیست.'], 422);
             }
             $chequeCollected = $request->boolean('cheque_collected');
+            if ($amountToman < 1) {
+                return response()->json(['message' => 'مبلغ چک الزامی است.'], 422);
+            }
             $meta = [
                 'cheque_owner_name' => $chequeOwnerName,
                 'cheque_owner_national_id' => $chequeOwnerNationalId,
@@ -2703,6 +2769,7 @@ final class CustomerController extends Controller
                 'cheque_sayadi' => $chequeSayadi,
                 'cheque_due_jdate' => $chequeDueDate ? Jalali::instance($chequeDueDate)->format('Y/m/d') : '',
                 'cheque_collected' => $chequeCollected,
+                'amount_toman' => $amountToman,
             ];
         } elseif ($type === CustomerLoanGuarantee::TYPE_GOLD) {
             $meta = $this->buildGoldGuaranteeMeta($validated);
@@ -2814,6 +2881,9 @@ final class CustomerController extends Controller
                 return response()->json(['message' => 'تاریخ چک معتبر نیست.'], 422);
             }
             $chequeCollected = $request->boolean('cheque_collected');
+            if ($amountToman < 1) {
+                return response()->json(['message' => 'مبلغ چک الزامی است.'], 422);
+            }
             $meta = [
                 'cheque_owner_name' => $chequeOwnerName,
                 'cheque_owner_national_id' => $chequeOwnerNationalId,
@@ -2822,6 +2892,7 @@ final class CustomerController extends Controller
                 'cheque_sayadi' => $chequeSayadi,
                 'cheque_due_jdate' => $chequeDueDate ? Jalali::instance($chequeDueDate)->format('Y/m/d') : '',
                 'cheque_collected' => $chequeCollected,
+                'amount_toman' => $amountToman,
             ];
         } elseif ($type === CustomerLoanGuarantee::TYPE_GOLD) {
             $meta = $this->buildGoldGuaranteeMeta($validated);
@@ -3346,13 +3417,118 @@ final class CustomerController extends Controller
         $loanFiles = $customer->loanFiles->map(fn (CustomerLoanFile $file): array => $this->mapLoanFile($file))->values();
         $loanTotalWithProfit = (int) $loanFiles->sum(static fn (array $row): int => (int) ($row['total_repayable_toman'] ?? 0));
         $remainingInstallments = (int) $loanFiles->sum(static fn (array $row): int => (int) ($row['remaining_amount_toman'] ?? 0));
+        $credit = $this->purchaseCreditSnapshot($customer, $loanFiles, true);
 
         return response()->json([
             'loan_files' => $loanFiles->all(),
             'loan_count' => $loanFiles->count(),
             'loan_total_with_profit' => $loanTotalWithProfit,
             'loan_remaining_installments' => $remainingInstallments,
+            ...$credit,
         ]);
+    }
+
+    public function updatePurchaseCreditCeiling(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'purchase_credit_ceiling_toman' => ['required', 'integer', 'min:0', 'max:999999999999'],
+        ], [], [
+            'purchase_credit_ceiling_toman' => 'سقف اعتبار خرید',
+        ]);
+
+        $customer->purchase_credit_ceiling_toman = (int) $validated['purchase_credit_ceiling_toman'];
+        $customer->save();
+
+        $customer->load(['loanFiles.loanType', 'loanFiles.installments']);
+        $loanFiles = $customer->loanFiles->map(fn (CustomerLoanFile $file): array => $this->mapLoanFile($file))->values();
+        $credit = $this->purchaseCreditSnapshot($customer, $loanFiles, true);
+
+        return response()->json([
+            'message' => 'سقف اعتبار خرید ذخیره شد.',
+            ...$credit,
+        ]);
+    }
+
+    /**
+     * سقف اعتبار خرید مشتری + مبلغ استفاده‌شده از وام‌های جاری با بدهی فعال.
+     *
+     * @param  \Illuminate\Support\Collection<int, array<string, mixed>>|null  $loanFilesMapped
+     * @return array{
+     *     purchase_credit_ceiling_toman: int,
+     *     purchase_credit_effective_toman: int,
+     *     purchase_credit_is_auto: bool,
+     *     purchase_credit_used_toman: int,
+     *     purchase_credit_available_toman: int,
+     *     purchase_credit_suggested_toman: int,
+     *     purchase_credit_cheque_total_toman: int
+     * }
+     */
+    private function purchaseCreditSnapshot(Customer $customer, $loanFilesMapped = null, bool $withChequeSuggestion = true): array
+    {
+        if ($loanFilesMapped === null) {
+            $customer->loadMissing(['loanFiles.loanType', 'loanFiles.installments']);
+            $loanFilesMapped = $customer->loanFiles
+                ->map(fn (CustomerLoanFile $file): array => $this->mapLoanFile($file))
+                ->values();
+        }
+
+        $used = 0;
+        foreach ($loanFilesMapped as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            if (! empty($row['is_settled']) || ! empty($row['is_revoked'])) {
+                continue;
+            }
+            $remaining = (int) ($row['remaining_amount_toman'] ?? 0);
+            if ($remaining > 0) {
+                $used += $remaining;
+            }
+        }
+
+        $ceilingStored = max(0, (int) ($customer->purchase_credit_ceiling_toman ?? 0));
+        $chequeTotal = 0;
+        $suggested = 0;
+
+        if ($withChequeSuggestion) {
+            $guarantees = CustomerLoanGuarantee::query()
+                ->where('customer_id', (int) $customer->id)
+                ->whereIn('type', [
+                    CustomerLoanGuarantee::TYPE_CHEQUE,
+                    CustomerLoanGuarantee::TYPE_OTHER,
+                ])
+                ->get(['id', 'type', 'meta']);
+
+            foreach ($guarantees as $guarantee) {
+                if ($guarantee->isMarkedReturned()) {
+                    continue;
+                }
+                $meta = is_array($guarantee->meta) ? $guarantee->meta : [];
+                $amt = max(0, (int) ($meta['amount_toman'] ?? 0));
+                if ($amt < 1) {
+                    continue;
+                }
+                // چک و تضامین «سایر» دارای مبلغ (مثل سفته) مبنای پیشنهاد سقف هستند
+                $chequeTotal += $amt;
+            }
+
+            // مبلغ پیشنهاد = مجموع مبلغ چک/سفته با ۳۰٪ کمتر
+            $suggested = (int) floor($chequeTotal * 0.7);
+        }
+
+        // اگر سقف دستی ثبت نشده باشد، سقف مؤثر = پیشنهاد بر اساس چک/سفته
+        $isAuto = $ceilingStored < 1 && $suggested > 0;
+        $ceilingEffective = $isAuto ? $suggested : $ceilingStored;
+
+        return [
+            'purchase_credit_ceiling_toman' => $ceilingStored,
+            'purchase_credit_effective_toman' => $ceilingEffective,
+            'purchase_credit_is_auto' => $isAuto,
+            'purchase_credit_used_toman' => $used,
+            'purchase_credit_available_toman' => max(0, $ceilingEffective - $used),
+            'purchase_credit_suggested_toman' => $suggested,
+            'purchase_credit_cheque_total_toman' => $chequeTotal,
+        ];
     }
 
     public function update(Request $request, Customer $customer): RedirectResponse
@@ -4102,7 +4278,9 @@ final class CustomerController extends Controller
     }
 
     /**
-     * خلاصه اقساط معوق مشتری: قدیمی‌ترین قسط معوق + تعداد + مجموع ماندهٔ پرداخت‌نشدهٔ اقساط معوق.
+     * خلاصه اقساط معوق قابل‌ثبت مشتری (هم‌سو با دکمه/مدال بدهی معوق):
+     * ماندهٔ اسمی اقساط سررسیدگذشته، سقف‌شده با ماندهٔ واقعی قرارداد پس از تخفیف و پرداخت‌ها.
+     * پروندهٔ فسخ/تسویه‌شده یا با سقف پرداخت صفر در جمع نمی‌آید.
      *
      * @return array{installment_id: int, loan_file_id: int, count: int, total_toman: int}|null
      */
@@ -4118,6 +4296,13 @@ final class CustomerController extends Controller
                 continue;
             }
 
+            $ceiling = $this->loanInstallmentPaymentCeilingToman($file);
+            if ($ceiling < 1) {
+                continue;
+            }
+
+            /** @var list<array{installment_id: int, loan_file_id: int, due: Carbon, unpaid: int}> $candidates */
+            $candidates = [];
             foreach ($file->installments as $installment) {
                 $amount = (int) $installment->amount_toman;
                 $paid = (int) $installment->paid_amount_toman;
@@ -4131,20 +4316,54 @@ final class CustomerController extends Controller
                 }
 
                 $unpaid = max(0, $amount - $paid);
-                $count++;
-                $totalToman += $unpaid;
+                if ($unpaid < 1) {
+                    continue;
+                }
 
-                if ($best === null || $due->lt($best['due'])) {
+                $candidates[] = [
+                    'installment_id' => (int) $installment->id,
+                    'loan_file_id' => (int) $file->id,
+                    'due' => $due,
+                    'unpaid' => $unpaid,
+                ];
+            }
+
+            if ($candidates === []) {
+                continue;
+            }
+
+            usort(
+                $candidates,
+                static function (array $a, array $b): int {
+                    return $a['due']->getTimestamp() <=> $b['due']->getTimestamp();
+                }
+            );
+
+            $pool = $ceiling;
+            foreach ($candidates as $row) {
+                if ($pool < 1) {
+                    break;
+                }
+                $pay = min((int) $row['unpaid'], $pool);
+                if ($pay < 1) {
+                    continue;
+                }
+
+                $totalToman += $pay;
+                $count++;
+                $pool -= $pay;
+
+                if ($best === null || $row['due']->lt($best['due'])) {
                     $best = [
-                        'installment_id' => (int) $installment->id,
-                        'loan_file_id' => (int) $file->id,
-                        'due' => $due,
+                        'installment_id' => $row['installment_id'],
+                        'loan_file_id' => $row['loan_file_id'],
+                        'due' => $row['due'],
                     ];
                 }
             }
         }
 
-        if ($best === null) {
+        if ($best === null || $totalToman < 1) {
             return null;
         }
 
@@ -4213,6 +4432,8 @@ final class CustomerController extends Controller
                 'discount_amount_toman' => 0,
                 'late_fee_so_far_toman' => 0,
                 'early_benefit_toman' => 0,
+                'overdue_installments_total_toman' => 0,
+                'overdue_payable_toman' => 0,
                 'schedule_remaining_before_discount_toman' => 0,
             ];
         }
@@ -4228,6 +4449,11 @@ final class CustomerController extends Controller
         $latePenalty = $file->is_settled
             ? 0
             : $this->aggregateLatePenaltyToman($file->installments, $lateCoef, $remainingAmount);
+        $overdueTotal = $this->sumLoanFileOverdueUnpaidToman($file);
+        $paymentCeiling = $file->is_settled
+            ? 0
+            : $this->loanInstallmentPaymentCeilingToman($file);
+        $overduePayable = min($overdueTotal, max(0, $paymentCeiling));
 
         return [
             'id' => $file->id,
@@ -4263,6 +4489,8 @@ final class CustomerController extends Controller
             'discount_amount_toman' => $discount,
             'late_fee_so_far_toman' => $latePenalty,
             'early_benefit_toman' => $this->aggregateEarlyBenefitToman($file->installments, $earlyCoef),
+            'overdue_installments_total_toman' => $overdueTotal,
+            'overdue_payable_toman' => $overduePayable,
             'schedule_remaining_before_discount_toman' => $scheduleRemaining,
         ];
     }
