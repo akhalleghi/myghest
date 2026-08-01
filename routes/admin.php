@@ -478,6 +478,10 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
         ->middleware('throttle:30,1')
         ->name('customers.purchase-credit-ceiling');
 
+    Route::put('/customers/{customer}/sms-sending', [CustomerController::class, 'updateSmsSendingEnabled'])
+        ->middleware('throttle:30,1')
+        ->name('customers.sms-sending');
+
     Route::put('/customers/{customer}', [CustomerController::class, 'update'])
         ->middleware('throttle:20,1')
         ->name('customers.update');

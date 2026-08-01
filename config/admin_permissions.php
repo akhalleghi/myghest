@@ -47,6 +47,7 @@ return [
                 ['key' => 'customers.update', 'label' => 'ویرایش مشتری', 'routes' => [
                     'admin.customers.update',
                     'admin.customers.purchase-credit-ceiling',
+                    'admin.customers.sms-sending',
                 ]],
                 ['key' => 'customers.delete', 'label' => 'حذف مشتری', 'routes' => ['admin.customers.destroy']],
                 ['key' => 'customers.quick_sms', 'label' => 'ارسال پیامک سریع', 'routes' => ['admin.customers.quick-sms']],

@@ -21,8 +21,13 @@ final class InstallmentSmsTemplateVarsBuilder
     /**
      * @return array<string, string>
      */
-    public function build(Customer $customer, CustomerLoanFile $loanFile, CustomerLoanInstallment $installment, ?Carbon $referenceDate = null): array
-    {
+    public function build(
+        Customer $customer,
+        CustomerLoanFile $loanFile,
+        CustomerLoanInstallment $installment,
+        ?Carbon $referenceDate = null,
+        ?string $smsType = null,
+    ): array {
         $referenceDate ??= Carbon::now()->startOfDay();
         $due = Carbon::parse($installment->due_date)->startOfDay();
         $daysUntil = $due->gt($referenceDate)
@@ -43,13 +48,16 @@ final class InstallmentSmsTemplateVarsBuilder
         $paid = (int) $installment->paid_amount_toman;
         $amount = (int) $installment->amount_toman;
         $unpaidOnInstallment = max(0, $amount - $paid);
+        // پیامک قسط معوق: مبلغ قالب = باقیمانده پرداخت‌نشده (نه مبلغ کامل قسط)
+        $useUnpaidAmount = $smsType === 'installment_overdue' || $due->lt($referenceDate);
+        $amountForTemplate = $useUnpaidAmount ? $unpaidOnInstallment : $amount;
 
         return [
             'store_name' => $this->appDisplayName(),
             'customer_name' => $customer->fullName(),
             'loan_code' => (string) $loanFile->loan_code,
             'installment_number' => (string) $installment->sequence,
-            'installment_amount' => $this->formatToman($amount),
+            'installment_amount' => $this->formatToman($amountForTemplate),
             'installment_unpaid_amount' => $this->formatToman($unpaidOnInstallment),
             'paid_amount' => $this->formatToman($paid),
             'remaining_loan' => $this->formatToman($remaining),

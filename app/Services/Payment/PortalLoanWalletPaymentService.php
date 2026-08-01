@@ -174,10 +174,10 @@ final class PortalLoanWalletPaymentService
                     'recorded_by_admin_id' => null,
                 ]);
 
-                PortalAdminSmsDispatcher::afterInstallmentPayment($payment);
-
                 $installment->refresh();
                 $this->syncer->syncFromPaymentRows($installment);
+
+                PortalAdminSmsDispatcher::afterInstallmentPayment($payment);
 
                 $file->loadMissing('loanType');
 

@@ -251,10 +251,10 @@ final class InstallmentOnlinePaymentCompletionService
             'recorded_by_admin_id' => null,
         ]);
 
-        PortalAdminSmsDispatcher::afterInstallmentPayment($payment);
-
         $installment->refresh();
         $this->syncer->syncFromPaymentRows($installment);
+
+        PortalAdminSmsDispatcher::afterInstallmentPayment($payment);
 
         $intent->update([
             'status' => CustomerLoanInstallmentOnlinePaymentIntent::STATUS_COMPLETED,

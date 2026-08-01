@@ -117,6 +117,7 @@ final class CustomerController extends Controller
                         'overdue_installment_count' => $overdueSummary['count'] ?? 0,
                         'overdue_total_toman' => $overdueSummary['total_toman'] ?? 0,
                         'nearest_due_date' => $nearestDue?->toDateString(),
+                        'sms_sending_enabled' => $customer->receivesOutboundSms(),
                         ...$this->purchaseCreditSnapshot($customer, $loanFiles, true),
                     ],
                 ];
@@ -1054,18 +1055,22 @@ final class CustomerController extends Controller
         }
         $smsFeedback = '';
         if ((bool) ($validated['send_sms'] ?? false)) {
-            $smsText = trim((string) ($validated['sms_text'] ?? ''));
-            if ($smsText === '' && isset($validated['sms_template_id'])) {
-                $template = SmsTemplate::query()->find((int) $validated['sms_template_id']);
-                if ($template !== null) {
-                    $smsText = $this->renderTemplate($template->body, $this->loanSmsTemplateVars($customer, $loanFile));
+            if (! $customer->receivesOutboundSms()) {
+                $smsFeedback = ' ارسال پیامک برای این مشتری غیرفعال است.';
+            } else {
+                $smsText = trim((string) ($validated['sms_text'] ?? ''));
+                if ($smsText === '' && isset($validated['sms_template_id'])) {
+                    $template = SmsTemplate::query()->find((int) $validated['sms_template_id']);
+                    if ($template !== null) {
+                        $smsText = $this->renderTemplate($template->body, $this->loanSmsTemplateVars($customer, $loanFile));
+                    }
                 }
+                if ($smsText === '') {
+                    $smsText = $this->defaultLoanCreatedSmsText($customer, $loanFile);
+                }
+                $smsResult = $this->rawSms->send($customer->mobile, $smsText, 'loan-file-created');
+                $smsFeedback = ' '.$smsResult['message'];
             }
-            if ($smsText === '') {
-                $smsText = $this->defaultLoanCreatedSmsText($customer, $loanFile);
-            }
-            $smsResult = $this->rawSms->send($customer->mobile, $smsText, 'loan-file-created');
-            $smsFeedback = ' '.$smsResult['message'];
         }
 
         return response()->json([
@@ -1343,6 +1348,10 @@ final class CustomerController extends Controller
 
         if ($loanFile->revoked_at !== null) {
             return response()->json(['message' => 'این قرارداد فسخ شده است؛ ارسال پیامک برای این پرونده مجاز نیست.'], 422);
+        }
+
+        if (! $customer->receivesOutboundSms()) {
+            return response()->json(['message' => 'ارسال پیامک برای این مشتری غیرفعال است.'], 422);
         }
 
         $validated = $request->validate([
@@ -1762,28 +1771,32 @@ final class CustomerController extends Controller
 
         $smsFeedback = '';
         if ((bool) ($validated['send_sms'] ?? false)) {
-            $smsText = trim((string) ($validated['sms_text'] ?? ''));
-            if ($smsText === '' && isset($validated['sms_template_id'])) {
-                $template = SmsTemplate::query()->find((int) $validated['sms_template_id']);
-                if ($template !== null) {
-                    $smsText = $this->renderTemplate(
-                        $template->body,
-                        $this->installmentPaymentRegisteredSmsTemplateVars($customer, $loanFile, $installment, $amountNew)
-                    );
+            if (! $customer->receivesOutboundSms()) {
+                $smsFeedback = ' ارسال پیامک برای این مشتری غیرفعال است.';
+            } else {
+                $smsText = trim((string) ($validated['sms_text'] ?? ''));
+                if ($smsText === '' && isset($validated['sms_template_id'])) {
+                    $template = SmsTemplate::query()->find((int) $validated['sms_template_id']);
+                    if ($template !== null) {
+                        $smsText = $this->renderTemplate(
+                            $template->body,
+                            $this->installmentPaymentRegisteredSmsTemplateVars($customer, $loanFile, $installment, $amountNew)
+                        );
+                    }
                 }
+                if ($smsText === '') {
+                    $smsText = $this->defaultAdminInstallmentPaymentRegisteredSmsText($customer, $loanFile, $installment, $amountNew);
+                }
+                $smsResult = $this->rawSms->send($customer->mobile, $smsText, 'installment-payment-registered', [
+                    'installment_id' => (int) $installment->id,
+                    'loan_file_id' => (int) $loanFile->id,
+                    'customer_id' => (int) $customer->id,
+                    'payment_id' => (int) $payment->id,
+                    'automated' => false,
+                    'manual' => true,
+                ]);
+                $smsFeedback = ' '.$smsResult['message'];
             }
-            if ($smsText === '') {
-                $smsText = $this->defaultAdminInstallmentPaymentRegisteredSmsText($customer, $loanFile, $installment, $amountNew);
-            }
-            $smsResult = $this->rawSms->send($customer->mobile, $smsText, 'installment-payment-registered', [
-                'installment_id' => (int) $installment->id,
-                'loan_file_id' => (int) $loanFile->id,
-                'customer_id' => (int) $customer->id,
-                'payment_id' => (int) $payment->id,
-                'automated' => false,
-                'manual' => true,
-            ]);
-            $smsFeedback = ' '.$smsResult['message'];
         }
 
         return response()->json([
@@ -3045,11 +3058,15 @@ final class CustomerController extends Controller
             }
         }
 
+        if (! $customer->receivesOutboundSms()) {
+            return response()->json(['message' => 'ارسال پیامک برای این مشتری غیرفعال است.'], 422);
+        }
+
         if ($messageText === '' && $templateId !== null) {
             $tpl = SmsTemplate::query()->find((int) $templateId);
             if ($tpl !== null) {
                 if ($installment !== null && $loanFile !== null) {
-                    $vars = $this->installmentSmsTemplateVarsExtended($customer, $loanFile, $installment);
+                    $vars = $this->installmentSmsTemplateVarsExtended($customer, $loanFile, $installment, $smsType);
                 } elseif ($smsType === 'overdue_total') {
                     $vars = $this->customerOverdueTotalSmsVars($customer);
                 } else {
@@ -3357,6 +3374,7 @@ final class CustomerController extends Controller
             'id' => $customer->id,
             'name' => $customer->fullName(),
             'mobile' => (string) ($customer->mobile ?? ''),
+            'sms_sending_enabled' => $customer->receivesOutboundSms(),
         ]);
     }
 
@@ -3446,6 +3464,25 @@ final class CustomerController extends Controller
         return response()->json([
             'message' => 'سقف اعتبار خرید ذخیره شد.',
             ...$credit,
+        ]);
+    }
+
+    public function updateSmsSendingEnabled(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'sms_sending_enabled' => ['required', 'boolean'],
+        ], [], [
+            'sms_sending_enabled' => 'ارسال پیامک',
+        ]);
+
+        $customer->sms_sending_enabled = (bool) $validated['sms_sending_enabled'];
+        $customer->save();
+
+        return response()->json([
+            'message' => $customer->sms_sending_enabled
+                ? 'ارسال پیامک برای این مشتری فعال شد.'
+                : 'ارسال پیامک برای این مشتری غیرفعال شد.',
+            'sms_sending_enabled' => $customer->receivesOutboundSms(),
         ]);
     }
 
@@ -5296,7 +5333,19 @@ final class CustomerController extends Controller
             'installment_number' => (string) $inst->sequence,
             'paid_amount' => number_format($registeredAmountToman, 0, '.', ',').' تومان',
             'remaining_loan' => number_format((int) ($mapped['remaining_amount_toman'] ?? 0), 0, '.', ',').' تومان',
+            'purchase_credit' => $this->formatPurchaseCreditAvailableForSms($customer),
         ];
+    }
+
+    /**
+     * اعتبار خرید باقیمانده = سقف مؤثر (دستی یا ۷۰٪ مبلغ ضمانت چک/سفته) منهای مانده اقساط.
+     */
+    private function formatPurchaseCreditAvailableForSms(Customer $customer): string
+    {
+        $customer->unsetRelation('loanFiles');
+        $credit = $this->purchaseCreditSnapshot($customer);
+
+        return number_format(max(0, (int) ($credit['purchase_credit_available_toman'] ?? 0)), 0, '.', ',').' تومان';
     }
 
     private function defaultAdminInstallmentPaymentRegisteredSmsText(
@@ -6010,20 +6059,32 @@ final class CustomerController extends Controller
     }
 
     /**
+     * @param  'installment_pre_due'|'installment_due'|'installment_overdue'|'installment_thanks'|null  $smsType
      * @return array<string, string>
      */
-    private function installmentSmsTemplateVars(Customer $customer, CustomerLoanFile $loanFile, CustomerLoanInstallment $inst): array
-    {
+    private function installmentSmsTemplateVars(
+        Customer $customer,
+        CustomerLoanFile $loanFile,
+        CustomerLoanInstallment $inst,
+        ?string $smsType = null,
+    ): array {
         $due = Carbon::parse($inst->due_date)->startOfDay();
         $now = Carbon::now()->startOfDay();
         $daysUntil = $due->gt($now) ? (string) (int) $now->diffInDays($due) : '0';
+        $isOverdue = $due->lt($now);
+        $amount = (int) $inst->amount_toman;
+        $paid = (int) $inst->paid_amount_toman;
+        $unpaid = max(0, $amount - $paid);
+        // پیامک قسط معوق باید باقیمانده پرداخت‌نشده را نشان دهد، نه مبلغ کامل قسط
+        $amountForTemplate = ($smsType === 'installment_overdue' || $isOverdue) ? $unpaid : $amount;
 
         return [
             'store_name' => $this->appDisplayName(),
             'customer_name' => $customer->fullName(),
             'loan_code' => (string) $loanFile->loan_code,
             'installment_number' => (string) $inst->sequence,
-            'installment_amount' => number_format((int) $inst->amount_toman, 0, '.', ',').' تومان',
+            'installment_amount' => number_format($amountForTemplate, 0, '.', ',').' تومان',
+            'installment_unpaid_amount' => number_format($unpaid, 0, '.', ',').' تومان',
             'days_until_due' => $daysUntil,
         ];
     }
@@ -6031,16 +6092,22 @@ final class CustomerController extends Controller
     /**
      * متغیرهای قالب اقساط شامل مانده وام و مبلغ پرداختی برای قالب‌های «تشکر» و مشابه.
      *
+     * @param  'installment_pre_due'|'installment_due'|'installment_overdue'|'installment_thanks'|null  $smsType
      * @return array<string, string>
      */
-    private function installmentSmsTemplateVarsExtended(Customer $customer, CustomerLoanFile $loanFile, CustomerLoanInstallment $inst): array
-    {
-        $vars = $this->installmentSmsTemplateVars($customer, $loanFile, $inst);
+    private function installmentSmsTemplateVarsExtended(
+        Customer $customer,
+        CustomerLoanFile $loanFile,
+        CustomerLoanInstallment $inst,
+        ?string $smsType = null,
+    ): array {
+        $vars = $this->installmentSmsTemplateVars($customer, $loanFile, $inst, $smsType);
         $paid = (int) $inst->paid_amount_toman;
         $vars['paid_amount'] = number_format($paid, 0, '.', ',').' تومان';
         $loanFile->loadMissing('loanType');
         $mapped = $this->mapLoanFile($loanFile);
         $vars['remaining_loan'] = number_format((int) ($mapped['remaining_amount_toman'] ?? 0), 0, '.', ',').' تومان';
+        $vars['purchase_credit'] = $this->formatPurchaseCreditAvailableForSms($customer);
 
         return $vars;
     }
@@ -6118,7 +6185,7 @@ final class CustomerController extends Controller
             if ($prefId !== null) {
                 $tpl = SmsTemplate::query()->find($prefId);
                 if ($tpl !== null) {
-                    $vars = $this->installmentSmsTemplateVarsExtended($customer, $loanFile, $installment);
+                    $vars = $this->installmentSmsTemplateVarsExtended($customer, $loanFile, $installment, $smsType);
 
                     return [
                         'body' => trim($this->renderTemplate($tpl->body, $vars)),
@@ -6449,10 +6516,16 @@ final class CustomerController extends Controller
         if ($key !== null) {
             $tpl = SmsTemplate::query()->where('template_key', $key)->first();
             if ($tpl !== null) {
-                return trim($this->renderTemplate($tpl->body, $this->installmentSmsTemplateVarsExtended($customer, $loanFile, $inst)));
+                return trim($this->renderTemplate($tpl->body, $this->installmentSmsTemplateVarsExtended($customer, $loanFile, $inst, $smsType)));
             }
         }
-        $amt = number_format((int) $inst->amount_toman, 0, '.', ',').' تومان';
+        $amount = (int) $inst->amount_toman;
+        $paid = (int) $inst->paid_amount_toman;
+        $unpaid = max(0, $amount - $paid);
+        $due = Carbon::parse($inst->due_date)->startOfDay();
+        $isOverdue = $due->lt(Carbon::now()->startOfDay());
+        $amtValue = ($smsType === 'installment_overdue' || $isOverdue) ? $unpaid : $amount;
+        $amt = number_format($amtValue, 0, '.', ',').' تومان';
 
         return match ($smsType) {
             'installment_pre_due' => 'مشتری گرامی '.$customer->fullName().'؛ سررسید قسط شماره '.(string) $inst->sequence.' به مبلغ '.$amt.' نزدیک است.',

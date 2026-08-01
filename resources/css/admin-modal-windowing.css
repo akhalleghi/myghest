@@ -5,6 +5,43 @@
     align-items: center;
     gap: 0.35rem;
     flex-shrink: 0;
+    margin-inline-start: auto;
+}
+
+/* هدرهایی که گروه دکمه‌ها به آن‌ها تزریق شده، عنوان و دکمه‌ها را در دو سر نگه می‌دارند */
+.admin-mw-head:has(> .admin-mw-actions),
+.admin-mw-head:has(> .loan-manage-window-actions) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+}
+
+/* دکمه‌های بستن مطلق پس از انتقال به گروه actions نباید شناور بمانند */
+.admin-mw-actions .admin-mw-close,
+.admin-mw-actions .tk-dialog-close,
+.admin-mw-actions .itk-dialog-close,
+.admin-mw-actions .ctk-dialog-close,
+.admin-mw-actions .dd-dialog-close,
+.admin-mw-actions .ctx-dlg-close,
+.admin-mw-actions .sms-template-close-btn,
+.admin-mw-actions .sms-template-modal-close,
+.admin-mw-actions .sms-mini-modal-close,
+.admin-mw-actions .cust-modal-close {
+    position: static !important;
+    inset: auto !important;
+    top: auto !important;
+    right: auto !important;
+    left: auto !important;
+    bottom: auto !important;
+    flex-shrink: 0;
+    width: 2.1rem;
+    height: 2.1rem;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 0.55rem;
+    line-height: 1;
+    z-index: auto;
 }
 
 .admin-mw-maximize,
@@ -129,9 +166,22 @@
     .admin-mw-panel.sms-template-modal,
     .admin-mw-panel.sms-mini-modal,
     .admin-mw-panel.dash-widget-dialog,
-    .admin-mw-panel.login-blocks-modal {
+    .admin-mw-panel.login-blocks-modal,
+    dialog.admin-mw-panel {
         display: flex;
         flex-direction: column;
+    }
+
+    dialog.admin-mw-panel > .tk-dialog-inner,
+    dialog.admin-mw-panel > .itk-dialog-inner,
+    dialog.admin-mw-panel > .ctk-dialog-inner,
+    dialog.admin-mw-panel > .dd-dialog-inner,
+    dialog.admin-mw-panel > .ctx-dlg-inner {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        max-height: 100%;
     }
 
     .admin-mw-panel > .cust-modal-body,

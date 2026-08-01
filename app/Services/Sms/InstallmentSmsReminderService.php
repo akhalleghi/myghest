@@ -204,6 +204,10 @@ final class InstallmentSmsReminderService
             return 'skipped';
         }
 
+        if (! $customer->receivesOutboundSms()) {
+            return 'skipped';
+        }
+
         $template = SmsTemplate::query()->find($templateId);
         if ($template === null) {
             Log::warning('installment_sms_reminder_missing_template', [
@@ -215,7 +219,7 @@ final class InstallmentSmsReminderService
             return 'failed';
         }
 
-        $vars = $this->varsBuilder->build($customer, $loanFile, $installment, $businessDate);
+        $vars = $this->varsBuilder->build($customer, $loanFile, $installment, $businessDate, $smsLogType);
         $body = trim($this->templateRenderer->render((string) $template->body, $vars));
         if ($body === '') {
             return 'failed';

@@ -32,6 +32,7 @@ final class Customer extends Authenticatable
         'address',
         'postal_code',
         'purchase_credit_ceiling_toman',
+        'sms_sending_enabled',
         'credentials_sms_sent_at',
     ];
 
@@ -54,8 +55,17 @@ final class Customer extends Authenticatable
             'birth_date' => 'date',
             'credentials_sms_sent_at' => 'datetime',
             'purchase_credit_ceiling_toman' => 'integer',
+            'sms_sending_enabled' => 'boolean',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * آیا پیامک‌های اطلاع‌رسانی/یادآور برای این مشتری مجاز است (OTP ورود جداست).
+     */
+    public function receivesOutboundSms(): bool
+    {
+        return (bool) ($this->sms_sending_enabled ?? true);
     }
 
     public function bankAccounts(): HasMany

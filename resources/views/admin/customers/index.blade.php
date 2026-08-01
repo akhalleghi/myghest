@@ -1256,6 +1256,68 @@
         .loan-manage-pill-value--good { color: #047857; }
         .loan-manage-pill-value--normal { color: #b45309; }
         .loan-manage-pill-value--weak { color: #b91c1c; }
+        .loan-manage-pill--mobile {
+            flex-wrap: wrap;
+            row-gap: 0.35rem;
+        }
+        .loan-manage-sms-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            margin-inline-start: auto;
+            cursor: pointer;
+            user-select: none;
+            flex-shrink: 0;
+        }
+        .loan-manage-sms-toggle input {
+            position: absolute;
+            opacity: 0;
+            width: 1px;
+            height: 1px;
+            pointer-events: none;
+        }
+        .loan-manage-sms-toggle__ui {
+            width: 2.05rem;
+            height: 1.15rem;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.55);
+            border: 1px solid rgba(100, 116, 139, 0.35);
+            position: relative;
+            transition: background 0.15s ease, border-color 0.15s ease;
+            flex-shrink: 0;
+        }
+        .loan-manage-sms-toggle__ui::after {
+            content: '';
+            position: absolute;
+            top: 1px;
+            inset-inline-start: 1px;
+            width: 0.88rem;
+            height: 0.88rem;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+            transition: inset-inline-start 0.15s ease;
+        }
+        .loan-manage-sms-toggle input:checked + .loan-manage-sms-toggle__ui {
+            background: rgba(16, 185, 129, 0.85);
+            border-color: rgba(4, 120, 87, 0.45);
+        }
+        .loan-manage-sms-toggle input:checked + .loan-manage-sms-toggle__ui::after {
+            inset-inline-start: calc(100% - 0.95rem);
+        }
+        .loan-manage-sms-toggle__text {
+            font-size: 0.68rem;
+            font-weight: 800;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+        .loan-manage-sms-toggle input:checked ~ .loan-manage-sms-toggle__text {
+            color: #047857;
+        }
+        .loan-manage-sms-toggle.is-saving {
+            opacity: 0.65;
+            pointer-events: none;
+        }
         .loan-manage-credit-row {
             display: grid;
             grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
@@ -3251,10 +3313,15 @@
                         <span class="loan-manage-pill-label">نام کاربر:</span>
                         <span class="loan-manage-pill-value" id="loan-manage-customer-name">—</span>
                     </button>
-                    <div class="loan-manage-pill">
+                    <div class="loan-manage-pill loan-manage-pill--mobile">
                         <i class="fa-solid fa-mobile-screen-button loan-manage-pill-ico" aria-hidden="true"></i>
                         <span class="loan-manage-pill-label">موبایل:</span>
                         <span class="loan-manage-pill-value" id="loan-manage-customer-mobile">—</span>
+                        <label class="loan-manage-sms-toggle" for="loan-manage-sms-enabled" title="فعال / غیرفعال کردن ارسال پیامک به این مشتری">
+                            <input type="checkbox" id="loan-manage-sms-enabled" checked>
+                            <span class="loan-manage-sms-toggle__ui" aria-hidden="true"></span>
+                            <span class="loan-manage-sms-toggle__text" id="loan-manage-sms-enabled-label">پیامک فعال</span>
+                        </label>
                     </div>
                     <div class="loan-manage-pill">
                         <i class="fa-solid fa-chart-line loan-manage-pill-ico" aria-hidden="true"></i>
@@ -4253,6 +4320,10 @@
                 return custListBaseUrl + '/' + encodeURIComponent(String(id || '')) + '/purchase-credit-ceiling';
             }
 
+            function custSmsSendingUrl(id) {
+                return custListBaseUrl + '/' + encodeURIComponent(String(id || '')) + '/sms-sending';
+            }
+
             function custUpdateUrl(id) {
                 return custListBaseUrl + '/' + id;
             }
@@ -4848,6 +4919,12 @@
             var loanTabPanels = Array.prototype.slice.call(document.querySelectorAll('[data-loan-panel]'));
             var loanManageCustomerNameView = document.getElementById('loan-manage-customer-name');
             var loanManageCustomerMobileView = document.getElementById('loan-manage-customer-mobile');
+            var loanManageSmsEnabledInput = document.getElementById('loan-manage-sms-enabled');
+            var loanManageSmsEnabledLabel = document.getElementById('loan-manage-sms-enabled-label');
+            var loanManageSmsToggleWrap = loanManageSmsEnabledInput
+                ? loanManageSmsEnabledInput.closest('.loan-manage-sms-toggle')
+                : null;
+            var loanManageSmsSaving = false;
             var loanManageCreditStatusView = document.getElementById('loan-manage-credit-status');
             var loanManageWalletBalanceView = document.getElementById('loan-manage-wallet-balance');
             var loanManageCreditCeilingView = document.getElementById('loan-manage-credit-ceiling');
@@ -8461,6 +8538,80 @@
                 resetLoanCreationOtpUi();
             }
 
+            function syncLoanManageSmsEnabledUi(enabled) {
+                var on = enabled !== false;
+                if (loanManageSmsEnabledInput) {
+                    loanManageSmsEnabledInput.checked = on;
+                }
+                if (loanManageSmsEnabledLabel) {
+                    loanManageSmsEnabledLabel.textContent = on ? 'پیامک فعال' : 'پیامک غیرفعال';
+                }
+                if (loanManageCurrentCustomerId && loanManageMap[String(loanManageCurrentCustomerId)]) {
+                    loanManageMap[String(loanManageCurrentCustomerId)].sms_sending_enabled = on;
+                }
+            }
+
+            function loadLoanManageSmsEnabledState(customerId) {
+                var cid = String(customerId || '');
+                var entry = cid && loanManageMap[cid] ? loanManageMap[cid] : null;
+                if (entry && entry.sms_sending_enabled != null) {
+                    syncLoanManageSmsEnabledUi(!!entry.sms_sending_enabled);
+                    return;
+                }
+                syncLoanManageSmsEnabledUi(true);
+                if (!cid) return;
+                fetch(custListBaseUrl + '/' + encodeURIComponent(cid) + '/loan-manage-modal-context', {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                }).then(function (r) {
+                    if (!r.ok) throw new Error('bad');
+                    return r.json();
+                }).then(function (data) {
+                    if (!loanManageCurrentCustomerId || String(loanManageCurrentCustomerId) !== cid) return;
+                    syncLoanManageSmsEnabledUi(data.sms_sending_enabled !== false);
+                }).catch(function () { /* noop */ });
+            }
+
+            function saveLoanManageSmsEnabled(enabled) {
+                if (!loanManageCurrentCustomerId || loanManageSmsSaving) return;
+                loanManageSmsSaving = true;
+                if (loanManageSmsToggleWrap) loanManageSmsToggleWrap.classList.add('is-saving');
+                fetch(custSmsSendingUrl(loanManageCurrentCustomerId), {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': @json(csrf_token())
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ sms_sending_enabled: !!enabled })
+                }).then(function (r) {
+                    return r.json().then(function (json) {
+                        return { ok: r.ok, json: json || {} };
+                    }).catch(function () {
+                        return { ok: r.ok, json: {} };
+                    });
+                }).then(function (res) {
+                    if (!res.ok) {
+                        throw new Error((res.json && res.json.message) ? String(res.json.message) : 'ذخیره وضعیت پیامک ناموفق بود.');
+                    }
+                    var on = res.json.sms_sending_enabled !== false;
+                    syncLoanManageSmsEnabledUi(on);
+                    if (window.AdminSwal && window.AdminSwal.success) {
+                        AdminSwal.success(res.json.message || (on ? 'پیامک فعال شد.' : 'پیامک غیرفعال شد.'));
+                    }
+                }).catch(function (err) {
+                    syncLoanManageSmsEnabledUi(!enabled);
+                    if (window.AdminSwal && window.AdminSwal.error) {
+                        AdminSwal.error(err.message || 'ذخیره وضعیت پیامک ناموفق بود.');
+                    }
+                }).finally(function () {
+                    loanManageSmsSaving = false;
+                    if (loanManageSmsToggleWrap) loanManageSmsToggleWrap.classList.remove('is-saving');
+                });
+            }
+
             function openLoanManageModal(customerId, customerName, customerMobile) {
                 loanManageCurrentCustomerId = customerId || null;
                 loanManageCurrentCustomerName = customerName || '';
@@ -8472,6 +8623,7 @@
                     loanManageCreditStatusView.textContent = 'در حال ارزیابی';
                     loanManageCreditStatusView.classList.remove('loan-manage-pill-value--good', 'loan-manage-pill-value--normal', 'loan-manage-pill-value--weak');
                 }
+                loadLoanManageSmsEnabledState(loanManageCurrentCustomerId);
                 loadLoanManageWalletSummary(loanManageCurrentCustomerId);
                 setLoanManageCreditEditOpen(false);
                 syncLoanManagePurchaseCreditUi(loanManageCurrentCustomerId);
@@ -8862,6 +9014,11 @@
                 });
             }
             if (loanManageClose) loanManageClose.addEventListener('click', closeLoanManageModal);
+            if (loanManageSmsEnabledInput) {
+                loanManageSmsEnabledInput.addEventListener('change', function () {
+                    saveLoanManageSmsEnabled(!!loanManageSmsEnabledInput.checked);
+                });
+            }
             if (loanManageOverlay) {
                 loanManageOverlay.addEventListener('click', function (e) {
                     if (e.target === loanManageOverlay) closeLoanManageModal();
@@ -9483,6 +9640,16 @@
                     } catch (eSap) { /* noop */ }
                 });
             }
+            function resolvePurchaseCreditAvailableAfterPayment(amtPay) {
+                var cid = loanManageCurrentCustomerId != null ? String(loanManageCurrentCustomerId) : '';
+                var entry = cid && loanManageMap[cid] ? loanManageMap[cid] : null;
+                var availableBefore = entry && entry.purchase_credit_available_toman != null
+                    ? Number(entry.purchase_credit_available_toman || 0)
+                    : 0;
+                // پرداخت قسط مانده وام را کم می‌کند و اعتبار خرید باقیمانده را افزایش می‌دهد
+                return Math.max(0, availableBefore + Number(amtPay || 0));
+            }
+
             function buildLoanInstPaymentDefaultSmsText(amtPay, snapIns) {
                 var loanPx = loanInstPayLastServerPayload && loanInstPayLastServerPayload.loan
                     ? loanInstPayLastServerPayload.loan
@@ -9497,13 +9664,15 @@
                 );
                 var remainAfter = Math.max(0, remainBefore - Number(amtPay || 0));
                 var remainText = formatToman(remainAfter) + ' تومان';
+                var purchaseCreditText = formatToman(resolvePurchaseCreditAvailableAfterPayment(amtPay)) + ' تومان';
                 var tplVars = {
                     store_name: appDisplayName || (document.title || 'سامانه'),
                     customer_name: loanManageCurrentCustomerName || '',
                     loan_code: loanCode,
                     installment_number: seq,
                     paid_amount: amtText,
-                    remaining_loan: remainText
+                    remaining_loan: remainText,
+                    purchase_credit: purchaseCreditText
                 };
                 var adminPayTpl = quickSmsTemplatesData.find(function (t) {
                     return String(t.template_key || '') === 'default_admin_installment_payment_registered';
@@ -9635,7 +9804,8 @@
                                     loan_code: String(loanPx.loan_code || '—'),
                                     installment_number: snapIns.sequence != null ? String(snapIns.sequence) : '—',
                                     paid_amount: formatToman(amtPay) + ' تومان',
-                                    remaining_loan: formatToman(remainAfter) + ' تومان'
+                                    remaining_loan: formatToman(remainAfter) + ' تومان',
+                                    purchase_credit: formatToman(resolvePurchaseCreditAvailableAfterPayment(amtPay)) + ' تومان'
                                 });
                             });
                             if (adminPayTpl && String(selectEl.value || '') === String(adminPayTpl.id)) {

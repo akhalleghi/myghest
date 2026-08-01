@@ -47,6 +47,7 @@ const HEAD_SELECTORS = [
     '.itk-dialog-head',
     '.ctk-dialog-head',
     '.dd-dialog-head',
+    '.ctx-dlg-head',
     '[data-admin-mw-head]',
 ].join(', ');
 
@@ -64,12 +65,14 @@ const CLOSE_BTN_SELECTORS = [
     '.au-modal__close',
     '.lt-modal__close',
     '.sms-template-modal-close',
+    '.sms-template-close-btn',
     '.sms-mini-modal-close',
     '.dash-widget-dialog__close',
     '.tk-dialog-close',
     '.itk-dialog-close',
     '.ctk-dialog-close',
     '.dd-dialog-close',
+    '.ctx-dlg-close',
     '[data-rpt-modal-close]',
     '[data-admin-mw-close]',
 ].join(', ');
@@ -116,32 +119,59 @@ function findHead(panel) {
     return panel.querySelector(HEAD_SELECTORS) || panel.querySelector(':scope > header') || null;
 }
 
+function findCloseBtn(panel, head) {
+    if (!head) return null;
+    const inHead = head.querySelector(CLOSE_BTN_SELECTORS);
+    if (inHead) return inHead;
+
+    // دکمه‌های بستن مطلق اغلب خواهرِ هدر داخل wrapper داخلی هستند
+    const scope = head.parentElement || panel;
+    if (!scope) return null;
+
+    const candidates = scope.querySelectorAll(CLOSE_BTN_SELECTORS);
+    for (let i = 0; i < candidates.length; i += 1) {
+        const btn = candidates[i];
+        if (btn.closest('.tk-dialog-footer, .itk-dialog-footer, .ctk-dialog-footer, .dd-dialog-footer, .ctx-dlg-footer, .sms-mini-modal-foot, .cust-modal-foot, .rpt-modal__foot')) {
+            continue;
+        }
+        // فقط بستن هدر/بالای مدال — نه دکمه‌های داخل بدنه
+        if (btn.closest('.tk-dialog-scroll, .itk-dialog-scroll, .ctk-dialog-scroll, .dd-dialog-scroll, .ctx-dlg-scroll, .cust-modal-body, .sms-template-modal-body, .sms-mini-modal-body')) {
+            continue;
+        }
+        return btn;
+    }
+
+    return null;
+}
+
 function ensureMaximizeUi(panel, head) {
     if (!head) return { maximizeBtn: null, maximizeIcon: null };
 
+    const closeBtn = findCloseBtn(panel, head);
     let actions = head.querySelector('.admin-mw-actions, .loan-manage-window-actions');
+
     if (!actions) {
         actions = document.createElement('div');
         actions.className = 'admin-mw-actions';
-        const closeBtn = head.querySelector(CLOSE_BTN_SELECTORS);
+
         if (closeBtn && closeBtn.parentElement === head) {
             head.insertBefore(actions, closeBtn);
             actions.appendChild(closeBtn);
-        } else if (closeBtn && closeBtn.parentElement) {
-            // close already wrapped; use parent if it looks like actions
-            const parent = closeBtn.parentElement;
-            if (parent !== head && parent.children.length <= 3) {
-                parent.classList.add('admin-mw-actions');
-                actions = parent;
-            } else {
-                closeBtn.parentElement.insertBefore(actions, closeBtn);
-                actions.appendChild(closeBtn);
-            }
         } else {
             head.appendChild(actions);
+            if (closeBtn) {
+                actions.appendChild(closeBtn);
+            }
         }
     } else {
         actions.classList.add('admin-mw-actions');
+        if (closeBtn && !actions.contains(closeBtn)) {
+            actions.appendChild(closeBtn);
+        }
+    }
+
+    if (closeBtn) {
+        closeBtn.classList.add('admin-mw-close');
     }
 
     let maximizeBtn =
@@ -155,14 +185,22 @@ function ensureMaximizeUi(panel, head) {
         maximizeBtn.setAttribute('aria-label', 'تمام‌صفحه');
         maximizeBtn.title = 'تمام‌صفحه / بازگردانی';
         maximizeBtn.innerHTML = '<i class="fa-solid fa-expand" aria-hidden="true"></i>';
-        const closeBtn = actions.querySelector(CLOSE_BTN_SELECTORS);
-        if (closeBtn) {
-            actions.insertBefore(maximizeBtn, closeBtn);
+        const closeInActions = actions.querySelector(CLOSE_BTN_SELECTORS);
+        if (closeInActions) {
+            actions.insertBefore(maximizeBtn, closeInActions);
         } else {
             actions.appendChild(maximizeBtn);
         }
     } else {
         maximizeBtn.classList.add('admin-mw-maximize');
+        if (maximizeBtn.parentElement !== actions) {
+            const closeInActions = actions.querySelector(CLOSE_BTN_SELECTORS);
+            if (closeInActions) {
+                actions.insertBefore(maximizeBtn, closeInActions);
+            } else {
+                actions.appendChild(maximizeBtn);
+            }
+        }
     }
 
     let maximizeIcon = maximizeBtn.querySelector('i');

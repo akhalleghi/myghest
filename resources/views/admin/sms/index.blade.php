@@ -792,6 +792,7 @@
                                 </option>
                             @endforeach
                         </select>
+                        <p class="sms-panel-select-sub" style="margin-top:0.35rem">این قالب پس از پرداخت قسط از پنل مشتری به‌صورت خودکار برای ایشان ارسال می‌شود. در متن الگو می‌توانید پترن <code>@{{purchase_credit}}</code> را برای ارسال «اعتبار خرید باقیمانده» (سقف ضمانت با ۳۰٪ کمتر منهای مانده اقساط) درج کنید.</p>
                         @error('tpl_installment_thanks_id')<div class="sms-field-error">{{ $message }}</div>@enderror
                     </div>
                     <div class="sms-settings-field">

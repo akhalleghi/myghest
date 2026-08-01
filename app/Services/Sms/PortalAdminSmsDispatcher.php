@@ -7,6 +7,7 @@ namespace App\Services\Sms;
 use App\Jobs\SendCustomerDepositDeclarationNotifyAdminSmsJob;
 use App\Jobs\SendCustomerFullSettlementNotifyAdminSmsJob;
 use App\Jobs\SendCustomerInstallmentPaymentNotifyAdminSmsJob;
+use App\Jobs\SendCustomerInstallmentPaymentThanksSmsJob;
 use App\Jobs\SendCustomerLoanRequestNotifyAdminSmsJob;
 use App\Jobs\SendCustomerLoginNotifyAdminSmsJob;
 use App\Jobs\SendCustomerSupportTicketNotifyAdminSmsJob;
@@ -14,7 +15,7 @@ use App\Models\CustomerDepositDeclaration;
 use App\Models\CustomerLoanInstallmentPayment;
 
 /**
- * صف‌گذاری اعلان‌های پیامکی ادمین پس از پاسخ HTTP — بدون تأثیر بر سرعت عملیات کاربر.
+ * صف‌گذاری اعلان‌های پیامکی پس از پاسخ HTTP — بدون تأثیر بر سرعت عملیات کاربر.
  */
 final class PortalAdminSmsDispatcher
 {
@@ -33,7 +34,9 @@ final class PortalAdminSmsDispatcher
             return;
         }
 
-        SendCustomerInstallmentPaymentNotifyAdminSmsJob::dispatchAfterResponse((int) $payment->id);
+        $paymentId = (int) $payment->id;
+        SendCustomerInstallmentPaymentNotifyAdminSmsJob::dispatchAfterResponse($paymentId);
+        SendCustomerInstallmentPaymentThanksSmsJob::dispatchAfterResponse($paymentId);
     }
 
     public static function afterFullSettlement(
