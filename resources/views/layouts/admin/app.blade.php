@@ -2362,7 +2362,7 @@
             }
         }
     </style>
-    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/admin-financial-ckeditor.js', 'resources/js/admin-login-backgrounds.js', 'resources/js/admin-database-backup.js'])
+    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/admin-financial-ckeditor.js', 'resources/js/admin-login-backgrounds.js', 'resources/js/admin-database-backup.js', 'resources/js/admin-modal-windowing.js'])
     @include('layouts.partials.sweetalert2-css')
     @include('layouts.partials.table-zebra-styles')
     @stack('head')

@@ -1,0 +1,158 @@
+/* پنجره‌سازی دسکتاپ مدال‌های پنل ادمین — فقط ≥۹۰۰px */
+
+.admin-mw-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+
+.admin-mw-maximize,
+.loan-manage-window-btn--maximize {
+    flex-shrink: 0;
+    width: 2.1rem;
+    height: 2.1rem;
+    border: 0;
+    border-radius: 0.55rem;
+    background: var(--primary-soft, #eff6ff);
+    color: var(--primary-dark, #1d4ed8);
+    cursor: pointer;
+    display: inline-grid;
+    place-items: center;
+    font-size: 0.78rem;
+    line-height: 1;
+    padding: 0;
+}
+
+.admin-mw-maximize:hover,
+.loan-manage-window-btn--maximize:hover {
+    background: rgba(37, 99, 235, 0.18);
+}
+
+@media (max-width: 899px) {
+    .admin-mw-maximize,
+    .loan-manage-window-btn--maximize {
+        display: none !important;
+    }
+}
+
+@media (min-width: 900px) {
+    .admin-mw-overlay.cust-overlay,
+    .admin-mw-overlay.rpt-modal-overlay,
+    .admin-mw-overlay.rpt-quick-overlay,
+    .admin-mw-overlay.lrq-modal-overlay,
+    .admin-mw-overlay.sms-template-modal-overlay,
+    .admin-mw-overlay.sms-mini-modal-overlay,
+    .admin-mw-overlay.app-settings-overlay,
+    .admin-mw-overlay.db-backup-overlay,
+    .admin-mw-overlay.login-blocks-overlay,
+    .admin-mw-overlay.dash-widget-overlay,
+    .admin-mw-overlay.au-modal,
+    .admin-mw-overlay.lt-modal {
+        place-items: stretch;
+        align-items: stretch;
+        justify-content: stretch;
+        padding: 0 !important;
+        overflow: hidden;
+    }
+
+    .admin-mw-overlay > .admin-mw-panel,
+    .admin-mw-panel.admin-mw-overlay {
+        position: absolute !important;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        max-width: none;
+        max-height: none;
+        min-width: 320px;
+        min-height: 240px;
+        resize: both;
+        overflow: hidden;
+        margin: 0;
+        box-sizing: border-box;
+    }
+
+    /* dialog بدون overlay والد */
+    dialog.admin-mw-panel {
+        position: fixed !important;
+        margin: 0;
+        border: 1px solid var(--border, rgba(37, 99, 235, 0.14));
+        padding: 0;
+        max-width: none;
+        max-height: none;
+    }
+
+    .admin-mw-panel.is-positioned {
+        transform: none !important;
+    }
+
+    .admin-mw-panel.is-maximized {
+        left: 0.55rem !important;
+        top: 0.55rem !important;
+        right: 0.55rem !important;
+        bottom: 0.55rem !important;
+        width: auto !important;
+        height: auto !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        transform: none !important;
+        resize: none !important;
+        border-radius: 0.7rem;
+    }
+
+    .admin-mw-head {
+        cursor: grab;
+        user-select: none;
+        touch-action: none;
+    }
+
+    .admin-mw-head.is-dragging {
+        cursor: grabbing;
+    }
+
+    .admin-mw-panel.is-maximized .admin-mw-head {
+        cursor: default;
+    }
+
+    /* اطمینان از flex داخلی برای اسکرول محتوا بعد از ارتفاع ثابت */
+    .admin-mw-panel.cust-modal,
+    .admin-mw-panel.rpt-modal,
+    .admin-mw-panel.rpt-quick-modal,
+    .admin-mw-panel.app-settings-modal,
+    .admin-mw-panel.db-backup-modal,
+    .admin-mw-panel.au-modal__box,
+    .admin-mw-panel.lt-modal__box,
+    .admin-mw-panel.lrq-edit-modal,
+    .admin-mw-panel.lrq-log-modal,
+    .admin-mw-panel.lrq-convert-modal,
+    .admin-mw-panel.lrq-sdef-modal,
+    .admin-mw-panel.sms-template-modal,
+    .admin-mw-panel.sms-mini-modal,
+    .admin-mw-panel.dash-widget-dialog,
+    .admin-mw-panel.login-blocks-modal {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .admin-mw-panel > .cust-modal-body,
+    .admin-mw-panel > .rpt-modal__body,
+    .admin-mw-panel > .rpt-quick-body,
+    .admin-mw-panel > .app-settings-body,
+    .admin-mw-panel > .db-backup-body,
+    .admin-mw-panel > .au-modal__form,
+    .admin-mw-panel > .lt-modal__form,
+    .admin-mw-panel > .lt-modal__body,
+    .admin-mw-panel > .lrq-edit-modal-body,
+    .admin-mw-panel > .lrq-log-modal-body,
+    .admin-mw-panel > .lrq-convert-body,
+    .admin-mw-panel > .lrq-sdef-body,
+    .admin-mw-panel > .sms-template-modal-body,
+    .admin-mw-panel > .sms-mini-modal-body,
+    .admin-mw-panel > .dash-widget-dialog__body,
+    .admin-mw-panel > .login-blocks-body,
+    .admin-mw-panel > .loan-manage-modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+    }
+}

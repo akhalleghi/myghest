@@ -3231,12 +3231,17 @@
     </div>
 
     <div class="cust-overlay" id="loan-manage-overlay" hidden aria-hidden="true">
-        <div class="cust-modal loan-manage-modal" role="dialog" aria-modal="true" aria-labelledby="loan-manage-title">
-            <div class="cust-modal-head">
+        <div class="cust-modal loan-manage-modal" id="loan-manage-modal" role="dialog" aria-modal="true" aria-labelledby="loan-manage-title">
+            <div class="cust-modal-head loan-manage-modal-head" id="loan-manage-drag-handle">
                 <div>
                     <h2 id="loan-manage-title">مدیریت وام ها</h2>
                 </div>
-                <button type="button" class="cust-modal-close" id="loan-manage-close" aria-label="بستن">&times;</button>
+                <div class="admin-mw-actions loan-manage-window-actions">
+                    <button type="button" class="admin-mw-maximize loan-manage-window-btn loan-manage-window-btn--maximize" id="loan-manage-maximize" aria-label="تمام‌صفحه" title="تمام‌صفحه / بازگردانی">
+                        <i class="fa-solid fa-expand" id="loan-manage-maximize-icon" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="cust-modal-close" id="loan-manage-close" aria-label="بستن">&times;</button>
+                </div>
             </div>
             <div class="cust-modal-body loan-manage-modal-body">
                 <div class="loan-manage-sticky">

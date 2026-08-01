@@ -20,6 +20,7 @@ export default defineConfig({
                 'resources/js/admin-permission-tree.js',
                 'resources/js/admin-login-backgrounds.js',
                 'resources/js/admin-database-backup.js',
+                'resources/js/admin-modal-windowing.js',
             ],
             refresh: true,
         }),

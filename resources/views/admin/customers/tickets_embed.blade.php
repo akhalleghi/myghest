@@ -223,5 +223,5 @@
             appDisplayName: @json($appDisplayName ?? 'سامانه'),
         };
     </script>
-    @vite(['resources/js/admin-tickets-ckeditor.js', 'resources/js/admin-customer-tickets-embed.js'])
+    @vite(['resources/js/admin-tickets-ckeditor.js', 'resources/js/admin-customer-tickets-embed.js', 'resources/js/admin-modal-windowing.js'])
 @endpush

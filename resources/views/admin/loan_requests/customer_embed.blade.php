@@ -11,5 +11,6 @@
 @endsection
 
 @push('scripts')
+    @vite(['resources/js/admin-modal-windowing.js'])
     @include('admin.loan_requests.partials.lrq-scripts')
 @endpush
