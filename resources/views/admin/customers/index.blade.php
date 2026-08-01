@@ -311,6 +311,7 @@
         .cust-loan-count { font-size: 0.9rem; font-weight: 900; color: var(--text); line-height: 1.2; }
         .cust-loan-ids { font-size: 0.65rem; color: var(--muted); margin-top: 0.18rem; max-width: 11rem; white-space: normal; word-break: break-word; }
         .cust-amount { font-size: 0.8rem; font-weight: 800; color: var(--text); }
+        .cust-amount--overdue { color: #b91c1c; }
         .cust-wallet-cell {
             display: inline-flex;
             flex-direction: column;
@@ -516,6 +517,12 @@
             color: var(--text);
             line-height: 1.3;
             word-break: break-word;
+        }
+        .loan-inst-summary__card--overdue .loan-inst-summary__value {
+            color: #b91c1c;
+        }
+        html[data-theme="dark"] .loan-inst-summary__card--overdue .loan-inst-summary__value {
+            color: #fca5a5;
         }
         .loan-inst-summary__muted {
             font-size: 0.76rem;
@@ -2442,7 +2449,7 @@
         <div class="cust-head" style="margin-top: -0.25rem;">
             <form method="get" action="{{ route('admin.customers.index') }}" class="cust-search-row">
                 <div class="cust-search">
-                    <input type="search" name="q" value="{{ $search }}" placeholder="جستجو: کد، نام، موبایل، کد ملی..." autocomplete="off">
+                    <input type="search" name="q" value="{{ $search }}" placeholder="جستجو: کد، نام، موبایل، کد ملی، مبلغ قسط..." autocomplete="off">
                 </div>
                 <select name="list_scope" class="cust-list-scope" aria-label="فیلتر مشتریان" onchange="this.form.submit()">
                     <option value="all" @selected($listScope === 'all')>همه مشتریان</option>
@@ -2498,6 +2505,15 @@
                                     <i class="fa-solid {{ $custSortIcon('loan_remaining') }} cust-th-sort-icon" aria-hidden="true"></i>
                                 </a>
                             </th>
+                            <th>
+                                <span>مجموع اقساط معوق</span>
+                            </th>
+                            <th class="cust-th-sort @if($listSort === 'nearest_due') is-active @endif">
+                                <a href="{{ $custSortUrl('nearest_due') }}" title="مرتب‌سازی بر اساس نزدیک‌ترین سررسید قسط پرداخت‌نشده">
+                                    <span>نزدیک‌ترین سررسید</span>
+                                    <i class="fa-solid {{ $custSortIcon('nearest_due') }} cust-th-sort-icon" aria-hidden="true"></i>
+                                </a>
+                            </th>
                             <th class="cust-th-sort @if($listSort === 'wallet') is-active @endif">
                                 <a href="{{ $custSortUrl('wallet') }}" title="مرتب‌سازی بر اساس موجودی کیف پول">
                                     <span>موجودی کیف پول</span>
@@ -2523,11 +2539,13 @@
                                 $loanCodes = array_map(static fn ($item): string => (string) ($item['loan_code'] ?? ''), $loanFiles);
                                 $loanTotalWithProfit = (int) ($loanMeta['loan_total_with_profit'] ?? 0);
                                 $loanRemainInstallments = (int) ($loanMeta['loan_remaining_installments'] ?? 0);
-                                $overdueInstId = (int) ($loanMeta['primary_overdue_installment_id'] ?? 0);
-                                $overdueLfId = (int) ($loanMeta['primary_overdue_loan_file_id'] ?? 0);
                                 $overdueCount = (int) ($loanMeta['overdue_installment_count'] ?? 0);
-                                $overdueSmsTitle = $overdueInstId > 0
-                                    ? 'ارسال پیامک معوق'.($overdueCount > 1 ? ' ('.\Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $overdueCount).' قسط معوق)' : '')
+                                $overdueTotalToman = (int) ($loanMeta['overdue_total_toman'] ?? 0);
+                                $nearestDueRaw = (string) ($loanMeta['nearest_due_date'] ?? '');
+                                $nearestDueCarbon = $nearestDueRaw !== '' ? \Carbon\Carbon::parse($nearestDueRaw)->startOfDay() : null;
+                                $nearestDueIsOverdue = $nearestDueCarbon !== null && $nearestDueCarbon->lt(\Carbon\Carbon::today());
+                                $overdueSmsTitle = $overdueTotalToman > 0
+                                    ? 'ارسال پیامک مجموع معوق'.($overdueCount > 1 ? ' ('.\Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $overdueCount).' قسط معوق)' : '')
                                     : 'قسط معوق پرداخت‌نشده‌ای وجود ندارد';
                             @endphp
                             <tr>
@@ -2566,6 +2584,20 @@
                                 </td>
                                 <td class="cust-amount">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($loanTotalWithProfit, 0)) }} تومان</td>
                                 <td class="cust-amount">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($loanRemainInstallments, 0)) }} تومان</td>
+                                <td class="cust-amount @if($overdueTotalToman > 0) cust-amount--overdue @endif">
+                                    @if ($overdueTotalToman > 0)
+                                        {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($overdueTotalToman, 0)) }} تومان
+                                    @else
+                                        —
+                                    @endif
+                                </td>
+                                <td class="@if($nearestDueIsOverdue) cust-amount--overdue @endif">
+                                    @if ($nearestDueCarbon !== null)
+                                        {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(\Hekmatinasser\Jalali\Jalali::instance($nearestDueCarbon)->format('Y/m/d')) }}
+                                    @else
+                                        —
+                                    @endif
+                                </td>
                                 <td class="cust-amount" data-cust-wallet-cell="{{ $c->id }}">
                                     @php
                                         $walletIsLocked = (bool) ($c->wallet?->is_locked ?? false);
@@ -2595,16 +2627,11 @@
                                             type="button"
                                             class="cust-sms-circle-btn cust-sms-circle-btn--inst-over"
                                             data-cust-quick-sms
-                                            data-sms-type="installment_overdue"
+                                            data-sms-type="overdue_total"
                                             data-customer-id="{{ $c->id }}"
                                             data-customer-name="{{ e($c->fullName()) }}"
                                             data-customer-mobile="{{ $c->mobile }}"
-                                            @if($overdueInstId > 0)
-                                                data-installment-id="{{ $overdueInstId }}"
-                                                data-loan-file-id="{{ $overdueLfId }}"
-                                            @else
-                                                disabled
-                                            @endif
+                                            @if($overdueTotalToman < 1) disabled @endif
                                             title="{{ $overdueSmsTitle }}"
                                         >م</button>
                                     </div>
@@ -2654,7 +2681,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="cust-empty">هنوز مشتری ثبت نشده است.</td>
+                                <td colspan="11" class="cust-empty">هنوز مشتری ثبت نشده است.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -3456,6 +3483,10 @@
                     <div class="loan-inst-summary__card loan-inst-summary__card--late">
                         <span class="loan-inst-summary__label">مبلغ دیرکرد</span>
                         <div class="loan-inst-summary__value" id="loan-inst-sum-late">—</div>
+                    </div>
+                    <div class="loan-inst-summary__card loan-inst-summary__card--overdue">
+                        <span class="loan-inst-summary__label">مجموع اقساط معوق</span>
+                        <div class="loan-inst-summary__value" id="loan-inst-sum-overdue">—</div>
                     </div>
                     <div class="loan-inst-summary__card loan-inst-summary__card--early">
                         <span class="loan-inst-summary__label">مبلغ زودکرد</span>
@@ -4702,6 +4733,7 @@
             var loanInstSumRemainAmount = document.getElementById('loan-inst-sum-remain-amount');
             var loanInstSumPaidAmount = document.getElementById('loan-inst-sum-paid-amount');
             var loanInstSumLate = document.getElementById('loan-inst-sum-late');
+            var loanInstSumOverdue = document.getElementById('loan-inst-sum-overdue');
             var loanInstSumEarly = document.getElementById('loan-inst-sum-early');
             var loanInstallmentEditOverlay = document.getElementById('loan-installment-edit-overlay');
             var loanInstEditClose = document.getElementById('loan-inst-edit-close');
@@ -5570,6 +5602,7 @@
                     installment_pre_due: 'ارسال پیامک پیش از سررسید',
                     installment_due: 'ارسال پیامک سررسید',
                     installment_overdue: 'ارسال پیامک معوق',
+                    overdue_total: 'ارسال پیامک مجموع معوق',
                     installment_thanks: 'ارسال پیامک تشکر پس از پرداخت'
                 };
                 if (quickSmsTitle) {
@@ -6542,6 +6575,7 @@
                 if (loanInstSumRemainAmount) loanInstSumRemainAmount.textContent = formatToman(loan.remaining_amount_toman || 0) + ' تومان';
                 if (loanInstSumPaidAmount) loanInstSumPaidAmount.textContent = formatToman(loan.paid_installments_amount_toman || 0) + ' تومان';
                 if (loanInstSumLate) loanInstSumLate.textContent = formatToman(loan.late_penalty_toman || 0) + ' تومان';
+                if (loanInstSumOverdue) loanInstSumOverdue.textContent = formatToman(loan.overdue_installments_total_toman || 0) + ' تومان';
                 if (loanInstSumEarly) loanInstSumEarly.textContent = formatToman(loan.early_benefit_toman || 0) + ' تومان';
                 if (!loanInstTbody) return;
                 if (!rows.length) {
@@ -7996,6 +8030,12 @@
                     var quickSmsType = quickSmsBtn.getAttribute('data-sms-type') || 'welcome';
                     var quickInstId = quickSmsBtn.getAttribute('data-installment-id');
                     var quickLfId = quickSmsBtn.getAttribute('data-loan-file-id');
+                    if ((quickSmsType === 'installment_overdue' || quickSmsType === 'overdue_total') && quickSmsBtn.disabled) {
+                        if (window.AdminSwal && window.AdminSwal.error) {
+                            AdminSwal.error('این مشتری قسط معوق پرداخت‌نشده‌ای ندارد.');
+                        }
+                        return;
+                    }
                     if (quickSmsType === 'installment_overdue' && (!quickInstId || parseInt(quickInstId, 10) < 1)) {
                         if (window.AdminSwal && window.AdminSwal.error) {
                             AdminSwal.error('این مشتری قسط معوق پرداخت‌نشده‌ای ندارد.');

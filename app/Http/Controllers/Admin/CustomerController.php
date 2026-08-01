@@ -73,16 +73,8 @@ final class CustomerController extends Controller
 
         $customers = Customer::query()
             ->with(['loanFiles.loanType', 'loanFiles.installments', 'wallet'])
-            ->withCount('adminNotes')
-            ->when($q !== '', function ($query) use ($q): void {
-                $query->where(function ($w) use ($q): void {
-                    $w->where('customer_code', 'like', '%'.$q.'%')
-                        ->orWhere('first_name', 'like', '%'.$q.'%')
-                        ->orWhere('last_name', 'like', '%'.$q.'%')
-                        ->orWhere('mobile', 'like', '%'.$q.'%')
-                        ->orWhere('national_id', 'like', '%'.$q.'%');
-                });
-            });
+            ->withCount('adminNotes');
+        $this->applyCustomerListSearch($customers, $q);
         $this->applyCustomerListFilters($customers, $listFilter);
         $this->applyCustomerListSort($customers, $listSort);
         $customers = $customers
@@ -110,7 +102,8 @@ final class CustomerController extends Controller
                 $loanFiles = $customer->loanFiles->map(fn (CustomerLoanFile $file): array => $this->mapLoanFile($file))->values();
                 $loanTotalWithProfit = $loanFiles->sum(static fn (array $row): int => (int) ($row['total_repayable_toman'] ?? 0));
                 $remainingInstallments = $loanFiles->sum(static fn (array $row): int => (int) ($row['remaining_amount_toman'] ?? 0));
-                $primaryOverdue = $this->resolvePrimaryOverdueInstallment($customer);
+                $overdueSummary = $this->resolveCustomerOverdueSummary($customer);
+                $nearestDue = $this->resolveCustomerNearestDueDate($customer);
 
                 return [
                     (string) $customer->id => [
@@ -118,9 +111,11 @@ final class CustomerController extends Controller
                         'loan_count' => $loanFiles->count(),
                         'loan_total_with_profit' => $loanTotalWithProfit,
                         'loan_remaining_installments' => $remainingInstallments,
-                        'primary_overdue_installment_id' => $primaryOverdue['installment_id'] ?? null,
-                        'primary_overdue_loan_file_id' => $primaryOverdue['loan_file_id'] ?? null,
-                        'overdue_installment_count' => $primaryOverdue['count'] ?? 0,
+                        'primary_overdue_installment_id' => $overdueSummary['installment_id'] ?? null,
+                        'primary_overdue_loan_file_id' => $overdueSummary['loan_file_id'] ?? null,
+                        'overdue_installment_count' => $overdueSummary['count'] ?? 0,
+                        'overdue_total_toman' => $overdueSummary['total_toman'] ?? 0,
+                        'nearest_due_date' => $nearestDue?->toDateString(),
                     ],
                 ];
             }),
@@ -213,16 +208,8 @@ final class CustomerController extends Controller
             ]);
 
             $customerExportQuery = Customer::query()
-                ->with(['loanFiles.loanType', 'loanFiles.installments'])
-                ->when($queryText !== '', function ($query) use ($queryText): void {
-                    $query->where(function ($w) use ($queryText): void {
-                        $w->where('customer_code', 'like', '%'.$queryText.'%')
-                            ->orWhere('first_name', 'like', '%'.$queryText.'%')
-                            ->orWhere('last_name', 'like', '%'.$queryText.'%')
-                            ->orWhere('mobile', 'like', '%'.$queryText.'%')
-                            ->orWhere('national_id', 'like', '%'.$queryText.'%');
-                    });
-                });
+                ->with(['loanFiles.loanType', 'loanFiles.installments']);
+            $this->applyCustomerListSearch($customerExportQuery, $queryText);
             $this->applyCustomerListFilters($customerExportQuery, $listFilter);
             $customerExportQuery
                 ->latest('id')
@@ -2948,7 +2935,7 @@ final class CustomerController extends Controller
     public function sendQuickSms(Request $request, Customer $customer): JsonResponse
     {
         $validated = $request->validate([
-            'sms_type' => ['required', 'in:wallet_link,welcome,installment_pre_due,installment_due,installment_overdue,installment_thanks'],
+            'sms_type' => ['required', 'in:wallet_link,welcome,installment_pre_due,installment_due,installment_overdue,installment_thanks,overdue_total'],
             'sms_text' => ['nullable', 'string', 'max:1000'],
             'sms_template_id' => ['nullable', 'integer', 'exists:sms_templates,id'],
             'installment_id' => ['nullable', 'integer'],
@@ -2979,23 +2966,38 @@ final class CustomerController extends Controller
             }
         }
 
+        if ($smsType === 'overdue_total') {
+            $customer->loadMissing(['loanFiles.installments', 'loanFiles.loanType']);
+            $overdueSummary = $this->resolveCustomerOverdueSummary($customer);
+            if ($overdueSummary === null || (int) ($overdueSummary['total_toman'] ?? 0) < 1) {
+                return response()->json(['message' => 'این مشتری قسط معوق پرداخت‌نشده‌ای ندارد.'], 422);
+            }
+        }
+
         if ($messageText === '' && $templateId !== null) {
             $tpl = SmsTemplate::query()->find((int) $templateId);
             if ($tpl !== null) {
-                $vars = $installment !== null && $loanFile !== null
-                    ? $this->installmentSmsTemplateVarsExtended($customer, $loanFile, $installment)
-                    : [
+                if ($installment !== null && $loanFile !== null) {
+                    $vars = $this->installmentSmsTemplateVarsExtended($customer, $loanFile, $installment);
+                } elseif ($smsType === 'overdue_total') {
+                    $vars = $this->customerOverdueTotalSmsVars($customer);
+                } else {
+                    $vars = [
                         'store_name' => $this->appDisplayName(),
                         'customer_name' => $customer->fullName(),
                         'payment_link' => '—',
                         'payment_link_variable' => '—',
                     ];
+                }
                 $messageText = $this->renderTemplate($tpl->body, $vars);
             }
         }
         if ($messageText === '') {
             if ($installment !== null && $loanFile !== null) {
                 $messageText = $this->defaultInstallmentSmsBody($smsType, $customer, $loanFile, $installment);
+            } elseif ($smsType === 'overdue_total') {
+                $composed = $this->composeQuickSmsModalContent($customer, 'overdue_total', null, null);
+                $messageText = (string) ($composed['body'] ?? '');
             } elseif ($smsType === 'wallet_link') {
                 $messageText = 'سلام '.$customer->fullName().'، لینک شارژ کیف پول شما: —';
             } else {
@@ -3010,6 +3012,7 @@ final class CustomerController extends Controller
             'installment_due' => 'installment-due',
             'installment_overdue' => 'installment-overdue',
             'installment_thanks' => 'installment-thanks',
+            'overdue_total' => 'installment-overdue',
             default => 'welcome-message',
         };
 
@@ -3019,6 +3022,13 @@ final class CustomerController extends Controller
                 'installment_id' => (int) $installment->id,
                 'loan_file_id' => (int) $loanFile->id,
                 'customer_id' => (int) $customer->id,
+                'automated' => false,
+                'manual' => true,
+            ];
+        } elseif ($smsType === 'overdue_total') {
+            $extraMeta = [
+                'customer_id' => (int) $customer->id,
+                'overdue_total' => true,
                 'automated' => false,
                 'manual' => true,
             ];
@@ -3047,6 +3057,7 @@ final class CustomerController extends Controller
             'installment_due',
             'installment_overdue',
             'installment_thanks',
+            'overdue_total',
         ];
         if (! in_array($smsType, $allowed, true)) {
             return response()->json(['message' => 'نوع پیامک نامعتبر است.'], 422);
@@ -3070,6 +3081,14 @@ final class CustomerController extends Controller
             $loanFile = $installment->loanFile;
             if ($loanFile === null) {
                 abort(404);
+            }
+        }
+
+        if ($smsType === 'overdue_total') {
+            $customer->loadMissing(['loanFiles.installments', 'loanFiles.loanType']);
+            $overdueSummary = $this->resolveCustomerOverdueSummary($customer);
+            if ($overdueSummary === null || (int) ($overdueSummary['total_toman'] ?? 0) < 1) {
+                return response()->json(['message' => 'این مشتری قسط معوق پرداخت‌نشده‌ای ندارد.'], 422);
             }
         }
 
@@ -3722,9 +3741,61 @@ final class CustomerController extends Controller
         'loan_count',
         'loan_total',
         'loan_remaining',
+        'nearest_due',
         'wallet',
         'membership_at',
     ];
+
+    /**
+     * جستجوی لیست مشتریان: کد/نام/موبایل/کد ملی و در صورت عددی بودن عبارت، مبلغ قسط.
+     */
+    private function applyCustomerListSearch(\Illuminate\Database\Eloquent\Builder $query, string $q): void
+    {
+        $q = trim($q);
+        if ($q === '') {
+            return;
+        }
+
+        $amountToman = $this->parseCustomerListSearchAmountToman($q);
+
+        $query->where(function ($w) use ($q, $amountToman): void {
+            $w->where('customer_code', 'like', '%'.$q.'%')
+                ->orWhere('first_name', 'like', '%'.$q.'%')
+                ->orWhere('last_name', 'like', '%'.$q.'%')
+                ->orWhere('mobile', 'like', '%'.$q.'%')
+                ->orWhere('national_id', 'like', '%'.$q.'%');
+
+            if ($amountToman !== null) {
+                $w->orWhereHas('loanFiles', static function ($loanFileQuery) use ($amountToman): void {
+                    $loanFileQuery
+                        ->where('installment_amount_toman', $amountToman)
+                        ->orWhereHas('installments', static function ($installmentQuery) use ($amountToman): void {
+                            $installmentQuery->where('amount_toman', $amountToman);
+                        });
+                });
+            }
+        });
+    }
+
+    /**
+     * اگر عبارت جستجو یک مبلغ عددی معتبر باشد (با ارقام فارسی/جداکننده)، مبلغ تومان را برمی‌گرداند.
+     */
+    private function parseCustomerListSearchAmountToman(string $q): ?int
+    {
+        $normalized = $this->toEnglishDigits(trim($q));
+        $normalized = str_replace([',', ' ', "\u{066C}", '٬', '،'], '', $normalized);
+        if ($normalized === '' || ! ctype_digit($normalized)) {
+            return null;
+        }
+
+        if (strlen($normalized) > 12) {
+            return null;
+        }
+
+        $amount = (int) $normalized;
+
+        return $amount > 0 ? $amount : null;
+    }
 
     /**
      * تعداد ردیف در صفحهٔ لیست مشتریان را از کوئری می‌خواند و برای همان ادمین در سامانه ذخیره می‌کند.
@@ -3930,6 +4001,28 @@ final class CustomerController extends Controller
                     ->where('customer_loan_files.is_settled', false),
                 $direction
             ),
+            'nearest_due' => $query
+                ->orderByRaw(
+                    '(SELECT MIN(customer_loan_installments.due_date)
+                      FROM customer_loan_installments
+                      INNER JOIN customer_loan_files
+                        ON customer_loan_files.id = customer_loan_installments.customer_loan_file_id
+                      WHERE customer_loan_files.customer_id = customers.id
+                        AND customer_loan_files.revoked_at IS NULL
+                        AND customer_loan_files.is_settled = 0
+                        AND customer_loan_installments.paid_amount_toman < customer_loan_installments.amount_toman
+                    ) IS NULL ASC'
+                )
+                ->orderBy(
+                    CustomerLoanInstallment::query()
+                        ->selectRaw('MIN(customer_loan_installments.due_date)')
+                        ->join('customer_loan_files', 'customer_loan_files.id', '=', 'customer_loan_installments.customer_loan_file_id')
+                        ->whereColumn('customer_loan_files.customer_id', 'customers.id')
+                        ->whereNull('customer_loan_files.revoked_at')
+                        ->where('customer_loan_files.is_settled', false)
+                        ->whereColumn('customer_loan_installments.paid_amount_toman', '<', 'customer_loan_installments.amount_toman'),
+                    $direction
+                ),
             default => $query->latest('customers.id'),
         };
 
@@ -3980,13 +4073,11 @@ final class CustomerController extends Controller
     }
 
     /**
-     * @return array{installment_id: int, loan_file_id: int, count: int}|null
+     * نزدیک‌ترین سررسید قسط پرداخت‌نشده در وام‌های فعال مشتری.
      */
-    private function resolvePrimaryOverdueInstallment(Customer $customer): ?array
+    private function resolveCustomerNearestDueDate(Customer $customer): ?Carbon
     {
-        $today = Carbon::today();
-        $best = null;
-        $count = 0;
+        $nearest = null;
 
         foreach ($customer->loanFiles as $file) {
             if ($file->revoked_at !== null || $file->is_settled) {
@@ -3994,7 +4085,43 @@ final class CustomerController extends Controller
             }
 
             foreach ($file->installments as $installment) {
-                if ((int) $installment->paid_amount_toman >= (int) $installment->amount_toman) {
+                $amount = (int) $installment->amount_toman;
+                $paid = (int) $installment->paid_amount_toman;
+                if ($paid >= $amount) {
+                    continue;
+                }
+
+                $due = Carbon::parse($installment->due_date)->startOfDay();
+                if ($nearest === null || $due->lt($nearest)) {
+                    $nearest = $due;
+                }
+            }
+        }
+
+        return $nearest;
+    }
+
+    /**
+     * خلاصه اقساط معوق مشتری: قدیمی‌ترین قسط معوق + تعداد + مجموع ماندهٔ پرداخت‌نشدهٔ اقساط معوق.
+     *
+     * @return array{installment_id: int, loan_file_id: int, count: int, total_toman: int}|null
+     */
+    private function resolveCustomerOverdueSummary(Customer $customer): ?array
+    {
+        $today = Carbon::today();
+        $best = null;
+        $count = 0;
+        $totalToman = 0;
+
+        foreach ($customer->loanFiles as $file) {
+            if ($file->revoked_at !== null || $file->is_settled) {
+                continue;
+            }
+
+            foreach ($file->installments as $installment) {
+                $amount = (int) $installment->amount_toman;
+                $paid = (int) $installment->paid_amount_toman;
+                if ($paid >= $amount) {
                     continue;
                 }
 
@@ -4003,7 +4130,10 @@ final class CustomerController extends Controller
                     continue;
                 }
 
+                $unpaid = max(0, $amount - $paid);
                 $count++;
+                $totalToman += $unpaid;
+
                 if ($best === null || $due->lt($best['due'])) {
                     $best = [
                         'installment_id' => (int) $installment->id,
@@ -4022,6 +4152,7 @@ final class CustomerController extends Controller
             'installment_id' => $best['installment_id'],
             'loan_file_id' => $best['loan_file_id'],
             'count' => $count,
+            'total_toman' => $totalToman,
         ];
     }
 
@@ -4231,6 +4362,7 @@ final class CustomerController extends Controller
      *     remaining_amount_toman: int,
      *     paid_installments_amount_toman: int,
      *     late_penalty_toman: int,
+     *     overdue_installments_total_toman: int,
      *     early_benefit_toman: int
      * }
      */
@@ -4243,6 +4375,7 @@ final class CustomerController extends Controller
                 'remaining_amount_toman' => 0,
                 'paid_installments_amount_toman' => 0,
                 'late_penalty_toman' => 0,
+                'overdue_installments_total_toman' => 0,
                 'early_benefit_toman' => 0,
             ];
         }
@@ -4263,8 +4396,39 @@ final class CustomerController extends Controller
             'remaining_amount_toman' => $remainingAmount,
             'paid_installments_amount_toman' => (int) $snap['total_paid_toman'],
             'late_penalty_toman' => $this->aggregateLatePenaltyToman($loanFile->installments, $lateCoef, $remainingAmount),
+            'overdue_installments_total_toman' => $this->sumLoanFileOverdueUnpaidToman($loanFile),
             'early_benefit_toman' => $this->aggregateEarlyBenefitToman($loanFile->installments, $earlyCoef),
         ];
+    }
+
+    /**
+     * مجموع ماندهٔ پرداخت‌نشدهٔ اقساطی که سررسیدشان گذشته (معوق) برای یک پرونده وام.
+     */
+    private function sumLoanFileOverdueUnpaidToman(CustomerLoanFile $loanFile): int
+    {
+        if ($loanFile->revoked_at !== null || $loanFile->is_settled) {
+            return 0;
+        }
+
+        $today = Carbon::today();
+        $total = 0;
+
+        foreach ($loanFile->installments as $installment) {
+            $amount = (int) $installment->amount_toman;
+            $paid = (int) $installment->paid_amount_toman;
+            if ($paid >= $amount) {
+                continue;
+            }
+
+            $due = Carbon::parse($installment->due_date)->startOfDay();
+            if ($due->gte($today)) {
+                continue;
+            }
+
+            $total += max(0, $amount - $paid);
+        }
+
+        return $total;
     }
 
     /**
@@ -5654,10 +5818,68 @@ final class CustomerController extends Controller
     }
 
     /**
+     * متغیرهای قالب پیامک مجموع اقساط معوق مشتری (همان قالب یادآور قسط معوق).
+     *
+     * @return array<string, string>
+     */
+    private function customerOverdueTotalSmsVars(Customer $customer): array
+    {
+        $customer->loadMissing(['loanFiles.installments', 'loanFiles.loanType']);
+        $summary = $this->resolveCustomerOverdueSummary($customer);
+        $total = (int) ($summary['total_toman'] ?? 0);
+        $count = (int) ($summary['count'] ?? 0);
+        $amountText = number_format($total, 0, '.', ',').' تومان';
+
+        return [
+            'store_name' => $this->appDisplayName(),
+            'customer_name' => $customer->fullName(),
+            'installment_amount' => $amountText,
+            'installment_unpaid_amount' => $amountText,
+            'overdue_installment_count' => (string) $count,
+            'loan_code' => '—',
+            'installment_number' => $count > 0 ? (string) $count : '—',
+            'days_until_due' => '0',
+            'paid_amount' => number_format(0, 0, '.', ',').' تومان',
+            'remaining_loan' => $amountText,
+            'payment_link' => '—',
+            'payment_link_variable' => '—',
+        ];
+    }
+
+    /**
      * @return array{body: string, template_id: int|null}
      */
     private function composeQuickSmsModalContent(Customer $customer, string $smsType, ?CustomerLoanInstallment $installment, ?CustomerLoanFile $loanFile): array
     {
+        if ($smsType === 'overdue_total') {
+            $customer->loadMissing(['loanFiles.installments', 'loanFiles.loanType']);
+            $vars = $this->customerOverdueTotalSmsVars($customer);
+
+            $prefId = $this->resolveInstallmentScenarioTemplateId('installment_overdue');
+            if ($prefId !== null) {
+                $tpl = SmsTemplate::query()->find($prefId);
+                if ($tpl !== null) {
+                    return [
+                        'body' => trim($this->renderTemplate($tpl->body, $vars)),
+                        'template_id' => (int) $tpl->id,
+                    ];
+                }
+            }
+
+            $tpl = SmsTemplate::query()->where('template_key', 'default_installment_overdue_reminder')->first();
+            if ($tpl !== null) {
+                return [
+                    'body' => trim($this->renderTemplate($tpl->body, $vars)),
+                    'template_id' => (int) $tpl->id,
+                ];
+            }
+
+            return [
+                'body' => 'مشتری گرامی '.$customer->fullName().'؛ سررسید قسط به مبلغ '.($vars['installment_amount'] ?? '—').' معوق شده است، لطفا در اسرع وقت نسبت به پرداخت اقدام فرمایید.'."\n".$this->appDisplayName(),
+                'template_id' => null,
+            ];
+        }
+
         if (in_array($smsType, ['installment_pre_due', 'installment_due', 'installment_overdue', 'installment_thanks'], true)) {
             if ($installment === null || $loanFile === null) {
                 return ['body' => '', 'template_id' => null];
