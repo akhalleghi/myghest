@@ -498,6 +498,10 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
         ->middleware('throttle:60,1')
         ->name('customers.sms-modal-preview');
 
+    Route::post('/customers/{customer}/loan-creation-otp/preview', [LoanCreationOtpController::class, 'preview'])
+        ->middleware('throttle:60,1')
+        ->name('customers.loan-creation-otp.preview');
+
     Route::post('/customers/{customer}/loan-creation-otp/send', [LoanCreationOtpController::class, 'send'])
         ->middleware('throttle:30,1')
         ->name('customers.loan-creation-otp.send');

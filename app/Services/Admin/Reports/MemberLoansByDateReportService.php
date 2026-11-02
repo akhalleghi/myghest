@@ -60,7 +60,7 @@ final class MemberLoansByDateReportService
         $query = CustomerLoanFile::query()
             ->whereNull('revoked_at')
             ->whereBetween('loan_start_date', [$from->toDateString(), $to->toDateString()])
-            ->with(['customer:id,first_name,last_name,national_id,mobile,customer_code', 'loanType:id,title,daily_late_coefficient', 'installments.payments'])
+            ->with(['customer:id,first_name,last_name,national_id,mobile,customer_code', 'loanType:id,title,daily_late_coefficient,daily_early_coefficient', 'installments.payments'])
             ->orderByDesc('loan_start_date')
             ->orderByDesc('id');
 
@@ -109,7 +109,7 @@ final class MemberLoansByDateReportService
         $remainingAfterDiscount = $file->is_settled
             ? 0
             : (int) $snap['remaining_amount_toman'];
-        $lateCoef = (float) ($file->loanType?->daily_late_coefficient ?? 0);
+        $lateCoef = $file->dailyLateCoefficient();
         $lateFee = (int) $snap['late_fee_payable_toman'];
 
         $instColl = $file->installments;

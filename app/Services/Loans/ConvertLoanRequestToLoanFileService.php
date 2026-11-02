@@ -234,6 +234,8 @@ final class ConvertLoanRequestToLoanFileService
                 'has_custom_interest_rate' => false,
                 'custom_interest_rate' => null,
                 'effective_interest_rate' => $rate,
+                'daily_late_coefficient' => $request->daily_late_coefficient,
+                'daily_early_coefficient' => $request->daily_early_coefficient,
                 'created_by_admin_id' => $adminId,
             ]);
             $file->loan_code = 'LF-'.str_pad((string) $file->id, 7, '0', STR_PAD_LEFT);

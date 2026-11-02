@@ -63,7 +63,7 @@ final class InstallmentDueDatesByDateReportService
             })
             ->with([
                 'loanFile' => static function ($lf): void {
-                    $lf->with(['customer:id,first_name,last_name,national_id,mobile,customer_code', 'loanType:id,title,daily_late_coefficient']);
+                    $lf->with(['customer:id,first_name,last_name,national_id,mobile,customer_code', 'loanType:id,title,daily_late_coefficient,daily_early_coefficient']);
                 },
                 'payments',
                 'loanFile.installments.payments',

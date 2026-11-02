@@ -1113,6 +1113,7 @@
             line-height: 1.5;
         }
         #quick-sms-overlay,
+        #loan-creation-otp-sms-overlay,
         #loan-sms-overlay {
             z-index: 6000;
         }
@@ -3560,7 +3561,7 @@
                         <select id="loan-type-id" name="loan_type_id" required>
                             <option value="">انتخاب نوع وام</option>
                             @foreach ($loanTypes as $lt)
-                                <option value="{{ $lt->id }}" data-interest-rate="{{ (float) $lt->interest_rate }}" data-default-unit="{{ $lt->installment_gap_unit }}">{{ $lt->title }}</option>
+                                <option value="{{ $lt->id }}" data-interest-rate="{{ (float) $lt->interest_rate }}" data-late-coefficient="{{ (float) $lt->daily_late_coefficient }}" data-early-coefficient="{{ (float) $lt->daily_early_coefficient }}" data-default-unit="{{ $lt->installment_gap_unit }}">{{ $lt->title }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -3614,11 +3615,25 @@
                         </div>
                     </div>
                     <div class="cust-field cust-field--full loan-extra-box">
-                        <label><input type="checkbox" id="loan-has-custom-interest" name="has_custom_interest_rate" value="1"> تغییر درصد بهره برای پرونده</label>
+                        <label><input type="checkbox" id="loan-has-custom-interest" name="has_custom_interest_rate" value="1"> تعیین بهره / کارمزد اختصاصی این پرونده</label>
                         <div id="loan-custom-interest-wrap" style="margin-top:.45rem;" hidden>
-                            <div class="loan-interest-note">درصد بهره فعلی: <strong id="loan-current-interest-rate">—</strong></div>
-                            <label for="loan-custom-interest-rate">درصد بهره جدید</label>
+                            <div class="loan-interest-note">درصد بهره پایه: <strong id="loan-current-interest-rate">—</strong></div>
+                            <label for="loan-custom-interest-rate">درصد بهره اختصاصی این پرونده</label>
                             <input id="loan-custom-interest-rate" name="custom_interest_rate" type="number" min="0" max="100" step="0.01" placeholder="مثلاً 18.5">
+                        </div>
+                    </div>
+                    <div class="cust-field cust-field--full loan-extra-box" id="loan-penalty-coefficient-fields">
+                        <div class="loan-interest-note"><span id="loan-penalty-rates-label">ضرایب پیش‌فرض برای قرارداد جدید</span>: دیرکرد روزانه <strong id="loan-default-late-coefficient">—</strong> · زودکرد روزانه <strong id="loan-default-early-coefficient">—</strong></div>
+                        <p class="loan-interest-note">ضریب اعشاری روزانه است؛ برای نمونه ۰٫۰۰۸ یعنی ۰٫۸٪ در روز. نرخ‌های این پرونده هنگام ثبت ثابت می‌شوند و تغییر نرخ عمومی نوع وام روی آن‌ها اثر ندارد. برای تغییر نرخ همین قرارداد، گزینهٔ مربوط را فعال کنید. نرخ جدید بر اساس تاریخ‌های پرداخت در محاسبات همین پرونده اعمال می‌شود.</p>
+                        <label><input type="checkbox" id="loan-has-custom-daily-late-coefficient" name="has_custom_daily_late_coefficient" value="1"> تغییر ضریب دیرکرد روزانه برای این پرونده</label>
+                        <div id="loan-custom-daily-late-coefficient-wrap" style="margin-top:.45rem" hidden>
+                            <label for="loan-custom-daily-late-coefficient">ضریب دیرکرد روزانه</label>
+                            <input id="loan-custom-daily-late-coefficient" name="custom_daily_late_coefficient" type="number" min="0" max="999999.999999" step="0.000001" placeholder="مثلاً 0.008">
+                        </div>
+                        <label style="margin-top:.5rem"><input type="checkbox" id="loan-has-custom-daily-early-coefficient" name="has_custom_daily_early_coefficient" value="1"> تغییر ضریب زودکرد روزانه برای این پرونده</label>
+                        <div id="loan-custom-daily-early-coefficient-wrap" style="margin-top:.45rem" hidden>
+                            <label for="loan-custom-daily-early-coefficient">ضریب زودکرد روزانه</label>
+                            <input id="loan-custom-daily-early-coefficient" name="custom_daily_early_coefficient" type="number" min="0" max="999999.999999" step="0.000001" placeholder="مثلاً 0.008">
                         </div>
                     </div>
                     <div class="cust-field cust-field--full">
@@ -3653,6 +3668,32 @@
                     <div class="cust-actions cust-field--full" style="margin-top:0.2rem;">
                         <button type="button" class="cust-cancel" id="loan-create-cancel">انصراف</button>
                         <button type="submit" class="cust-submit">ثبت وام</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="cust-overlay" id="loan-creation-otp-sms-overlay" hidden aria-hidden="true">
+        <div class="cust-modal" style="width:min(560px,100%)" role="dialog" aria-modal="true" aria-labelledby="loan-creation-otp-sms-title">
+            <div class="cust-modal-head">
+                <div>
+                    <h2 id="loan-creation-otp-sms-title">پیش‌نمایش پیامک احراز هویت</h2>
+                    <p id="loan-creation-otp-sms-subtitle"></p>
+                </div>
+                <button type="button" class="cust-modal-close" id="loan-creation-otp-sms-close" aria-label="بستن">&times;</button>
+            </div>
+            <div class="cust-modal-body">
+                <form id="loan-creation-otp-sms-form" class="wallet-form-grid" novalidate>
+                    <div class="cust-field">
+                        <label for="loan-creation-otp-sms-text">متن پیامک (قابل ویرایش)</label>
+                        <textarea id="loan-creation-otp-sms-text" name="sms_text" maxlength="1000" rows="6" aria-describedby="loan-creation-otp-sms-help"></textarea>
+                        <p class="loan-interest-note" id="loan-creation-otp-sms-help">عبارت @{{code}} هنگام ارسال با کد تأیید واقعی جایگزین می‌شود؛ این عبارت را در متن حفظ کنید. تغییر متن فقط برای همین ارسال است.</p>
+                        <p class="cust-field-error" id="loan-creation-otp-sms-error" role="alert" hidden></p>
+                    </div>
+                    <div class="cust-actions">
+                        <button type="button" class="cust-cancel" id="loan-creation-otp-sms-cancel">انصراف</button>
+                        <button type="submit" class="cust-submit" id="loan-creation-otp-sms-confirm" disabled>تأیید و ارسال</button>
                     </div>
                 </form>
             </div>
@@ -4018,7 +4059,7 @@
             </div>
             <div class="cust-modal-body">
                 <div class="loan-discount-late-box">
-                    <span class="loan-discount-late-box__label">دیرکرد تا کنون (برآورد بر اساس ضریب دیرکرد نوع وام)</span>
+                    <span class="loan-discount-late-box__label">دیرکرد تا کنون (بر اساس ضریب ثبت‌شده برای این پرونده)</span>
                     <div class="loan-discount-late-box__value" id="loan-discount-late-amount">—</div>
                 </div>
                 <p class="loan-discount-hint" id="loan-discount-meta-hint"></p>
@@ -4389,6 +4430,9 @@
             function customerLoanCreationOtpSendUrl(id) {
                 return custListBaseUrl + '/' + encodeURIComponent(String(id || '')) + '/loan-creation-otp/send';
             }
+            function customerLoanCreationOtpPreviewUrl(id) {
+                return custListBaseUrl + '/' + encodeURIComponent(String(id || '')) + '/loan-creation-otp/preview';
+            }
             function customerLoanCreationOtpVerifyUrl(id) {
                 return custListBaseUrl + '/' + encodeURIComponent(String(id || '')) + '/loan-creation-otp/verify';
             }
@@ -4475,6 +4519,17 @@
             var loanCreationOtpEnabled = @json($loanCreationOtpEnabled ?? false);
             var loanInstallmentRounding = @json($loanInstallmentRounding ?? ['step_toman' => 10000, 'remainder_target' => 'last', 'remainder_target_label' => 'قسط آخر']);
             var loanCreationOtpVerified = false;
+            var loanOtpSmsOverlay = document.getElementById('loan-creation-otp-sms-overlay');
+            var loanOtpSmsForm = document.getElementById('loan-creation-otp-sms-form');
+            var loanOtpSmsText = document.getElementById('loan-creation-otp-sms-text');
+            var loanOtpSmsSubtitle = document.getElementById('loan-creation-otp-sms-subtitle');
+            var loanOtpSmsError = document.getElementById('loan-creation-otp-sms-error');
+            var loanOtpSmsConfirm = document.getElementById('loan-creation-otp-sms-confirm');
+            var loanOtpSmsClose = document.getElementById('loan-creation-otp-sms-close');
+            var loanOtpSmsCancel = document.getElementById('loan-creation-otp-sms-cancel');
+            var loanOtpSmsCustomerId = null;
+            var loanOtpSmsRequestVersion = 0;
+            var loanOtpSmsSending = false;
             var guaranteeReturnOtpEnabled = @json($guaranteeReturnOtpEnabled ?? false);
             var guaranteeReturnOtpVerified = false;
             var guaranteeReturnHasExistingDocument = false;
@@ -4555,6 +4610,7 @@
             }
 
             function resetLoanCreationOtpUi() {
+                if (!loanOtpSmsSending) closeLoanCreationOtpSmsModal(false);
                 loanCreationOtpVerified = false;
                 var tokenEl = document.getElementById('loan-creation-verification-token');
                 var sessEl = document.getElementById('loan-creation-otp-session');
@@ -4613,6 +4669,65 @@
                 section.hidden = !show;
                 if (mobileView) mobileView.textContent = loanManageCurrentCustomerMobile || '—';
                 if (show) syncLoanCreationOtpSkipUi();
+            }
+
+            function closeLoanCreationOtpSmsModal(restoreFocus) {
+                if (loanOtpSmsSending || !loanOtpSmsOverlay) return;
+                var wasOpen = !loanOtpSmsOverlay.hidden;
+                loanOtpSmsRequestVersion++;
+                loanOtpSmsCustomerId = null;
+                loanOtpSmsOverlay.hidden = true;
+                loanOtpSmsOverlay.setAttribute('aria-hidden', 'true');
+                if (wasOpen && restoreFocus !== false) {
+                    var sendButton = document.getElementById('loan-creation-otp-send');
+                    if (sendButton) sendButton.focus();
+                }
+            }
+
+            function showLoanCreationOtpSmsError(message) {
+                if (!loanOtpSmsError) return;
+                loanOtpSmsError.textContent = message;
+                loanOtpSmsError.hidden = !message;
+            }
+
+            function openLoanCreationOtpSmsModal() {
+                if (!loanOtpSmsOverlay || loanOtpSmsSending) return;
+                loanOtpSmsCustomerId = loanManageCurrentCustomerId;
+                var requestVersion = ++loanOtpSmsRequestVersion;
+                loanOtpSmsSubtitle.textContent = 'گیرنده: ' + (loanManageCurrentCustomerName || '') + ' — ' + (loanManageCurrentCustomerMobile || '');
+                loanOtpSmsText.value = '';
+                loanOtpSmsText.placeholder = 'در حال دریافت متن پیامک…';
+                loanOtpSmsText.readOnly = true;
+                loanOtpSmsConfirm.disabled = true;
+                showLoanCreationOtpSmsError('');
+                loanOtpSmsOverlay.hidden = false;
+                loanOtpSmsOverlay.setAttribute('aria-hidden', 'false');
+                loanOtpSmsCancel.focus();
+                fetch(customerLoanCreationOtpPreviewUrl(loanOtpSmsCustomerId), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json', 'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': @json(csrf_token())
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ customer_name: loanManageCurrentCustomerName || '' })
+                }).then(function (r) {
+                    return r.json().then(function (j) {
+                        if (!r.ok) throw new Error(j.message || 'دریافت متن پیامک ناموفق بود.');
+                        return j;
+                    });
+                }).then(function (data) {
+                    if (requestVersion !== loanOtpSmsRequestVersion || loanOtpSmsOverlay.hidden) return;
+                    loanOtpSmsText.value = String(data.body || '');
+                    loanOtpSmsText.placeholder = 'متن پیامک را بنویسید…';
+                    loanOtpSmsText.readOnly = false;
+                    loanOtpSmsConfirm.disabled = false;
+                    loanOtpSmsText.focus();
+                }).catch(function (err) {
+                    if (requestVersion !== loanOtpSmsRequestVersion || loanOtpSmsOverlay.hidden) return;
+                    loanOtpSmsText.placeholder = 'برای دریافت مجدد، این پنجره را ببندید و دوباره ارسال کد را انتخاب کنید.';
+                    showLoanCreationOtpSmsError(err.message || 'دریافت متن پیامک ناموفق بود.');
+                });
             }
 
             function guaranteeTypesSupportingReturn(type) {
@@ -5012,6 +5127,15 @@
             var loanCustomInterestWrap = document.getElementById('loan-custom-interest-wrap');
             var loanCurrentInterestRate = document.getElementById('loan-current-interest-rate');
             var loanCustomInterestRateInput = document.getElementById('loan-custom-interest-rate');
+            var loanPenaltyCoefficientFields = document.getElementById('loan-penalty-coefficient-fields');
+            var loanDefaultLateCoefficient = document.getElementById('loan-default-late-coefficient');
+            var loanDefaultEarlyCoefficient = document.getElementById('loan-default-early-coefficient');
+            var loanHasCustomDailyLateCoefficientCheckbox = document.getElementById('loan-has-custom-daily-late-coefficient');
+            var loanCustomDailyLateCoefficientWrap = document.getElementById('loan-custom-daily-late-coefficient-wrap');
+            var loanCustomDailyLateCoefficientInput = document.getElementById('loan-custom-daily-late-coefficient');
+            var loanHasCustomDailyEarlyCoefficientCheckbox = document.getElementById('loan-has-custom-daily-early-coefficient');
+            var loanCustomDailyEarlyCoefficientWrap = document.getElementById('loan-custom-daily-early-coefficient-wrap');
+            var loanCustomDailyEarlyCoefficientInput = document.getElementById('loan-custom-daily-early-coefficient');
             var loanTotalCheck = document.getElementById('loan-total-check');
             var loanStartJdateInput = document.getElementById('loan-start-jdate');
             var loanDisbursementDueJdateInput = document.getElementById('loan-disbursement-due-jdate');
@@ -5022,6 +5146,9 @@
             var loanAmountSyncGuard = false;
             var loanFormMode = 'create';
             var loanEditingFileId = null;
+            var loanEditInitialLateCoefficient = null;
+            var loanEditInitialEarlyCoefficient = null;
+            var loanEditOriginalFile = null;
             var loanSmsOverlay = document.getElementById('loan-sms-overlay');
             var loanSmsClose = document.getElementById('loan-sms-close');
             var loanSmsCancel = document.getElementById('loan-sms-cancel');
@@ -5282,6 +5409,9 @@
             function activeInterestRatePercent() {
                 var lt = selectedLoanTypeData();
                 var base = Number(lt && lt.interest_rate ? lt.interest_rate : 0);
+                if (loanFormMode === 'edit' && loanEditOriginalFile && lt && Number(lt.id) === Number(loanEditOriginalFile.loan_type_id)) {
+                    base = Number(loanEditOriginalFile.base_interest_rate);
+                }
                 if (loanHasCustomInterestCheckbox && loanHasCustomInterestCheckbox.checked) {
                     var custom = Number(toEnglishDigits(String((loanCustomInterestRateInput && loanCustomInterestRateInput.value) || '')).replace(',', '.'));
                     if (Number.isFinite(custom) && custom >= 0) {
@@ -5289,6 +5419,29 @@
                     }
                 }
                 return base;
+            }
+
+            function activeLoanProfitMethod() {
+                var lt = selectedLoanTypeData();
+                if (loanFormMode === 'edit' && loanEditOriginalFile && lt && Number(lt.id) === Number(loanEditOriginalFile.loan_type_id)) {
+                    return String(loanEditOriginalFile.profit_calculation_method || 'monthly');
+                }
+                return String((lt && lt.profit_calculation_method) || 'monthly');
+            }
+
+            function loanScheduleTermsUnchanged() {
+                var original = loanEditOriginalFile;
+                return loanFormMode === 'edit' && original
+                    && Number(loanTypeIdSelect.value) === Number(original.loan_type_id)
+                    && String(loanStartJdateInput.value).trim() === String(original.loan_start_jdate)
+                    && parseThousandsInput(loanAmountInput.value) === Number(original.amount_toman)
+                    && Number(loanInstallmentsCountInput.value) === Number(original.installments_count)
+                    && Number(loanInstallmentIntervalCountInput.value) === Number(original.installment_interval_count)
+                    && String(loanInstallmentIntervalUnitSelect.value) === String(original.installment_interval_unit)
+                    && parseThousandsInput(loanInstallmentAmountInput.value) === Number(original.installment_amount_toman)
+                    && parseThousandsInput(loanDownPaymentInput.value) === Number(original.down_payment_toman)
+                    && Math.abs(activeInterestRatePercent() - Number(original.effective_interest_rate)) < 0.000001
+                    && activeLoanProfitMethod() === String(original.profit_calculation_method);
             }
 
             function isRepaymentAllowedByLoanType(loanType, amount, installmentsCount, intervalCount, intervalUnit) {
@@ -7869,6 +8022,7 @@
                                     '<div class="loan-file-item"><span class="loan-file-k">مبلغ هر قسط:</span><span class="loan-file-v">' + formatToman(row.installment_amount_toman || 0) + ' تومان</span></div>' +
                                     '<div class="loan-file-item"><span class="loan-file-k">مبلغ پیش پرداخت:</span><span class="loan-file-v">' + formatToman(row.down_payment_toman || 0) + ' تومان</span></div>' +
                                     '<div class="loan-file-item"><span class="loan-file-k">درصد بهره:</span><span class="loan-file-v">' + String(Number(row.effective_interest_rate || 0).toFixed(2)) + '%</span></div>' +
+                                    '<div class="loan-file-item"><span class="loan-file-k">ضرایب روزانه دیرکرد / زودکرد:</span><span class="loan-file-v">' + String(Number(row.daily_late_coefficient || 0)) + ' / ' + String(Number(row.daily_early_coefficient || 0)) + '</span></div>' +
                                 '</div>' +
                             '</section>' +
                             '<section class="loan-file-col">' +
@@ -7938,16 +8092,34 @@
             }
 
             function syncLoanCurrentInterestView() {
-                if (!loanCurrentInterestRate) return;
                 var lt = selectedLoanTypeData();
                 if (!lt) {
-                    loanCurrentInterestRate.textContent = '—';
+                    if (loanCurrentInterestRate) loanCurrentInterestRate.textContent = '—';
+                    if (loanDefaultLateCoefficient) loanDefaultLateCoefficient.textContent = '—';
+                    if (loanDefaultEarlyCoefficient) loanDefaultEarlyCoefficient.textContent = '—';
                     return;
                 }
                 var rate = Number(lt.interest_rate || 0);
-                loanCurrentInterestRate.textContent = rate.toFixed(2) + '%';
+                if (loanFormMode === 'edit' && loanEditOriginalFile && Number(lt.id) === Number(loanEditOriginalFile.loan_type_id)) {
+                    rate = Number(loanEditOriginalFile.base_interest_rate);
+                }
+                if (loanCurrentInterestRate) loanCurrentInterestRate.textContent = rate.toFixed(2) + '%';
+                var lateCoefficient = loanFormMode === 'edit' ? Number(loanEditInitialLateCoefficient) : Number(lt.daily_late_coefficient || 0);
+                var earlyCoefficient = loanFormMode === 'edit' ? Number(loanEditInitialEarlyCoefficient) : Number(lt.daily_early_coefficient || 0);
+                var rateLabel = document.getElementById('loan-penalty-rates-label');
+                if (rateLabel) rateLabel.textContent = loanFormMode === 'edit' ? 'ضرایب فعلی همین قرارداد' : 'ضرایب پیش‌فرض برای قرارداد جدید';
+                if (loanDefaultLateCoefficient) loanDefaultLateCoefficient.textContent = String(lateCoefficient);
+                if (loanDefaultEarlyCoefficient) loanDefaultEarlyCoefficient.textContent = String(earlyCoefficient);
+                if (loanCustomDailyLateCoefficientInput && !(loanHasCustomDailyLateCoefficientCheckbox && loanHasCustomDailyLateCoefficientCheckbox.checked)) {
+                    loanCustomDailyLateCoefficientInput.value = String(lateCoefficient);
+                }
+                if (loanCustomDailyEarlyCoefficientInput && !(loanHasCustomDailyEarlyCoefficientCheckbox && loanHasCustomDailyEarlyCoefficientCheckbox.checked)) {
+                    loanCustomDailyEarlyCoefficientInput.value = String(earlyCoefficient);
+                }
                 if (loanInstallmentIntervalUnitSelect && lt.installment_gap_unit) {
-                    loanInstallmentIntervalUnitSelect.value = String(lt.installment_gap_unit);
+                    loanInstallmentIntervalUnitSelect.value = loanFormMode === 'edit' && loanEditOriginalFile && Number(lt.id) === Number(loanEditOriginalFile.loan_type_id)
+                        ? String(loanEditOriginalFile.installment_interval_unit)
+                        : String(lt.installment_gap_unit);
                 }
             }
 
@@ -7960,6 +8132,12 @@
 
             function syncLoanInstallmentCalculation(force) {
                 if (!loanInstallmentAmountInput || !loanAmountInput || !loanInstallmentsCountInput || !loanTotalCheck) return;
+                if (loanScheduleTermsUnchanged()) {
+                    loanTotalCheck.textContent = 'اصل وام: ' + formatToman(loanEditOriginalFile.amount_toman)
+                        + ' | نرخ بهره: ' + String(activeInterestRatePercent()) + '% | برنامه اقساط ثبت‌شده حفظ می‌شود';
+                    loanTotalCheck.style.color = 'var(--muted)';
+                    return;
+                }
                 var count = parseInt(String(loanInstallmentsCountInput.value || '0'), 10);
                 if (!Number.isFinite(count) || count < 1) count = 0;
                 var intervalCount = parseInt(String((loanInstallmentIntervalCountInput && loanInstallmentIntervalCountInput.value) || '0'), 10);
@@ -7969,7 +8147,7 @@
                 var discount = parseThousandsInput((loanFormDiscountAmountInput && loanFormDiscountAmountInput.value) || '');
                 var lt = selectedLoanTypeData();
                 var interestRate = activeInterestRatePercent();
-                var profitMethod = String((lt && lt.profit_calculation_method) || 'monthly');
+                var profitMethod = activeLoanProfitMethod();
 
                 if (loanInstallmentAutoDirty && !force) {
                     var manualInstallment = parseThousandsInput(loanInstallmentAmountInput.value);
@@ -8011,6 +8189,9 @@
                 if (!loanManageCurrentCustomerId || !loanCreateOverlay || !loanCreateForm) return;
                 loanFormMode = 'create';
                 loanEditingFileId = null;
+                loanEditInitialLateCoefficient = null;
+                loanEditInitialEarlyCoefficient = null;
+                loanEditOriginalFile = null;
                 setLoanInstallmentManualFlag(false);
                 loanDownPaymentAutoDirty = false;
                 loanCreateForm.reset();
@@ -8027,6 +8208,11 @@
                 if (loanSettledWrap) loanSettledWrap.hidden = true;
                 if (loanSettledSection) loanSettledSection.hidden = true;
                 if (loanCustomInterestWrap) loanCustomInterestWrap.hidden = true;
+                if (loanPenaltyCoefficientFields) loanPenaltyCoefficientFields.hidden = false;
+                if (loanHasCustomDailyLateCoefficientCheckbox) loanHasCustomDailyLateCoefficientCheckbox.checked = false;
+                if (loanHasCustomDailyEarlyCoefficientCheckbox) loanHasCustomDailyEarlyCoefficientCheckbox.checked = false;
+                if (loanCustomDailyLateCoefficientWrap) loanCustomDailyLateCoefficientWrap.hidden = true;
+                if (loanCustomDailyEarlyCoefficientWrap) loanCustomDailyEarlyCoefficientWrap.hidden = true;
                 if (loanInstallmentsCountInput) loanInstallmentsCountInput.value = '6';
                 if (loanInstallmentIntervalCountInput) loanInstallmentIntervalCountInput.value = '1';
                 if (loanStartJdateInput && adminTodayJdate) loanStartJdateInput.value = adminTodayJdate;
@@ -8058,6 +8244,9 @@
                 }
                 loanFormMode = 'edit';
                 loanEditingFileId = Number(row.id || 0);
+                loanEditInitialLateCoefficient = Number(row.daily_late_coefficient || 0);
+                loanEditInitialEarlyCoefficient = Number(row.daily_early_coefficient || 0);
+                loanEditOriginalFile = row;
                 setLoanInstallmentManualFlag(false);
                 loanDownPaymentAutoDirty = false;
                 clearAllLoanFieldErrors();
@@ -8071,6 +8260,7 @@
                 if (loanStartJdateInput) loanStartJdateInput.value = row.loan_start_jdate || '';
                 if (loanDisbursementDueJdateInput) loanDisbursementDueJdateInput.value = row.disbursement_due_jdate || '';
                 if (loanTypeIdSelect) loanTypeIdSelect.value = String(row.loan_type_id || '');
+                if (loanPenaltyCoefficientFields) loanPenaltyCoefficientFields.hidden = false;
                 if (loanAmountInput) loanAmountInput.value = formatThousandsInputValue(String(row.amount_toman || ''));
                 if (loanInstallmentsCountInput) loanInstallmentsCountInput.value = String(row.installments_count || 1);
                 if (loanInstallmentIntervalCountInput) loanInstallmentIntervalCountInput.value = String(row.installment_interval_count || 1);
@@ -8091,6 +8281,12 @@
                 if (loanHasCustomInterestCheckbox) loanHasCustomInterestCheckbox.checked = !!row.has_custom_interest_rate;
                 if (loanCustomInterestWrap) loanCustomInterestWrap.hidden = !row.has_custom_interest_rate;
                 if (loanCustomInterestRateInput) loanCustomInterestRateInput.value = row.custom_interest_rate !== null && row.custom_interest_rate !== undefined ? String(row.custom_interest_rate) : '';
+                if (loanHasCustomDailyLateCoefficientCheckbox) loanHasCustomDailyLateCoefficientCheckbox.checked = false;
+                if (loanCustomDailyLateCoefficientWrap) loanCustomDailyLateCoefficientWrap.hidden = true;
+                if (loanCustomDailyLateCoefficientInput) loanCustomDailyLateCoefficientInput.value = String(loanEditInitialLateCoefficient);
+                if (loanHasCustomDailyEarlyCoefficientCheckbox) loanHasCustomDailyEarlyCoefficientCheckbox.checked = false;
+                if (loanCustomDailyEarlyCoefficientWrap) loanCustomDailyEarlyCoefficientWrap.hidden = true;
+                if (loanCustomDailyEarlyCoefficientInput) loanCustomDailyEarlyCoefficientInput.value = String(loanEditInitialEarlyCoefficient);
                 syncLoanCurrentInterestView();
                 var loadedAmount = Number(row.amount_toman || 0);
                 var loadedInst = Number(row.installment_amount_toman || 0);
@@ -8537,7 +8733,8 @@
             }
 
             function closeLoanCreateModal() {
-                if (!loanCreateOverlay) return;
+                if (!loanCreateOverlay || loanOtpSmsSending) return;
+                closeLoanCreationOtpSmsModal(false);
                 loanCreateOverlay.hidden = true;
                 loanCreateOverlay.setAttribute('aria-hidden', 'true');
                 resetLoanCreationOtpUi();
@@ -10731,6 +10928,18 @@
                     }
                 });
             }
+            if (loanHasCustomDailyLateCoefficientCheckbox && loanCustomDailyLateCoefficientWrap) {
+                loanHasCustomDailyLateCoefficientCheckbox.addEventListener('change', function () {
+                    loanCustomDailyLateCoefficientWrap.hidden = !loanHasCustomDailyLateCoefficientCheckbox.checked;
+                    if (!loanHasCustomDailyLateCoefficientCheckbox.checked) syncLoanCurrentInterestView();
+                });
+            }
+            if (loanHasCustomDailyEarlyCoefficientCheckbox && loanCustomDailyEarlyCoefficientWrap) {
+                loanHasCustomDailyEarlyCoefficientCheckbox.addEventListener('change', function () {
+                    loanCustomDailyEarlyCoefficientWrap.hidden = !loanHasCustomDailyEarlyCoefficientCheckbox.checked;
+                    if (!loanHasCustomDailyEarlyCoefficientCheckbox.checked) syncLoanCurrentInterestView();
+                });
+            }
             if (loanTypeIdSelect) {
                 loanTypeIdSelect.addEventListener('change', function () {
                     syncLoanCurrentInterestView();
@@ -10772,7 +10981,7 @@
                 if (!input) return;
                 input.addEventListener('change', syncGoldFieldsByOption);
             });
-            [loanStartJdateInput, loanDisbursementDueJdateInput, loanSettledJdateInput, loanTypeIdSelect, loanInstallmentsCountInput, loanInstallmentIntervalCountInput, loanInstallmentIntervalUnitSelect, loanCustomInterestRateInput].forEach(function (el) {
+            [loanStartJdateInput, loanDisbursementDueJdateInput, loanSettledJdateInput, loanTypeIdSelect, loanInstallmentsCountInput, loanInstallmentIntervalCountInput, loanInstallmentIntervalUnitSelect, loanCustomInterestRateInput, loanCustomDailyLateCoefficientInput, loanCustomDailyEarlyCoefficientInput].forEach(function (el) {
                 if (!el) return;
                 el.addEventListener('input', function () { clearLoanFieldError(el); });
                 el.addEventListener('change', function () { clearLoanFieldError(el); });
@@ -10833,11 +11042,44 @@
                             if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('موبایل معتبر برای این مشتری ثبت نشده است.');
                             return;
                         }
-                        resetLoanCreationOtpUi();
-                        // پس از ریست، چک‌باکس رد احراز نباید دوباره تیک بخورد؛ ارسال کد یعنی مسیر احراز فعال است.
-                        syncLoanCreationOtpSkipUi();
+                        openLoanCreationOtpSmsModal();
+                    });
+                }
+                if (loanOtpSmsClose) loanOtpSmsClose.addEventListener('click', function () { closeLoanCreationOtpSmsModal(); });
+                if (loanOtpSmsCancel) loanOtpSmsCancel.addEventListener('click', function () { closeLoanCreationOtpSmsModal(); });
+                if (loanOtpSmsOverlay) loanOtpSmsOverlay.addEventListener('click', function (e) {
+                    if (e.target === loanOtpSmsOverlay) closeLoanCreationOtpSmsModal();
+                });
+                if (loanOtpSmsForm) {
+                    loanOtpSmsForm.addEventListener('submit', function (e) {
+                        e.preventDefault();
+                        if (loanOtpSmsSending || loanOtpSmsConfirm.disabled || loanOtpSmsOverlay.hidden) return;
+                        if (loanFormMode !== 'create' || !loanCreationOtpEnabled || isLoanCreationOtpSkipped()
+                            || Number(loanOtpSmsCustomerId) !== Number(loanManageCurrentCustomerId)) {
+                            closeLoanCreationOtpSmsModal();
+                            return;
+                        }
+                        var text = String(loanOtpSmsText.value || '').trim();
+                        if (!text || text.length > 1000) {
+                            showLoanCreationOtpSmsError('متن پیامک را وارد کنید (حداکثر ۱۰۰۰ کاراکتر).');
+                            loanOtpSmsText.focus();
+                            return;
+                        }
+                        if (!/\{\{\s*code\s*\}\}/i.test(text)) {
+                            showLoanCreationOtpSmsError('عبارت @{{code}} را در متن حفظ کنید تا کد تأیید درج شود.');
+                            loanOtpSmsText.focus();
+                            return;
+                        }
+                        var customerId = loanOtpSmsCustomerId;
+                        showLoanCreationOtpSmsError('');
+                        loanOtpSmsSending = true;
+                        loanOtpSmsConfirm.disabled = true;
+                        loanOtpSmsConfirm.textContent = 'در حال ارسال…';
+                        loanOtpSmsText.readOnly = true;
+                        loanOtpSmsClose.disabled = true;
+                        loanOtpSmsCancel.disabled = true;
                         loanCreationOtpSendBtn.disabled = true;
-                        fetch(customerLoanCreationOtpSendUrl(loanManageCurrentCustomerId), {
+                        fetch(customerLoanCreationOtpSendUrl(customerId), {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -10847,7 +11089,8 @@
                             },
                             credentials: 'same-origin',
                             body: JSON.stringify({
-                                customer_name: loanManageCurrentCustomerName || ''
+                                customer_name: loanManageCurrentCustomerName || '',
+                                sms_text: text
                             })
                         }).then(function (r) {
                             return r.json().then(function (j) { return { ok: r.ok, json: j || {} }; }).catch(function () {
@@ -10857,14 +11100,26 @@
                             if (!res.ok) {
                                 throw new Error((res.json && res.json.message) ? res.json.message : 'ارسال کد ناموفق بود.');
                             }
+                            if (Number(customerId) !== Number(loanManageCurrentCustomerId) || loanFormMode !== 'create') return;
+                            resetLoanCreationOtpUi();
                             var sessEl = document.getElementById('loan-creation-otp-session');
                             var panel = document.getElementById('loan-creation-otp-panel');
                             if (sessEl) sessEl.value = String(res.json.otp_session || '');
                             if (panel) panel.hidden = false;
+                            loanOtpSmsSending = false;
+                            closeLoanCreationOtpSmsModal();
+                            var codeInput = document.getElementById('loan-creation-otp-code');
+                            if (codeInput) codeInput.focus();
                             if (window.AdminSwal && window.AdminSwal.success) AdminSwal.success(res.json.message || 'کد ارسال شد.');
                         }).catch(function (err) {
-                            if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error(err.message || 'ارسال کد ناموفق بود.');
+                            showLoanCreationOtpSmsError(err.message || 'ارسال کد ناموفق بود.');
                         }).finally(function () {
+                            loanOtpSmsSending = false;
+                            loanOtpSmsConfirm.disabled = false;
+                            loanOtpSmsConfirm.textContent = 'تأیید و ارسال';
+                            loanOtpSmsText.readOnly = false;
+                            loanOtpSmsClose.disabled = false;
+                            loanOtpSmsCancel.disabled = false;
                             loanCreationOtpSendBtn.disabled = false;
                         });
                     });
@@ -10941,8 +11196,13 @@
                         is_settled: loanIsSettledCheckbox && loanIsSettledCheckbox.checked,
                         settled_jdate: String((loanSettledJdateInput && loanSettledJdateInput.value) || '').trim(),
                         has_custom_interest_rate: loanHasCustomInterestCheckbox && loanHasCustomInterestCheckbox.checked,
-                        custom_interest_rate: String((loanCustomInterestRateInput && loanCustomInterestRateInput.value) || '').trim()
+                        custom_interest_rate: String((loanCustomInterestRateInput && loanCustomInterestRateInput.value) || '').trim(),
+                        has_custom_daily_late_coefficient: loanHasCustomDailyLateCoefficientCheckbox && loanHasCustomDailyLateCoefficientCheckbox.checked,
+                        custom_daily_late_coefficient: String((loanCustomDailyLateCoefficientInput && loanCustomDailyLateCoefficientInput.value) || '').trim(),
+                        has_custom_daily_early_coefficient: loanHasCustomDailyEarlyCoefficientCheckbox && loanHasCustomDailyEarlyCoefficientCheckbox.checked,
+                        custom_daily_early_coefficient: String((loanCustomDailyEarlyCoefficientInput && loanCustomDailyEarlyCoefficientInput.value) || '').trim()
                     };
+                    var preserveExistingSchedule = loanScheduleTermsUnchanged();
                     if (!payload.loan_start_jdate || !payload.loan_type_id || payload.amount_toman <= 0 || payload.installments_count <= 0 || payload.installment_amount_toman <= 0 || payload.installment_interval_count <= 0) {
                         if (!payload.loan_start_jdate) setLoanFieldError(loanStartJdateInput, 'تکمیل این فیلد ضروری است.');
                         if (!payload.loan_type_id) setLoanFieldError(loanTypeIdSelect, 'انتخاب نوع وام ضروری است.');
@@ -10955,7 +11215,7 @@
                         return;
                     }
                     var selectedLoanType = selectedLoanTypeData();
-                    if (selectedLoanType) {
+                    if (selectedLoanType && !preserveExistingSchedule) {
                         if (selectedLoanType.installment_gap_unit && payload.installment_interval_unit !== String(selectedLoanType.installment_gap_unit)) {
                             setLoanFieldError(loanInstallmentIntervalUnitSelect, 'بازه اقساط باید مطابق نوع وام باشد.');
                             if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('بازه اقساط با نوع وام انتخابی سازگار نیست.');
@@ -10994,16 +11254,39 @@
                         if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('درصد بهره جدید را تکمیل کنید.');
                         return;
                     }
+                    if (payload.has_custom_daily_late_coefficient && String(payload.custom_daily_late_coefficient || '').trim() === '') {
+                        setLoanFieldError(loanCustomDailyLateCoefficientInput, 'با فعال بودن تغییر ضریب دیرکرد، این فیلد ضروری است.');
+                        if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('ضریب دیرکرد روزانه را تکمیل کنید.');
+                        return;
+                    }
+                    if (payload.has_custom_daily_early_coefficient && String(payload.custom_daily_early_coefficient || '').trim() === '') {
+                        setLoanFieldError(loanCustomDailyEarlyCoefficientInput, 'با فعال بودن تغییر ضریب زودکرد، این فیلد ضروری است.');
+                        if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('ضریب زودکرد روزانه را تکمیل کنید.');
+                        return;
+                    }
+                    if (loanFormMode === 'edit' && loanEditInitialLateCoefficient !== null && loanEditInitialEarlyCoefficient !== null) {
+                        var nextDailyLateCoefficient = payload.has_custom_daily_late_coefficient
+                            ? Number(toEnglishDigits(payload.custom_daily_late_coefficient).replace(',', '.'))
+                            : loanEditInitialLateCoefficient;
+                        var nextDailyEarlyCoefficient = payload.has_custom_daily_early_coefficient
+                            ? Number(toEnglishDigits(payload.custom_daily_early_coefficient).replace(',', '.'))
+                            : loanEditInitialEarlyCoefficient;
+                        var lateCoefficientChanged = Math.abs(nextDailyLateCoefficient - loanEditInitialLateCoefficient) > 0.0000005;
+                        var earlyCoefficientChanged = Math.abs(nextDailyEarlyCoefficient - loanEditInitialEarlyCoefficient) > 0.0000005;
+                        if ((lateCoefficientChanged || earlyCoefficientChanged) && !window.confirm('ضریب دیرکرد یا زودکرد تغییر کرده است. مانده و برآوردهای این پرونده با ضریب جدید و بر اساس تاریخ‌های پرداخت دوباره محاسبه می‌شوند؛ رسیدهای ثبت‌شده تغییر نمی‌کنند. ادامه می‌دهید؟')) {
+                            return;
+                        }
+                    }
                     var selectedInterestRate = activeInterestRatePercent();
                     var calculatedProfit = selectedLoanType
-                        ? loanProfitToman(payload.amount_toman, selectedInterestRate, String(selectedLoanType.profit_calculation_method || 'monthly'), payload.installments_count, payload.installment_interval_count, payload.installment_interval_unit)
+                        ? loanProfitToman(payload.amount_toman, selectedInterestRate, activeLoanProfitMethod(), payload.installments_count, payload.installment_interval_count, payload.installment_interval_unit)
                         : 0;
                     if (payload.discount_amount_toman < 0) {
                         setLoanFieldError(loanFormDiscountAmountInput, 'مبلغ تخفیف نمی‌تواند منفی باشد.');
                         if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('مبلغ تخفیف نامعتبر است.');
                         return;
                     }
-                    if (loanInstallmentAutoDirty) {
+                    if (!preserveExistingSchedule && loanInstallmentAutoDirty) {
                         payload.amount_toman = payload.installment_amount_toman * payload.installments_count;
                         if (loanAmountInput) {
                             loanAmountSyncGuard = true;
@@ -11021,7 +11304,7 @@
                             if (window.AdminSwal && window.AdminSwal.error) AdminSwal.error('مبلغ تخفیف از جمع اقساط بیشتر است.');
                             return;
                         }
-                    } else {
+                    } else if (!preserveExistingSchedule) {
                         var loanAllocation = allocateLoanInstallmentAmounts(
                             payload.amount_toman,
                             calculatedProfit,
@@ -11861,6 +12144,11 @@
 
             document.addEventListener('keydown', function (e) {
                 if (e.key !== 'Escape') return;
+                if (loanOtpSmsOverlay && !loanOtpSmsOverlay.hidden) {
+                    e.preventDefault();
+                    closeLoanCreationOtpSmsModal();
+                    return;
+                }
                 closeAllCustMenus();
                 if (overlay && !overlay.hidden) closeModal();
                 if (walletAdjustOverlay && !walletAdjustOverlay.hidden) closeWalletAdjustModal();

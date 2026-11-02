@@ -64,7 +64,7 @@ final class DepositsByDateReportService
                 'installment' => static function ($inst): void {
                     $inst->with([
                         'loanFile' => static function ($lf): void {
-                            $lf->with(['customer:id,first_name,last_name,national_id,mobile,customer_code', 'loanType:id,title']);
+                            $lf->with(['customer:id,first_name,last_name,national_id,mobile,customer_code', 'loanType:id,title,daily_late_coefficient,daily_early_coefficient']);
                         },
                     ]);
                 },
@@ -82,20 +82,20 @@ final class DepositsByDateReportService
                     $q->orWhereIn('payment_method', $methodKeys);
                 }
                 $q->orWhereHas('installment', function (Builder $inst) use ($like): void {
-                        $inst->whereHas('loanFile', function (Builder $lf) use ($like): void {
-                            $lf->where('loan_code', 'like', $like)
-                                ->orWhere('sub_file_number', 'like', $like)
-                                ->orWhere('description', 'like', $like)
-                                ->orWhereHas('customer', function (Builder $c) use ($like): void {
-                                    $c->where('first_name', 'like', $like)
-                                        ->orWhere('last_name', 'like', $like)
-                                        ->orWhere('national_id', 'like', $like)
-                                        ->orWhere('mobile', 'like', $like)
-                                        ->orWhere('customer_code', 'like', $like);
-                                })
-                                ->orWhereHas('loanType', static fn (Builder $lt): Builder => $lt->where('title', 'like', $like));
-                        });
+                    $inst->whereHas('loanFile', function (Builder $lf) use ($like): void {
+                        $lf->where('loan_code', 'like', $like)
+                            ->orWhere('sub_file_number', 'like', $like)
+                            ->orWhere('description', 'like', $like)
+                            ->orWhereHas('customer', function (Builder $c) use ($like): void {
+                                $c->where('first_name', 'like', $like)
+                                    ->orWhere('last_name', 'like', $like)
+                                    ->orWhere('national_id', 'like', $like)
+                                    ->orWhere('mobile', 'like', $like)
+                                    ->orWhere('customer_code', 'like', $like);
+                            })
+                            ->orWhereHas('loanType', static fn (Builder $lt): Builder => $lt->where('title', 'like', $like));
                     });
+                });
             });
         }
 

@@ -20,12 +20,6 @@ use App\Models\Organization;
 use App\Models\SmsLog;
 use App\Models\SmsTemplate;
 use App\Rules\IranNationalId;
-use App\Support\GuaranteeReturnOtpSettings;
-use App\Support\ListPerPage;
-use App\Support\LoanCreationOtpSettings;
-use App\Support\InstallmentBookletPrintSettings;
-use App\Support\LoanInstallmentRoundingSettings;
-use App\Support\PrivateStoragePaths;
 use App\Services\Admin\RawSmsDispatcher;
 use App\Services\Customers\AdminCustomerSettleAllLoansService;
 use App\Services\Customers\AdminCustomerSettleAllOverdueService;
@@ -36,8 +30,15 @@ use App\Services\Sms\CustomerSmsCredentialVariables;
 use App\Services\Sms\SmsPanelManager;
 use App\Services\Sms\SmsSettingsService;
 use App\Services\Sms\SmsTemplateRenderer;
+use App\Support\GuaranteeReturnOtpSettings;
+use App\Support\InstallmentBookletPrintSettings;
+use App\Support\ListPerPage;
+use App\Support\LoanCreationOtpSettings;
+use App\Support\LoanInstallmentRoundingSettings;
+use App\Support\PrivateStoragePaths;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -138,7 +139,7 @@ final class CustomerController extends Controller
             'appDisplayName' => $this->appDisplayName(),
             'loanTypes' => LoanType::query()
                 ->latest('id')
-                ->get(['id', 'title', 'interest_rate', 'profit_calculation_method', 'max_loan_amount', 'max_installment_gap', 'installment_gap_unit', 'repayment_periods'])
+                ->get(['id', 'title', 'interest_rate', 'daily_late_coefficient', 'daily_early_coefficient', 'profit_calculation_method', 'max_loan_amount', 'max_installment_gap', 'installment_gap_unit', 'repayment_periods'])
                 ->values(),
             'loanManageMap' => $customers->getCollection()->mapWithKeys(function (Customer $customer): array {
                 $loanFiles = $customer->loanFiles->map(fn (CustomerLoanFile $file): array => $this->mapLoanFile($file))->values();
@@ -910,6 +911,10 @@ final class CustomerController extends Controller
             'settled_jdate' => ['nullable', 'string', 'max:20'],
             'has_custom_interest_rate' => ['nullable', 'boolean'],
             'custom_interest_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'has_custom_daily_late_coefficient' => ['nullable', 'boolean'],
+            'custom_daily_late_coefficient' => ['nullable', 'numeric', 'min:0', 'max:999999.999999'],
+            'has_custom_daily_early_coefficient' => ['nullable', 'boolean'],
+            'custom_daily_early_coefficient' => ['nullable', 'numeric', 'min:0', 'max:999999.999999'],
             'send_sms' => ['nullable', 'boolean'],
             'sms_text' => ['nullable', 'string', 'max:1000'],
             'sms_template_id' => ['nullable', 'integer', 'exists:sms_templates,id'],
@@ -984,6 +989,21 @@ final class CustomerController extends Controller
         }
         $effectiveInterestRate = $hasCustomInterestRate ? (float) $customInterestRate : $baseInterestRate;
 
+        $hasCustomDailyLateCoefficient = (bool) ($validated['has_custom_daily_late_coefficient'] ?? false);
+        $hasCustomDailyEarlyCoefficient = (bool) ($validated['has_custom_daily_early_coefficient'] ?? false);
+        if ($hasCustomDailyLateCoefficient && ($validated['custom_daily_late_coefficient'] ?? '') === '') {
+            return response()->json(['message' => 'ضریب دیرکرد روزانهٔ این پرونده را وارد کنید.'], 422);
+        }
+        if ($hasCustomDailyEarlyCoefficient && ($validated['custom_daily_early_coefficient'] ?? '') === '') {
+            return response()->json(['message' => 'ضریب زودکرد روزانهٔ این پرونده را وارد کنید.'], 422);
+        }
+        $dailyLateCoefficient = $hasCustomDailyLateCoefficient
+            ? round((float) $validated['custom_daily_late_coefficient'], 6)
+            : (float) $loanType->daily_late_coefficient;
+        $dailyEarlyCoefficient = $hasCustomDailyEarlyCoefficient
+            ? round((float) $validated['custom_daily_early_coefficient'], 6)
+            : (float) $loanType->daily_early_coefficient;
+
         if ($installmentAmountIsManual) {
             $expectedAmount = $installmentAmount * $installmentsCount;
             if ($amount !== $expectedAmount) {
@@ -1044,6 +1064,8 @@ final class CustomerController extends Controller
                 $hasCustomInterestRate,
                 $customInterestRate,
                 $effectiveInterestRate,
+                $dailyLateCoefficient,
+                $dailyEarlyCoefficient,
                 $adminId
             ): CustomerLoanFile {
                 $discountMeta = $this->loanDiscountPersistMeta($discountAmount, $adminId);
@@ -1072,6 +1094,8 @@ final class CustomerController extends Controller
                     'has_custom_interest_rate' => $hasCustomInterestRate,
                     'custom_interest_rate' => $customInterestRate,
                     'effective_interest_rate' => $effectiveInterestRate,
+                    'daily_late_coefficient' => $dailyLateCoefficient,
+                    'daily_early_coefficient' => $dailyEarlyCoefficient,
                     'created_by_admin_id' => $adminId,
                 ]);
                 $file->loan_code = 'LF-'.str_pad((string) $file->id, 7, '0', STR_PAD_LEFT);
@@ -1148,6 +1172,10 @@ final class CustomerController extends Controller
             'settled_jdate' => ['nullable', 'string', 'max:20'],
             'has_custom_interest_rate' => ['nullable', 'boolean'],
             'custom_interest_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'has_custom_daily_late_coefficient' => ['nullable', 'boolean'],
+            'custom_daily_late_coefficient' => ['nullable', 'numeric', 'min:0', 'max:999999.999999'],
+            'has_custom_daily_early_coefficient' => ['nullable', 'boolean'],
+            'custom_daily_early_coefficient' => ['nullable', 'numeric', 'min:0', 'max:999999.999999'],
         ]);
 
         $startDate = $this->parseJalaliDate((string) $validated['loan_start_jdate']);
@@ -1190,32 +1218,80 @@ final class CustomerController extends Controller
         $loanType = LoanType::query()->findOrFail((int) $validated['loan_type_id']);
         $intervalCount = (int) $validated['installment_interval_count'];
         $intervalUnit = (string) $validated['installment_interval_unit'];
-        if ($intervalUnit !== (string) $loanType->installment_gap_unit) {
+        $planTermsUnchanged = (int) $loanFile->loan_type_id === (int) $loanType->id
+            && $amount === (int) $loanFile->amount_toman
+            && $installmentsCount === (int) $loanFile->installments_count
+            && $intervalCount === (int) $loanFile->installment_interval_count
+            && $intervalUnit === (string) $loanFile->installment_interval_unit;
+        if (! $planTermsUnchanged && $intervalUnit !== (string) $loanType->installment_gap_unit) {
             return response()->json(['message' => 'محدوده زمانی اقساط باید مطابق تنظیمات نوع وام باشد.'], 422);
         }
-        if ($loanType->max_loan_amount !== null && $amount > (int) $loanType->max_loan_amount) {
+        if (! $planTermsUnchanged && $loanType->max_loan_amount !== null && $amount > (int) $loanType->max_loan_amount) {
             return response()->json(['message' => 'مبلغ وام از سقف مجاز نوع وام بیشتر است.'], 422);
         }
-        if ($loanType->max_installment_gap !== null && $intervalCount > (int) $loanType->max_installment_gap) {
+        if (! $planTermsUnchanged && $loanType->max_installment_gap !== null && $intervalCount > (int) $loanType->max_installment_gap) {
             return response()->json(['message' => 'فاصله اقساط از مقدار مجاز نوع وام بیشتر است.'], 422);
         }
-        if (! $this->isRepaymentPeriodAllowed($loanType, $installmentsCount, $intervalCount, $intervalUnit, $amount)) {
+        if (! $planTermsUnchanged && ! $this->isRepaymentPeriodAllowed($loanType, $installmentsCount, $intervalCount, $intervalUnit, $amount)) {
             return response()->json(['message' => 'دوره بازپرداخت واردشده با محدودیت‌های نوع وام سازگار نیست.'], 422);
         }
 
         $baseInterestRate = (float) $loanType->interest_rate;
         $profitMethod = (string) $loanType->profit_calculation_method;
-        $hasCustomInterestRate = (bool) ($validated['has_custom_interest_rate'] ?? false);
+        $interestRateWasSubmitted = array_key_exists('has_custom_interest_rate', $validated);
+        $hasCustomInterestRate = $interestRateWasSubmitted
+            ? (bool) $validated['has_custom_interest_rate']
+            : (bool) $loanFile->has_custom_interest_rate;
         $customInterestRate = null;
         if ($hasCustomInterestRate) {
-            if (($validated['custom_interest_rate'] ?? null) === null || $validated['custom_interest_rate'] === '') {
+            $customInterestRateInput = $interestRateWasSubmitted
+                ? ($validated['custom_interest_rate'] ?? null)
+                : $loanFile->custom_interest_rate;
+            if ($customInterestRateInput === null || $customInterestRateInput === '') {
                 return response()->json(['message' => 'درصد بهره جدید را وارد کنید.'], 422);
             }
-            $customInterestRate = round((float) $validated['custom_interest_rate'], 2);
+            $customInterestRate = round((float) $customInterestRateInput, 2);
+        }
+        if ((int) $loanFile->loan_type_id === (int) $loanType->id) {
+            $baseInterestRate = (float) ($loanFile->base_interest_rate ?? $loanFile->effective_interest_rate);
+            $profitMethod = (string) ($loanFile->profit_calculation_method ?: $profitMethod);
         }
         $effectiveInterestRate = $hasCustomInterestRate ? (float) $customInterestRate : $baseInterestRate;
 
-        if ($installmentAmountIsManual) {
+        $dailyLateCoefficient = $loanFile->dailyLateCoefficient();
+        $dailyEarlyCoefficient = $loanFile->dailyEarlyCoefficient();
+        $lateCoefficientWasSubmitted = array_key_exists('has_custom_daily_late_coefficient', $validated);
+        $earlyCoefficientWasSubmitted = array_key_exists('has_custom_daily_early_coefficient', $validated);
+
+        if ($lateCoefficientWasSubmitted) {
+            if ((bool) $validated['has_custom_daily_late_coefficient']) {
+                if (($validated['custom_daily_late_coefficient'] ?? '') === '') {
+                    return response()->json(['message' => 'ضریب دیرکرد روزانهٔ این پرونده را وارد کنید.'], 422);
+                }
+                $dailyLateCoefficient = round((float) $validated['custom_daily_late_coefficient'], 6);
+            }
+        }
+
+        if ($earlyCoefficientWasSubmitted) {
+            if ((bool) $validated['has_custom_daily_early_coefficient']) {
+                if (($validated['custom_daily_early_coefficient'] ?? '') === '') {
+                    return response()->json(['message' => 'ضریب زودکرد روزانهٔ این پرونده را وارد کنید.'], 422);
+                }
+                $dailyEarlyCoefficient = round((float) $validated['custom_daily_early_coefficient'], 6);
+            }
+        }
+
+        $scheduleUnchanged = $planTermsUnchanged
+            && $startDate->isSameDay($loanFile->loan_start_date)
+            && $installmentAmount === (int) $loanFile->installment_amount_toman
+            && $downPayment === (int) $loanFile->down_payment_toman
+            && $effectiveInterestRate === (float) $loanFile->effective_interest_rate
+            && $profitMethod === (string) $loanFile->profit_calculation_method;
+
+        if ($scheduleUnchanged) {
+            // Changing contract penalties must not regenerate a legacy installment schedule.
+            $installmentAmount = (int) $loanFile->installment_amount_toman;
+        } elseif ($installmentAmountIsManual) {
             $expectedAmount = $installmentAmount * $installmentsCount;
             if ($amount !== $expectedAmount) {
                 return response()->json([
@@ -1278,9 +1354,14 @@ final class CustomerController extends Controller
                 $baseInterestRate,
                 $hasCustomInterestRate,
                 $customInterestRate,
-                $effectiveInterestRate
+                $effectiveInterestRate,
+                $dailyLateCoefficient,
+                $dailyEarlyCoefficient,
+                $lateCoefficientWasSubmitted,
+                $earlyCoefficientWasSubmitted,
+                $scheduleUnchanged
             ): void {
-                $loanFile->update([
+                $updates = [
                     'loan_type_id' => $loanType->id,
                     'loan_start_date' => $startDate,
                     'disbursement_due_date' => $disbursementDueDate,
@@ -1299,11 +1380,20 @@ final class CustomerController extends Controller
                     'has_custom_interest_rate' => $hasCustomInterestRate,
                     'custom_interest_rate' => $customInterestRate,
                     'effective_interest_rate' => $effectiveInterestRate,
-                ]);
+                ];
+                if ($lateCoefficientWasSubmitted) {
+                    $updates['daily_late_coefficient'] = $dailyLateCoefficient;
+                }
+                if ($earlyCoefficientWasSubmitted) {
+                    $updates['daily_early_coefficient'] = $dailyEarlyCoefficient;
+                }
+                $loanFile->update($updates);
 
                 $loanFile->refresh();
                 $loanFile->load('loanType');
-                app(LoanInstallmentScheduleService::class)->syncScheduleFromLoanFile($loanFile, $equalInstallmentForSchedule);
+                if (! $scheduleUnchanged) {
+                    app(LoanInstallmentScheduleService::class)->syncScheduleFromLoanFile($loanFile, $equalInstallmentForSchedule);
+                }
 
                 $loanFile->refresh();
                 $loanFile->load(['loanType', 'installments']);
@@ -1521,7 +1611,7 @@ final class CustomerController extends Controller
             },
         ]);
 
-        $lateCoef = (float) ($loanFile->loanType?->daily_late_coefficient ?? 0);
+        $lateCoef = $loanFile->dailyLateCoefficient();
 
         $finance = app(LoanFileFinanceCalculator::class);
         $snapshot = $finance->loanInstallmentFinancialSnapshot($loanFile, $finance->totalRepayableToman($loanFile));
@@ -3562,7 +3652,7 @@ final class CustomerController extends Controller
     /**
      * سقف اعتبار خرید مشتری + مبلغ استفاده‌شده از وام‌های جاری با بدهی فعال.
      *
-     * @param  \Illuminate\Support\Collection<int, array<string, mixed>>|null  $loanFilesMapped
+     * @param  Collection<int, array<string, mixed>>|null  $loanFilesMapped
      * @return array{
      *     purchase_credit_ceiling_toman: int,
      *     purchase_credit_effective_toman: int,
@@ -4032,7 +4122,7 @@ final class CustomerController extends Controller
     /**
      * جستجوی لیست مشتریان: کد/نام/موبایل/کد ملی و در صورت عددی بودن عبارت، مبلغ قسط.
      */
-    private function applyCustomerListSearch(\Illuminate\Database\Eloquent\Builder $query, string $q): void
+    private function applyCustomerListSearch(Builder $query, string $q): void
     {
         $q = trim($q);
         if ($q === '') {
@@ -4166,7 +4256,7 @@ final class CustomerController extends Controller
     /**
      * @param  array{list_scope: string, disbursement_due_overdue: bool}  $filters
      */
-    private function applyCustomerListFilters(\Illuminate\Database\Eloquent\Builder $query, array $filters): void
+    private function applyCustomerListFilters(Builder $query, array $filters): void
     {
         $today = now()->toDateString();
 
@@ -4195,7 +4285,7 @@ final class CustomerController extends Controller
     /**
      * @param  array{sort: ?string, dir: 'asc'|'desc'}  $sort
      */
-    private function applyCustomerDebtSort(\Illuminate\Database\Eloquent\Builder $query, string $column, string $direction): \Illuminate\Database\Eloquent\Builder
+    private function applyCustomerDebtSort(Builder $query, string $column, string $direction): Builder
     {
         $data = $this->customerDebtScopeIds();
         $values = $column === 'nearest_due' ? $data['nearest'] : $data['amounts'];
@@ -4217,7 +4307,7 @@ final class CustomerController extends Controller
         return $query->orderByRaw($expression.' '.($direction === 'desc' ? 'desc' : 'asc'), $bindings);
     }
 
-    private function applyCustomerListSort(\Illuminate\Database\Eloquent\Builder $query, array $sort): void
+    private function applyCustomerListSort(Builder $query, array $sort): void
     {
         $column = $sort['sort'];
         $direction = $sort['dir'] === 'desc' ? 'desc' : 'asc';
@@ -4399,10 +4489,16 @@ final class CustomerController extends Controller
                     ? Jalali::instance(Carbon::parse($file->revoked_at))->format('Y/m/d')
                     : '',
                 'revoked_by_admin_id' => $file->revoked_by_admin_id !== null ? (int) $file->revoked_by_admin_id : null,
-                'base_interest_rate' => (float) $file->base_interest_rate,
+                'base_interest_rate' => (float) ($file->base_interest_rate ?? $file->effective_interest_rate),
                 'has_custom_interest_rate' => (bool) $file->has_custom_interest_rate,
                 'custom_interest_rate' => $file->custom_interest_rate !== null ? (float) $file->custom_interest_rate : null,
                 'effective_interest_rate' => (float) $file->effective_interest_rate,
+                'daily_late_coefficient' => $file->dailyLateCoefficient(),
+                'daily_early_coefficient' => $file->dailyEarlyCoefficient(),
+                'has_custom_daily_late_coefficient' => $file->daily_late_coefficient !== null,
+                'custom_daily_late_coefficient' => $file->daily_late_coefficient !== null ? (float) $file->daily_late_coefficient : null,
+                'has_custom_daily_early_coefficient' => $file->daily_early_coefficient !== null,
+                'custom_daily_early_coefficient' => $file->daily_early_coefficient !== null ? (float) $file->daily_early_coefficient : null,
                 'calculated_profit_toman' => $profit,
                 'total_repayable_toman' => $totalRepayable,
                 'remaining_amount_toman' => 0,
@@ -4423,8 +4519,8 @@ final class CustomerController extends Controller
         $remainingAmount = $file->is_settled
             ? 0
             : (int) $snap['remaining_amount_toman'];
-        $lateCoef = (float) ($file->loanType?->daily_late_coefficient ?? 0);
-        $earlyCoef = (float) ($file->loanType?->daily_early_coefficient ?? 0);
+        $lateCoef = $file->dailyLateCoefficient();
+        $earlyCoef = $file->dailyEarlyCoefficient();
         // هم‌سو با خلاصهٔ مدال اقساط: دیرکرد اقساط معوق پرداخت‌نشده + دیرکرد اقساط پرداخت‌شده با تأخیر
         $latePenalty = $file->is_settled
             ? 0
@@ -4456,10 +4552,16 @@ final class CustomerController extends Controller
             'is_revoked' => false,
             'revoked_jdate' => '',
             'revoked_by_admin_id' => null,
-            'base_interest_rate' => (float) $file->base_interest_rate,
+            'base_interest_rate' => (float) ($file->base_interest_rate ?? $file->effective_interest_rate),
             'has_custom_interest_rate' => (bool) $file->has_custom_interest_rate,
             'custom_interest_rate' => $file->custom_interest_rate !== null ? (float) $file->custom_interest_rate : null,
             'effective_interest_rate' => (float) $file->effective_interest_rate,
+            'daily_late_coefficient' => $file->dailyLateCoefficient(),
+            'daily_early_coefficient' => $file->dailyEarlyCoefficient(),
+            'has_custom_daily_late_coefficient' => $file->daily_late_coefficient !== null,
+            'custom_daily_late_coefficient' => $file->daily_late_coefficient !== null ? (float) $file->daily_late_coefficient : null,
+            'has_custom_daily_early_coefficient' => $file->daily_early_coefficient !== null,
+            'custom_daily_early_coefficient' => $file->daily_early_coefficient !== null ? (float) $file->daily_early_coefficient : null,
             'calculated_profit_toman' => $profit,
             'total_repayable_toman' => $totalRepayable,
             'requires_schedule_review' => $snap['requires_schedule_review'],
@@ -4489,7 +4591,7 @@ final class CustomerController extends Controller
     }
 
     /**
-     * ماندهٔ بازپرداخت قرارداد، پرداخت‌ها و برآورد دیرکرد تا امروز بر اساس ضریب دیرکرد روزانه نوع وام.
+     * ماندهٔ بازپرداخت قرارداد، پرداخت‌ها و برآورد دیرکرد با ضریب روزانهٔ ثبت‌شده برای همان پرونده.
      * «مانده قسطی» بر مبنای مبلغ قابل بازپرداخت کل منهای جمع پرداخت‌ها است (پرداخت اضافه در یک قسط، ماندهٔ کل را کاهش می‌دهد).
      *
      * @return array{schedule_remaining_toman: int, total_paid_toman: int, paid_installments_count: int, paid_installments_slot_count: int, late_fee_so_far_toman: int}
@@ -4540,8 +4642,8 @@ final class CustomerController extends Controller
             ? 0
             : (int) $snap['remaining_amount_toman'];
         $unpaidCount = (int) $snap['unpaid_installments_count'];
-        $lateCoef = (float) ($loanFile->loanType?->daily_late_coefficient ?? 0);
-        $earlyCoef = (float) ($loanFile->loanType?->daily_early_coefficient ?? 0);
+        $lateCoef = $loanFile->dailyLateCoefficient();
+        $earlyCoef = $loanFile->dailyEarlyCoefficient();
 
         return [
             'paid_installments_count' => (int) $snap['paid_installments_count'],
@@ -4809,8 +4911,8 @@ final class CustomerController extends Controller
         }
 
         $file->loadMissing('loanType');
-        $lateCoef = (float) ($file->loanType?->daily_late_coefficient ?? 0);
-        $earlyCoef = (float) ($file->loanType?->daily_early_coefficient ?? 0);
+        $lateCoef = $file->dailyLateCoefficient();
+        $earlyCoef = $file->dailyEarlyCoefficient();
         $finance = app(LoanFileFinanceCalculator::class);
 
         $due = Carbon::parse($inst->due_date)->startOfDay();
@@ -5605,7 +5707,7 @@ final class CustomerController extends Controller
     }
 
     /**
-     * @return array{discount_updated_at: \Carbon\Carbon|null, discount_updated_by_admin_id: int|null}
+     * @return array{discount_updated_at: Carbon|null, discount_updated_by_admin_id: int|null}
      */
     private function loanDiscountPersistMeta(int $discountAmount, int|string|null $adminId): array
     {
@@ -5623,7 +5725,7 @@ final class CustomerController extends Controller
     }
 
     /**
-     * @param  array{discount_updated_at: \Carbon\Carbon|null, discount_updated_by_admin_id: int|null}  $discountMeta
+     * @param  array{discount_updated_at: Carbon|null, discount_updated_by_admin_id: int|null}  $discountMeta
      */
     private function assertAndApplyLoanDiscountAmount(
         CustomerLoanFile $loanFile,
@@ -6255,8 +6357,7 @@ final class CustomerController extends Controller
             : 0;
         $profitRemaining = max(0, min($profitRemaining, $scheduleRemainingContract));
 
-        $lt = $file->loanType;
-        $earlyCoef = $lt !== null ? (float) $lt->daily_early_coefficient : 0.0;
+        $earlyCoef = $file->dailyEarlyCoefficient();
 
         $now = Carbon::now()->startOfDay();
         $lastDueRaw = $instColl->max('due_date');
@@ -6414,7 +6515,7 @@ final class CustomerController extends Controller
                     : null,
                 ['label' => 'مجموع پرداخت‌شده از اقساط', 'amount_toman' => $totalPaid],
                 ['label' => 'سهم تخمینی سود باقیمانده (بر اساس ماندهٔ تعهد)', 'amount_toman' => $profitRemaining, 'hint' => 'به‌ازای ماندهٔ '.number_format((float) $scheduleRemainingContract, 0, '.', ',').' تومان از '.number_format((float) $totalRepayable, 0, '.', ',').' تومان کل تعهد'],
-                ['label' => 'تخفیف زودکرد تخمینی (ضریب نوع وام)', 'amount_toman' => $earlyRebate, 'hint' => 'حداکثر '.round($earlyFactor * 100, 2).'٪ از سهم سود باقیمانده در این مدل'],
+                ['label' => 'تخفیف زودکرد تخمینی (ضریب پرونده)', 'amount_toman' => $earlyRebate, 'hint' => 'حداکثر '.round($earlyFactor * 100, 2).'٪ از سهم سود باقیمانده در این مدل'],
                 ['label' => 'پیشنهاد تسویه با کسر ضریب زودکرد (سقف: ماندهٔ واقعی)', 'amount_toman' => $amountWithEarly, 'emphasis' => true],
                 ['label' => 'کسر معادل یک دور سود از اقساط با ماندهٔ نامی («بهره ماهانه» تقریبی)', 'amount_toman' => $monthlyStyleCut],
                 ['label' => 'پیشنهاد تسویه با کسر بهره دوره‌ای — سقف ماندهٔ واقعی', 'amount_toman' => $amountWithMonthlyStyle, 'emphasis' => true],

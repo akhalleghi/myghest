@@ -71,7 +71,7 @@ final class LoanFileFinanceCalculator
     }
 
     /**
-     * Shared debt balance: nominal installments plus unpaid charges, less registered discounts.
+     * Shared debt balance: nominal installments plus unpaid charges using the file's coefficient (legacy files fall back to loan type), less registered discounts.
      *
      * @return array<string, mixed>
      */
@@ -82,7 +82,7 @@ final class LoanFileFinanceCalculator
         $principalPaid = 0;
         $lateRemaining = 0;
         $received = 0;
-        $coefficient = (float) ($file->loanType?->daily_late_coefficient ?? 0);
+        $coefficient = $file->dailyLateCoefficient();
         foreach ($file->installments as $installment) {
             $installment->setRelation('loanFile', $file);
             $balance = app(InstallmentDebtCalculator::class)->balance($installment, $coefficient, $at, $excludePaymentId);

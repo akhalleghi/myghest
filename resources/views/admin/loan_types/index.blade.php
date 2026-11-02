@@ -399,7 +399,7 @@
                                 <label for="lt-late-coef">ضریب دیرکرد روزانه <span class="req">*</span></label>
                                 <input class="lt-input lt-num" type="number" name="daily_late_coefficient" id="lt-late-coef" required
                                     min="0" step="0.000001" value="{{ old('daily_late_coefficient', '0.008') }}">
-                                <p class="lt-hint">عدد اعشاری مانند ۰٫۰۰۸ برای محاسبه جریمه روزانه دیرکرد.</p>
+                                <p class="lt-hint">عدد اعشاری مانند ۰٫۰۰۸ برای محاسبه جریمه روزانه دیرکرد. تغییر نرخ عمومی فقط بر قراردادهای جدید اثر دارد؛ نرخ هر پرونده از مدیریت وام همان مشتری قابل تغییر است.</p>
                                 @error('daily_late_coefficient')<div class="lt-field-error">{{ $message }}</div>@enderror
                             </div>
                             <div class="lt-field">

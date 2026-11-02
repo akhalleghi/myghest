@@ -97,7 +97,7 @@ final class CustomerLoanPortalPresenter
         $installmentPayCeilingToman = $this->finance->installmentPaymentCeilingToman($file);
         $unpaidCount = (int) $snap['unpaid_installments_count'];
 
-        $lateCoef = (float) ($file->loanType?->daily_late_coefficient ?? 0);
+        $lateCoef = $file->dailyLateCoefficient();
 
         $ribbon = null;
         $ribbonIcon = '';

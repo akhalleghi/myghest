@@ -10,6 +10,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class CustomerLoanFile extends Model
 {
+    protected static function booted(): void
+    {
+        self::creating(function (self $file): void {
+            // Contract rates are snapshots, including when the administrator uses the plan defaults.
+            if ($file->daily_late_coefficient !== null && $file->daily_early_coefficient !== null) {
+                return;
+            }
+            $type = LoanType::query()->find($file->loan_type_id, ['id', 'daily_late_coefficient', 'daily_early_coefficient']);
+            $file->daily_late_coefficient ??= $type?->daily_late_coefficient ?? 0;
+            $file->daily_early_coefficient ??= $type?->daily_early_coefficient ?? 0;
+        });
+    }
+
     protected $fillable = [
         'customer_id',
         'loan_type_id',
@@ -36,6 +49,8 @@ final class CustomerLoanFile extends Model
         'has_custom_interest_rate',
         'custom_interest_rate',
         'effective_interest_rate',
+        'daily_late_coefficient',
+        'daily_early_coefficient',
         'created_by_admin_id',
     ];
 
@@ -64,6 +79,8 @@ final class CustomerLoanFile extends Model
             'has_custom_interest_rate' => 'boolean',
             'custom_interest_rate' => 'decimal:2',
             'effective_interest_rate' => 'decimal:2',
+            'daily_late_coefficient' => 'decimal:6',
+            'daily_early_coefficient' => 'decimal:6',
             'created_by_admin_id' => 'integer',
         ];
     }
@@ -76,6 +93,38 @@ final class CustomerLoanFile extends Model
     public function loanType(): BelongsTo
     {
         return $this->belongsTo(LoanType::class);
+    }
+
+    public function dailyLateCoefficient(): float
+    {
+        $coefficient = $this->getAttribute('daily_late_coefficient');
+        if ($coefficient !== null) {
+            return (float) $coefficient;
+        }
+
+        $loanType = $this->loanType;
+        $coefficient = $loanType?->getAttribute('daily_late_coefficient');
+        if ($loanType !== null && $coefficient === null) {
+            $coefficient = $this->loanType()->value('daily_late_coefficient');
+        }
+
+        return (float) ($coefficient ?? 0);
+    }
+
+    public function dailyEarlyCoefficient(): float
+    {
+        $coefficient = $this->getAttribute('daily_early_coefficient');
+        if ($coefficient !== null) {
+            return (float) $coefficient;
+        }
+
+        $loanType = $this->loanType;
+        $coefficient = $loanType?->getAttribute('daily_early_coefficient');
+        if ($loanType !== null && $coefficient === null) {
+            $coefficient = $this->loanType()->value('daily_early_coefficient');
+        }
+
+        return (float) ($coefficient ?? 0);
     }
 
     public function createdByAdmin(): BelongsTo

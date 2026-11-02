@@ -102,7 +102,7 @@ final class LoanInterestFeesReportService
         $query = CustomerLoanFile::query()
             ->whereNull('revoked_at')
             ->whereBetween('loan_start_date', [$from->toDateString(), $to->toDateString()])
-            ->with(['customer:id,first_name,last_name,national_id,mobile,customer_code', 'loanType:id,title', 'installments.payments'])
+            ->with(['customer:id,first_name,last_name,national_id,mobile,customer_code', 'loanType:id,title,daily_late_coefficient,daily_early_coefficient', 'installments.payments'])
             ->orderByDesc('loan_start_date')
             ->orderByDesc('id');
 

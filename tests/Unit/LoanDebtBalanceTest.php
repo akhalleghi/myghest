@@ -105,6 +105,28 @@ final class LoanDebtBalanceTest extends TestCase
         self::assertSame(2, $snap['unpaid_installments_count']);
     }
 
+    public function test_file_specific_daily_coefficients_override_loan_type_defaults(): void
+    {
+        Carbon::setTestNow('2026-08-21');
+        $installment = $this->installment(900000, []);
+        $type = new LoanType(['daily_late_coefficient' => 0.005, 'daily_early_coefficient' => 0.006]);
+        $file = new CustomerLoanFile([
+            'amount_toman' => 900000,
+            'is_settled' => false,
+            'discount_amount_toman' => 0,
+            'daily_late_coefficient' => 0.001,
+            'daily_early_coefficient' => 0.002,
+        ]);
+        $file->setRelation('loanType', $type);
+        $file->setRelation('installments', new Collection([$installment]));
+
+        $snapshot = app(LoanFileFinanceCalculator::class)->loanInstallmentFinancialSnapshot($file, 900000);
+
+        self::assertSame(18000, $snapshot['late_fee_payable_toman']);
+        self::assertSame(0.001, $file->dailyLateCoefficient());
+        self::assertSame(0.002, $file->dailyEarlyCoefficient());
+    }
+
     public function test_loan_snapshot_does_not_report_settled_while_fees_remain(): void
     {
         Carbon::setTestNow('2026-08-21');

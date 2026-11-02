@@ -71,7 +71,14 @@ final class LoanDebtPaymentTest extends TestCase
         Schema::create('loan_types', function (Blueprint $t): void {
             $t->id();
             $t->string('title');
+            $t->decimal('interest_rate', 5, 2)->default(0);
+            $t->string('profit_calculation_method')->default('monthly');
+            $t->string('installment_gap_unit')->default('monthly');
+            $t->unsignedBigInteger('max_loan_amount')->nullable();
+            $t->integer('max_installment_gap')->nullable();
+            $t->json('repayment_periods')->nullable();
             $t->decimal('daily_late_coefficient', 12, 8);
+            $t->decimal('daily_early_coefficient', 12, 8)->default(0);
             $t->timestamps();
         });
         Schema::create('customer_loan_files', function (Blueprint $t): void {
@@ -80,15 +87,25 @@ final class LoanDebtPaymentTest extends TestCase
             $t->unsignedBigInteger('loan_type_id');
             $t->string('loan_code');
             $t->date('loan_start_date');
+            $t->date('disbursement_due_date')->nullable();
+            $t->string('sub_file_number')->nullable();
+            $t->text('description')->nullable();
             $t->unsignedBigInteger('amount_toman');
             $t->integer('installments_count');
             $t->integer('installment_interval_count');
             $t->string('installment_interval_unit');
             $t->unsignedBigInteger('installment_amount_toman');
             $t->decimal('effective_interest_rate', 6, 2)->default(0);
+            $t->decimal('base_interest_rate', 6, 2)->default(0);
+            $t->boolean('has_custom_interest_rate')->default(false);
+            $t->decimal('custom_interest_rate', 6, 2)->nullable();
+            $t->decimal('daily_late_coefficient', 12, 6)->nullable();
+            $t->decimal('daily_early_coefficient', 12, 6)->nullable();
             $t->string('profit_calculation_method');
             $t->unsignedBigInteger('down_payment_toman')->default(0);
             $t->unsignedBigInteger('discount_amount_toman')->default(0);
+            $t->timestamp('discount_updated_at')->nullable();
+            $t->unsignedBigInteger('discount_updated_by_admin_id')->nullable();
             $t->boolean('is_settled')->default(false);
             $t->timestamp('revoked_at')->nullable();
             $t->date('settled_at')->nullable();
@@ -136,6 +153,7 @@ final class LoanDebtPaymentTest extends TestCase
             $t->timestamps();
         });
         foreach ([
+            '2026_05_07_040000_create_app_settings_table.php',
             '2026_05_09_090000_create_customer_wallets_table.php',
             '2026_05_09_090100_create_customer_wallet_transactions_table.php',
             '2026_05_09_123000_add_request_uuid_to_customer_wallet_transactions_table.php',
@@ -178,6 +196,167 @@ final class LoanDebtPaymentTest extends TestCase
         $finance = app(LoanFileFinanceCalculator::class);
 
         return $finance->loanInstallmentFinancialSnapshot($this->file, $finance->totalRepayableToman($this->file));
+    }
+
+    private function loanEditRequest(array $changes = []): Request
+    {
+        $this->file->refresh();
+
+        return Request::create('/', 'PUT', array_replace([
+            'loan_start_jdate' => Jalali::instance($this->file->loan_start_date)->format('Y/m/d'),
+            'loan_type_id' => $this->file->loan_type_id,
+            'amount_toman' => $this->file->amount_toman,
+            'installments_count' => $this->file->installments_count,
+            'installment_interval_count' => $this->file->installment_interval_count,
+            'installment_interval_unit' => $this->file->installment_interval_unit,
+            'installment_amount_toman' => $this->file->installment_amount_toman,
+            'down_payment_toman' => $this->file->down_payment_toman,
+            'discount_amount_toman' => $this->file->discount_amount_toman,
+            'has_custom_interest_rate' => $this->file->has_custom_interest_rate,
+            'custom_interest_rate' => $this->file->custom_interest_rate,
+            'has_custom_daily_late_coefficient' => false,
+            'has_custom_daily_early_coefficient' => false,
+        ], $changes));
+    }
+
+    public function test_default_contract_rates_survive_plan_changes_and_new_contracts_use_new_defaults(): void
+    {
+        $type = $this->file->loanType;
+        $type->update(['daily_late_coefficient' => 0.009, 'daily_early_coefficient' => 0.003]);
+
+        self::assertSame(0.005, $this->file->fresh()->dailyLateCoefficient());
+        self::assertSame(0.0, $this->file->fresh()->dailyEarlyCoefficient());
+        self::assertSame(90000, $this->snapshot()['late_fee_payable_toman']);
+
+        $newFile = $this->file->replicate();
+        $newFile->loan_code = 'NEW';
+        $newFile->daily_late_coefficient = null;
+        $newFile->daily_early_coefficient = null;
+        $newFile->save();
+        self::assertSame(0.009, $newFile->fresh()->dailyLateCoefficient());
+        self::assertSame(0.003, $newFile->fresh()->dailyEarlyCoefficient());
+
+        $zeroFile = $newFile->replicate();
+        $zeroFile->loan_code = 'ZERO';
+        $zeroFile->daily_late_coefficient = 0;
+        $zeroFile->daily_early_coefficient = 0;
+        $zeroFile->save();
+        $type->update(['daily_late_coefficient' => 0.02, 'daily_early_coefficient' => 0.02]);
+        self::assertSame(0.0, $zeroFile->fresh()->dailyLateCoefficient());
+        self::assertSame(0.0, $zeroFile->fresh()->dailyEarlyCoefficient());
+    }
+
+    public function test_legacy_rate_migration_preserves_financial_records_and_already_saved_contract_rates(): void
+    {
+        DB::table('customer_loan_files')->where('id', $this->file->id)
+            ->update(['daily_late_coefficient' => null, 'daily_early_coefficient' => null]);
+        $before = $this->file->fresh()->getRawOriginal();
+        $beforeInstallment = $this->installment->fresh()->getRawOriginal();
+        $beforeBalance = $this->snapshot()['remaining_amount_toman'];
+        $custom = $this->file->replicate();
+        $custom->loan_code = 'CUSTOM';
+        $custom->daily_late_coefficient = 0;
+        $custom->daily_early_coefficient = 0.002;
+        $custom->save();
+
+        (require database_path('migrations/2026_11_02_130100_snapshot_existing_loan_file_daily_coefficients.php'))->up();
+
+        $after = $this->file->fresh()->getRawOriginal();
+        unset($before['daily_late_coefficient'], $before['daily_early_coefficient'], $after['daily_late_coefficient'], $after['daily_early_coefficient']);
+        self::assertSame($before, $after);
+        self::assertSame($beforeInstallment, $this->installment->fresh()->getRawOriginal());
+        self::assertSame($beforeBalance, $this->snapshot()['remaining_amount_toman']);
+        self::assertSame(0.0, $custom->fresh()->dailyLateCoefficient());
+        self::assertSame(0.002, $custom->fresh()->dailyEarlyCoefficient());
+
+        $this->file->loanType->update(['daily_late_coefficient' => 0.01]);
+        (require database_path('migrations/2026_11_02_130100_snapshot_existing_loan_file_daily_coefficients.php'))->up();
+        self::assertSame($beforeBalance, $this->snapshot()['remaining_amount_toman']);
+    }
+
+    public function test_custom_interest_recalculates_only_the_selected_contract_and_preserves_recorded_receipts(): void
+    {
+        app(CustomerController::class)->storeLoanInstallmentPayment($this->request(100000, '2026-07-20'), $this->customer, $this->file, $this->installment);
+        $beforeReceipt = $this->installment->payments()->firstOrFail()->getRawOriginal();
+        $other = $this->file->replicate();
+        $other->loan_code = 'OTHER';
+        $other->save();
+        $beforeOther = $other->fresh()->getRawOriginal();
+        $this->file->loanType->update(['interest_rate' => 25]);
+
+        $response = app(CustomerController::class)->updateLoan($this->loanEditRequest([
+            'has_custom_interest_rate' => true,
+            'custom_interest_rate' => 10,
+            'installment_amount_toman' => 990000,
+        ]), $this->customer, $this->file);
+
+        self::assertSame(200, $response->getStatusCode(), $response->getContent());
+        self::assertSame(10.0, (float) $this->file->fresh()->effective_interest_rate);
+        self::assertSame(990000, app(LoanFileFinanceCalculator::class)->totalRepayableToman($this->file->fresh()));
+        self::assertSame(990000, (int) $this->installment->fresh()->amount_toman);
+        self::assertSame(100000, (int) $this->installment->fresh()->paid_amount_toman);
+        self::assertSame($beforeReceipt, $this->installment->payments()->firstOrFail()->getRawOriginal());
+        self::assertSame($beforeOther, $other->fresh()->getRawOriginal());
+    }
+
+    public function test_editing_contract_penalties_recalculates_receipts_without_rewriting_installments_or_other_loans(): void
+    {
+        app(CustomerController::class)->storeLoanInstallmentPayment($this->request(930000, '2026-08-11'), $this->customer, $this->file, $this->installment);
+        $beforeInstallment = $this->installment->fresh()->getRawOriginal();
+        $beforeReceipt = $this->installment->payments()->firstOrFail()->getRawOriginal();
+        $other = $this->file->replicate();
+        $other->loan_code = 'OTHER';
+        $other->save();
+        $beforeOther = $other->fresh()->getRawOriginal();
+        $this->file->loanType->update(['interest_rate' => 25, 'daily_late_coefficient' => 0.02]);
+
+        $response = app(CustomerController::class)->updateLoan($this->loanEditRequest([
+            'has_custom_daily_late_coefficient' => true,
+            'custom_daily_late_coefficient' => 0.01,
+            'has_custom_daily_early_coefficient' => true,
+            'custom_daily_early_coefficient' => 0.002,
+        ]), $this->customer, $this->file);
+
+        self::assertSame(200, $response->getStatusCode(), $response->getContent());
+        self::assertSame(60000, $this->snapshot()['remaining_amount_toman']);
+        self::assertSame(0.0, (float) $this->file->fresh()->effective_interest_rate);
+        self::assertSame(0.002, $this->file->fresh()->dailyEarlyCoefficient());
+        self::assertSame($beforeInstallment, $this->installment->fresh()->getRawOriginal());
+        self::assertSame($beforeReceipt, $this->installment->payments()->firstOrFail()->getRawOriginal());
+        self::assertSame($beforeOther, $other->fresh()->getRawOriginal());
+    }
+
+    public function test_unchecked_rate_controls_preserve_the_contract_and_legacy_inconsistent_schedule(): void
+    {
+        $this->file->update(['amount_toman' => 1800000]);
+        $beforeInstallment = $this->installment->fresh()->getRawOriginal();
+        $this->file->loanType->update(['interest_rate' => 25, 'daily_late_coefficient' => 0.02]);
+
+        $response = app(CustomerController::class)->updateLoan($this->loanEditRequest(), $this->customer, $this->file);
+
+        self::assertSame(200, $response->getStatusCode(), $response->getContent());
+        self::assertSame(0.005, $this->file->fresh()->dailyLateCoefficient());
+        self::assertSame(0.0, (float) $this->file->fresh()->effective_interest_rate);
+        self::assertSame($beforeInstallment, $this->installment->fresh()->getRawOriginal());
+        self::assertTrue($this->snapshot()['requires_schedule_review']);
+    }
+
+    public function test_older_edit_requests_preserve_custom_interest_when_rate_controls_are_omitted(): void
+    {
+        $this->file->update(['has_custom_interest_rate' => true, 'custom_interest_rate' => 10, 'effective_interest_rate' => 10]);
+        $this->file->loanType->update(['interest_rate' => 25, 'installment_gap_unit' => 'weekly']);
+        $beforeInstallment = $this->installment->fresh()->getRawOriginal();
+        $request = $this->loanEditRequest();
+        foreach (['has_custom_interest_rate', 'custom_interest_rate', 'has_custom_daily_late_coefficient', 'has_custom_daily_early_coefficient'] as $key) {
+            $request->request->remove($key);
+        }
+
+        $response = app(CustomerController::class)->updateLoan($request, $this->customer, $this->file);
+
+        self::assertSame(200, $response->getStatusCode(), $response->getContent());
+        self::assertSame(10.0, (float) $this->file->fresh()->effective_interest_rate);
+        self::assertSame(0.005, $this->file->fresh()->dailyLateCoefficient());
+        self::assertSame($beforeInstallment, $this->installment->fresh()->getRawOriginal());
     }
 
     public function test_short_payment_keeps_fee_in_all_balances_and_allows_payment_of_remainder(): void

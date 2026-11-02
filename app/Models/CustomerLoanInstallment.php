@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Services\Loans\InstallmentDebtCalculator;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -66,11 +68,11 @@ final class CustomerLoanInstallment extends Model
         return max(0, (int) $this->amount_toman - $this->principalAppliedToman());
     }
 
-    public function debtBalance(?float $dailyLateCoefficient = null, ?\Carbon\Carbon $at = null): array
+    public function debtBalance(?float $dailyLateCoefficient = null, ?Carbon $at = null): array
     {
-        $dailyLateCoefficient ??= (float) ($this->loanFile?->loanType?->daily_late_coefficient ?? 0);
+        $dailyLateCoefficient ??= $this->loanFile?->dailyLateCoefficient() ?? 0;
 
-        return app(\App\Services\Loans\InstallmentDebtCalculator::class)->balance($this, $dailyLateCoefficient, $at);
+        return app(InstallmentDebtCalculator::class)->balance($this, $dailyLateCoefficient, $at);
     }
 
     public function remainingDebtToman(): int

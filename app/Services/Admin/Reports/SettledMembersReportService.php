@@ -62,7 +62,7 @@ final class SettledMembersReportService
             ->whereNull('revoked_at')
             ->with([
                 'customer:id,first_name,last_name,mobile,national_id,customer_code',
-                'loanType:id,daily_late_coefficient',
+                'loanType:id,daily_late_coefficient,daily_early_coefficient',
                 'installments.payments',
             ]);
 

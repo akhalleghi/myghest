@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services\Admin;
 
-use App\Models\Customer;
 use App\Models\CustomerDepositDeclaration;
 use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanInstallment;
@@ -94,8 +93,8 @@ final class AdminDashboardStatisticsService
             } elseif ($snapshot['settled_by_balance']) {
                 $settledCount++;
             }
-            $lateCoef = (float) ($file->loanType?->daily_late_coefficient ?? 0);
-            $earlyCoef = (float) ($file->loanType?->daily_early_coefficient ?? 0);
+            $lateCoef = $file->dailyLateCoefficient();
+            $earlyCoef = $file->dailyEarlyCoefficient();
             $lateFee = (int) $snapshot['late_fee_payable_toman'];
             $earlyBenefit = $this->aggregateEarlyBenefitToman($file->installments, $earlyCoef);
             $discount = (int) ($file->discount_amount_toman ?? 0);

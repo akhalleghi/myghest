@@ -14,12 +14,33 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 final class LoanCreationOtpController extends Controller
 {
     public function __construct(
         private readonly RawSmsDispatcher $rawSms,
     ) {}
+
+    public function preview(Request $request, Customer $customer): JsonResponse
+    {
+        if (! LoanCreationOtpSettings::isEnabled()) {
+            return response()->json(['message' => 'تایید پیامکی ایجاد وام در تنظیمات غیرفعال است.'], 422);
+        }
+
+        $validated = $request->validate([
+            'customer_name' => ['nullable', 'string', 'max:200'],
+        ]);
+        $mobile = $this->normalizeMobile((string) $customer->mobile);
+        if ($mobile === '') {
+            return response()->json(['message' => 'شماره موبایل معتبر برای این مشتری ثبت نشده است.'], 422);
+        }
+
+        return response()->json([
+            'body' => $this->loanCreationOtpSmsText($this->customerLabel($customer, $validated), $this->appDisplayName(), '{{code}}'),
+            'mobile_masked' => $this->maskMobile($mobile),
+        ]);
+    }
 
     public function send(Request $request, Customer $customer): JsonResponse
     {
@@ -29,11 +50,19 @@ final class LoanCreationOtpController extends Controller
 
         $validated = $request->validate([
             'customer_name' => ['nullable', 'string', 'max:200'],
+            'sms_text' => ['sometimes', 'required', 'string', 'max:1000'],
         ]);
 
         $mobile = $this->normalizeMobile((string) $customer->mobile);
         if ($mobile === '') {
             return response()->json(['message' => 'شماره موبایل معتبر برای این مشتری ثبت نشده است.'], 422);
+        }
+
+        $customText = isset($validated['sms_text']) ? trim((string) $validated['sms_text']) : null;
+        if ($customText !== null && ! preg_match('/\{\{\s*code\s*\}\}/i', $customText)) {
+            throw ValidationException::withMessages([
+                'sms_text' => 'عبارت {{code}} باید در متن حفظ شود تا کد تایید در پیامک درج شود.',
+            ]);
         }
 
         $code = (string) random_int(100000, 999999);
@@ -45,15 +74,9 @@ final class LoanCreationOtpController extends Controller
             'customer_id' => (int) $customer->id,
         ], now()->addMinutes(10));
 
-        $customerLabel = $this->smsSafeLine((string) ($validated['customer_name'] ?? ''));
-        if ($customerLabel === '') {
-            $customerLabel = $this->smsSafeLine(trim((string) $customer->first_name.' '.(string) $customer->last_name));
-        }
-        if ($customerLabel === '') {
-            $customerLabel = 'مشتری';
-        }
-
-        $text = $this->loanCreationOtpSmsText($customerLabel, $this->appDisplayName(), $code);
+        $text = $customText !== null
+            ? $this->renderTemplateBody($customText, ['code' => $code])
+            : $this->loanCreationOtpSmsText($this->customerLabel($customer, $validated), $this->appDisplayName(), $code);
         $result = $this->rawSms->send($mobile, $text, 'loan-creation-otp');
         if (! $result['ok']) {
             Cache::forget('loan_creation_otp:'.$sessionId);
@@ -68,6 +91,22 @@ final class LoanCreationOtpController extends Controller
             'otp_session' => $sessionId,
             'mobile_masked' => $this->maskMobile($mobile),
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    private function customerLabel(Customer $customer, array $validated): string
+    {
+        $customerLabel = $this->smsSafeLine((string) ($validated['customer_name'] ?? ''));
+        if ($customerLabel === '') {
+            $customerLabel = $this->smsSafeLine(trim((string) $customer->first_name.' '.(string) $customer->last_name));
+        }
+        if ($customerLabel === '') {
+            $customerLabel = 'مشتری';
+        }
+
+        return $customerLabel;
     }
 
     public function verify(Request $request, Customer $customer): JsonResponse
@@ -117,7 +156,12 @@ final class LoanCreationOtpController extends Controller
     {
         $tpl = SmsTemplate::query()->where('template_key', 'default_loan_creation_otp')->first();
         if ($tpl !== null && trim((string) $tpl->body) !== '') {
-            return $this->renderTemplateBody((string) $tpl->body, [
+            $body = (string) $tpl->body;
+            if (! preg_match('/\{\{\s*code\s*\}\}/i', $body)) {
+                $body .= "\nکد تایید: {{code}}";
+            }
+
+            return $this->renderTemplateBody($body, [
                 'customer_name' => $customerLabel,
                 'app_name' => $appName,
                 'code' => $code,
@@ -137,7 +181,7 @@ final class LoanCreationOtpController extends Controller
     {
         $out = $body;
         foreach ($vars as $k => $v) {
-            $out = preg_replace('/\{\{\s*'.preg_quote((string) $k, '/').'\s*\}\}/i', (string) $v, $out) ?? $out;
+            $out = preg_replace_callback('/\{\{\s*'.preg_quote((string) $k, '/').'\s*\}\}/i', fn (): string => (string) $v, $out) ?? $out;
         }
 
         return trim($out);
