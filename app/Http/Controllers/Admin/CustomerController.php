@@ -8,12 +8,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Admin;
 use App\Models\AppSetting;
 use App\Models\Customer;
-use App\Support\GuaranteeReturnOtpSettings;
-use App\Support\ListPerPage;
-use App\Support\LoanCreationOtpSettings;
-use App\Support\InstallmentBookletPrintSettings;
-use App\Support\LoanInstallmentRoundingSettings;
-use App\Support\PrivateStoragePaths;
 use App\Models\CustomerBankAccount;
 use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanGuarantee;
@@ -26,14 +20,22 @@ use App\Models\Organization;
 use App\Models\SmsLog;
 use App\Models\SmsTemplate;
 use App\Rules\IranNationalId;
+use App\Support\GuaranteeReturnOtpSettings;
+use App\Support\ListPerPage;
+use App\Support\LoanCreationOtpSettings;
+use App\Support\InstallmentBookletPrintSettings;
+use App\Support\LoanInstallmentRoundingSettings;
+use App\Support\PrivateStoragePaths;
 use App\Services\Admin\RawSmsDispatcher;
 use App\Services\Customers\AdminCustomerSettleAllLoansService;
 use App\Services\Customers\AdminCustomerSettleAllOverdueService;
 use App\Services\Loans\LoanFileFinanceCalculator;
 use App\Services\Loans\LoanInstallmentAmountAllocator;
 use App\Services\Loans\LoanInstallmentScheduleService;
+use App\Services\Sms\CustomerSmsCredentialVariables;
 use App\Services\Sms\SmsPanelManager;
 use App\Services\Sms\SmsSettingsService;
+use App\Services\Sms\SmsTemplateRenderer;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Http\JsonResponse;
@@ -1101,7 +1103,7 @@ final class CustomerController extends Controller
                 if ($smsText === '' && isset($validated['sms_template_id'])) {
                     $template = SmsTemplate::query()->find((int) $validated['sms_template_id']);
                     if ($template !== null) {
-                        $smsText = $this->renderTemplate($template->body, $this->loanSmsTemplateVars($customer, $loanFile));
+                        $smsText = $this->renderTemplate($template->body, $this->loanSmsTemplateVars($customer, $loanFile), $customer);
                     }
                 }
                 if ($smsText === '') {
@@ -1402,7 +1404,7 @@ final class CustomerController extends Controller
         if ($smsText === '' && isset($validated['sms_template_id'])) {
             $template = SmsTemplate::query()->find((int) $validated['sms_template_id']);
             if ($template !== null) {
-                $smsText = $this->renderTemplate($template->body, $this->loanSmsTemplateVars($customer, $loanFile));
+                $smsText = $this->renderTemplate($template->body, $this->loanSmsTemplateVars($customer, $loanFile), $customer);
             }
         }
         if ($smsText === '') {
@@ -1824,7 +1826,8 @@ final class CustomerController extends Controller
                     if ($template !== null) {
                         $smsText = $this->renderTemplate(
                             $template->body,
-                            $this->installmentPaymentRegisteredSmsTemplateVars($customer, $loanFile, $installment, $amountNew)
+                            $this->installmentPaymentRegisteredSmsTemplateVars($customer, $loanFile, $installment, $amountNew),
+                            $customer
                         );
                     }
                 }
@@ -3121,7 +3124,7 @@ final class CustomerController extends Controller
                         'payment_link_variable' => '—',
                     ];
                 }
-                $messageText = $this->renderTemplate($tpl->body, $vars);
+                $messageText = $this->renderTemplate($tpl->body, $vars, $customer);
             }
         }
         if ($messageText === '') {
@@ -3222,6 +3225,32 @@ final class CustomerController extends Controller
             if ($overdueSummary === null || (int) ($overdueSummary['total_toman'] ?? 0) < 1) {
                 return response()->json(['message' => 'این مشتری قسط معوق پرداخت‌نشده‌ای ندارد.'], 422);
             }
+        }
+
+        $templateId = (int) $request->query('template_id', 0);
+        if ($templateId > 0) {
+            $template = SmsTemplate::query()->find($templateId);
+            if ($template === null) {
+                return response()->json(['message' => 'قالب پیامک پیدا نشد.'], 404);
+            }
+
+            if ($installment !== null && $loanFile !== null) {
+                $vars = $this->installmentSmsTemplateVarsExtended($customer, $loanFile, $installment, $smsType);
+            } elseif ($smsType === 'overdue_total') {
+                $vars = $this->customerOverdueTotalSmsVars($customer);
+            } else {
+                $vars = [
+                    'store_name' => $this->appDisplayName(),
+                    'customer_name' => $customer->fullName(),
+                    'payment_link' => '—',
+                    'payment_link_variable' => '—',
+                ];
+            }
+
+            return response()->json([
+                'body' => $this->renderTemplate($template->body, $vars, $customer),
+                'template_id' => (int) $template->id,
+            ]);
         }
 
         $payload = $this->composeQuickSmsModalContent($customer, $smsType, $installment, $loanFile);
@@ -3878,14 +3907,11 @@ final class CustomerController extends Controller
         return $out;
     }
 
-    private function renderTemplate(string $body, array $vars): string
+    private function renderTemplate(string $body, array $vars, Customer $customer): string
     {
-        $out = $body;
-        foreach ($vars as $k => $v) {
-            $out = preg_replace('/\{\{\s*'.preg_quote((string) $k, '/').'\s*\}\}/i', (string) $v, $out) ?? $out;
-        }
+        $vars = array_merge(CustomerSmsCredentialVariables::for($customer), $vars);
 
-        return trim($out);
+        return app(SmsTemplateRenderer::class)->render($body, $vars);
     }
 
     private function appDisplayName(): string
@@ -4114,6 +4140,7 @@ final class CustomerController extends Controller
     private function buildCustomerListScopeStats(): array
     {
         $scopes = $this->customerDebtScopeIds();
+
         return [
             'all' => (int) Customer::query()->count(),
             'active_loan' => count($scopes['debt']),
@@ -5163,6 +5190,7 @@ final class CustomerController extends Controller
     ): array {
         $loanFile->loadMissing('loanType');
         $mapped = $this->mapLoanFile($loanFile);
+        $purchaseCredit = $this->formatPurchaseCreditAvailableForSms($customer);
 
         return [
             'store_name' => $this->appDisplayName(),
@@ -5171,7 +5199,8 @@ final class CustomerController extends Controller
             'installment_number' => (string) $inst->sequence,
             'paid_amount' => number_format($registeredAmountToman, 0, '.', ',').' تومان',
             'remaining_loan' => number_format((int) ($mapped['remaining_amount_toman'] ?? 0), 0, '.', ',').' تومان',
-            'purchase_credit' => $this->formatPurchaseCreditAvailableForSms($customer),
+            'purchase_credit' => $purchaseCredit,
+            'purchase_credit_after_payment' => $purchaseCredit,
         ];
     }
 
@@ -5197,7 +5226,7 @@ final class CustomerController extends Controller
             ->first();
         $vars = $this->installmentPaymentRegisteredSmsTemplateVars($customer, $loanFile, $inst, $registeredAmountToman);
         if ($tpl !== null) {
-            return trim($this->renderTemplate($tpl->body, $vars));
+            return trim($this->renderTemplate($tpl->body, $vars, $customer));
         }
 
         return $this->appDisplayName()."\n"
@@ -5992,6 +6021,9 @@ final class CustomerController extends Controller
         $mapped = $this->mapLoanFile($loanFile);
         $vars['remaining_loan'] = number_format((int) ($mapped['remaining_amount_toman'] ?? 0), 0, '.', ',').' تومان';
         $vars['purchase_credit'] = $this->formatPurchaseCreditAvailableForSms($customer);
+        if ($smsType === 'installment_thanks') {
+            $vars['purchase_credit_after_payment'] = $vars['purchase_credit'];
+        }
 
         return $vars;
     }
@@ -6039,7 +6071,7 @@ final class CustomerController extends Controller
                 $tpl = SmsTemplate::query()->find($prefId);
                 if ($tpl !== null) {
                     return [
-                        'body' => trim($this->renderTemplate($tpl->body, $vars)),
+                        'body' => trim($this->renderTemplate($tpl->body, $vars, $customer)),
                         'template_id' => (int) $tpl->id,
                     ];
                 }
@@ -6048,7 +6080,7 @@ final class CustomerController extends Controller
             $tpl = SmsTemplate::query()->where('template_key', 'default_installment_overdue_reminder')->first();
             if ($tpl !== null) {
                 return [
-                    'body' => trim($this->renderTemplate($tpl->body, $vars)),
+                    'body' => trim($this->renderTemplate($tpl->body, $vars, $customer)),
                     'template_id' => (int) $tpl->id,
                 ];
             }
@@ -6072,7 +6104,7 @@ final class CustomerController extends Controller
                     $vars = $this->installmentSmsTemplateVarsExtended($customer, $loanFile, $installment, $smsType);
 
                     return [
-                        'body' => trim($this->renderTemplate($tpl->body, $vars)),
+                        'body' => trim($this->renderTemplate($tpl->body, $vars, $customer)),
                         'template_id' => (int) $tpl->id,
                     ];
                 }
@@ -6106,7 +6138,7 @@ final class CustomerController extends Controller
                     ];
 
                     return [
-                        'body' => trim($this->renderTemplate($tpl->body, $vars)),
+                        'body' => trim($this->renderTemplate($tpl->body, $vars, $customer)),
                         'template_id' => (int) $tpl->id,
                     ];
                 }
@@ -6419,7 +6451,7 @@ final class CustomerController extends Controller
         if ($key !== null) {
             $tpl = SmsTemplate::query()->where('template_key', $key)->first();
             if ($tpl !== null) {
-                return trim($this->renderTemplate($tpl->body, $this->installmentSmsTemplateVarsExtended($customer, $loanFile, $inst, $smsType)));
+                return trim($this->renderTemplate($tpl->body, $this->installmentSmsTemplateVarsExtended($customer, $loanFile, $inst, $smsType), $customer));
             }
         }
         $amount = (int) $inst->amount_toman;

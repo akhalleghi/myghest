@@ -14,6 +14,7 @@ use App\Models\SmsLog;
 use App\Models\SmsTemplate;
 use App\Notifications\LoanRequestStatusChangedForCustomer;
 use App\Services\Admin\RawSmsDispatcher;
+use App\Services\Sms\CustomerSmsCredentialVariables;
 use App\Services\Sms\SmsTemplateRenderer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -127,6 +128,7 @@ final class AdminCustomerLoanRequestUpdateService
         $statusTitle = $statusTitles[$toStatusCode] ?? $toStatusCode;
 
         $body = $this->smsTemplateRenderer->render((string) $template->body, [
+            ...CustomerSmsCredentialVariables::for($customer),
             'customer_name' => $customer->fullName(),
             'loan_request_status_title' => $statusTitle,
             'app_name' => $this->appDisplayName(),

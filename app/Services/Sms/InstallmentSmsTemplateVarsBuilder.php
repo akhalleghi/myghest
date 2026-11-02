@@ -53,6 +53,7 @@ final class InstallmentSmsTemplateVarsBuilder
         $amountForTemplate = $useUnpaidAmount ? $unpaidOnInstallment : $amount;
 
         return [
+            ...CustomerSmsCredentialVariables::for($customer),
             'store_name' => $this->appDisplayName(),
             'customer_name' => $customer->fullName(),
             'loan_code' => (string) $loanFile->loan_code,

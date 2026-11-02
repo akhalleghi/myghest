@@ -6,12 +6,16 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Admin\Concerns\UpdatesPortalAdminRecipientSmsSettings;
 use App\Http\Controllers\Controller;
+use App\Jobs\SendSmsFreeSendCampaignBatchJob;
 use App\Models\Admin;
-use App\Services\Admin\AdminPermissionService;
 use App\Models\AppSetting;
+use App\Models\Customer;
+use App\Models\SmsFreeSendCampaign;
+use App\Models\SmsFreeSendCampaignRecipient;
 use App\Models\SmsLog;
 use App\Models\SmsPanelSetting;
 use App\Models\SmsTemplate;
+use App\Services\Admin\AdminPermissionService;
 use App\Services\Admin\RawSmsDispatcher;
 use App\Services\Sms\AdminLoginNotifySmsService;
 use App\Services\Sms\CustomerDepositDeclarationNotifyAdminSmsService;
@@ -20,9 +24,12 @@ use App\Services\Sms\CustomerInstallmentPaymentNotifyAdminSmsService;
 use App\Services\Sms\CustomerLoanRequestNotifyAdminSmsService;
 use App\Services\Sms\CustomerLoginNotifyAdminSmsService;
 use App\Services\Sms\CustomerSupportTicketNotifyAdminSmsService;
+use App\Services\Sms\SmsFreeSendAudienceResolver;
+use App\Services\Sms\SmsFreeSendExcelImporter;
 use App\Services\Sms\SmsPanelCreditService;
 use App\Services\Sms\SmsPanelManager;
 use App\Services\Sms\SmsSettingsService;
+use App\Services\Sms\SmsTemplateRenderer;
 use App\Support\IranMobile;
 use App\Support\ListPerPage;
 use Carbon\Carbon;
@@ -31,12 +38,17 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class SmsManagementController extends Controller
@@ -51,6 +63,8 @@ final class SmsManagementController extends Controller
         private readonly AdminPermissionService $permissions,
         private readonly SmsPanelCreditService $creditService,
         private readonly RawSmsDispatcher $rawSms,
+        private readonly SmsFreeSendAudienceResolver $freeSendAudience,
+        private readonly SmsFreeSendExcelImporter $freeSendExcelImporter,
     ) {}
 
     public function index(Request $request): View
@@ -59,6 +73,13 @@ final class SmsManagementController extends Controller
         $admin = Auth::guard('admin')->user();
         $sessionTab = $request->session()->pull('sms_active_tab');
         $sessionTab = is_string($sessionTab) && $sessionTab !== '' ? $sessionTab : null;
+        $campaignId = (int) $request->session()->pull('sms_free_send_campaign_id', 0);
+        $smsFreeSendCampaign = $campaignId > 0
+            ? SmsFreeSendCampaign::query()
+                ->whereKey($campaignId)
+                ->where('created_by_admin_id', $admin->id)
+                ->first()
+            : null;
         $hub = $this->permissions->resolveHubPage(
             $admin,
             'sms',
@@ -79,6 +100,7 @@ final class SmsManagementController extends Controller
         $templateCategories = $this->templateCategories();
         $templatePatterns = $this->templatePatterns();
         $smsTemplates = SmsTemplate::query()->latest('id')->get();
+        $freeSmsTemplates = $smsTemplates->where('category', 'free_send')->values();
         $scenarioTemplateIds = $this->smsSettings->scenarioTemplateIds();
         $smsReminderSettings = $this->smsSettings->reminderSettings();
         $loginNotifyService = app(AdminLoginNotifySmsService::class);
@@ -150,6 +172,8 @@ final class SmsManagementController extends Controller
             'smsTemplateCategories' => $templateCategories,
             'smsTemplatePatterns' => $templatePatterns,
             'smsTemplates' => $smsTemplates,
+            'freeSmsTemplates' => $freeSmsTemplates,
+            'smsFreeSendCampaign' => $smsFreeSendCampaign,
             'smsScenarioTemplateIds' => $scenarioTemplateIds,
             'smsReminderSettings' => $smsReminderSettings,
             'smsAdminLoginNotify' => $smsAdminLoginNotify,
@@ -836,97 +860,342 @@ final class SmsManagementController extends Controller
     {
         /** @var Admin $admin */
         $admin = Auth::guard('admin')->user();
-        if (! $this->permissions->canAccessUiFeature($admin, 'sms', 'free_send.send')) {
-            abort(403, 'شما به ارسال آزاد پیامک دسترسی ندارید.');
+        $this->assertCanSendFreeSms($admin);
+
+        $source = (string) $request->input('recipient_source', 'manual_numbers');
+        $sources = [
+            'manual_numbers',
+            'selected_customers',
+            'all_customers',
+            'overdue_customers',
+            'settled_customers',
+            'no_debt_customers',
+            'wallet_positive_customers',
+            'excel',
+        ];
+        if (! in_array($source, $sources, true)) {
+            throw ValidationException::withMessages(['recipient_source' => 'روش انتخاب گیرنده معتبر نیست.']);
         }
 
         $validated = $request->validate([
-            'recipients' => ['required', 'string', 'max:4000'],
-            'message' => ['required', 'string', 'min:1', 'max:700'],
+            'recipient_source' => ['required', Rule::in($sources)],
+            'recipients' => ['required_if:recipient_source,manual_numbers', 'nullable', 'string', 'max:4000'],
+            'customer_ids' => ['required_if:recipient_source,selected_customers', 'nullable', 'array', 'min:1', 'max:10000'],
+            'customer_ids.*' => ['integer', 'distinct', 'exists:customers,id'],
+            'message' => ['required_unless:recipient_source,excel', 'nullable', 'string', 'max:700'],
+            'contacts_file' => ['required_if:recipient_source,excel', 'nullable', 'file', 'mimes:xlsx,xls,csv', 'max:5120'],
         ], [], [
+            'recipient_source' => 'مخاطبان پیامک',
             'recipients' => 'شماره‌های گیرنده',
+            'customer_ids' => 'مشتریان انتخاب‌شده',
             'message' => 'متن پیامک',
+            'contacts_file' => 'فایل مخاطبان',
         ]);
 
-        $message = trim((string) $validated['message']);
-        $message = preg_replace("/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]/u", '', $message) ?? '';
-        $message = trim($message);
-        if ($message === '') {
-            return redirect()
-                ->route('admin.sms.index')
-                ->withInput()
-                ->withErrors(['message' => 'متن پیامک نمی‌تواند خالی باشد.'])
-                ->with('sms_active_tab', 'free_send');
-        }
+        $commonMessage = $this->cleanFreeSmsMessage((string) ($validated['message'] ?? ''));
+        $recipients = [];
+        $invalidCount = 0;
+        $duplicateCount = 0;
 
-        $parsed = $this->parseFreeSmsRecipients((string) $validated['recipients']);
-        if ($parsed['mobiles'] === []) {
-            return redirect()
-                ->route('admin.sms.index')
-                ->withInput()
-                ->withErrors([
-                    'recipients' => $parsed['invalid_count'] > 0
-                        ? 'هیچ شماره موبایل معتبری یافت نشد. شماره را به صورت ۰۹xxxxxxxxx وارد کنید.'
-                        : 'حداقل یک شماره موبایل وارد کنید.',
-                ])
-                ->with('sms_active_tab', 'free_send');
-        }
-
-        if (count($parsed['mobiles']) > self::FREE_SEND_MAX_RECIPIENTS) {
-            return redirect()
-                ->route('admin.sms.index')
-                ->withInput()
-                ->withErrors([
-                    'recipients' => 'حداکثر '.self::FREE_SEND_MAX_RECIPIENTS.' شماره در هر ارسال مجاز است.',
-                ])
-                ->with('sms_active_tab', 'free_send');
-        }
-
-        $okCount = 0;
-        $failCount = 0;
-        $lastError = '';
-
-        foreach ($parsed['mobiles'] as $index => $mobile) {
-            if ($index > 0) {
-                usleep(350_000);
+        if ($source === 'manual_numbers') {
+            $parsed = $this->parseFreeSmsRecipients((string) $validated['recipients']);
+            $invalidCount = $parsed['invalid_count'];
+            $duplicateCount = $parsed['duplicate_count'];
+            foreach ($parsed['mobiles'] as $mobile) {
+                $recipients[] = ['customer_id' => null, 'mobile' => $mobile, 'message' => $commonMessage];
             }
+        } elseif ($source === 'excel') {
+            /** @var UploadedFile $file */
+            $file = $validated['contacts_file'];
+            $parsed = $this->freeSendExcelImporter->parse($file);
+            $invalidCount = $parsed['invalid_count'];
+            $duplicateCount = $parsed['duplicate_count'];
+            foreach ($parsed['recipients'] as $row) {
+                $rowMessage = $this->cleanFreeSmsMessage($row['message'] !== '' ? $row['message'] : $commonMessage);
+                if ($rowMessage === '') {
+                    $invalidCount++;
 
-            $result = $this->rawSms->send($mobile, $message, 'admin-free-send', [
-                'source' => 'sms_management_free_send',
-                'admin_id' => (int) $admin->id,
+                    continue;
+                }
+                if (mb_strlen($rowMessage) > 700) {
+                    throw ValidationException::withMessages([
+                        'contacts_file' => 'متن پیام یکی از ردیف‌های فایل بیشتر از ۷۰۰ نویسه است.',
+                    ]);
+                }
+                $recipients[] = ['customer_id' => null, 'mobile' => $row['mobile'], 'message' => $rowMessage];
+            }
+        } else {
+            $customerIds = array_map('intval', (array) ($validated['customer_ids'] ?? []));
+            $customers = $this->freeSendAudience->resolve($source, $customerIds);
+            foreach ($customers as $customer) {
+                $personalized = $this->renderFreeSmsMessage($commonMessage, $customer);
+                $recipients[] = [
+                    'customer_id' => $customer['customer_id'],
+                    'mobile' => $customer['mobile'],
+                    'message' => $personalized,
+                ];
+            }
+        }
+
+        if ($recipients === []) {
+            $reason = $source === 'manual_numbers' || $source === 'excel'
+                ? 'شماره معتبر با متن پیام قابل ارسال پیدا نشد.'
+                : 'مشتری واجد شرایط با شماره معتبر و اجازه دریافت پیامک پیدا نشد.';
+
+            return redirect()
+                ->route('admin.sms.index')
+                ->withInput()
+                ->withErrors(['recipients' => $reason])
+                ->with('sms_active_tab', 'free_send');
+        }
+
+        if ($source === 'manual_numbers' && count($recipients) > self::FREE_SEND_MAX_RECIPIENTS) {
+            return redirect()
+                ->route('admin.sms.index')
+                ->withInput()
+                ->withErrors(['recipients' => 'برای ارسال به بیش از ۳۰ شماره، فایل اکسل یا انتخاب مشتریان را استفاده کنید.'])
+                ->with('sms_active_tab', 'free_send');
+        }
+
+        if (config('queue.default') === 'sync' && count($recipients) > self::FREE_SEND_MAX_RECIPIENTS) {
+            return redirect()
+                ->route('admin.sms.index')
+                ->withInput()
+                ->withErrors(['recipient_source' => 'برای ارسال گروهی، صف پردازش پیامک باید فعال باشد تا درخواست وب‌سایت طولانی نشود.'])
+                ->with('sms_active_tab', 'free_send');
+        }
+
+        $campaign = DB::transaction(function () use ($admin, $source, $recipients): SmsFreeSendCampaign {
+            $campaign = SmsFreeSendCampaign::query()->create([
+                'created_by_admin_id' => $admin->id,
+                'source' => $source,
+                'status' => 'queued',
+                'total_count' => count($recipients),
             ]);
 
-            if ($result['ok']) {
-                $okCount++;
-            } else {
-                $failCount++;
-                $lastError = (string) ($result['message'] ?? '');
+            foreach (array_chunk($recipients, 500) as $chunk) {
+                $now = now();
+                SmsFreeSendCampaignRecipient::query()->insert(array_map(static fn (array $recipient): array => [
+                    'campaign_id' => $campaign->id,
+                    'customer_id' => $recipient['customer_id'],
+                    'recipient' => $recipient['mobile'],
+                    'message_text' => $recipient['message'],
+                    'status' => 'pending',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ], $chunk));
             }
+
+            return $campaign;
+        });
+
+        try {
+            SendSmsFreeSendCampaignBatchJob::dispatch((int) $campaign->id);
+        } catch (\Throwable $e) {
+            $campaign->update(['status' => 'failed', 'completed_at' => now()]);
+
+            return redirect()
+                ->route('admin.sms.index')
+                ->with('flash_error', 'ذخیرهٔ کمپین انجام شد اما صف پیامک در دسترس نیست؛ هیچ پیامکی ارسال نشد.')
+                ->with('sms_active_tab', 'free_send');
         }
 
-        $summaryParts = [
-            'ارسال آزاد: '.$okCount.' موفق',
-        ];
-        if ($failCount > 0) {
-            $summaryParts[] = $failCount.' ناموفق';
-        }
-        if ($parsed['invalid_count'] > 0) {
-            $summaryParts[] = $parsed['invalid_count'].' شماره نامعتبر نادیده گرفته شد';
-        }
-        if ($parsed['duplicate_count'] > 0) {
-            $summaryParts[] = $parsed['duplicate_count'].' شماره تکراری حذف شد';
-        }
-
-        $flashKey = $okCount > 0 ? 'flash_success' : 'flash_error';
-        $flashMessage = implode('؛ ', $summaryParts).'.';
-        if ($okCount === 0 && $lastError !== '') {
-            $flashMessage .= ' '.$lastError;
+        $campaign->refresh();
+        $flashMessage = $campaign->status === 'completed'
+            ? 'کمپین پیامک تکمیل شد: '.$campaign->sent_count.' موفق و '.$campaign->failed_count.' ناموفق.'
+            : 'کمپین برای ارسال به '.$campaign->total_count.' مخاطب در صف قرار گرفت.';
+        if ($invalidCount > 0 || $duplicateCount > 0) {
+            $flashMessage .= ' '.$invalidCount.' ردیف نامعتبر و '.$duplicateCount.' شماره تکراری کنار گذاشته شد.';
         }
 
         return redirect()
             ->route('admin.sms.index')
-            ->with($flashKey, $flashMessage)
+            ->with($campaign->failed_count > 0 && $campaign->sent_count === 0 ? 'flash_error' : 'flash_success', $flashMessage)
+            ->with('sms_free_send_campaign_id', $campaign->id)
             ->with('sms_active_tab', 'free_send');
+    }
+
+    public function searchFreeSmsCustomers(Request $request): JsonResponse
+    {
+        $admin = Auth::guard('admin')->user();
+        $this->assertCanSendFreeSms($admin);
+        $term = trim((string) $request->query('q', ''));
+        if (mb_strlen($term) < 2) {
+            return response()->json(['items' => []]);
+        }
+
+        $items = Customer::query()
+            ->where(fn ($query) => $query->whereNull('sms_sending_enabled')->orWhere('sms_sending_enabled', true))
+            ->where(function ($query) use ($term): void {
+                $query->where('first_name', 'like', '%'.$term.'%')
+                    ->orWhere('last_name', 'like', '%'.$term.'%')
+                    ->orWhere('mobile', 'like', '%'.$term.'%')
+                    ->orWhere('customer_code', 'like', '%'.$term.'%');
+            })
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->limit(50)
+            ->get(['id', 'first_name', 'last_name', 'mobile', 'customer_code'])
+            ->map(static fn (Customer $customer): array => [
+                'id' => (int) $customer->id,
+                'name' => $customer->fullName(),
+                'mobile' => (string) $customer->mobile,
+                'code' => (string) $customer->customer_code,
+            ])
+            ->values();
+
+        return response()->json(['items' => $items]);
+    }
+
+    public function previewFreeSmsAudience(Request $request): JsonResponse
+    {
+        $admin = Auth::guard('admin')->user();
+        $this->assertCanSendFreeSms($admin);
+        $validated = $request->validate([
+            'recipient_source' => ['required', Rule::in([
+                'selected_customers', 'all_customers', 'overdue_customers', 'settled_customers', 'no_debt_customers', 'wallet_positive_customers',
+            ])],
+            'customer_ids' => ['required_if:recipient_source,selected_customers', 'nullable', 'array', 'min:1', 'max:10000'],
+            'customer_ids.*' => ['integer', 'distinct', 'exists:customers,id'],
+        ]);
+
+        $items = $this->freeSendAudience->resolve(
+            (string) $validated['recipient_source'],
+            array_map('intval', (array) ($validated['customer_ids'] ?? [])),
+        );
+
+        return response()->json([
+            'count' => count($items),
+            'sample' => array_slice(array_map(static fn (array $item): array => [
+                'name' => $item['name'],
+                'mobile' => $item['mobile'],
+                'wallet_balance_toman' => $item['wallet_balance_toman'],
+            ], $items), 0, 5),
+        ]);
+    }
+
+    public function previewFreeSmsExcel(Request $request): JsonResponse
+    {
+        $admin = Auth::guard('admin')->user();
+        $this->assertCanSendFreeSms($admin);
+        $validated = $request->validate([
+            'contacts_file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:5120'],
+        ]);
+        $parsed = $this->freeSendExcelImporter->parse($validated['contacts_file']);
+
+        return response()->json([
+            'count' => count($parsed['recipients']),
+            'invalid_count' => $parsed['invalid_count'],
+            'duplicate_count' => $parsed['duplicate_count'],
+            'sample' => array_slice(array_map(static fn (array $row): array => [
+                'mobile' => $row['mobile'],
+                'message' => mb_substr($row['message'], 0, 160),
+            ], $parsed['recipients']), 0, 5),
+        ]);
+    }
+
+    public function freeSmsCampaignStatus(SmsFreeSendCampaign $smsFreeSendCampaign): JsonResponse
+    {
+        /** @var Admin $admin */
+        $admin = Auth::guard('admin')->user();
+        $this->assertCanSendFreeSms($admin);
+        if (! $admin->isSuperAdmin() && (int) $smsFreeSendCampaign->created_by_admin_id !== (int) $admin->id) {
+            abort(404);
+        }
+
+        return response()->json([
+            'id' => (int) $smsFreeSendCampaign->id,
+            'status' => (string) $smsFreeSendCampaign->status,
+            'total_count' => (int) $smsFreeSendCampaign->total_count,
+            'sent_count' => (int) $smsFreeSendCampaign->sent_count,
+            'failed_count' => (int) $smsFreeSendCampaign->failed_count,
+        ]);
+    }
+
+    public function downloadFreeSmsExcelSample(): StreamedResponse
+    {
+        $admin = Auth::guard('admin')->user();
+        $this->assertCanSendFreeSms($admin);
+
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('مخاطبان پیامک');
+        $sheet->fromArray(['شماره موبایل', 'متن پیامک'], null, 'A1');
+        $sheet->fromArray([['', '']], null, 'A2');
+        $sheet->getColumnDimension('A')->setWidth(20);
+        $sheet->getColumnDimension('B')->setWidth(60);
+
+        return response()->streamDownload(static function () use ($spreadsheet): void {
+            (new Xlsx($spreadsheet))->save('php://output');
+        }, 'sms-free-send-sample.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    private function assertCanSendFreeSms(Admin $admin): void
+    {
+        if (! $this->permissions->canAccessUiFeature($admin, 'sms', 'free_send.send')) {
+            abort(403, 'شما به ارسال آزاد پیامک دسترسی ندارید.');
+        }
+    }
+
+    private function cleanFreeSmsMessage(string $message): string
+    {
+        $message = preg_replace('/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]/u', '', $message) ?? '';
+
+        return trim($message);
+    }
+
+    /**
+     * @param  array{customer_id:int,mobile:string,name:string,wallet_balance_toman:int}  $customer
+     */
+    private function renderFreeSmsMessage(string $message, array $customer): string
+    {
+        return app(SmsTemplateRenderer::class)->render($message, [
+            'customer_name' => $customer['name'],
+            'wallet_balance' => number_format($customer['wallet_balance_toman'], 0, '.', ',').' تومان',
+            'mobile' => $customer['mobile'],
+        ]);
+    }
+
+    public function storeFreeSmsTemplate(Request $request): JsonResponse
+    {
+        /** @var Admin $admin */
+        $admin = Auth::guard('admin')->user();
+        if (! $this->permissions->canAccessUiFeature($admin, 'sms', 'free_send.send')) {
+            abort(403, 'شما به ذخیره الگوی پیام آزاد دسترسی ندارید.');
+        }
+
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:120'],
+            'body' => ['required', 'string', 'min:1', 'max:700'],
+        ], [], [
+            'title' => 'عنوان الگو',
+            'body' => 'متن الگو',
+        ]);
+
+        $title = trim((string) $validated['title']);
+        $body = trim((string) preg_replace('/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]/u', '', (string) $validated['body']));
+        if ($title === '') {
+            return response()->json(['message' => 'عنوان الگو نمی‌تواند خالی باشد.'], 422);
+        }
+        if ($body === '') {
+            return response()->json(['message' => 'متن الگو نمی‌تواند خالی باشد.'], 422);
+        }
+
+        $template = SmsTemplate::query()->create([
+            'title' => $title,
+            'category' => 'free_send',
+            'body' => $body,
+            'placeholders' => [],
+        ]);
+
+        return response()->json([
+            'id' => (int) $template->id,
+            'title' => (string) $template->title,
+            'body' => (string) $template->body,
+            'message' => 'الگوی پیام آزاد ذخیره شد.',
+        ], 201);
     }
 
     /**
@@ -949,11 +1218,13 @@ final class SmsManagementController extends Controller
             $normalized = IranMobile::normalize($chunk);
             if ($normalized === null) {
                 $invalidCount++;
+
                 continue;
             }
 
             if (isset($seen[$normalized])) {
                 $duplicateCount++;
+
                 continue;
             }
 
@@ -1272,6 +1543,7 @@ final class SmsManagementController extends Controller
             'guarantor_otp' => 'احراز هویت ضامن',
             'loan_creation_otp' => 'تایید ایجاد پرونده وام',
             'guarantee_return_otp' => 'تایید عودت ضمانت',
+            'free_send' => 'پیام آزاد',
         ];
     }
 
@@ -1283,6 +1555,7 @@ final class SmsManagementController extends Controller
         return [
             'store_name' => ['label' => 'نام فروشگاه', 'sample' => 'فروشگاه مهر'],
             'customer_name' => ['label' => 'نام مشتری', 'sample' => 'علی رضایی'],
+            'wallet_balance' => ['label' => 'موجودی کیف پول', 'sample' => '850,000 تومان'],
             'username' => ['label' => 'نام کاربری', 'sample' => '09121234567'],
             'password' => ['label' => 'رمز ورود', 'sample' => 'Ab12cd34'],
             'loan_amount' => ['label' => 'مبلغ کل وام', 'sample' => '50,000,000 تومان'],
@@ -1293,6 +1566,7 @@ final class SmsManagementController extends Controller
             'days_until_due' => ['label' => 'تعداد روز تا سررسید', 'sample' => '2'],
             'remaining_loan' => ['label' => 'مانده وام', 'sample' => '12,400,000 تومان'],
             'purchase_credit' => ['label' => 'اعتبار خرید باقیمانده', 'sample' => '8,500,000 تومان'],
+            'purchase_credit_after_payment' => ['label' => 'اعتبار باقیمانده پس از پرداخت قسط', 'sample' => '9,000,000 تومان'],
             'payment_link' => ['label' => 'لینک پرداخت', 'sample' => 'https://pay.example.com/i/452'],
             'payment_link_variable' => ['label' => 'بخش متغیر لینک پرداخت', 'sample' => 'i/452'],
             'transaction_tracking_code' => ['label' => 'شماره پیگیری تراکنش', 'sample' => 'TRX-904521'],

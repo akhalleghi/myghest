@@ -13,7 +13,12 @@ final class SmsTemplateRenderer
     {
         $out = $body;
         foreach ($vars as $k => $v) {
-            $out = preg_replace('/\{\{\s*'.preg_quote((string) $k, '/').'\s*\}\}/i', (string) $v, $out) ?? $out;
+            $replacement = (string) $v;
+            $out = preg_replace_callback(
+                '/\{\{\s*'.preg_quote((string) $k, '/').'\s*\}\}/i',
+                static fn (array $matches): string => $replacement,
+                $out,
+            ) ?? $out;
         }
 
         return trim($out);

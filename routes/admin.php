@@ -698,6 +698,30 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
         ->middleware('throttle:10,1')
         ->name('sms.free-send');
 
+    Route::post('/sms-management/free-send/templates', [SmsManagementController::class, 'storeFreeSmsTemplate'])
+        ->middleware('throttle:30,1')
+        ->name('sms.free-send.templates.store');
+
+    Route::get('/sms-management/free-send/customers', [SmsManagementController::class, 'searchFreeSmsCustomers'])
+        ->middleware('throttle:60,1')
+        ->name('sms.free-send.customers.search');
+
+    Route::post('/sms-management/free-send/audience-preview', [SmsManagementController::class, 'previewFreeSmsAudience'])
+        ->middleware('throttle:20,1')
+        ->name('sms.free-send.audience-preview');
+
+    Route::post('/sms-management/free-send/excel-preview', [SmsManagementController::class, 'previewFreeSmsExcel'])
+        ->middleware('throttle:20,1')
+        ->name('sms.free-send.excel-preview');
+
+    Route::get('/sms-management/free-send/excel-sample', [SmsManagementController::class, 'downloadFreeSmsExcelSample'])
+        ->middleware('throttle:30,1')
+        ->name('sms.free-send.excel-sample');
+
+    Route::get('/sms-management/free-send/campaigns/{smsFreeSendCampaign}/status', [SmsManagementController::class, 'freeSmsCampaignStatus'])
+        ->middleware('throttle:60,1')
+        ->name('sms.free-send.campaigns.status');
+
     Route::get('/sms-management/panel-credit', [SmsManagementController::class, 'panelCredit'])
         ->middleware('throttle:12,1')
         ->name('sms.panel-credit');

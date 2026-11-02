@@ -151,14 +151,18 @@ final class CustomerInstallmentPaymentThanksSmsService
             ? 0
             : $this->financeCalculator->installmentPaymentCeilingToman($loanFile);
 
+        $purchaseCredit = $this->formatToman($this->purchaseCreditAvailableToman($customer));
+
         return [
+            ...CustomerSmsCredentialVariables::for($customer),
             'store_name' => $this->appDisplayName(),
             'customer_name' => $customer->fullName(),
             'loan_code' => (string) $loanFile->loan_code,
             'installment_number' => (string) $installment->sequence,
             'paid_amount' => $this->formatToman($paidAmountToman),
             'remaining_loan' => $this->formatToman($remainingLoan),
-            'purchase_credit' => $this->formatToman($this->purchaseCreditAvailableToman($customer)),
+            'purchase_credit' => $purchaseCredit,
+            'purchase_credit_after_payment' => $purchaseCredit,
         ];
     }
 

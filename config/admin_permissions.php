@@ -199,7 +199,10 @@ return [
                     'admin.sms.index', 'admin.sms.export-excel', 'admin.sms.destroy',
                 ]],
                 ['key' => 'sms.free_send', 'label' => 'ارسال آزاد', 'routes' => [
-                    'admin.sms.index', 'admin.sms.free-send',
+                    'admin.sms.index', 'admin.sms.free-send', 'admin.sms.free-send.templates.store',
+                    'admin.sms.free-send.customers.search', 'admin.sms.free-send.audience-preview',
+                    'admin.sms.free-send.excel-preview', 'admin.sms.free-send.excel-sample',
+                    'admin.sms.free-send.campaigns.status',
                 ]],
                 ['key' => 'sms.credit', 'label' => 'اعتبار پنل', 'routes' => [
                     'admin.sms.index',

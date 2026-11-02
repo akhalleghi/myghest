@@ -4372,10 +4372,13 @@
                 return custListBaseUrl + '/' + id + '/quick-sms';
             }
 
-            function customerSmsModalPreviewUrl(customerId, smsType, installmentId) {
+            function customerSmsModalPreviewUrl(customerId, smsType, installmentId, templateId) {
                 var u = custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/sms-modal-preview?sms_type=' + encodeURIComponent(String(smsType || ''));
                 if (installmentId != null && String(installmentId).trim() !== '') {
                     u += '&installment_id=' + encodeURIComponent(String(installmentId));
+                }
+                if (templateId != null && String(templateId).trim() !== '') {
+                    u += '&template_id=' + encodeURIComponent(String(templateId));
                 }
                 return u;
             }
@@ -9674,7 +9677,8 @@
                     installment_number: seq,
                     paid_amount: amtText,
                     remaining_loan: remainText,
-                    purchase_credit: purchaseCreditText
+                    purchase_credit: purchaseCreditText,
+                    purchase_credit_after_payment: purchaseCreditText
                 };
                 var adminPayTpl = quickSmsTemplatesData.find(function (t) {
                     return String(t.template_key || '') === 'default_admin_installment_payment_registered';
@@ -9807,7 +9811,8 @@
                                     installment_number: snapIns.sequence != null ? String(snapIns.sequence) : '—',
                                     paid_amount: formatToman(amtPay) + ' تومان',
                                     remaining_loan: formatToman(remainAfter) + ' تومان',
-                                    purchase_credit: formatToman(resolvePurchaseCreditAvailableAfterPayment(amtPay)) + ' تومان'
+                                    purchase_credit: formatToman(resolvePurchaseCreditAvailableAfterPayment(amtPay)) + ' تومان',
+                                    purchase_credit_after_payment: formatToman(resolvePurchaseCreditAvailableAfterPayment(amtPay)) + ' تومان'
                                 });
                             });
                             if (adminPayTpl && String(selectEl.value || '') === String(adminPayTpl.id)) {
@@ -11491,18 +11496,32 @@
             if (quickSmsTemplate && quickSmsText) {
                 quickSmsTemplate.addEventListener('change', function () {
                     var tplId = parseInt(String(quickSmsTemplate.value || '0'), 10);
-                    if (!tplId) {
+                    var customerId = quickSmsCurrentCustomerId;
+                    if (!tplId || !customerId) {
                         return;
                     }
-                    var tpl = quickSmsTemplatesData.find(function (x) {
-                        return parseInt(String(x.id), 10) === tplId;
-                    });
-                    if (!tpl) {
+                    var smsType = quickSmsCurrentType || 'welcome';
+                    var installmentTypes = ['installment_pre_due', 'installment_due', 'installment_overdue', 'installment_thanks'];
+                    var installmentId = installmentTypes.indexOf(smsType) !== -1 ? quickSmsCurrentInstallmentId : null;
+                    if (installmentTypes.indexOf(smsType) !== -1 && !installmentId) {
                         return;
                     }
-                    quickSmsText.value = renderWalletTemplateText(tpl.body || '', {
-                        store_name: document.title || 'سامانه',
-                        customer_name: quickSmsCurrentCustomerName
+                    quickSmsText.value = '';
+                    quickSmsText.placeholder = 'در حال ساخت پیش‌نمایش قالب…';
+                    fetch(customerSmsModalPreviewUrl(customerId, smsType, installmentId, tplId), {
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                        credentials: 'same-origin'
+                    }).then(function (response) {
+                        if (!response.ok) throw new Error('preview_failed');
+                        return response.json();
+                    }).then(function (data) {
+                        if (quickSmsCurrentCustomerId !== customerId || !quickSmsTemplate || String(quickSmsTemplate.value) !== String(tplId)) return;
+                        quickSmsText.value = String(data.body || '');
+                        quickSmsText.placeholder = 'متن پیامک را بنویسید...';
+                    }).catch(function () {
+                        if (quickSmsCurrentCustomerId !== customerId || !quickSmsTemplate || String(quickSmsTemplate.value) !== String(tplId)) return;
+                        quickSmsText.value = '';
+                        quickSmsText.placeholder = 'پیش‌نمایش قالب دریافت نشد؛ دوباره انتخاب کنید.';
                     });
                 });
             }

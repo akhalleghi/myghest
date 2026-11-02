@@ -117,6 +117,19 @@
         .sms-free-field textarea[name="message"] { min-height: 7.2rem; }
         .sms-free-hint { margin: 0.28rem 0 0; font-size: 0.7rem; color: var(--muted); line-height: 1.55; }
         .sms-free-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+        .sms-free-template-save-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; }
+        .sms-free-template-title-field { flex: 1 1 12rem; }
+        .sms-free-template-title-field input, .sms-free-template-picker { width: 100%; border: 1px solid var(--border); border-radius: 0.62rem; padding: 0.5rem 0.62rem; background: var(--bg-card); color: var(--text); font-family: inherit; font-size: 0.82rem; }
+        .sms-free-template-status { width: 100%; margin: 0; font-size: 0.72rem; color: var(--muted); }
+        .sms-free-audience-panel { display: grid; gap: 0.55rem; border: 1px dashed var(--border); border-radius: 0.7rem; padding: 0.65rem; background: color-mix(in oklab, var(--bg-card) 88%, var(--primary-soft)); }
+        .sms-free-audience-panel[hidden] { display: none !important; }
+        .sms-free-audience-tools { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+        .sms-free-audience-tools input { flex: 1 1 15rem; min-width: 10rem; border: 1px solid var(--border); border-radius: 0.55rem; padding: 0.48rem 0.6rem; background: var(--bg-card); color: var(--text); font: inherit; }
+        .sms-free-audience-results, .sms-free-selected-list { display: grid; gap: 0.32rem; max-height: 12rem; overflow: auto; }
+        .sms-free-audience-option { display: flex; align-items: center; gap: 0.45rem; padding: 0.35rem 0.45rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--bg-card); font-size: 0.75rem; }
+        .sms-free-audience-option small { color: var(--muted); }
+        .sms-free-audience-summary { margin: 0; font-size: 0.74rem; color: var(--muted); }
+        .sms-free-campaign-status { border: 1px solid var(--border); border-radius: 0.65rem; padding: 0.65rem; margin-bottom: 0.75rem; background: var(--primary-soft); font-size: 0.76rem; }
         .sms-free-submit {
             border: none; border-radius: 0.62rem; padding: 0.52rem 1.05rem;
             background: linear-gradient(180deg, var(--primary), var(--primary-dark)); color: #fff;
@@ -509,9 +522,36 @@
                 </div>
 
                 @if($smsFeat('free_send.send'))
+                @if($smsFreeSendCampaign)
+                    <div id="sms-free-campaign-status" class="sms-free-campaign-status" data-status-url="{{ route('admin.sms.free-send.campaigns.status', $smsFreeSendCampaign) }}" data-campaign-status="{{ $smsFreeSendCampaign->status }}">
+                        کمپین #{{ $smsFreeSendCampaign->id }} — {{ number_format($smsFreeSendCampaign->sent_count) }} از {{ number_format($smsFreeSendCampaign->total_count) }} ارسال موفق، {{ number_format($smsFreeSendCampaign->failed_count) }} ناموفق.
+                    </div>
+                @endif
                 <form method="post" action="{{ route('admin.sms.free-send') }}" class="sms-free-form" autocomplete="off">
                     @csrf
                     <div class="sms-free-field">
+                        <label for="sms-free-recipient-source">انتخاب مخاطبان</label>
+                        <select id="sms-free-recipient-source" name="recipient_source" class="sms-free-template-picker">
+                            <option value="manual_numbers" @selected(old('recipient_source', 'manual_numbers') === 'manual_numbers')>شماره‌های واردشده</option>
+                            <option value="selected_customers" @selected(old('recipient_source') === 'selected_customers')>انتخاب یک یا چند مشتری</option>
+                            <option value="overdue_customers" @selected(old('recipient_source') === 'overdue_customers')>همهٔ مشتریان دارای قسط معوق</option>
+                            <option value="settled_customers" @selected(old('recipient_source') === 'settled_customers')>مشتریان بدون بدهی با وام تسویه‌شده</option>
+                            <option value="no_debt_customers" @selected(old('recipient_source') === 'no_debt_customers')>همهٔ مشتریان بدون بدهی</option>
+                            <option value="wallet_positive_customers" @selected(old('recipient_source') === 'wallet_positive_customers')>مشتریان دارای موجودی کیف پول</option>
+                            <option value="all_customers" @selected(old('recipient_source') === 'all_customers')>همهٔ مشتریان</option>
+                            <option value="excel" @selected(old('recipient_source') === 'excel')>مخاطبان و پیام‌های فایل اکسل</option>
+                        </select>
+                    </div>
+                    <div class="sms-free-field">
+                        <label for="sms-free-template-picker">الگوی پیام ذخیره‌شده</label>
+                        <select id="sms-free-template-picker" class="sms-free-template-picker">
+                            <option value="">انتخاب الگو…</option>
+                            @foreach($freeSmsTemplates as $freeSmsTemplate)
+                                <option value="{{ $freeSmsTemplate->id }}" data-body="{{ $freeSmsTemplate->body }}">{{ $freeSmsTemplate->title }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="sms-free-field" id="sms-free-manual-panel">
                         <label for="sms-free-recipients">شماره‌های گیرنده <span class="req" style="color:#b91c1c;">*</span></label>
                         <textarea
                             id="sms-free-recipients"
@@ -522,16 +562,48 @@
                         <p class="sms-free-hint">هر خط یک شماره، یا جدا با کاما/فاصله. حداکثر ۳۰ شماره معتبر در هر ارسال. فرمت: ۰۹xxxxxxxxx</p>
                         @error('recipients')<div class="sms-field-error">{{ $message }}</div>@enderror
                     </div>
+                    <div class="sms-free-audience-panel" id="sms-free-customer-panel" hidden>
+                        <div class="sms-free-audience-tools">
+                            <input id="sms-free-customer-search" type="search" autocomplete="off" placeholder="جست‌وجو با نام، شماره موبایل یا کد مشتری">
+                            <button type="button" id="sms-free-customer-search-button" class="sms-settings-submit">جست‌وجو</button>
+                        </div>
+                        <div id="sms-free-customer-results" class="sms-free-audience-results"></div>
+                        <div id="sms-free-customer-selection" class="sms-free-selected-list"></div>
+                        <div id="sms-free-customer-ids"></div>
+                        <p id="sms-free-customer-summary" class="sms-free-audience-summary">برای انتخاب مشتری، نام یا موبایل را جست‌وجو کنید.</p>
+                    </div>
+                    <div class="sms-free-audience-panel" id="sms-free-segment-panel" hidden>
+                        <button type="button" id="sms-free-audience-preview-button" class="sms-settings-submit">بررسی تعداد مخاطبان</button>
+                        <p id="sms-free-audience-summary" class="sms-free-audience-summary">پیش از ارسال، تعداد واجدان شرایط را بررسی کنید.</p>
+                    </div>
+                    <div class="sms-free-audience-panel" id="sms-free-excel-panel" hidden>
+                        <label for="sms-free-contacts-file">فایل اکسل مخاطبان</label>
+                        <input id="sms-free-contacts-file" name="contacts_file" type="file" accept=".xlsx,.xls,.csv">
+                        <a href="{{ route('admin.sms.free-send.excel-sample') }}">دریافت قالب نمونهٔ اکسل</a>
+                        <button type="button" id="sms-free-excel-preview-button" class="sms-settings-submit">بررسی فایل</button>
+                        <p id="sms-free-excel-summary" class="sms-free-audience-summary">ستون‌های فایل: «شماره موبایل» و «متن پیامک»؛ حداکثر ۵۰۰۰ ردیف.</p>
+                    </div>
                     <div class="sms-free-field">
-                        <label for="sms-free-message">متن پیامک <span class="req" style="color:#b91c1c;">*</span></label>
+                        <label for="sms-free-message">متن پیامک مشترک یا جایگزین فایل اکسل <span class="req" style="color:#b91c1c;">*</span></label>
                         <textarea
                             id="sms-free-message"
                             name="message"
                             maxlength="700"
                             placeholder="متن پیام را وارد کنید…"
                         >{{ old('message') }}</textarea>
-                        <p class="sms-free-hint">حداکثر ۷۰۰ کاراکتر. همین متن برای همه گیرنده‌ها ارسال می‌شود.</p>
+                        <p class="sms-free-hint">حداکثر ۷۰۰ کاراکتر. برای مشتریان قابل شخصی‌سازی است؛ در فایل اکسل متن هر ردیف اولویت دارد و این متن فقط جایگزین ردیف‌های بدون متن می‌شود.</p>
                         @error('message')<div class="sms-field-error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="sms-free-template-save-row">
+                        <div class="sms-free-field sms-free-template-title-field">
+                            <label for="sms-free-template-title">عنوان الگوی جدید</label>
+                            <input id="sms-free-template-title" type="text" maxlength="120" class="sms-free-template-picker" placeholder="مثلاً اطلاع‌رسانی تعطیلی">
+                        </div>
+                        <button type="button" id="sms-free-template-save" class="sms-settings-submit">
+                            <i class="fa-solid fa-bookmark" aria-hidden="true"></i>
+                            ذخیره متن به‌عنوان الگو
+                        </button>
+                        <p id="sms-free-template-status" class="sms-free-template-status" role="status" aria-live="polite"></p>
                     </div>
                     <div class="sms-free-actions">
                         <button type="submit" class="sms-free-submit">
@@ -1076,6 +1148,265 @@
     <script src="{{ asset('vendor/persian-datepicker/persian-datepicker.min.js') }}"></script>
     <script>
         (function () {
+            var smsFreeRecipientSource = document.getElementById('sms-free-recipient-source');
+            var smsFreeManualPanel = document.getElementById('sms-free-manual-panel');
+            var smsFreeCustomerPanel = document.getElementById('sms-free-customer-panel');
+            var smsFreeSegmentPanel = document.getElementById('sms-free-segment-panel');
+            var smsFreeExcelPanel = document.getElementById('sms-free-excel-panel');
+            var smsFreeRecipients = document.getElementById('sms-free-recipients');
+            var smsFreeMessage = document.getElementById('sms-free-message');
+            var smsFreeCustomerSearch = document.getElementById('sms-free-customer-search');
+            var smsFreeCustomerSearchButton = document.getElementById('sms-free-customer-search-button');
+            var smsFreeCustomerResults = document.getElementById('sms-free-customer-results');
+            var smsFreeCustomerSelection = document.getElementById('sms-free-customer-selection');
+            var smsFreeCustomerIds = document.getElementById('sms-free-customer-ids');
+            var smsFreeCustomerSummary = document.getElementById('sms-free-customer-summary');
+            var smsFreeAudiencePreviewButton = document.getElementById('sms-free-audience-preview-button');
+            var smsFreeAudienceSummary = document.getElementById('sms-free-audience-summary');
+            var smsFreeExcelFile = document.getElementById('sms-free-contacts-file');
+            var smsFreeExcelPreviewButton = document.getElementById('sms-free-excel-preview-button');
+            var smsFreeExcelSummary = document.getElementById('sms-free-excel-summary');
+            var smsFreeSelectedCustomers = new Map();
+
+            function updateSmsFreeRecipientPanels() {
+                if (!smsFreeRecipientSource) return;
+                var source = String(smsFreeRecipientSource.value || 'manual_numbers');
+                if (smsFreeManualPanel) smsFreeManualPanel.hidden = source !== 'manual_numbers';
+                if (smsFreeCustomerPanel) smsFreeCustomerPanel.hidden = source !== 'selected_customers';
+                if (smsFreeSegmentPanel) smsFreeSegmentPanel.hidden = ['manual_numbers', 'selected_customers', 'excel'].indexOf(source) !== -1;
+                if (smsFreeExcelPanel) smsFreeExcelPanel.hidden = source !== 'excel';
+                if (smsFreeRecipients) smsFreeRecipients.required = source === 'manual_numbers';
+                if (smsFreeMessage) smsFreeMessage.required = source !== 'excel';
+            }
+
+            if (smsFreeRecipientSource) {
+                smsFreeRecipientSource.addEventListener('change', updateSmsFreeRecipientPanels);
+                updateSmsFreeRecipientPanels();
+            }
+
+            var smsFreeForm = document.querySelector('.sms-free-form');
+            if (smsFreeForm && smsFreeRecipientSource) {
+                smsFreeForm.addEventListener('submit', function (event) {
+                    var source = String(smsFreeRecipientSource.value || '');
+                    if (['all_customers', 'overdue_customers', 'settled_customers', 'no_debt_customers', 'wallet_positive_customers'].indexOf(source) !== -1) {
+                        var labels = {
+                            all_customers: 'همه مشتریان دارای شماره معتبر و مجاز به دریافت پیامک',
+                            overdue_customers: 'همه مشتریان دارای قسط معوق',
+                            settled_customers: 'همه مشتریان دارای وام تسویه‌شده و بدون بدهی جاری',
+                            no_debt_customers: 'همه مشتریان بدون بدهی',
+                            wallet_positive_customers: 'همه مشتریان دارای موجودی مثبت کیف پول'
+                        };
+                        if (!window.confirm('پیامک برای ' + labels[source] + ' ارسال می‌شود. ادامه می‌دهید؟')) event.preventDefault();
+                    }
+                });
+            }
+
+            function renderSmsFreeSelectedCustomers() {
+                if (smsFreeCustomerSelection) smsFreeCustomerSelection.replaceChildren();
+                if (smsFreeCustomerIds) smsFreeCustomerIds.replaceChildren();
+                smsFreeSelectedCustomers.forEach(function (customer, id) {
+                    if (smsFreeCustomerSelection) {
+                        var chip = document.createElement('label');
+                        chip.className = 'sms-free-audience-option';
+                        var checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.checked = true;
+                        checkbox.addEventListener('change', function () {
+                            smsFreeSelectedCustomers.delete(String(id));
+                            renderSmsFreeSelectedCustomers();
+                        });
+                        var label = document.createElement('span');
+                        label.textContent = customer.name + ' — ' + customer.mobile;
+                        chip.append(checkbox, label);
+                        smsFreeCustomerSelection.appendChild(chip);
+                    }
+                    if (smsFreeCustomerIds) {
+                        var hidden = document.createElement('input');
+                        hidden.type = 'hidden';
+                        hidden.name = 'customer_ids[]';
+                        hidden.value = String(id);
+                        smsFreeCustomerIds.appendChild(hidden);
+                    }
+                });
+                if (smsFreeCustomerSummary) {
+                    smsFreeCustomerSummary.textContent = smsFreeSelectedCustomers.size
+                        ? smsFreeSelectedCustomers.size + ' مشتری برای ارسال انتخاب شده است.'
+                        : 'برای انتخاب مشتری، نام یا موبایل را جست‌وجو کنید.';
+                }
+            }
+
+            function searchSmsFreeCustomers() {
+                if (!smsFreeCustomerSearch || !smsFreeCustomerResults) return;
+                var term = String(smsFreeCustomerSearch.value || '').trim();
+                if (term.length < 2) {
+                    smsFreeCustomerResults.textContent = 'برای جست‌وجو دست‌کم دو نویسه وارد کنید.';
+                    return;
+                }
+                smsFreeCustomerResults.textContent = 'در حال جست‌وجو…';
+                fetch(@json(route('admin.sms.free-send.customers.search')) + '?q=' + encodeURIComponent(term), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                }).then(function (response) {
+                    if (!response.ok) throw new Error('search_failed');
+                    return response.json();
+                }).then(function (data) {
+                    smsFreeCustomerResults.replaceChildren();
+                    (data.items || []).forEach(function (customer) {
+                        var id = String(customer.id);
+                        var row = document.createElement('label');
+                        row.className = 'sms-free-audience-option';
+                        var checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.checked = smsFreeSelectedCustomers.has(id);
+                        var text = document.createElement('span');
+                        text.textContent = String(customer.name || '') + ' — ' + String(customer.mobile || '') + (customer.code ? ' (' + customer.code + ')' : '');
+                        checkbox.addEventListener('change', function () {
+                            if (checkbox.checked) smsFreeSelectedCustomers.set(id, customer);
+                            else smsFreeSelectedCustomers.delete(id);
+                            renderSmsFreeSelectedCustomers();
+                            checkbox.checked = smsFreeSelectedCustomers.has(id);
+                        });
+                        row.append(checkbox, text);
+                        smsFreeCustomerResults.appendChild(row);
+                    });
+                    if (!data.items || data.items.length === 0) smsFreeCustomerResults.textContent = 'مشتری واجد شرایطی پیدا نشد.';
+                }).catch(function () {
+                    smsFreeCustomerResults.textContent = 'جست‌وجوی مشتریان انجام نشد؛ دوباره تلاش کنید.';
+                });
+            }
+
+            if (smsFreeCustomerSearchButton) smsFreeCustomerSearchButton.addEventListener('click', searchSmsFreeCustomers);
+            if (smsFreeCustomerSearch) smsFreeCustomerSearch.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    searchSmsFreeCustomers();
+                }
+            });
+
+            function previewSmsFreeAudience() {
+                if (!smsFreeRecipientSource || !smsFreeAudienceSummary) return;
+                var payload = new FormData();
+                payload.append('recipient_source', String(smsFreeRecipientSource.value || ''));
+                smsFreeSelectedCustomers.forEach(function (_, id) { payload.append('customer_ids[]', String(id)); });
+                smsFreeAudienceSummary.textContent = 'در حال بررسی مخاطبان…';
+                fetch(@json(route('admin.sms.free-send.audience-preview')), {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': @json(csrf_token()), 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                    body: payload
+                }).then(function (response) {
+                    return response.json().then(function (data) {
+                        if (!response.ok) throw new Error(data.message || 'بررسی مخاطبان انجام نشد.');
+                        return data;
+                    });
+                }).then(function (data) {
+                    var examples = (data.sample || []).map(function (item) { return item.name + ' (' + item.mobile + ')'; }).join('، ');
+                    smsFreeAudienceSummary.textContent = Number(data.count || 0) + ' مشتری واجد شرایط است.' + (examples ? ' نمونه: ' + examples : '');
+                }).catch(function (error) {
+                    smsFreeAudienceSummary.textContent = error.message || 'بررسی مخاطبان انجام نشد.';
+                });
+            }
+            if (smsFreeAudiencePreviewButton) smsFreeAudiencePreviewButton.addEventListener('click', previewSmsFreeAudience);
+
+            if (smsFreeExcelPreviewButton && smsFreeExcelFile) {
+                smsFreeExcelPreviewButton.addEventListener('click', function () {
+                    var file = smsFreeExcelFile.files && smsFreeExcelFile.files[0];
+                    if (!file) {
+                        if (smsFreeExcelSummary) smsFreeExcelSummary.textContent = 'ابتدا فایل اکسل را انتخاب کنید.';
+                        return;
+                    }
+                    var formData = new FormData();
+                    formData.append('contacts_file', file);
+                    if (smsFreeExcelSummary) smsFreeExcelSummary.textContent = 'در حال بررسی فایل…';
+                    fetch(@json(route('admin.sms.free-send.excel-preview')), {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': @json(csrf_token()), 'X-Requested-With': 'XMLHttpRequest' },
+                        credentials: 'same-origin',
+                        body: formData
+                    }).then(function (response) {
+                        return response.json().then(function (data) {
+                            if (!response.ok) throw new Error(data.message || (data.errors && Object.values(data.errors).flat()[0]) || 'خواندن فایل انجام نشد.');
+                            return data;
+                        });
+                    }).then(function (data) {
+                        if (smsFreeExcelSummary) smsFreeExcelSummary.textContent = data.count + ' ردیف آمادهٔ ارسال؛ ' + data.invalid_count + ' شماره نامعتبر و ' + data.duplicate_count + ' شماره تکراری کنار گذاشته می‌شود.';
+                    }).catch(function (error) {
+                        if (smsFreeExcelSummary) smsFreeExcelSummary.textContent = error.message || 'خواندن فایل انجام نشد.';
+                    });
+                });
+            }
+
+            var smsFreeCampaignStatus = document.getElementById('sms-free-campaign-status');
+            if (smsFreeCampaignStatus && smsFreeCampaignStatus.getAttribute('data-campaign-status') !== 'completed' && smsFreeCampaignStatus.getAttribute('data-campaign-status') !== 'failed') {
+                var statusUrl = smsFreeCampaignStatus.getAttribute('data-status-url');
+                var statusTimer = window.setInterval(function () {
+                    fetch(statusUrl, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                        .then(function (response) { if (!response.ok) throw new Error('status_failed'); return response.json(); })
+                        .then(function (data) {
+                            smsFreeCampaignStatus.textContent = 'کمپین #' + data.id + ' — ' + data.sent_count + ' از ' + data.total_count + ' ارسال موفق، ' + data.failed_count + ' ناموفق.';
+                            if (data.status === 'completed' || data.status === 'failed') window.clearInterval(statusTimer);
+                        }).catch(function () { window.clearInterval(statusTimer); });
+                }, 3000);
+            }
+
+            var freeSmsTemplatePicker = document.getElementById('sms-free-template-picker');
+            var freeSmsMessage = document.getElementById('sms-free-message');
+            var freeSmsTemplateTitle = document.getElementById('sms-free-template-title');
+            var freeSmsTemplateSave = document.getElementById('sms-free-template-save');
+            var freeSmsTemplateStatus = document.getElementById('sms-free-template-status');
+            if (freeSmsTemplatePicker && freeSmsMessage) {
+                freeSmsTemplatePicker.addEventListener('change', function () {
+                    var option = freeSmsTemplatePicker.options[freeSmsTemplatePicker.selectedIndex];
+                    if (option && option.value) {
+                        freeSmsMessage.value = option.getAttribute('data-body') || '';
+                    }
+                });
+            }
+            if (freeSmsTemplateSave && freeSmsMessage && freeSmsTemplateTitle) {
+                freeSmsTemplateSave.addEventListener('click', function () {
+                    var title = String(freeSmsTemplateTitle.value || '').trim();
+                    var body = String(freeSmsMessage.value || '').trim();
+                    if (!title || !body) {
+                        if (freeSmsTemplateStatus) freeSmsTemplateStatus.textContent = 'عنوان الگو و متن پیام را وارد کنید.';
+                        return;
+                    }
+
+                    freeSmsTemplateSave.disabled = true;
+                    if (freeSmsTemplateStatus) freeSmsTemplateStatus.textContent = 'در حال ذخیره…';
+                    fetch(@json(route('admin.sms.free-send.templates.store')), {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': @json(csrf_token()),
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ title: title, body: body })
+                    }).then(function (response) {
+                        return response.json().then(function (data) {
+                            if (!response.ok) {
+                                var errors = data.errors || {};
+                                var message = data.message || Object.values(errors).flat()[0] || 'ذخیره الگو انجام نشد.';
+                                throw new Error(message);
+                            }
+                            return data;
+                        });
+                    }).then(function (data) {
+                        var option = new Option(data.title, String(data.id), true, true);
+                        option.setAttribute('data-body', data.body || '');
+                        freeSmsTemplatePicker.add(option);
+                        freeSmsMessage.value = String(data.body || '');
+                        freeSmsTemplateTitle.value = '';
+                        if (freeSmsTemplateStatus) freeSmsTemplateStatus.textContent = data.message || 'الگو ذخیره شد.';
+                    }).catch(function (error) {
+                        if (freeSmsTemplateStatus) freeSmsTemplateStatus.textContent = error.message || 'ذخیره الگو انجام نشد.';
+                    }).finally(function () {
+                        freeSmsTemplateSave.disabled = false;
+                    });
+                });
+            }
+
             var toggleBtn = document.getElementById('sms-toggle-range');
             var panel = document.getElementById('sms-range-panel');
             if (toggleBtn && panel) {

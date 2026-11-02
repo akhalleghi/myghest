@@ -13,6 +13,7 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
@@ -182,6 +183,7 @@ final class CustomerPasswordForgotController extends Controller
 
         $customer->forceFill([
             'password' => $validated['password'],
+            'password_print_encrypted' => Crypt::encryptString((string) $validated['password']),
         ])->save();
 
         Cache::forget($cacheKey);
