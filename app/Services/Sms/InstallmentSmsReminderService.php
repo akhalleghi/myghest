@@ -67,8 +67,9 @@ final class InstallmentSmsReminderService
                 ->with([
                     'loanFile.customer',
                     'loanFile.loanType',
+                    'loanFile.installments.payments',
+                    'payments',
                 ])
-                ->whereColumn('paid_amount_toman', '<', 'amount_toman')
                 ->whereHas('loanFile', static function ($q): void {
                     $q->whereNull('revoked_at')
                         ->where('is_settled', false)
@@ -94,6 +95,15 @@ final class InstallmentSmsReminderService
                     &$failed,
                 ): void {
                     foreach ($installments as $installment) {
+                        $finance = app(\App\Services\Loans\LoanFileFinanceCalculator::class);
+                        $fileForBalance = $installment->loanFile;
+                        if ($fileForBalance === null) {
+                            continue;
+                        }
+                        $snapshot = $finance->loanInstallmentFinancialSnapshot($fileForBalance, $finance->totalRepayableToman($fileForBalance));
+                        if ((int) ($snapshot['installment_payables'][(int) $installment->id]['remaining_toman'] ?? 0) <= 0) {
+                            continue;
+                        }
                         $loanFile = $installment->loanFile;
                         $customer = $loanFile?->customer;
                         if ($loanFile === null || $customer === null) {

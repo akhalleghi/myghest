@@ -3974,7 +3974,7 @@
             </div>
             <div class="cust-modal-body">
                 <div class="loan-is-hero">
-                    <span class="loan-is-hero__label">جمع مبلغ قابل ثبت (مانده اقساط معوق)</span>
+                    <span class="loan-is-hero__label">جمع مبلغ قابل ثبت (اقساط معوق و دیرکرد)</span>
                     <div class="loan-is-hero__amount" id="loan-overdue-all-primary-amount">—</div>
                 </div>
                 <p class="loan-is-summary" id="loan-overdue-all-summary"></p>
@@ -6105,7 +6105,7 @@
                         '<div><span style="color:var(--muted);font-weight:700;">تعداد اقساط:</span> ' + escapeHtmlText(formatToman(icnt)) + '</div>' +
                         '<div style="margin-top:0.35rem;"><span style="color:var(--muted);font-weight:700;">مبلغ هر قسط (پرونده):</span> ' + escapeHtmlText(formatToman(iamt) + ' تومان') + '</div>';
                 }
-                var rem = Number(l.schedule_remaining_toman != null ? l.schedule_remaining_toman : 0);
+                var rem = Number(l.remaining_amount_toman != null ? l.remaining_amount_toman : l.schedule_remaining_toman || 0);
                 if (loanInstEditColRemaining) {
                     loanInstEditColRemaining.innerHTML =
                         '<div style="font-weight:800;font-size:0.88rem;">' + escapeHtmlText(formatToman(rem) + ' تومان') + '</div>';
@@ -6197,7 +6197,7 @@
                         '<div><span style="color:var(--muted);font-weight:700;">تعداد اقساط:</span> ' + escapeHtmlText(formatToman(icntp)) + '</div>' +
                         '<div style="margin-top:0.35rem;"><span style="color:var(--muted);font-weight:700;">مبلغ هر قسط (پرونده):</span> ' + escapeHtmlText(formatToman(iamtp) + ' تومان') + '</div>';
                 }
-                var remp = Number(ln.schedule_remaining_toman != null ? ln.schedule_remaining_toman : 0);
+                var remp = Number(ln.remaining_amount_toman != null ? ln.remaining_amount_toman : ln.schedule_remaining_toman || 0);
                 if (loanInstPayColRemaining) {
                     loanInstPayColRemaining.innerHTML =
                         '<div style="font-weight:800;font-size:0.88rem;">' + escapeHtmlText(formatToman(remp) + ' تومان') + '</div>';
@@ -6349,9 +6349,9 @@
                     '<span style="font-weight:800;color:var(--text);">قسط ' +
                     escapeHtmlText(formatToman(insP.sequence || 0)) +
                     '</span> · مبلغ قسط <strong>' + escapeHtmlText(formatToman(amta) + ' تومان') + '</strong> · پرداخت‌شده <strong>' +
-                    escapeHtmlText(formatToman(defp) + ' تومان') + '</strong> · ماندهٔ سهم نامی این قسط <strong>' +
-                    escapeHtmlText(formatToman(remInst) + ' تومان') + '</strong> · سقف ثبت این واریزی (بر اساس ماندهٔ کل وام) <strong>' +
-                    escapeHtmlText(formatToman(maxPayStep) + ' تومان') + '</strong>';
+                    escapeHtmlText(formatToman(defp) + ' تومان') + '</strong> · مانده بدهی این قسط با دیرکرد <strong>' +
+                    escapeHtmlText(formatToman(remInst) + ' تومان') + '</strong> · سقف مجاز این قسط <strong>' +
+                    escapeHtmlText(formatToman(maxPayStep) + ' تومان') + '</strong> · سقف شامل دیرکرد برآوردی تا امروز';
             }
 
             function applyLoanInstPayServerPayload(payload) {
@@ -6953,7 +6953,7 @@
                     if (loanOverdueAllLateHint) {
                         loanOverdueAllLateHint.textContent = (settleable && lateFee > 0)
                             ? ('برآورد دیرکرد مرتبط: ' + String(data.late_fee_fa || (formatToman(lateFee) + ' تومان'))
-                                + ' — در این ثبت لحاظ نمی‌شود (فقط ماندهٔ اقساط معوق ثبت می‌شود).')
+                                + ' — در مبلغ قابل پرداخت لحاظ شده است.')
                             : '';
                     }
                     if (loanOverdueAllRows) {
@@ -7682,21 +7682,21 @@
             function isLoanFileSettledForUi(row) {
                 if (!row) return false;
                 var remainingAmount = Number(row.remaining_amount_toman || 0);
-                return !!(row.is_settled || (!row.is_revoked && remainingAmount <= 0));
+                return !!(row.is_settled || (!row.is_revoked && !row.requires_schedule_review && remainingAmount <= 0));
             }
 
             function computeLoanSettleAllAmountToman(rows) {
                 return (rows || []).reduce(function (sum, row) {
-                    if (!row || row.is_settled || row.is_revoked) return sum;
+                    if (!row || row.is_settled || row.is_revoked || row.requires_schedule_review) return sum;
                     var rem = Number(row.remaining_amount_toman || 0);
                     if (rem <= 0) return sum;
-                    return sum + rem + Number(row.late_fee_so_far_toman || 0);
+                    return sum + rem;
                 }, 0);
             }
 
             function computeLoanOverdueAllAmountToman(rows) {
                 return (rows || []).reduce(function (sum, row) {
-                    if (!row || row.is_settled || row.is_revoked) return sum;
+                    if (!row || row.is_settled || row.is_revoked || row.requires_schedule_review) return sum;
                     var payable = row.overdue_payable_toman != null
                         ? Number(row.overdue_payable_toman || 0)
                         : Math.min(
@@ -7715,7 +7715,7 @@
                 var overdueBtn = document.getElementById('loan-overdue-all-open');
                 var overdueAmtEl = document.getElementById('loan-overdue-all-amount');
                 var settleableOpenDebtCount = (rows || []).filter(function (r) {
-                    return r && !r.is_settled && !r.is_revoked && Number(r.remaining_amount_toman || 0) > 0;
+                    return r && !r.is_settled && !r.is_revoked && !r.requires_schedule_review && Number(r.remaining_amount_toman || 0) > 0;
                 }).length;
 
                 if (settleAmtEl) {
@@ -7821,11 +7821,11 @@
                     var earlyBenefit = Number(row.early_benefit_toman || 0);
                     var discountAmount = Number(row.discount_amount_toman || 0);
                     /** تسویهٔ رسمی یا ماندهٔ محاسبه‌شده صفر (مثلاً بعد از پرداخت‌های ثبت‌شده روی اقساط) */
-                    var settledForUi = !!(row.is_settled || (!row.is_revoked && remainingPrincipal <= 0));
+                    var settledForUi = !!(row.is_settled || (!row.is_revoked && !row.requires_schedule_review && remainingPrincipal <= 0));
                     var remainingAmount = row.is_revoked || settledForUi
                         ? remainingPrincipal
-                        : Math.max(0, remainingPrincipal + lateFee);
-                    var settlementText = settledForUi ? 'بلی' : 'خیر';
+                        : Math.max(0, remainingPrincipal);
+                    var settlementText = row.requires_schedule_review ? 'نیاز به بررسی اقساط' : (settledForUi ? 'بلی' : 'خیر');
                     var accountStatus = remainingAmount > 0 ? 'بدهکار' : (remainingAmount < 0 ? 'بستانکار' : 'تراز');
                     var accountClass = remainingAmount > 0 ? 'loan-file-v--danger' : (remainingAmount < 0 ? 'loan-file-v--ok' : 'loan-file-v--warn');
                     var description = String(row.description || '').trim();
@@ -7842,6 +7842,8 @@
                     if (row.is_revoked) {
                         cardModClass = ' loan-file-card--revoked';
                         ribbonHtml = '<span class="loan-file-corner-ribbon loan-file-corner-ribbon--revoked"><span>فسخ شده</span></span>';
+                    } else if (row.requires_schedule_review) {
+                        ribbonHtml = '<span class="loan-file-corner-ribbon"><span style="background:#b45309">نیاز به بررسی</span></span>';
                     } else if (settledForUi) {
                         cardModClass = ' loan-file-card--settled';
                         ribbonHtml = '<span class="loan-file-corner-ribbon"><span>تسویه شده</span></span>';
@@ -9868,24 +9870,6 @@
                         ? loanInstPayLastServerPayload.installment
                         : {};
                     var editPaymentId = loanInstPayEditingPaymentId ? Number(loanInstPayEditingPaymentId) : 0;
-                    var headroomEdit = editPaymentId > 0 ? Number(loanInstPayEditingOriginalAmount || 0) : 0;
-                    var maxRemain = Number(
-                        snapIns.max_payment_toman != null
-                            ? snapIns.max_payment_toman
-                            : (snapIns.remaining_toman != null
-                                ? snapIns.remaining_toman
-                                : Math.max(0, Number(snapIns.amount_toman || 0) - Number(snapIns.paid_amount_toman || 0)))
-                    ) + headroomEdit;
-                    if (amtPay > maxRemain) {
-                        if (window.AdminSwal && AdminSwal.error) {
-                            AdminSwal.error(
-                                maxRemain <= 0
-                                    ? 'طبق ماندهٔ وام، مبلغ دیگری قابل ثبت نیست.'
-                                    : ('حداکثر مبلغ قابل ثبت با احتساب ماندهٔ کل وام: ' + formatToman(maxRemain) + ' تومان')
-                            );
-                        }
-                        return;
-                    }
                     var postBody = {
                         payment_method: methodPay,
                         amount_toman: amtPay,

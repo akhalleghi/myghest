@@ -63,13 +63,9 @@ final class AdminDashboardStatisticsService
     private function buildSystemStats(Collection $activeFiles): array
     {
         $today = Carbon::now()->startOfDay();
-        $customersWithActiveLoanCount = Customer::query()
-            ->whereHas('loanFiles', static function ($q): void {
-                $q->whereNull('revoked_at')->where('is_settled', false);
-            })
-            ->count();
+        $customersWithDebt = [];
         $loanFilesCount = $activeFiles->count();
-        $settledCount = $activeFiles->where('is_settled', true)->count();
+        $settledCount = 0;
 
         $principalSum = 0;
         $withProfitSum = 0;
@@ -93,18 +89,19 @@ final class AdminDashboardStatisticsService
             );
             $totalRepayable = $this->financeCalculator->totalRepayableToman($file);
             $snapshot = $this->financeCalculator->loanInstallmentFinancialSnapshot($file, $totalRepayable);
+            if ($snapshot['remaining_amount_toman'] > 0 || $snapshot['requires_schedule_review']) {
+                $customersWithDebt[(int) $file->customer_id] = true;
+            } elseif ($snapshot['settled_by_balance']) {
+                $settledCount++;
+            }
             $lateCoef = (float) ($file->loanType?->daily_late_coefficient ?? 0);
             $earlyCoef = (float) ($file->loanType?->daily_early_coefficient ?? 0);
-            $lateFee = $this->financeCalculator->estimateLateFeeSoFarToman(
-                $file->installments,
-                $lateCoef,
-                (int) ($snapshot['schedule_remaining_toman'] ?? 0)
-            );
+            $lateFee = (int) $snapshot['late_fee_payable_toman'];
             $earlyBenefit = $this->aggregateEarlyBenefitToman($file->installments, $earlyCoef);
             $discount = (int) ($file->discount_amount_toman ?? 0);
             $remainingAfterDiscount = $file->is_settled
                 ? 0
-                : max(0, (int) ($snapshot['schedule_remaining_toman'] ?? 0) - $discount);
+                : (int) $snapshot['remaining_amount_toman'];
             $paid = (int) ($snapshot['total_paid_toman'] ?? 0);
 
             $principalSum += $principal;
@@ -114,11 +111,11 @@ final class AdminDashboardStatisticsService
             $lateFeeSum += $lateFee;
             $earlyBenefitSum += $earlyBenefit;
             $collectedSum += $paid;
-            $uncollectedSum += $remainingAfterDiscount + $lateFee;
+            $uncollectedSum += $remainingAfterDiscount;
 
             $now = Carbon::now()->startOfDay();
             foreach ($file->installments as $inst) {
-                $unpaid = max(0, (int) $inst->amount_toman - (int) $inst->paid_amount_toman);
+                $unpaid = $inst->principalRemainingToman();
                 if ($unpaid <= 0) {
                     continue;
                 }
@@ -132,7 +129,7 @@ final class AdminDashboardStatisticsService
         $currentMonthInstallments = $this->buildCurrentMonthInstallmentStats($today);
 
         return [
-            ['label' => 'تعداد مشتری دارای پرونده وام فعال', 'value' => $this->formatCount($customersWithActiveLoanCount)],
+            ['label' => 'تعداد مشتری دارای پرونده وام فعال', 'value' => $this->formatCount(count($customersWithDebt))],
             ['label' => 'تعداد پرونده وام', 'value' => $this->formatCount($loanFilesCount)],
             ['label' => 'تعداد وام تسویه', 'value' => $this->formatCount($settledCount)],
             ['label' => 'مجموع خالص وام ها', 'value' => $this->formatToman($principalSum)],
@@ -170,26 +167,23 @@ final class AdminDashboardStatisticsService
      */
     private function buildOverdueInstallmentStats(Carbon $today): array
     {
-        $installments = CustomerLoanInstallment::query()
-            ->whereColumn('paid_amount_toman', '<', 'amount_toman')
-            ->whereDate('due_date', '<', $today->toDateString())
-            ->whereHas('loanFile', static function ($q): void {
-                $q->whereNull('revoked_at')->where('is_settled', false);
-            })
-            ->with(['loanFile.loanType'])
-            ->get();
-
         $amount = 0;
-        foreach ($installments as $inst) {
-            $unpaid = max(0, (int) $inst->amount_toman - (int) $inst->paid_amount_toman);
-            $lateCoef = (float) ($inst->loanFile?->loanType?->daily_late_coefficient ?? 0);
-            $amount += $unpaid + $this->financeCalculator->estimateBookletPenaltyTomanForInstallment($inst, $lateCoef);
+        $count = 0;
+        $files = CustomerLoanFile::query()->whereNull('revoked_at')->where('is_settled', false)
+            ->whereHas('installments', static fn ($q) => $q->whereDate('due_date', '<', $today->toDateString()))
+            ->with(['loanType', 'installments.payments'])->get();
+        foreach ($files as $file) {
+            $snapshot = $this->financeCalculator->loanInstallmentFinancialSnapshot($file, $this->financeCalculator->totalRepayableToman($file));
+            foreach ($file->installments as $installment) {
+                $payable = (int) ($snapshot['installment_payables'][(int) $installment->id]['remaining_toman'] ?? 0);
+                if (Carbon::parse($installment->due_date)->lt($today) && $payable > 0) {
+                    $amount += $payable;
+                    $count++;
+                }
+            }
         }
 
-        return [
-            'amount_toman' => $amount,
-            'count' => $installments->count(),
-        ];
+        return ['amount_toman' => $amount, 'count' => $count];
     }
 
     /**
@@ -568,7 +562,7 @@ final class AdminDashboardStatisticsService
 
             $newLoanValues[] = (int) CustomerLoanFile::query()
                 ->whereNull('revoked_at')
-                ->whereBetween('created_at', [$start, $end])
+                ->whereBetween('loan_start_date', [$start->toDateString(), $end->toDateString()])
                 ->sum('amount_toman');
         }
 

@@ -214,8 +214,7 @@ final class AdminLoanRequestEditModalPresenter
             $totalWithProfit += $totalRepayable;
 
             $discount = (int) ($file->discount_amount_toman ?? 0);
-            $totalPaid = (int) $file->installments->sum(static fn ($i): int => (int) $i->paid_amount_toman);
-            $scheduleRemaining = max(0, $totalRepayable - $totalPaid);
+            $scheduleRemaining = app(LoanFileFinanceCalculator::class)->loanInstallmentFinancialSnapshot($file, $totalRepayable)['debt_remaining_toman'];
             $remaining += $file->is_settled
                 ? 0
                 : max(0, $scheduleRemaining - $discount);

@@ -9,8 +9,8 @@ use App\Models\CustomerDepositDeclaration;
 use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanInstallment;
 use App\Models\CustomerLoanInstallmentPayment;
+use App\Services\Loans\LoanFileFinanceCalculator;
 use App\Services\Loans\LoanInstallmentPaidAmountSyncer;
-use App\Services\Loans\LoanRemainingPayableOnFileToman;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +19,7 @@ use Illuminate\Validation\ValidationException;
 final class DepositDeclarationAdminService
 {
     public function __construct(
-        private readonly LoanRemainingPayableOnFileToman $remainingPayable,
+        private readonly LoanFileFinanceCalculator $finance,
         private readonly LoanInstallmentPaidAmountSyncer $paidSyncer,
     ) {}
 
@@ -144,10 +144,22 @@ final class DepositDeclarationAdminService
             $now,
             $adminNote
         ): CustomerLoanInstallmentPayment {
+            $lockedFile = CustomerLoanFile::query()->whereKey($loanFile->id)->lockForUpdate()->firstOrFail();
+            if ($lockedFile->is_settled || $lockedFile->revoked_at !== null) {
+                throw ValidationException::withMessages(['loan' => 'وضعیت پرونده تغییر کرده است.']);
+            }
+            $lockedDeclaration = CustomerDepositDeclaration::query()->whereKey($declaration->id)->lockForUpdate()->firstOrFail();
+            if (! $lockedDeclaration->isPending()
+                || (int) $lockedDeclaration->customer_loan_file_id !== (int) $loanFile->id
+                || (int) $lockedDeclaration->customer_loan_installment_id !== (int) $installment->id
+                || (int) $lockedDeclaration->amount_toman !== $amount) {
+                throw ValidationException::withMessages(['status' => 'درخواست قبلاً رسیدگی شده یا تغییر کرده است؛ اطلاعات را دوباره دریافت کنید.']);
+            }
+            $declaration->refresh();
             $loanFile->refresh();
             $installment->refresh();
 
-            $ceiling = $this->remainingPayable->value($loanFile);
+            $ceiling = $this->finance->installmentPaymentAllowanceToman($loanFile, $installment, $declaration->deposited_at);
             if ($amount > $ceiling) {
                 throw ValidationException::withMessages([
                     'amount' => [

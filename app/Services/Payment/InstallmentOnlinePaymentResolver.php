@@ -121,26 +121,29 @@ final class InstallmentOnlinePaymentResolver
 
         $totalRepayable = $this->finance->totalRepayableToman($file);
         $snap = $this->finance->loanInstallmentFinancialSnapshot($file, $totalRepayable);
+        if ($snap['requires_schedule_review']) {
+            return ['ok' => false, 'message' => 'جمع مبالغ اقساط با قرارداد متفاوت است؛ پرونده باید توسط پشتیبانی بررسی شود.'];
+        }
         $discount = (int) ($file->discount_amount_toman ?? 0);
         $scheduleRemaining = (int) $snap['schedule_remaining_toman'];
-        $signedRemaining = $file->is_settled ? 0 : ($scheduleRemaining - $discount);
+        $signedRemaining = $file->is_settled ? 0 : (int) $snap['remaining_signed_toman'];
         $isCreditor = ! $isRevoked && $signedRemaining < 0;
         $settledForUi = ! $isRevoked && ! $isCreditor && ($file->is_settled || $signedRemaining <= 0);
         $contractLocked = $isRevoked || $settledForUi || $isCreditor;
 
         $amount = (int) $installment->amount_toman;
         $paid = (int) $installment->paid_amount_toman;
-        $slotFullyPaid = $amount > 0 && $paid >= $amount;
+        $slotFullyPaid = $amount > 0 && (int) ($snap['installment_payables'][(int) $installment->id]['remaining_toman'] ?? 0) <= 0;
         $actionsEnabled = ! $contractLocked && ! $slotFullyPaid && $amount > 0;
 
         if ($actionsEnabled) {
             $currentSeq = (int) $installment->sequence;
-            $priorUnpaid = $file->installments->contains(static function (CustomerLoanInstallment $i) use ($currentSeq): bool {
+            $priorUnpaid = $file->installments->contains(static function (CustomerLoanInstallment $i) use ($currentSeq, $snap): bool {
                 if ((int) $i->sequence >= $currentSeq) {
                     return false;
                 }
 
-                return (int) $i->amount_toman > 0 && (int) $i->paid_amount_toman < (int) $i->amount_toman;
+                return (int) $i->amount_toman > 0 && (int) ($snap['installment_payables'][(int) $i->id]['remaining_toman'] ?? 0) > 0;
             });
             if ($priorUnpaid) {
                 return ['ok' => false, 'message' => 'ابتدا قسط‌های قبلی را پرداخت نمایید.'];
@@ -164,7 +167,8 @@ final class InstallmentOnlinePaymentResolver
         }
 
         $ceiling = $this->finance->installmentPaymentCeilingToman($file);
-        $slotRemaining = max(0, $amount - $paid);
+        $slotRemaining = (int) ($snap['installment_payables'][(int) $installment->id]['remaining_toman'] ?? 0);
+        $ceiling = min($ceiling, $slotRemaining);
 
         return [
             'ok' => true,

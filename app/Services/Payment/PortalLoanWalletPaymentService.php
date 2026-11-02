@@ -301,9 +301,9 @@ final class PortalLoanWalletPaymentService
 
                 $ref = 'wtx-'.(int) $wtx->id;
                 try {
-                    $this->fullSettlementAllocator->allocatePrincipalAcrossInstallments(
+                    $this->fullSettlementAllocator->allocateDebtAcrossInstallments(
                         $file,
-                        $principalToman,
+                        $amountToman,
                         $ref,
                         CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET,
                     );
@@ -464,9 +464,9 @@ final class PortalLoanWalletPaymentService
                     }
 
                     try {
-                        $this->fullSettlementAllocator->allocatePrincipalAcrossInstallments(
+                        $this->fullSettlementAllocator->allocateDebtAcrossInstallments(
                             $file,
-                            $expectedPrincipal,
+                            $expectedAmount,
                             $ref,
                             CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET,
                         );

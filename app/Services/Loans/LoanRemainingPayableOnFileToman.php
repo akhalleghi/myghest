@@ -17,13 +17,6 @@ final class LoanRemainingPayableOnFileToman
 
     public function value(CustomerLoanFile $file): int
     {
-        $file->loadMissing(['loanType', 'installments']);
-        $totalRepayable = $this->finance->totalRepayableToman($file);
-        $totalPaid = (int) $file->installments->sum(static function ($i): int {
-            return (int) $i->paid_amount_toman;
-        });
-        $discount = (int) ($file->discount_amount_toman ?? 0);
-
-        return max(0, $totalRepayable - $discount - $totalPaid);
+        return $this->finance->installmentPaymentCeilingToman($file);
     }
 }

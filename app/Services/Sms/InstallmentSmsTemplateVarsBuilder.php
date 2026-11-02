@@ -43,11 +43,11 @@ final class InstallmentSmsTemplateVarsBuilder
         $discount = (int) ($loanFile->discount_amount_toman ?? 0);
         $remaining = $loanFile->is_settled
             ? 0
-            : max(0, (int) $snapshot['schedule_remaining_toman'] - $discount);
+            : (int) $snapshot['remaining_amount_toman'];
 
         $paid = (int) $installment->paid_amount_toman;
         $amount = (int) $installment->amount_toman;
-        $unpaidOnInstallment = max(0, $amount - $paid);
+        $unpaidOnInstallment = (int) ($snapshot['installment_payables'][(int) $installment->id]['remaining_toman'] ?? 0);
         // پیامک قسط معوق: مبلغ قالب = باقیمانده پرداخت‌نشده (نه مبلغ کامل قسط)
         $useUnpaidAmount = $smsType === 'installment_overdue' || $due->lt($referenceDate);
         $amountForTemplate = $useUnpaidAmount ? $unpaidOnInstallment : $amount;

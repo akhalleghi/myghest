@@ -42,7 +42,7 @@ final class CustomerLoanPortalPresenter
             ->get();
 
         $installmentIds = $files
-            ->flatMap(static fn (CustomerLoanFile $file): \Illuminate\Support\Collection => $file->installments->pluck('id'))
+            ->flatMap(static fn (CustomerLoanFile $file): Collection => $file->installments->pluck('id'))
             ->map(static fn (mixed $id): int => (int) $id)
             ->all();
         $declarationMetaByInstallmentId = $this->resolveLatestDepositDeclarationMetaByInstallmentId(
@@ -85,19 +85,17 @@ final class CustomerLoanPortalPresenter
         $discount = (int) ($file->discount_amount_toman ?? 0);
         $scheduleRemaining = (int) $snap['schedule_remaining_toman'];
 
-        $signedRemaining = $file->is_settled ? 0 : ($scheduleRemaining - $discount);
+        $signedRemaining = $file->is_settled ? 0 : (int) $snap['remaining_signed_toman'];
         $isCreditor = ! $isRevoked && $signedRemaining < 0;
-        $settledForUi = ! $isRevoked && ! $isCreditor && ($file->is_settled || $signedRemaining <= 0);
-        $contractLocked = $isRevoked || $settledForUi || $isCreditor;
+        $settledForUi = ! $isRevoked && ! $isCreditor && $snap['settled_by_balance'];
+        $contractLocked = $isRevoked || $settledForUi || $isCreditor || $snap['requires_schedule_review'];
 
         $remainingAmount = $isCreditor ? 0 : max(0, $signedRemaining);
         $creditorOverpayToman = $isCreditor ? (int) abs($signedRemaining) : 0;
 
         $instColl = $file->installments->sortBy('sequence')->values();
         $installmentPayCeilingToman = $this->finance->installmentPaymentCeilingToman($file);
-        $unpaidCount = (int) $instColl->filter(static function (CustomerLoanInstallment $i): bool {
-            return (int) $i->paid_amount_toman < (int) $i->amount_toman;
-        })->count();
+        $unpaidCount = (int) $snap['unpaid_installments_count'];
 
         $lateCoef = (float) ($file->loanType?->daily_late_coefficient ?? 0);
 
@@ -106,6 +104,9 @@ final class CustomerLoanPortalPresenter
         if ($isRevoked) {
             $ribbon = 'revoked';
             $ribbonIcon = 'fa-solid fa-ban';
+        } elseif ($snap['requires_schedule_review']) {
+            $ribbon = 'review';
+            $ribbonIcon = 'fa-solid fa-triangle-exclamation';
         } elseif ($isCreditor) {
             $ribbon = 'creditor';
             $ribbonIcon = 'fa-solid fa-scale-balanced';
@@ -115,9 +116,7 @@ final class CustomerLoanPortalPresenter
         }
 
         $totalPaid = (int) $snap['total_paid_toman'];
-        $progressPct = $totalRepayable > 0
-            ? (int) min(100, max(0, (int) round(100 * $totalPaid / $totalRepayable)))
-            : 0;
+        $progressPct = $remainingAmount <= 0 ? 100 : (int) min(99, round(100 * $totalPaid / max(1, $totalPaid + $remainingAmount)));
 
         $installmentsOut = [];
         $ordered = $instColl->values();
@@ -125,7 +124,7 @@ final class CustomerLoanPortalPresenter
             $priorNominalSlotUnpaid = false;
             for ($j = 0; $j < $idx; $j++) {
                 $prev = $ordered[$j];
-                if ((int) $prev->amount_toman > 0 && (int) $prev->paid_amount_toman < (int) $prev->amount_toman) {
+                if ((int) $prev->amount_toman > 0 && (int) ($snap['installment_payables'][(int) $prev->id]['remaining_toman'] ?? 0) > 0) {
                     $priorNominalSlotUnpaid = true;
                     break;
                 }
@@ -137,13 +136,14 @@ final class CustomerLoanPortalPresenter
                 $isRevoked,
                 $priorNominalSlotUnpaid,
                 $installmentPayCeilingToman,
-                $declarationMetaByInstallmentId[(int) $inst->id] ?? null
+                $declarationMetaByInstallmentId[(int) $inst->id] ?? null,
+                $snap['installment_payables'][(int) $inst->id],
             );
         }
 
         $overduePrincipalToman = 0;
         $overdueInstallmentsCount = 0;
-        if (! $isRevoked && ! $settledForUi && ! $isCreditor) {
+        if (! $isRevoked && ! $settledForUi && ! $isCreditor && ! $snap['requires_schedule_review']) {
             foreach ($installmentsOut as $mappedInst) {
                 if (($mappedInst['status_line'] ?? '') !== 'معوق') {
                     continue;
@@ -152,12 +152,12 @@ final class CustomerLoanPortalPresenter
                 if ($slotRemaining < 1) {
                     continue;
                 }
-                $overduePrincipalToman += $slotRemaining;
+                $overduePrincipalToman += (int) ($mappedInst['principal_remaining_toman'] ?? 0);
                 $overdueInstallmentsCount++;
             }
         }
         $overdueLateFeeToman = $overdueInstallmentsCount > 0
-            ? max(0, (int) $snap['late_fee_so_far_toman'])
+            ? max(0, (int) $snap['late_fee_payable_toman'])
             : 0;
         $overdueDebtToman = $overduePrincipalToman + $overdueLateFeeToman;
 
@@ -166,6 +166,7 @@ final class CustomerLoanPortalPresenter
         $showSettleButton = ! $isRevoked
             && ! $file->is_settled
             && ! $isCreditor
+            && ! $snap['requires_schedule_review']
             && $signedRemaining > 0;
 
         $settleDisabledReasonFa = '';
@@ -184,7 +185,7 @@ final class CustomerLoanPortalPresenter
             || (is_numeric($subRaw) && (int) $subRaw === 0);
         $subFileDisplayFa = $subMissing ? 'ندارد' : Jalali::enToFaNumbers((string) $subRaw);
 
-        $lateFeeToman = (int) $snap['late_fee_so_far_toman'];
+        $lateFeeToman = (int) $snap['late_fee_payable_toman'];
         $earlyLateMoneyLineFa = $this->formatMoneyFa($lateFeeToman);
         $earlyLateDetailFa = $lateFeeToman > 0
             ? 'برآورد جریمهٔ دیرکرد تا امروز'
@@ -198,10 +199,15 @@ final class CustomerLoanPortalPresenter
             $creditorOverpayToman
         );
 
+        if ($snap['requires_schedule_review']) {
+            $remainingStatusLineFa = 'نیاز به بررسی تطبیق اقساط با قرارداد';
+            $settleDisabledReasonFa = 'جمع مبالغ اقساط با مبلغ قرارداد متفاوت است؛ برای بررسی با پشتیبانی تماس بگیرید.';
+        }
+
         $fullSettlementOnlineToman = 0;
         $fullSettlementOnlineFa = '';
         if ($showSettleButton) {
-            $fullSettlementOnlineToman = $remainingAmount + (int) $snap['late_fee_so_far_toman'];
+            $fullSettlementOnlineToman = $remainingAmount;
             $fullSettlementOnlineFa = $this->formatMoneyFa($fullSettlementOnlineToman);
         }
 
@@ -223,6 +229,7 @@ final class CustomerLoanPortalPresenter
             'paid_installments_slot_count_fa' => Jalali::enToFaNumbers((string) (int) $snap['paid_installments_slot_count']),
             'paid_amount_toman' => $totalPaid,
             'paid_amount_fa' => $this->formatMoneyFa($totalPaid),
+            'requires_schedule_review' => $snap['requires_schedule_review'],
             'remaining_amount_toman' => $remainingAmount,
             'remaining_amount_fa' => $this->formatMoneyFa($remainingAmount),
             'creditor_overpay_toman' => $creditorOverpayToman,
@@ -230,8 +237,8 @@ final class CustomerLoanPortalPresenter
             'remaining_signed_toman' => $signedRemaining,
             'remaining_installments_count' => $unpaidCount,
             'remaining_installments_count_fa' => Jalali::enToFaNumbers((string) $unpaidCount),
-            'late_fee_estimate_toman' => (int) $snap['late_fee_so_far_toman'],
-            'late_fee_estimate_fa' => $this->formatMoneyFa((int) $snap['late_fee_so_far_toman']),
+            'late_fee_estimate_toman' => (int) $snap['late_fee_payable_toman'],
+            'late_fee_estimate_fa' => $this->formatMoneyFa((int) $snap['late_fee_payable_toman']),
             'early_late_money_line_fa' => $earlyLateMoneyLineFa,
             'early_late_detail_fa' => $earlyLateDetailFa,
             'has_early_repayment' => $hasEarlyRepayment,
@@ -292,7 +299,7 @@ final class CustomerLoanPortalPresenter
         $discount = (int) ($file->discount_amount_toman ?? 0);
         $scheduleRemaining = (int) $snap['schedule_remaining_toman'];
 
-        $signedRemaining = $file->is_settled ? 0 : ($scheduleRemaining - $discount);
+        $signedRemaining = $file->is_settled ? 0 : (int) $snap['remaining_signed_toman'];
         $isCreditor = ! $isRevoked && $signedRemaining < 0;
 
         $remainingAmount = $isCreditor ? 0 : max(0, $signedRemaining);
@@ -300,17 +307,18 @@ final class CustomerLoanPortalPresenter
         $showSettleButton = ! $isRevoked
             && ! $file->is_settled
             && ! $isCreditor
+            && ! $snap['requires_schedule_review']
             && $signedRemaining > 0;
 
-        if (! $showSettleButton) {
+        if ($snap['requires_schedule_review'] || ! $showSettleButton) {
             return null;
         }
 
-        $lateFeeToman = (int) $snap['late_fee_so_far_toman'];
-        $amountToman = $remainingAmount + $lateFeeToman;
+        $lateFeeToman = (int) $snap['late_fee_payable_toman'];
+        $amountToman = $remainingAmount;
 
         return [
-            'principal_toman' => $remainingAmount,
+            'principal_toman' => (int) $snap['principal_payable_toman'],
             'late_fee_toman' => $lateFeeToman,
             'amount_toman' => $amountToman,
         ];
@@ -410,7 +418,7 @@ final class CustomerLoanPortalPresenter
             if (! is_array($loan)) {
                 continue;
             }
-            if (! empty($loan['is_revoked']) || ! empty($loan['settled_for_ui']) || ! empty($loan['is_creditor'])) {
+            if (! empty($loan['is_revoked']) || ! empty($loan['settled_for_ui']) || ! empty($loan['is_creditor']) || ! empty($loan['requires_schedule_review'])) {
                 continue;
             }
 
@@ -429,7 +437,7 @@ final class CustomerLoanPortalPresenter
                     continue;
                 }
                 $overdueInstallments[] = $inst;
-                $principalToman += $slotRemaining;
+                $principalToman += (int) ($inst['principal_remaining_toman'] ?? 0);
             }
 
             if ($overdueInstallments === []) {
@@ -534,15 +542,18 @@ final class CustomerLoanPortalPresenter
         bool $isRevoked,
         bool $priorNominalSlotUnpaid,
         int $installmentPayCeilingToman,
-        ?array $depositDeclarationMeta = null
+        ?array $depositDeclarationMeta = null,
+        ?array $payableBalance = null,
     ): array {
         $due = Carbon::parse($inst->due_date)->startOfDay();
         $now = Carbon::now()->startOfDay();
         $amount = (int) $inst->amount_toman;
         $paid = (int) $inst->paid_amount_toman;
         $paidAt = $inst->paid_at !== null ? Carbon::parse($inst->paid_at)->startOfDay() : null;
-        $slotRemaining = max(0, $amount - $paid);
-        $slotFullyPaid = $amount > 0 && $paid >= $amount;
+        $balance = $inst->debtBalance($lateCoef);
+        $slotRemaining = (int) ($payableBalance['remaining_toman'] ?? $balance['remaining_toman']);
+        $slotCeiling = min($slotRemaining, max(0, $installmentPayCeilingToman));
+        $slotFullyPaid = $amount > 0 && $slotRemaining <= 0;
         $partialPaid = $paid > 0 && ! $slotFullyPaid;
 
         $actionsEnabled = ! $isRevoked && ! $contractLocked && ! $slotFullyPaid && $amount > 0;
@@ -554,7 +565,11 @@ final class CustomerLoanPortalPresenter
         $walletPayEligible = $actionsEnabled && ! $priorNominalSlotUnpaid && $installmentPayCeilingToman > 0;
 
         $depositJalali = $this->resolveDepositDatesFa($inst);
-        $mismatch = $this->resolveInstallmentAmountMismatch($amount, $paid);
+        $mismatch = $this->resolveInstallmentAmountMismatch($amount + $balance['late_fee_assessed_toman'] - (int) ($payableBalance['discount_applied_toman'] ?? 0), $paid);
+
+        if ($slotRemaining <= 0 && $mismatch['kind'] === 'under') {
+            $mismatch = ['kind' => 'none', 'diff_toman' => 0, 'label' => null];
+        }
 
         $hasDepositDeclaration = $depositDeclarationMeta !== null;
         $depositDeclarationCreatedJalali = $hasDepositDeclaration
@@ -575,9 +590,9 @@ final class CustomerLoanPortalPresenter
                 $statusNote = 'زودکرد: '.Jalali::enToFaNumbers((string) $days).' روز';
             } elseif ($paidAt->gt($due)) {
                 $days = (int) $due->diffInDays($paidAt);
-                $pen = $this->finance->estimatePenaltyAtDateToman($inst, $lateCoef, $paidAt);
+                $pen = $balance['late_fee_assessed_toman'];
                 $statusLine = 'تسویهٔ قسط';
-                $statusNote = 'دیرکرد: '.Jalali::enToFaNumbers((string) $days).' روز — برآورد جریمه تا تاریخ پرداخت: '.$this->formatMoneyFa($pen);
+                $statusNote = 'دیرکرد محاسبه‌شده: '.$this->formatMoneyFa($pen).' — تسویه شده است';
             } else {
                 $statusLine = 'تسویهٔ قسط';
                 $statusNote = 'پرداخت در روز سررسید';
@@ -607,9 +622,9 @@ final class CustomerLoanPortalPresenter
                 $statusTone = 'partial';
             }
             if ($statusNote === '—') {
-                $statusNote = 'پرداخت جزئی؛ ماندهٔ نامی این قسط '.$this->formatMoneyFa($slotRemaining);
+                $statusNote = 'پرداخت جزئی؛ مانده بدهی قسط با دیرکرد '.$this->formatMoneyFa($slotRemaining);
             } else {
-                $statusNote .= ' — ماندهٔ نامی: '.$this->formatMoneyFa($slotRemaining);
+                $statusNote .= ' — مانده بدهی با دیرکرد: '.$this->formatMoneyFa($slotRemaining);
             }
         }
 
@@ -623,14 +638,16 @@ final class CustomerLoanPortalPresenter
             'paid_amount_toman' => $paid,
             'paid_fa' => $paid > 0 ? $this->formatMoneyFa($paid) : '—',
             'slot_remaining_toman' => $slotRemaining,
+            'principal_remaining_toman' => $payableBalance['principal_remaining_toman'] ?? $balance['principal_remaining_toman'],
+            'late_fee_remaining_toman' => $payableBalance['late_fee_remaining_toman'] ?? $balance['late_fee_remaining_toman'],
             'slot_remaining_fa' => $this->formatMoneyFa($slotRemaining),
             'online_payable_toman' => $onlinePayableToman,
             'online_payable_fa' => $onlinePayableToman > 0 ? $this->formatMoneyFa($onlinePayableToman) : '—',
             'online_pay_eligible' => $onlinePayEligible,
             'online_pay_prior_sequence_block' => $onlinePayPriorSequenceBlock,
             'wallet_pay_eligible' => $walletPayEligible,
-            'payment_ceiling_toman' => $installmentPayCeilingToman,
-            'payment_ceiling_fa' => $installmentPayCeilingToman > 0 ? $this->formatMoneyFa($installmentPayCeilingToman) : '—',
+            'payment_ceiling_toman' => $slotCeiling,
+            'payment_ceiling_fa' => $slotCeiling > 0 ? $this->formatMoneyFa($slotCeiling) : '—',
             'deposit_jalali' => $depositJalali,
             'payment_methods_label' => $this->resolvePortalInstallmentPaymentMethodsLabel($inst, $paid),
             'amount_mismatch_kind' => $mismatch['kind'],

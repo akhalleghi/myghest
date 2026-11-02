@@ -82,7 +82,7 @@ final class AdminCustomerSettleAllOverdueService
 
                 foreach ($quote['files'] as $fileItem) {
                     $fileId = (int) ($fileItem['loan_file_id'] ?? 0);
-                    $expectedFilePrincipal = (int) ($fileItem['principal_toman'] ?? 0);
+                    $expectedFilePrincipal = (int) ($fileItem['amount_toman'] ?? 0);
                     $expectedInstallments = is_array($fileItem['installments'] ?? null) ? $fileItem['installments'] : [];
 
                     $file = CustomerLoanFile::query()
@@ -106,7 +106,7 @@ final class AdminCustomerSettleAllOverdueService
 
                     $liveFileQuote = $this->quoteForLoanFile($file);
                     if ($liveFileQuote === null
-                        || (int) $liveFileQuote['principal_toman'] !== $expectedFilePrincipal
+                        || (int) $liveFileQuote['amount_toman'] !== $expectedFilePrincipal
                         || count($liveFileQuote['installments']) !== count($expectedInstallments)
                     ) {
                         throw new \RuntimeException('QUOTE_MISMATCH');
@@ -136,7 +136,7 @@ final class AdminCustomerSettleAllOverdueService
                             throw new \RuntimeException('QUOTE_MISMATCH');
                         }
 
-                        $liveUnpaid = max(0, (int) $installment->amount_toman - (int) $installment->paid_amount_toman);
+                        $liveUnpaid = (int) (collect($liveFileQuote['installments'])->firstWhere('installment_id', $installmentId)['unpaid_toman'] ?? 0);
                         $due = Carbon::parse($installment->due_date)->startOfDay();
                         if ($liveUnpaid !== $expectedUnpaid || ! $due->lt(Carbon::today())) {
                             throw new \RuntimeException('QUOTE_MISMATCH');
@@ -234,7 +234,7 @@ final class AdminCustomerSettleAllOverdueService
             $installmentsCount += count($fileQuote['installments']);
         }
 
-        if ($items === [] || $principalTotal < 1) {
+        if ($items === [] || $principalTotal + $lateFeeTotal < 1) {
             return null;
         }
 
@@ -244,11 +244,11 @@ final class AdminCustomerSettleAllOverdueService
             'installments_count' => $installmentsCount,
             'principal_toman' => $principalTotal,
             'late_fee_toman' => $lateFeeTotal,
-            /** مبلغ قابل ثبت در این عملیات = فقط ماندهٔ اقساط معوق (بدون جریمه). */
-            'amount_toman' => $principalTotal,
+            /** مبلغ قابل ثبت شامل اصل اقساط معوق و دیرکرد پرداخت‌نشده است. */
+            'amount_toman' => $principalTotal + $lateFeeTotal,
             'principal_fa' => $this->formatMoneyFa($principalTotal),
             'late_fee_fa' => $this->formatMoneyFa($lateFeeTotal),
-            'amount_fa' => $this->formatMoneyFa($principalTotal),
+            'amount_fa' => $this->formatMoneyFa($principalTotal + $lateFeeTotal),
             'installments_count_fa' => Jalali::enToFaNumbers((string) $installmentsCount),
         ];
     }
@@ -272,100 +272,48 @@ final class AdminCustomerSettleAllOverdueService
         if ($file->revoked_at !== null || $file->is_settled) {
             return null;
         }
-
-        $today = Carbon::today();
-        /** @var list<array{inst: CustomerLoanInstallment, unpaid: int, due: Carbon}> $candidates */
-        $candidates = [];
-
-        foreach ($file->installments->sortBy('sequence')->values() as $inst) {
-            if (! $inst instanceof CustomerLoanInstallment) {
-                continue;
-            }
-            $amount = (int) $inst->amount_toman;
-            $paid = (int) $inst->paid_amount_toman;
-            if ($amount <= 0 || $paid >= $amount) {
-                continue;
-            }
+        $snapshot = $this->finance->loanInstallmentFinancialSnapshot($file, $this->finance->totalRepayableToman($file));
+        if ($snapshot['requires_schedule_review']) {
+            return null;
+        }
+        $installments = [];
+        $principal = 0;
+        $late = 0;
+        foreach ($file->installments->sortBy('sequence') as $inst) {
             $due = Carbon::parse($inst->due_date)->startOfDay();
-            if (! $due->lt($today)) {
+            $payable = $snapshot['installment_payables'][(int) $inst->id];
+            if (! $due->lt(Carbon::today()) || $payable['remaining_toman'] <= 0) {
                 continue;
             }
-
-            $unpaid = max(0, $amount - $paid);
-            if ($unpaid < 1) {
-                continue;
-            }
-
-            $candidates[] = [
-                'inst' => $inst,
-                'unpaid' => $unpaid,
-                'due' => $due,
-            ];
-        }
-
-        if ($candidates === []) {
-            return null;
-        }
-
-        /**
-         * سقف قابل ثبت واقعی (مانده قرارداد پس از تخفیف و پرداخت‌ها).
-         * ممکن است به‌خاطر پرداخت نامتوازن روی یک قسط، سقف صفر باشد ولی اقساط بعدی هنوز نامی unpaid باشند؛
-         * در آن حالت مبلغ قابل ثبت برای تسویه معوق صفر است.
-         */
-        $ceiling = $this->finance->installmentPaymentCeilingToman($file);
-        if ($ceiling < 1) {
-            return null;
-        }
-
-        $pool = $ceiling;
-        $installmentsOut = [];
-        $principalToman = 0;
-
-        foreach ($candidates as $row) {
-            if ($pool < 1) {
-                break;
-            }
-            $inst = $row['inst'];
-            $due = $row['due'];
-            $pay = min((int) $row['unpaid'], $pool);
-            if ($pay < 1) {
-                continue;
-            }
-
-            $principalToman += $pay;
-            $pool -= $pay;
-            $installmentsOut[] = [
+            $principal += $payable['principal_remaining_toman'];
+            $late += $payable['late_fee_remaining_toman'];
+            $installments[] = [
                 'installment_id' => (int) $inst->id,
                 'sequence' => (int) $inst->sequence,
-                'sequence_fa' => Jalali::enToFaNumbers((string) (int) $inst->sequence),
-                'due_date' => $due->format('Y-m-d'),
+                'sequence_fa' => Jalali::enToFaNumbers((string) $inst->sequence),
+                'due_date' => $due->toDateString(),
                 'due_jdate_fa' => Jalali::enToFaNumbers(Jalali::instance($due)->format('Y/m/d')),
                 'amount_toman' => (int) $inst->amount_toman,
                 'paid_amount_toman' => (int) $inst->paid_amount_toman,
-                'unpaid_toman' => $pay,
-                'unpaid_fa' => $this->formatMoneyFa($pay),
+                'unpaid_toman' => $payable['remaining_toman'],
+                'unpaid_fa' => $this->formatMoneyFa($payable['remaining_toman']),
             ];
         }
-
-        if ($installmentsOut === [] || $principalToman < 1) {
+        if ($installments === []) {
             return null;
         }
-
-        $totalRepayable = $this->finance->totalRepayableToman($file);
-        $snap = $this->finance->loanInstallmentFinancialSnapshot($file, $totalRepayable);
-        $lateFeeToman = max(0, (int) ($snap['late_fee_so_far_toman'] ?? 0));
 
         return [
             'loan_file_id' => (int) $file->id,
             'loan_code' => (string) $file->loan_code,
             'loan_type_title' => (string) ($file->loanType?->title ?? '—'),
-            'principal_toman' => $principalToman,
-            'late_fee_toman' => $lateFeeToman,
-            'amount_toman' => $principalToman,
-            'principal_fa' => $this->formatMoneyFa($principalToman),
-            'late_fee_fa' => $this->formatMoneyFa($lateFeeToman),
-            'amount_fa' => $this->formatMoneyFa($principalToman),
-            'installments' => $installmentsOut,
+            'principal_toman' => $principal,
+            'late_fee_toman' => $late,
+            'amount_toman' => $principal + $late,
+            'principal_fa' => $this->formatMoneyFa($principal),
+            'late_fee_fa' => $this->formatMoneyFa($late),
+            'amount_fa' => $this->formatMoneyFa($principal + $late),
+            'installments' => $installments,
         ];
     }
 

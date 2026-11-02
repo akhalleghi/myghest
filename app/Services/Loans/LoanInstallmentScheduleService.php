@@ -71,7 +71,7 @@ final class LoanInstallmentScheduleService
                 ->get()
                 ->keyBy(static fn (CustomerLoanInstallment $installment): int => (int) $installment->sequence);
 
-            $totalPaid = (int) $existing->sum(static fn (CustomerLoanInstallment $installment): int => (int) $installment->paid_amount_toman);
+            $totalPaid = (int) $existing->sum(static fn (CustomerLoanInstallment $installment): int => $installment->principalAppliedToman());
             $payable = (int) $schedule['payable_toman'];
             if ($totalPaid > $payable) {
                 throw ValidationException::withMessages([
@@ -117,7 +117,7 @@ final class LoanInstallmentScheduleService
 
                 $installment = $existing->get($sequence);
                 if ($installment !== null) {
-                    $paidAmount = (int) $installment->paid_amount_toman;
+                    $paidAmount = $installment->principalAppliedToman();
                     if ($newAmount < $paidAmount) {
                         throw ValidationException::withMessages([
                             'installment_amount_toman' => 'مبلغ قسط شماره '.(string) $sequence.' نمی‌تواند کمتر از مبلغ پرداخت‌شده باشد.',

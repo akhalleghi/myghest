@@ -6,11 +6,11 @@ namespace App\Services\Admin\Reports;
 
 use App\Models\CustomerLoanInstallment;
 use App\Models\CustomerLoanInstallmentPayment;
+use App\Services\Loans\LoanFileFinanceCalculator;
 use App\Support\JalaliInputParser;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
 
 final class InstallmentDueDatesByDateReportService
 {
@@ -63,9 +63,10 @@ final class InstallmentDueDatesByDateReportService
             })
             ->with([
                 'loanFile' => static function ($lf): void {
-                    $lf->with(['customer:id,first_name,last_name,national_id,mobile,customer_code', 'loanType:id,title']);
+                    $lf->with(['customer:id,first_name,last_name,national_id,mobile,customer_code', 'loanType:id,title,daily_late_coefficient']);
                 },
                 'payments',
+                'loanFile.installments.payments',
                 'recordedByAdmin:id,name,username',
             ])
             ->orderBy('due_date')
@@ -91,30 +92,15 @@ final class InstallmentDueDatesByDateReportService
             });
         }
 
-        if ($paymentStatusFilter === 'paid') {
-            $query->whereColumn('paid_amount_toman', '>=', 'amount_toman');
-        } elseif ($paymentStatusFilter === 'unpaid') {
-            $query->where('paid_amount_toman', '<=', 0);
-        } elseif ($paymentStatusFilter === 'partial') {
-            $query->where('paid_amount_toman', '>', 0)
-                ->whereColumn('paid_amount_toman', '<', 'amount_toman');
-        }
+        return $query->get()
+            ->map(fn (CustomerLoanInstallment $inst): array => $this->mapRow($inst))
+            ->filter(static function (array $row) use ($paymentStatusFilter, $overdueFilter): bool {
+                if (in_array($paymentStatusFilter, ['paid', 'unpaid', 'partial'], true) && $row['payment_status'] !== $paymentStatusFilter) {
+                    return false;
+                }
 
-        $today = Carbon::today()->toDateString();
-        if ($overdueFilter === 'yes') {
-            $query->whereDate('due_date', '<', $today)
-                ->whereColumn('paid_amount_toman', '<', 'amount_toman');
-        } elseif ($overdueFilter === 'no') {
-            $query->where(function (Builder $q) use ($today): void {
-                $q->whereDate('due_date', '>=', $today)
-                    ->orWhereColumn('paid_amount_toman', '>=', 'amount_toman');
-            });
-        }
-
-        /** @var Collection<int, CustomerLoanInstallment> $installments */
-        $installments = $query->get();
-
-        return $installments->map(fn (CustomerLoanInstallment $inst): array => $this->mapRow($inst))->values()->all();
+                return ! ($overdueFilter === 'yes' && ! $row['is_overdue']) && ! ($overdueFilter === 'no' && $row['is_overdue']);
+            })->values()->all();
     }
 
     /**
@@ -149,7 +135,7 @@ final class InstallmentDueDatesByDateReportService
             $paid = (int) ($row['paid_amount_toman'] ?? 0);
             $installmentAmountTotal += $amount;
             $paidAmountTotal += max(0, $paid);
-            $unpaidAmountTotal += max(0, $amount - $paid);
+            $unpaidAmountTotal += (int) ($row['remaining_amount_toman'] ?? max(0, $amount - $paid));
         }
 
         return [
@@ -222,6 +208,9 @@ final class InstallmentDueDatesByDateReportService
             ? Jalali::enToFaNumbers(Jalali::instance(Carbon::parse($inst->due_date))->format('Y/m/d'))
             : '—';
 
+        $finance = app(LoanFileFinanceCalculator::class);
+        $snapshot = $finance->loanInstallmentFinancialSnapshot($file, $finance->totalRepayableToman($file));
+        $payable = $snapshot['installment_payables'][(int) $inst->id];
         $paidAmount = (int) $inst->paid_amount_toman;
         $paidAt = $inst->paid_at !== null ? Carbon::parse($inst->paid_at)->startOfDay() : null;
 
@@ -247,6 +236,8 @@ final class InstallmentDueDatesByDateReportService
             'installment_amount_toman' => (int) $inst->amount_toman,
             'installment_amount_formatted' => $this->formatAmount((int) $inst->amount_toman),
             'paid_amount_toman' => $paidAmount,
+            'remaining_amount_toman' => $payable['remaining_toman'],
+            'late_fee_remaining_toman' => $payable['late_fee_remaining_toman'],
             'paid_amount_formatted' => $paidAmount > 0 ? $this->formatAmount($paidAmount) : '—',
             'due_jdate' => $dueJdate,
             'paid_jdate' => $paidJdate,
@@ -254,8 +245,8 @@ final class InstallmentDueDatesByDateReportService
             'early_late_label' => $earlyLate,
             'notes_text' => $paymentMeta['notes'],
             'sms_installment_id' => (int) $inst->id,
-            'payment_status' => $this->resolvePaymentStatus($inst),
-            'is_overdue' => $this->isOverdue($inst),
+            'payment_status' => $this->resolvePaymentStatus($inst, $payable['remaining_toman']),
+            'is_overdue' => $this->isOverdue($inst, $payable['remaining_toman']),
             'loan_locked' => (bool) ($file?->is_settled ?? false),
             'customer_manage_url' => route('admin.customers.index', [
                 'open_loan_manage' => 1,
@@ -324,25 +315,25 @@ final class InstallmentDueDatesByDateReportService
         ];
     }
 
-    private function resolvePaymentStatus(CustomerLoanInstallment $inst): string
+    private function resolvePaymentStatus(CustomerLoanInstallment $inst, int $remaining): string
     {
         $paid = (int) $inst->paid_amount_toman;
         $amount = (int) $inst->amount_toman;
+
+        if ($remaining <= 0) {
+            return 'paid';
+        }
 
         if ($paid <= 0) {
             return 'unpaid';
         }
 
-        if ($paid >= $amount) {
-            return 'paid';
-        }
-
         return 'partial';
     }
 
-    private function isOverdue(CustomerLoanInstallment $inst): bool
+    private function isOverdue(CustomerLoanInstallment $inst, int $remaining): bool
     {
-        if ((int) $inst->paid_amount_toman >= (int) $inst->amount_toman) {
+        if ($remaining <= 0) {
             return false;
         }
 

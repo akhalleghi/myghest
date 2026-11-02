@@ -572,9 +572,9 @@ final class InstallmentOnlinePaymentCompletionService
         $ref = trim((string) $verify['ref_number']);
 
         try {
-            $this->fullSettlementAllocator->allocatePrincipalAcrossInstallments(
+            $this->fullSettlementAllocator->allocateDebtAcrossInstallments(
                 $file,
-                (int) $quote['principal_toman'],
+                (int) $quote['amount_toman'],
                 $ref
             );
         } catch (\RuntimeException $e) {
@@ -818,9 +818,9 @@ final class InstallmentOnlinePaymentCompletionService
         }
 
         foreach ($prepared as $row) {
-            $this->fullSettlementAllocator->allocatePrincipalAcrossInstallments(
+            $this->fullSettlementAllocator->allocateDebtAcrossInstallments(
                 $row['file'],
-                $row['principal'],
+                $row['amount'],
                 $ref
             );
 

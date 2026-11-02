@@ -184,13 +184,13 @@ final class SettledMembersReportService
         $totalRepayable = $this->financeCalculator->totalRepayableToman($file);
         $snap = $this->financeCalculator->loanInstallmentFinancialSnapshot($file, $totalRepayable);
         $discount = (int) ($file->discount_amount_toman ?? 0);
-        $signedRemaining = (int) ($snap['schedule_remaining_toman'] ?? 0) - $discount;
+        $signedRemaining = (int) $snap['remaining_signed_toman'];
 
         if ($signedRemaining < 0) {
             return false;
         }
 
-        return $signedRemaining <= 0;
+        return (bool) $snap['settled_by_balance'];
     }
 
     private function settlementDate(CustomerLoanFile $file): ?Carbon

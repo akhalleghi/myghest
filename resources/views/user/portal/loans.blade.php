@@ -77,6 +77,8 @@
                                         <span class="portal-loan-board__ribbon-text">
                                             @if($ribbon === 'settled')
                                                 تسویه شده
+                                            @elseif($ribbon === 'review')
+                                                نیاز به بررسی اقساط
                                             @elseif($ribbon === 'revoked')
                                                 فسخ شده
                                             @else
@@ -739,7 +741,7 @@
                             dl.appendChild(
                                 cardKvRow(
                                     'توضیح',
-                                    'مبلغ نامی ماندهٔ این قسط ' +
+                                    'مانده بدهی این قسط با دیرکرد ' +
                                         (inst.slot_remaining_fa != null ? String(inst.slot_remaining_fa) : '') +
                                         ' است؛ مبلغ درگاه همان «قابل پرداخت آنلاین» است.'
                                 )

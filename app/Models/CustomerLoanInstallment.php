@@ -54,4 +54,27 @@ final class CustomerLoanInstallment extends Model
     {
         return $this->hasMany(CustomerLoanInstallmentPayment::class, 'customer_loan_installment_id')->orderBy('id');
     }
+
+    /** Amount of this receipt total that can be applied to the nominal installment. */
+    public function principalAppliedToman(): int
+    {
+        return min(max(0, (int) $this->amount_toman), max(0, (int) $this->paid_amount_toman));
+    }
+
+    public function principalRemainingToman(): int
+    {
+        return max(0, (int) $this->amount_toman - $this->principalAppliedToman());
+    }
+
+    public function debtBalance(?float $dailyLateCoefficient = null, ?\Carbon\Carbon $at = null): array
+    {
+        $dailyLateCoefficient ??= (float) ($this->loanFile?->loanType?->daily_late_coefficient ?? 0);
+
+        return app(\App\Services\Loans\InstallmentDebtCalculator::class)->balance($this, $dailyLateCoefficient, $at);
+    }
+
+    public function remainingDebtToman(): int
+    {
+        return (int) $this->debtBalance()['remaining_toman'];
+    }
 }

@@ -6,12 +6,14 @@ namespace App\Services\Deposits;
 
 use App\Models\Customer;
 use App\Models\CustomerDepositDeclaration;
-use App\Services\Sms\PortalAdminSmsDispatcher;
 use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanInstallment;
+use App\Services\Loans\LoanFileFinanceCalculator;
 use App\Services\Loans\LoanInstallmentScheduleService;
+use App\Services\Sms\PortalAdminSmsDispatcher;
 use App\Support\JalaliInputParser;
 use App\Support\PrivateStoragePaths;
+use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
@@ -64,13 +66,13 @@ final class DepositDeclarationUserService
     public function create(Customer $customer, array $data, ?UploadedFile $attachment): CustomerDepositDeclaration
     {
         $inst = $this->assertLoanAndInstallment($customer, (int) $data['customer_loan_file_id'], (int) $data['customer_loan_installment_id']);
-        $this->assertDepositAmountWithinBounds($inst, (int) $data['amount_toman']);
 
         $depCarbon = JalaliInputParser::toCarbonDate((string) ($data['deposited_jdate'] ?? ''));
         if ($depCarbon === null) {
             throw ValidationException::withMessages(['deposited_jdate' => ['تاریخ واریز معتبر نیست. فرمت: ۱۴۰۳/۰۶/۱۵']]);
         }
 
+        $this->assertDepositAmountWithinBounds($inst, (int) $data['amount_toman'], $depCarbon);
         $path = $this->storeAttachment($customer, $attachment);
 
         $declaration = CustomerDepositDeclaration::query()->create([
@@ -108,16 +110,17 @@ final class DepositDeclarationUserService
             (int) $data['customer_loan_file_id'],
             (int) $data['customer_loan_installment_id']
         );
-        $this->assertDepositAmountWithinBounds($inst, (int) $data['amount_toman']);
 
         $depCarbon = JalaliInputParser::toCarbonDate((string) ($data['deposited_jdate'] ?? ''));
         if ($depCarbon === null) {
             throw ValidationException::withMessages(['deposited_jdate' => ['تاریخ واریز معتبر نیست.']]);
         }
 
+        $this->assertDepositAmountWithinBounds($inst, (int) $data['amount_toman'], $depCarbon);
         $path = $row->attachment_path;
         if ($attachment !== null && $attachment->isValid()) {
             $this->deleteStoredFile($path);
+            $this->assertDepositAmountWithinBounds($inst, (int) $data['amount_toman'], $depCarbon);
             $path = $this->storeAttachment($customer, $attachment);
         }
 
@@ -176,9 +179,9 @@ final class DepositDeclarationUserService
     /**
      * جلوگیری از اعلام مبالغ غیرواقعی نسبت به ماندهٔ قسط (سقف سمت سرور مستقل از UI).
      */
-    private function assertDepositAmountWithinBounds(CustomerLoanInstallment $inst, int $amountToman): void
+    private function assertDepositAmountWithinBounds(CustomerLoanInstallment $inst, int $amountToman, Carbon $depositDate): void
     {
-        $slotRemaining = max(0, (int) $inst->amount_toman - (int) $inst->paid_amount_toman);
+        $slotRemaining = app(LoanFileFinanceCalculator::class)->installmentPaymentAllowanceToman($inst->loanFile, $inst, $depositDate);
         if ($slotRemaining < 1) {
             throw ValidationException::withMessages([
                 'customer_loan_installment_id' => ['این قسط مانده‌ای برای اعلام واریزی ندارد.'],

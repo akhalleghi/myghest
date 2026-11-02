@@ -102,7 +102,7 @@ final class LoanInterestFeesReportService
         $query = CustomerLoanFile::query()
             ->whereNull('revoked_at')
             ->whereBetween('loan_start_date', [$from->toDateString(), $to->toDateString()])
-            ->with(['customer:id,first_name,last_name,national_id,mobile,customer_code', 'loanType:id,title', 'installments'])
+            ->with(['customer:id,first_name,last_name,national_id,mobile,customer_code', 'loanType:id,title', 'installments.payments'])
             ->orderByDesc('loan_start_date')
             ->orderByDesc('id');
 
@@ -127,12 +127,6 @@ final class LoanInterestFeesReportService
             });
         }
 
-        if ($settledFilter === 'yes') {
-            $query->where('is_settled', true);
-        } elseif ($settledFilter === 'no') {
-            $query->where('is_settled', false);
-        }
-
         /** @var Collection<int, CustomerLoanFile> $files */
         $files = $query->get();
 
@@ -150,6 +144,9 @@ final class LoanInterestFeesReportService
         $rows = [];
         foreach ($files as $file) {
             $row = $this->mapRow($file);
+            if (($settledFilter === 'yes' && ! $row['is_settled']) || ($settledFilter === 'no' && $row['is_settled'])) {
+                continue;
+            }
             $rows[] = $row;
 
             $summary['loan_count']++;
@@ -185,7 +182,7 @@ final class LoanInterestFeesReportService
         $discount = (int) ($file->discount_amount_toman ?? 0);
         $remainingAfterDiscount = $file->is_settled
             ? 0
-            : max(0, (int) ($snap['schedule_remaining_toman'] ?? 0) - $discount);
+            : (int) $snap['remaining_amount_toman'];
 
         $customerName = $customer !== null ? trim($customer->first_name.' '.$customer->last_name) : '—';
         $loanTitleParts = array_filter([
@@ -216,8 +213,9 @@ final class LoanInterestFeesReportService
             'loan_start_jdate' => $file->loan_start_date
                 ? Jalali::enToFaNumbers(Jalali::instance(Carbon::parse($file->loan_start_date))->format('Y/m/d'))
                 : '—',
-            'is_settled' => (bool) $file->is_settled,
-            'is_settled_label' => $file->is_settled ? 'بلی' : 'خیر',
+            'is_settled' => (bool) $snap['settled_by_balance'],
+            'is_settled_label' => $snap['requires_schedule_review'] ? 'نیاز به بررسی اقساط' : ($snap['settled_by_balance'] ? 'بلی' : 'خیر'),
+            'requires_schedule_review' => $snap['requires_schedule_review'],
             'paid_amount_toman' => (int) ($snap['total_paid_toman'] ?? 0),
             'remaining_amount_toman' => $remainingAfterDiscount,
             'discount_toman' => $discount,

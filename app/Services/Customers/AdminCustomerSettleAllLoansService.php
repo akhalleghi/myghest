@@ -93,9 +93,9 @@ final class AdminCustomerSettleAllLoansService
                         throw new \RuntimeException('QUOTE_MISMATCH');
                     }
 
-                    $this->fullSettlementAllocator->allocatePrincipalAcrossInstallments(
+                    $this->fullSettlementAllocator->allocateDebtAcrossInstallments(
                         $file,
-                        $expectedPrincipal,
+                        $expectedAmount,
                         $noteTrim,
                         $paymentMethod,
                         $adminId,

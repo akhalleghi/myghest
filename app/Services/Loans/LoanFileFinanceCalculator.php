@@ -65,52 +65,93 @@ final class LoanFileFinanceCalculator
      */
     public function installmentPaymentCeilingToman(CustomerLoanFile $file): int
     {
-        $totalRepayable = $this->totalRepayableToman($file);
-        $totalPaid = (int) CustomerLoanInstallment::query()
-            ->where('customer_loan_file_id', (int) $file->id)
-            ->sum('paid_amount_toman');
-        $discount = (int) ($file->discount_amount_toman ?? 0);
+        $file->load(['loanType', 'installments.payments']);
 
-        return max(0, $totalRepayable - $discount - $totalPaid);
+        return (int) $this->loanInstallmentFinancialSnapshot($file, $this->totalRepayableToman($file))['remaining_amount_toman'];
     }
 
     /**
-     * @return array{schedule_remaining_toman: int, total_paid_toman: int, paid_installments_count: int, paid_installments_slot_count: int, late_fee_so_far_toman: int}
+     * Shared debt balance: nominal installments plus unpaid charges, less registered discounts.
+     *
+     * @return array<string, mixed>
      */
-    public function loanInstallmentFinancialSnapshot(CustomerLoanFile $file, int $totalRepayableContract): array
+    public function loanInstallmentFinancialSnapshot(CustomerLoanFile $file, int $totalRepayableContract, ?Carbon $at = null, ?int $excludePaymentId = null): array
     {
-        $installments = $file->installments;
-        $lateCoef = (float) ($file->loanType?->daily_late_coefficient ?? 0);
-        $discount = (int) ($file->discount_amount_toman ?? 0);
-
-        if ($installments->isEmpty()) {
-            return [
-                'schedule_remaining_toman' => $totalRepayableContract,
-                'total_paid_toman' => 0,
-                'paid_installments_count' => 0,
-                'paid_installments_slot_count' => 0,
-                'late_fee_so_far_toman' => 0,
+        $file->loadMissing(['loanType', 'installments.payments']);
+        $balances = [];
+        $principalPaid = 0;
+        $lateRemaining = 0;
+        $received = 0;
+        $coefficient = (float) ($file->loanType?->daily_late_coefficient ?? 0);
+        foreach ($file->installments as $installment) {
+            $installment->setRelation('loanFile', $file);
+            $balance = app(InstallmentDebtCalculator::class)->balance($installment, $coefficient, $at, $excludePaymentId);
+            $balances[(int) $installment->id] = $balance;
+            $principalPaid += $balance['principal_paid_toman'];
+            $lateRemaining += $balance['late_fee_remaining_toman'];
+            $received += $balance['total_paid_toman'];
+        }
+        $principalRemaining = max(0, $totalRepayableContract - $principalPaid);
+        $discount = max(0, (int) ($file->discount_amount_toman ?? 0));
+        $closed = $file->is_settled || $file->revoked_at !== null;
+        $principalPayable = $closed ? 0 : max(0, $principalRemaining - $discount);
+        $latePayable = $closed ? 0 : max(0, $lateRemaining - max(0, $discount - $principalRemaining));
+        $remaining = $principalPayable + $latePayable;
+        $periodCount = $file->installments->count();
+        $scheduledTotal = (int) $file->installments->sum('amount_toman');
+        $requiresReview = ! $closed && $periodCount > 0 && $scheduledTotal !== $totalRepayableContract;
+        $principalDiscount = min($discount, $principalRemaining);
+        $lateDiscount = max(0, $discount - $principalRemaining);
+        $payables = [];
+        $paidCount = 0;
+        foreach ($file->installments->sortBy('sequence') as $installment) {
+            $id = (int) $installment->id;
+            $principalWaived = min($principalDiscount, $balances[$id]['principal_remaining_toman']);
+            $principalDiscount -= $principalWaived;
+            $lateWaived = min($lateDiscount, $balances[$id]['late_fee_remaining_toman']);
+            $lateDiscount -= $lateWaived;
+            $principal = $closed ? 0 : $balances[$id]['principal_remaining_toman'] - $principalWaived;
+            $late = $closed ? 0 : $balances[$id]['late_fee_remaining_toman'] - $lateWaived;
+            $payables[$id] = [
+                'principal_remaining_toman' => $principal,
+                'late_fee_remaining_toman' => $late,
+                'remaining_toman' => $principal + $late,
+                'discount_applied_toman' => $principalWaived + $lateWaived,
             ];
+            if ((int) $installment->amount_toman > 0 && $principal + $late === 0) {
+                $paidCount++;
+            }
         }
 
-        $totalPaid = (int) $installments->sum(static fn (CustomerLoanInstallment $i): int => (int) $i->paid_amount_toman);
-        $scheduleRemaining = max(0, $totalRepayableContract - $totalPaid);
-        $remainingAfterDiscount = $file->is_settled
-            ? 0
-            : max(0, $scheduleRemaining - $discount);
-        $slotFullyPaidCount = (int) $installments->filter(static function (CustomerLoanInstallment $i): bool {
-            return (int) $i->amount_toman > 0 && (int) $i->paid_amount_toman >= (int) $i->amount_toman;
-        })->count();
-        $periodCount = $installments->count();
-        $paidInstallmentsCountReport = $remainingAfterDiscount <= 0 && $periodCount > 0 ? $periodCount : $slotFullyPaidCount;
-
         return [
-            'schedule_remaining_toman' => $scheduleRemaining,
-            'total_paid_toman' => $totalPaid,
-            'paid_installments_count' => $paidInstallmentsCountReport,
-            'paid_installments_slot_count' => $slotFullyPaidCount,
-            'late_fee_so_far_toman' => $this->estimateLateFeeSoFarToman($installments, $lateCoef, $remainingAfterDiscount),
+            'contract_total_toman' => $totalRepayableContract,
+            'scheduled_total_toman' => $scheduledTotal,
+            'schedule_difference_toman' => $scheduledTotal - $totalRepayableContract,
+            'requires_schedule_review' => $requiresReview,
+            'settled_by_balance' => $closed || (! $requiresReview && $remaining === 0),
+            'schedule_remaining_toman' => $principalRemaining,
+            'debt_remaining_toman' => $principalRemaining + $lateRemaining,
+            'remaining_amount_toman' => $remaining,
+            'remaining_signed_toman' => $closed ? 0 : $principalRemaining + $lateRemaining - $discount,
+            'principal_payable_toman' => $principalPayable,
+            'late_fee_payable_toman' => $latePayable,
+            'total_paid_toman' => $received,
+            'paid_installments_count' => $remaining === 0 && ! $requiresReview ? $periodCount : $paidCount,
+            'paid_installments_slot_count' => $paidCount,
+            'unpaid_installments_count' => $remaining === 0 && ! $requiresReview ? 0 : $periodCount - $paidCount,
+            'late_fee_so_far_toman' => $closed ? 0 : $lateRemaining,
+            'installment_balances' => $balances,
+            'installment_payables' => $payables,
         ];
+    }
+
+    public function installmentPaymentAllowanceToman(CustomerLoanFile $file, CustomerLoanInstallment $installment, ?Carbon $at = null, ?int $excludePaymentId = null): int
+    {
+        $file->load(['loanType', 'installments.payments']);
+        $snapshot = $this->loanInstallmentFinancialSnapshot($file, $this->totalRepayableToman($file), $at, $excludePaymentId);
+        $current = $at === null ? $snapshot : $this->loanInstallmentFinancialSnapshot($file, $this->totalRepayableToman($file), null, $excludePaymentId);
+
+        return min($snapshot['remaining_amount_toman'], (int) ($snapshot['installment_payables'][(int) $installment->id]['remaining_toman'] ?? 0), (int) ($current['installment_payables'][(int) $installment->id]['remaining_toman'] ?? 0));
     }
 
     /**
@@ -118,52 +159,12 @@ final class LoanFileFinanceCalculator
      */
     public function estimateLateFeeSoFarToman(Collection $installments, float $dailyLateCoef, int $contractDebtRemainingAfterDiscount): int
     {
-        if ($dailyLateCoef <= 0 || $contractDebtRemainingAfterDiscount <= 0) {
-            return 0;
-        }
-
-        $now = Carbon::now()->startOfDay();
-        $sum = 0;
-
-        foreach ($installments as $i) {
-            $unpaid = max(0, (int) $i->amount_toman - (int) $i->paid_amount_toman);
-            if ($unpaid <= 0) {
-                continue;
-            }
-            $due = Carbon::parse($i->due_date)->startOfDay();
-            if ($due->gte($now)) {
-                continue;
-            }
-            $days = (int) $due->diffInDays($now);
-            if ($days < 1) {
-                continue;
-            }
-            $sum += (int) round($unpaid * $dailyLateCoef * $days);
-        }
-
-        return max(0, $sum);
+        return (int) $installments->sum(fn (CustomerLoanInstallment $i): int => $i->debtBalance($dailyLateCoef)['late_fee_remaining_toman']);
     }
 
     public function estimateBookletPenaltyTomanForInstallment(CustomerLoanInstallment $inst, float $dailyLateCoef): int
     {
-        if ($dailyLateCoef <= 0) {
-            return 0;
-        }
-        $unpaid = max(0, (int) $inst->amount_toman - (int) $inst->paid_amount_toman);
-        if ($unpaid <= 0) {
-            return 0;
-        }
-        $due = Carbon::parse($inst->due_date)->startOfDay();
-        $now = Carbon::now()->startOfDay();
-        if ($due->gte($now)) {
-            return 0;
-        }
-        $days = (int) $due->diffInDays($now);
-        if ($days < 1) {
-            return 0;
-        }
-
-        return max(0, (int) round($unpaid * $dailyLateCoef * $days));
+        return (int) $inst->debtBalance($dailyLateCoef)['late_fee_remaining_toman'];
     }
 
     /**
@@ -171,10 +172,24 @@ final class LoanFileFinanceCalculator
      */
     public function estimatePenaltyAtDateToman(CustomerLoanInstallment $inst, float $dailyLateCoef, Carbon $untilDate): int
     {
-        if ($dailyLateCoef <= 0) {
+        return $this->estimatePenaltyForPrincipalAtDateToman(
+            (int) $inst->amount_toman,
+            Carbon::parse($inst->due_date),
+            $dailyLateCoef,
+            $untilDate,
+        );
+    }
+
+    public function estimatePenaltyForPrincipalAtDateToman(
+        int $principalToman,
+        Carbon $dueDate,
+        float $dailyLateCoef,
+        Carbon $untilDate,
+    ): int {
+        if ($dailyLateCoef <= 0 || $principalToman <= 0) {
             return 0;
         }
-        $due = Carbon::parse($inst->due_date)->startOfDay();
+        $due = $dueDate->copy()->startOfDay();
         $until = $untilDate->copy()->startOfDay();
         if ($until->lte($due)) {
             return 0;
@@ -183,8 +198,7 @@ final class LoanFileFinanceCalculator
         if ($days < 1) {
             return 0;
         }
-        $principal = (int) $inst->amount_toman;
 
-        return max(0, (int) round($principal * $dailyLateCoef * $days));
+        return max(0, (int) round($principalToman * $dailyLateCoef * $days));
     }
 }

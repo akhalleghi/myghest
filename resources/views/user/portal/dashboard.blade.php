@@ -68,7 +68,9 @@
                                             <span class="portal-loan__ribbon-text">
                                                 @if($ribbon === 'settled')
                                                     تسویه شده
-                                                @elseif($ribbon === 'revoked')
+                                                @elseif($ribbon === 'review')
+                                                نیاز به بررسی اقساط
+                                            @elseif($ribbon === 'revoked')
                                                     فسخ شده
                                                 @else
                                                     بستانکار

@@ -21,11 +21,11 @@
             </div>
             <div class="portal-settle-summary__rows">
                 <div class="portal-settle-summary__row">
-                    <span class="portal-settle-summary__k">ماندهٔ بدهی</span>
+                    <span class="portal-settle-summary__k">کل مانده بدهی با دیرکرد</span>
                     <span class="portal-settle-summary__v" id="{{ $settleNs }}-remaining">—</span>
                 </div>
                 <div class="portal-settle-summary__row" id="{{ $settleNs }}-late-row">
-                    <span class="portal-settle-summary__k">جریمهٔ دیرکرد</span>
+                    <span class="portal-settle-summary__k">از مبلغ بالا: دیرکرد پرداخت‌نشده</span>
                     <span class="portal-settle-summary__v" id="{{ $settleNs }}-late">—</span>
                 </div>
             </div>

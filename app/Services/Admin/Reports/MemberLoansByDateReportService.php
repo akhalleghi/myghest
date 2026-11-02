@@ -60,7 +60,7 @@ final class MemberLoansByDateReportService
         $query = CustomerLoanFile::query()
             ->whereNull('revoked_at')
             ->whereBetween('loan_start_date', [$from->toDateString(), $to->toDateString()])
-            ->with(['customer:id,first_name,last_name,national_id,mobile,customer_code', 'loanType:id,title,daily_late_coefficient', 'installments'])
+            ->with(['customer:id,first_name,last_name,national_id,mobile,customer_code', 'loanType:id,title,daily_late_coefficient', 'installments.payments'])
             ->orderByDesc('loan_start_date')
             ->orderByDesc('id');
 
@@ -81,16 +81,12 @@ final class MemberLoansByDateReportService
             });
         }
 
-        if ($settledFilter === 'yes') {
-            $query->where('is_settled', true);
-        } elseif ($settledFilter === 'no') {
-            $query->where('is_settled', false);
-        }
-
         /** @var Collection<int, CustomerLoanFile> $files */
         $files = $query->get();
 
-        return $files->map(fn (CustomerLoanFile $file): array => $this->mapRow($file))->values()->all();
+        return $files->map(fn (CustomerLoanFile $file): array => $this->mapRow($file))
+            ->filter(static fn (array $row): bool => ! ($settledFilter === 'yes' && ! $row['is_settled']) && ! ($settledFilter === 'no' && $row['is_settled']))
+            ->values()->all();
     }
 
     /**
@@ -112,18 +108,14 @@ final class MemberLoansByDateReportService
         $discount = (int) ($file->discount_amount_toman ?? 0);
         $remainingAfterDiscount = $file->is_settled
             ? 0
-            : max(0, (int) ($snap['schedule_remaining_toman'] ?? 0) - $discount);
+            : (int) $snap['remaining_amount_toman'];
         $lateCoef = (float) ($file->loanType?->daily_late_coefficient ?? 0);
-        $lateFee = $this->financeCalculator->estimateLateFeeSoFarToman(
-            $file->installments,
-            $lateCoef,
-            (int) ($snap['schedule_remaining_toman'] ?? 0)
-        );
+        $lateFee = (int) $snap['late_fee_payable_toman'];
 
         $instColl = $file->installments;
-        $unpaidInsts = $instColl->filter(static fn (CustomerLoanInstallment $i): bool => (int) $i->paid_amount_toman < (int) $i->amount_toman);
+        $unpaidInsts = $instColl->filter(static fn (CustomerLoanInstallment $i): bool => (int) ($snap['installment_payables'][(int) $i->id]['remaining_toman'] ?? 0) > 0);
         $unpaidCount = $unpaidInsts->count();
-        $unpaidAmount = (int) $unpaidInsts->sum(static fn (CustomerLoanInstallment $i): int => max(0, (int) $i->amount_toman - (int) $i->paid_amount_toman));
+        $unpaidAmount = (int) $unpaidInsts->sum(static fn (CustomerLoanInstallment $i): int => (int) ($snap['installment_payables'][(int) $i->id]['remaining_toman'] ?? 0));
 
         $now = Carbon::now()->startOfDay();
         $overdueCount = (int) $unpaidInsts->filter(static function (CustomerLoanInstallment $i) use ($now): bool {
@@ -161,8 +153,9 @@ final class MemberLoansByDateReportService
             'loan_start_jdate' => $file->loan_start_date
                 ? Jalali::enToFaNumbers(Jalali::instance(Carbon::parse($file->loan_start_date))->format('Y/m/d'))
                 : '—',
-            'is_settled' => (bool) $file->is_settled,
-            'is_settled_label' => $file->is_settled ? 'بلی' : 'خیر',
+            'is_settled' => (bool) $snap['settled_by_balance'],
+            'is_settled_label' => $snap['requires_schedule_review'] ? 'نیاز به بررسی اقساط' : ($snap['settled_by_balance'] ? 'بلی' : 'خیر'),
+            'requires_schedule_review' => $snap['requires_schedule_review'],
             'paid_installments_count' => (int) ($snap['paid_installments_count'] ?? 0),
             'paid_amount_toman' => (int) ($snap['total_paid_toman'] ?? 0),
             'remaining_installments_count' => $unpaidCount,

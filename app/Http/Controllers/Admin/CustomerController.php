@@ -59,6 +59,45 @@ final class CustomerController extends Controller
 
     private const CUSTOMER_LIST_PER_PAGE_MAX = 200;
 
+    private ?array $debtScopeIds = null;
+
+    private function customerDebtScopeIds(): array
+    {
+        if ($this->debtScopeIds !== null) {
+            return $this->debtScopeIds;
+        }
+        $debt = [];
+        $overdue = [];
+        $amounts = [];
+        $nearest = [];
+        $finance = app(LoanFileFinanceCalculator::class);
+        CustomerLoanFile::query()->whereNull('revoked_at')->where('is_settled', false)
+            ->with(['loanType', 'installments.payments'])
+            ->chunkById(200, function ($files) use (&$debt, &$overdue, &$amounts, &$nearest, $finance): void {
+                foreach ($files as $file) {
+                    $snap = $finance->loanInstallmentFinancialSnapshot($file, $finance->totalRepayableToman($file));
+                    if ($snap['remaining_amount_toman'] <= 0 && ! $snap['requires_schedule_review']) {
+                        continue;
+                    }
+                    $customerId = (int) $file->customer_id;
+                    $debt[$customerId] = true;
+                    $amounts[$customerId] = ($amounts[$customerId] ?? 0) + $snap['remaining_amount_toman'];
+                    foreach ($file->installments as $i) {
+                        if ((int) ($snap['installment_payables'][(int) $i->id]['remaining_toman'] ?? 0) <= 0) {
+                            continue;
+                        }
+                        $due = Carbon::parse($i->due_date)->startOfDay();
+                        $nearest[$customerId] = min($nearest[$customerId] ?? PHP_INT_MAX, $due->getTimestamp());
+                        if ($due->lt(Carbon::today())) {
+                            $overdue[$customerId] = true;
+                        }
+                    }
+                }
+            });
+
+        return $this->debtScopeIds = ['debt' => array_keys($debt), 'overdue' => array_keys($overdue), 'amounts' => $amounts, 'nearest' => $nearest];
+    }
+
     public function __construct(
         private readonly SmsPanelManager $panelManager,
         private readonly RawSmsDispatcher $rawSms,
@@ -1454,6 +1493,7 @@ final class CustomerController extends Controller
                 'installments_count' => (int) $loanFile->installments_count,
                 'is_settled' => (bool) $loanFile->is_settled,
                 'schedule_remaining_toman' => (int) $snap['schedule_remaining_toman'],
+                'remaining_amount_toman' => (int) $snap['remaining_amount_toman'],
             ], $this->loanInstallmentsModalSummary($loanFile, $snap)),
             'installments' => $rows,
         ]);
@@ -1481,9 +1521,11 @@ final class CustomerController extends Controller
 
         $lateCoef = (float) ($loanFile->loanType?->daily_late_coefficient ?? 0);
 
+        $finance = app(LoanFileFinanceCalculator::class);
+        $snapshot = $finance->loanInstallmentFinancialSnapshot($loanFile, $finance->totalRepayableToman($loanFile));
         $bookletRows = [];
         foreach ($loanFile->installments as $inst) {
-            $bookletRows[] = $this->buildInstallmentBookletPrintRow($inst, $lateCoef);
+            $bookletRows[] = $this->buildInstallmentBookletPrintRow($inst, $lateCoef, $snapshot['installment_payables'][(int) $inst->id]['late_fee_remaining_toman']);
         }
 
         $loanTypeTitle = (string) ($loanFile->loanType?->title ?? '—');
@@ -1582,10 +1624,9 @@ final class CustomerController extends Controller
         ]);
 
         $amount = (int) $validated['amount_toman'];
-        $paid = (int) $installment->paid_amount_toman;
-        if ($amount < $paid) {
+        if ($amount < $installment->principalAppliedToman()) {
             return response()->json([
-                'message' => 'مبلغ قسط نمی‌تواند از مجموع پرداخت‌های ثبت‌شده ('.number_format($paid, 0, '.', ',').' تومان) کمتر باشد.',
+                'message' => 'مبلغ قسط نمی‌تواند از مبلغ اعمال‌شده به اصل قسط ('.number_format($installment->principalAppliedToman(), 0, '.', ',').' تومان) کمتر باشد.',
             ], 422);
         }
 
@@ -1667,6 +1708,7 @@ final class CustomerController extends Controller
                 'installments_count' => (int) $loanFile->installments_count,
                 'is_settled' => (bool) $loanFile->is_settled,
                 'schedule_remaining_toman' => (int) $snap['schedule_remaining_toman'],
+                'remaining_amount_toman' => (int) $snap['remaining_amount_toman'],
             ],
             'installment' => $this->mapLoanInstallmentPayContext($installment, $customer, $loanFile),
             'payment_method_options' => $options,
@@ -1721,15 +1763,6 @@ final class CustomerController extends Controller
 
         $amountNew = (int) $validated['amount_toman'];
         $loanFile->loadMissing('loanType');
-        $paymentCeiling = $this->loanInstallmentPaymentCeilingToman($loanFile);
-        if ($amountNew > $paymentCeiling) {
-            return response()->json([
-                'message' => $paymentCeiling <= 0
-                    ? 'طبق ماندهٔ وام و تخفیف ثبت‌شده، مبلغ دیگری قابل ثبت نیست.'
-                    : ('جمع پرداخت‌ها نمی‌تواند از ماندهٔ وام بیشتر شود؛ حداکثر قابل ثبت در این مرحله: '
-                        .number_format($paymentCeiling, 0, '.', ',').' تومان.'),
-            ], 422);
-        }
 
         $refDueCarbon = null;
         $rawRefDue = isset($validated['reference_due_jdate']) ? trim((string) $validated['reference_due_jdate']) : '';
@@ -1745,10 +1778,21 @@ final class CustomerController extends Controller
             return response()->json(['message' => 'تاریخ واریز معتبر نیست. فرمت: ۱۴۰۳/۰۶/۱۵'], 422);
         }
 
+        $maxPayment = $this->maxInstallmentPaymentToman($loanFile, $installment, $depCarbon);
+        if ($amountNew > $maxPayment) {
+            return response()->json([
+                'message' => $maxPayment <= 0
+                    ? 'طبق ماندهٔ قسط و دیرکرد محاسبه‌شده تا تاریخ واریز، مبلغ دیگری قابل ثبت نیست.'
+                    : ('حداکثر مبلغ مجاز این قسط با احتساب دیرکرد تا تاریخ واریز: '
+                        .number_format($maxPayment, 0, '.', ',').' تومان.'),
+            ], 422);
+        }
+
         $noteTrim = isset($validated['note']) ? trim((string) $validated['note']) : '';
         $noteStored = $noteTrim !== '' ? $noteTrim : null;
 
-        $payment = DB::transaction(function () use ($installment, $validated, $refDueCarbon, $depCarbon, $adminId, $noteStored): CustomerLoanInstallmentPayment {
+        $payment = DB::transaction(function () use ($loanFile, $installment, $validated, $refDueCarbon, $depCarbon, $adminId, $noteStored): CustomerLoanInstallmentPayment {
+            $this->lockAndValidateInstallmentPayment($loanFile, $installment, $depCarbon, (int) $validated['amount_toman']);
             $row = CustomerLoanInstallmentPayment::query()->create([
                 'customer_loan_installment_id' => (int) $installment->id,
                 'payment_method' => (string) $validated['payment_method'],
@@ -1852,15 +1896,6 @@ final class CustomerController extends Controller
 
         $amountNew = (int) $validated['amount_toman'];
         $loanFile->loadMissing('loanType');
-        $paymentCeiling = $this->loanInstallmentPaymentCeilingToman($loanFile) + (int) $payment->amount_toman;
-        if ($amountNew > $paymentCeiling) {
-            return response()->json([
-                'message' => $paymentCeiling <= 0
-                    ? 'طبق ماندهٔ وام و تخفیف ثبت‌شده، مبلغ مجاز نیست.'
-                    : ('جمع پرداخت‌ها نمی‌تواند از ماندهٔ وام بیشتر شود؛ حداکثر قابل ثبت برای این ردیف: '
-                        .number_format($paymentCeiling, 0, '.', ',').' تومان.'),
-            ], 422);
-        }
 
         $refDueCarbon = null;
         $rawRefDue = isset($validated['reference_due_jdate']) ? trim((string) $validated['reference_due_jdate']) : '';
@@ -1876,10 +1911,19 @@ final class CustomerController extends Controller
             return response()->json(['message' => 'تاریخ واریز معتبر نیست. فرمت: ۱۴۰۳/۰۶/۱۵'], 422);
         }
 
+        $paymentCeiling = $this->maxInstallmentPaymentToman($loanFile, $installment, $depCarbon, (int) $payment->id);
+        if ($amountNew > $paymentCeiling) {
+            return response()->json([
+                'message' => 'حداکثر مبلغ مجاز این قسط با احتساب دیرکرد تا تاریخ واریز: '
+                    .number_format($paymentCeiling, 0, '.', ',').' تومان.',
+            ], 422);
+        }
+
         $noteTrim = isset($validated['note']) ? trim((string) $validated['note']) : '';
         $noteStored = $noteTrim !== '' ? $noteTrim : null;
 
-        DB::transaction(function () use ($payment, $validated, $refDueCarbon, $depCarbon, $noteStored, $installment): void {
+        DB::transaction(function () use ($loanFile, $payment, $validated, $refDueCarbon, $depCarbon, $noteStored, $installment): void {
+            $this->lockAndValidateInstallmentPayment($loanFile, $installment, $depCarbon, (int) $validated['amount_toman'], (int) $payment->id);
             $payment->payment_method = (string) $validated['payment_method'];
             $payment->amount_toman = (int) $validated['amount_toman'];
             $payment->reference_due_date = $refDueCarbon?->startOfDay()->format('Y-m-d');
@@ -2139,13 +2183,13 @@ final class CustomerController extends Controller
         $totalRepayable = max(0, ((int) $loanFile->amount_toman + $profit) - (int) $loanFile->down_payment_toman);
         $snap = $this->loanInstallmentFinancialSnapshot($loanFile, $totalRepayable);
         $discount = (int) ($loanFile->discount_amount_toman ?? 0);
-        $scheduleRemaining = $snap['schedule_remaining_toman'];
+        $scheduleRemaining = $snap['debt_remaining_toman'];
 
         return response()->json([
             'late_fee_so_far_toman' => $snap['late_fee_so_far_toman'],
             'schedule_remaining_toman' => $scheduleRemaining,
             'discount_registered_toman' => $discount,
-            'remaining_after_discount_toman' => max(0, $scheduleRemaining - $discount),
+            'remaining_after_discount_toman' => (int) $snap['remaining_amount_toman'],
             /** سقف مبلغ کل تخفیف قابل ثبت = مانده قسطی (قبل از اعمال تخفیف). */
             'max_discount_toman' => $scheduleRemaining,
             'loan_code' => (string) $loanFile->loan_code,
@@ -2194,7 +2238,7 @@ final class CustomerController extends Controller
                 );
                 $totalRepayable = max(0, ((int) $loanFile->amount_toman + $profit) - (int) $loanFile->down_payment_toman);
                 $snap = $this->loanInstallmentFinancialSnapshot($loanFile, $totalRepayable);
-                $scheduleRemaining = $snap['schedule_remaining_toman'];
+                $scheduleRemaining = $snap['debt_remaining_toman'];
 
                 if ($newTotalDiscount > $scheduleRemaining) {
                     throw ValidationException::withMessages([
@@ -4069,39 +4113,12 @@ final class CustomerController extends Controller
      */
     private function buildCustomerListScopeStats(): array
     {
-        $today = now()->toDateString();
-
-        $activeLoanConstraint = static function ($loanFileQuery): void {
-            $loanFileQuery
-                ->whereNull('revoked_at')
-                ->where('is_settled', false);
-        };
-
-        $overdueConstraint = static function ($loanFileQuery) use ($today): void {
-            $loanFileQuery
-                ->whereNull('revoked_at')
-                ->where('is_settled', false)
-                ->whereHas('installments', static function ($installmentQuery) use ($today): void {
-                    $installmentQuery
-                        ->whereColumn('paid_amount_toman', '<', 'amount_toman')
-                        ->whereDate('due_date', '<', $today);
-                });
-        };
-
-        $hasOpenDebtConstraint = static function ($loanFileQuery): void {
-            $loanFileQuery
-                ->whereNull('revoked_at')
-                ->where('is_settled', false)
-                ->whereHas('installments', static function ($installmentQuery): void {
-                    $installmentQuery->whereColumn('paid_amount_toman', '<', 'amount_toman');
-                });
-        };
-
+        $scopes = $this->customerDebtScopeIds();
         return [
             'all' => (int) Customer::query()->count(),
-            'active_loan' => (int) Customer::query()->whereHas('loanFiles', $activeLoanConstraint)->count(),
-            'overdue_installment' => (int) Customer::query()->whereHas('loanFiles', $overdueConstraint)->count(),
-            'no_debt' => (int) Customer::query()->whereDoesntHave('loanFiles', $hasOpenDebtConstraint)->count(),
+            'active_loan' => count($scopes['debt']),
+            'overdue_installment' => count($scopes['overdue']),
+            'no_debt' => (int) Customer::query()->whereNotIn('id', $scopes['debt'])->count(),
         ];
     }
 
@@ -4126,36 +4143,15 @@ final class CustomerController extends Controller
     {
         $today = now()->toDateString();
 
-        if ($filters['list_scope'] === 'active_loan') {
-            $query->whereHas('loanFiles', static function ($loanFileQuery): void {
-                $loanFileQuery
-                    ->whereNull('revoked_at')
-                    ->where('is_settled', false);
-            });
-        }
-
-        if ($filters['list_scope'] === 'overdue_installment') {
-            $query->whereHas('loanFiles', static function ($loanFileQuery) use ($today): void {
-                $loanFileQuery
-                    ->whereNull('revoked_at')
-                    ->where('is_settled', false)
-                    ->whereHas('installments', static function ($installmentQuery) use ($today): void {
-                        $installmentQuery
-                            ->whereColumn('paid_amount_toman', '<', 'amount_toman')
-                            ->whereDate('due_date', '<', $today);
-                    });
-            });
-        }
-
-        if ($filters['list_scope'] === 'no_debt') {
-            $query->whereDoesntHave('loanFiles', static function ($loanFileQuery): void {
-                $loanFileQuery
-                    ->whereNull('revoked_at')
-                    ->where('is_settled', false)
-                    ->whereHas('installments', static function ($installmentQuery): void {
-                        $installmentQuery->whereColumn('paid_amount_toman', '<', 'amount_toman');
-                    });
-            });
+        if ($filters['list_scope'] !== 'all') {
+            $scopes = $this->customerDebtScopeIds();
+            if ($filters['list_scope'] === 'active_loan') {
+                $query->whereIn('id', $scopes['debt']);
+            } elseif ($filters['list_scope'] === 'overdue_installment') {
+                $query->whereIn('id', $scopes['overdue']);
+            } elseif ($filters['list_scope'] === 'no_debt') {
+                $query->whereNotIn('id', $scopes['debt']);
+            }
         }
 
         if ($filters['disbursement_due_overdue']) {
@@ -4172,6 +4168,28 @@ final class CustomerController extends Controller
     /**
      * @param  array{sort: ?string, dir: 'asc'|'desc'}  $sort
      */
+    private function applyCustomerDebtSort(\Illuminate\Database\Eloquent\Builder $query, string $column, string $direction): \Illuminate\Database\Eloquent\Builder
+    {
+        $data = $this->customerDebtScopeIds();
+        $values = $column === 'nearest_due' ? $data['nearest'] : $data['amounts'];
+        if ($values === []) {
+            return $query;
+        }
+        $clauses = [];
+        $bindings = [];
+        foreach ($values as $customerId => $value) {
+            $clauses[] = 'WHEN ? THEN ?';
+            $bindings[] = (int) $customerId;
+            $bindings[] = (int) $value;
+        }
+        $expression = 'CASE customers.id '.implode(' ', $clauses).' ELSE '.($column === 'nearest_due' ? 'NULL' : '0').' END';
+        if ($column === 'nearest_due') {
+            $query->orderByRaw('('.$expression.') IS NULL ASC', $bindings);
+        }
+
+        return $query->orderByRaw($expression.' '.($direction === 'desc' ? 'desc' : 'asc'), $bindings);
+    }
+
     private function applyCustomerListSort(\Illuminate\Database\Eloquent\Builder $query, array $sort): void
     {
         $column = $sort['sort'];
@@ -4205,37 +4223,7 @@ final class CustomerController extends Controller
                     ->whereColumn('customer_loan_files.customer_id', 'customers.id'),
                 $direction
             ),
-            'loan_remaining' => $query->orderBy(
-                CustomerLoanInstallment::query()
-                    ->selectRaw('COALESCE(SUM(GREATEST(0, customer_loan_installments.amount_toman - customer_loan_installments.paid_amount_toman)), 0)')
-                    ->join('customer_loan_files', 'customer_loan_files.id', '=', 'customer_loan_installments.customer_loan_file_id')
-                    ->whereColumn('customer_loan_files.customer_id', 'customers.id')
-                    ->whereNull('customer_loan_files.revoked_at')
-                    ->where('customer_loan_files.is_settled', false),
-                $direction
-            ),
-            'nearest_due' => $query
-                ->orderByRaw(
-                    '(SELECT MIN(customer_loan_installments.due_date)
-                      FROM customer_loan_installments
-                      INNER JOIN customer_loan_files
-                        ON customer_loan_files.id = customer_loan_installments.customer_loan_file_id
-                      WHERE customer_loan_files.customer_id = customers.id
-                        AND customer_loan_files.revoked_at IS NULL
-                        AND customer_loan_files.is_settled = 0
-                        AND customer_loan_installments.paid_amount_toman < customer_loan_installments.amount_toman
-                    ) IS NULL ASC'
-                )
-                ->orderBy(
-                    CustomerLoanInstallment::query()
-                        ->selectRaw('MIN(customer_loan_installments.due_date)')
-                        ->join('customer_loan_files', 'customer_loan_files.id', '=', 'customer_loan_installments.customer_loan_file_id')
-                        ->whereColumn('customer_loan_files.customer_id', 'customers.id')
-                        ->whereNull('customer_loan_files.revoked_at')
-                        ->where('customer_loan_files.is_settled', false)
-                        ->whereColumn('customer_loan_installments.paid_amount_toman', '<', 'customer_loan_installments.amount_toman'),
-                    $direction
-                ),
+            'loan_remaining', 'nearest_due' => $this->applyCustomerDebtSort($query, $column, $direction),
             default => $query->latest('customers.id'),
         };
 
@@ -4291,19 +4279,13 @@ final class CustomerController extends Controller
     private function resolveCustomerNearestDueDate(Customer $customer): ?Carbon
     {
         $nearest = null;
-
+        $finance = app(LoanFileFinanceCalculator::class);
         foreach ($customer->loanFiles as $file) {
-            if ($file->revoked_at !== null || $file->is_settled) {
-                continue;
-            }
-
+            $snapshot = $finance->loanInstallmentFinancialSnapshot($file, $finance->totalRepayableToman($file));
             foreach ($file->installments as $installment) {
-                $amount = (int) $installment->amount_toman;
-                $paid = (int) $installment->paid_amount_toman;
-                if ($paid >= $amount) {
+                if ((int) ($snapshot['installment_payables'][(int) $installment->id]['remaining_toman'] ?? 0) <= 0) {
                     continue;
                 }
-
                 $due = Carbon::parse($installment->due_date)->startOfDay();
                 if ($nearest === null || $due->lt($nearest)) {
                     $nearest = $due;
@@ -4323,93 +4305,27 @@ final class CustomerController extends Controller
      */
     private function resolveCustomerOverdueSummary(Customer $customer): ?array
     {
-        $today = Carbon::today();
         $best = null;
         $count = 0;
-        $totalToman = 0;
-
+        $total = 0;
+        $finance = app(LoanFileFinanceCalculator::class);
         foreach ($customer->loanFiles as $file) {
-            if ($file->revoked_at !== null || $file->is_settled) {
-                continue;
-            }
-
-            $ceiling = $this->loanInstallmentPaymentCeilingToman($file);
-            if ($ceiling < 1) {
-                continue;
-            }
-
-            /** @var list<array{installment_id: int, loan_file_id: int, due: Carbon, unpaid: int}> $candidates */
-            $candidates = [];
+            $snapshot = $finance->loanInstallmentFinancialSnapshot($file, $finance->totalRepayableToman($file));
             foreach ($file->installments as $installment) {
-                $amount = (int) $installment->amount_toman;
-                $paid = (int) $installment->paid_amount_toman;
-                if ($paid >= $amount) {
-                    continue;
-                }
-
+                $payable = (int) ($snapshot['installment_payables'][(int) $installment->id]['remaining_toman'] ?? 0);
                 $due = Carbon::parse($installment->due_date)->startOfDay();
-                if ($due->gte($today)) {
+                if ($payable <= 0 || ! $due->lt(Carbon::today())) {
                     continue;
                 }
-
-                $unpaid = max(0, $amount - $paid);
-                if ($unpaid < 1) {
-                    continue;
-                }
-
-                $candidates[] = [
-                    'installment_id' => (int) $installment->id,
-                    'loan_file_id' => (int) $file->id,
-                    'due' => $due,
-                    'unpaid' => $unpaid,
-                ];
-            }
-
-            if ($candidates === []) {
-                continue;
-            }
-
-            usort(
-                $candidates,
-                static function (array $a, array $b): int {
-                    return $a['due']->getTimestamp() <=> $b['due']->getTimestamp();
-                }
-            );
-
-            $pool = $ceiling;
-            foreach ($candidates as $row) {
-                if ($pool < 1) {
-                    break;
-                }
-                $pay = min((int) $row['unpaid'], $pool);
-                if ($pay < 1) {
-                    continue;
-                }
-
-                $totalToman += $pay;
+                $total += $payable;
                 $count++;
-                $pool -= $pay;
-
-                if ($best === null || $row['due']->lt($best['due'])) {
-                    $best = [
-                        'installment_id' => $row['installment_id'],
-                        'loan_file_id' => $row['loan_file_id'],
-                        'due' => $row['due'],
-                    ];
+                if ($best === null || $due->lt($best['due'])) {
+                    $best = ['installment_id' => (int) $installment->id, 'loan_file_id' => (int) $file->id, 'due' => $due];
                 }
             }
         }
 
-        if ($best === null || $totalToman < 1) {
-            return null;
-        }
-
-        return [
-            'installment_id' => $best['installment_id'],
-            'loan_file_id' => $best['loan_file_id'],
-            'count' => $count,
-            'total_toman' => $totalToman,
-        ];
+        return $best === null ? null : ['installment_id' => $best['installment_id'], 'loan_file_id' => $best['loan_file_id'], 'count' => $count, 'total_toman' => $total];
     }
 
     /**
@@ -4476,16 +4392,16 @@ final class CustomerController extends Controller
         }
 
         $snap = $this->loanInstallmentFinancialSnapshot($file, $totalRepayable);
-        $scheduleRemaining = $snap['schedule_remaining_toman'];
+        $scheduleRemaining = $snap['debt_remaining_toman'];
         $remainingAmount = $file->is_settled
             ? 0
-            : max(0, $scheduleRemaining - $discount);
+            : (int) $snap['remaining_amount_toman'];
         $lateCoef = (float) ($file->loanType?->daily_late_coefficient ?? 0);
         $earlyCoef = (float) ($file->loanType?->daily_early_coefficient ?? 0);
         // هم‌سو با خلاصهٔ مدال اقساط: دیرکرد اقساط معوق پرداخت‌نشده + دیرکرد اقساط پرداخت‌شده با تأخیر
         $latePenalty = $file->is_settled
             ? 0
-            : $this->aggregateLatePenaltyToman($file->installments, $lateCoef, $remainingAmount);
+            : (int) $snap['late_fee_payable_toman'];
         $overdueTotal = $this->sumLoanFileOverdueUnpaidToman($file);
         $paymentCeiling = $file->is_settled
             ? 0
@@ -4519,6 +4435,11 @@ final class CustomerController extends Controller
             'effective_interest_rate' => (float) $file->effective_interest_rate,
             'calculated_profit_toman' => $profit,
             'total_repayable_toman' => $totalRepayable,
+            'requires_schedule_review' => $snap['requires_schedule_review'],
+            'contract_total_toman' => $snap['contract_total_toman'],
+            'scheduled_total_toman' => $snap['scheduled_total_toman'],
+            'schedule_difference_toman' => $snap['schedule_difference_toman'],
+            'settled_by_balance' => $snap['settled_by_balance'],
             'remaining_amount_toman' => $remainingAmount,
             'paid_installments_count' => $snap['paid_installments_count'],
             'paid_installments_slot_count' => $snap['paid_installments_slot_count'],
@@ -4548,42 +4469,7 @@ final class CustomerController extends Controller
      */
     private function loanInstallmentFinancialSnapshot(CustomerLoanFile $file, int $totalRepayableContract): array
     {
-        $installments = $file->installments;
-        $lateCoef = (float) ($file->loanType?->daily_late_coefficient ?? 0);
-        $discount = (int) ($file->discount_amount_toman ?? 0);
-
-        if ($installments->isEmpty()) {
-            return [
-                'schedule_remaining_toman' => $totalRepayableContract,
-                'total_paid_toman' => 0,
-                'paid_installments_count' => 0,
-                'paid_installments_slot_count' => 0,
-                'late_fee_so_far_toman' => 0,
-            ];
-        }
-
-        $totalPaid = (int) $installments->sum(static fn (CustomerLoanInstallment $i): int => (int) $i->paid_amount_toman);
-        $scheduleRemaining = max(0, $totalRepayableContract - $totalPaid);
-        $remainingAfterDiscount = $file->is_settled
-            ? 0
-            : max(0, $scheduleRemaining - $discount);
-        $slotFullyPaidCount = (int) $installments->filter(static function (CustomerLoanInstallment $i): bool {
-            return (int) $i->amount_toman > 0 && (int) $i->paid_amount_toman >= (int) $i->amount_toman;
-        })->count();
-        $periodCount = $installments->count();
-        /**
-         * برای کارت پرونده و گزارش‌ها: اگر ماندهٔ واقعی تعهد (با تخفیف) صفر است، همهٔ دوره‌های قرارداد از نظر تعهد پوشش داده شده‌اند
-         * حتی اگر مبلغ نامی بعضی اقساط هنوز کمتر پرداخت شده باشد (جابه‌جایی پرداخت بین اقساط).
-         */
-        $paidInstallmentsCountReport = $remainingAfterDiscount <= 0 && $periodCount > 0 ? $periodCount : $slotFullyPaidCount;
-
-        return [
-            'schedule_remaining_toman' => $scheduleRemaining,
-            'total_paid_toman' => $totalPaid,
-            'paid_installments_count' => $paidInstallmentsCountReport,
-            'paid_installments_slot_count' => $slotFullyPaidCount,
-            'late_fee_so_far_toman' => $this->estimateLateFeeSoFarToman($installments, $lateCoef, $remainingAfterDiscount),
-        ];
+        return app(LoanFileFinanceCalculator::class)->loanInstallmentFinancialSnapshot($file, $totalRepayableContract);
     }
 
     /**
@@ -4591,30 +4477,7 @@ final class CustomerController extends Controller
      */
     private function estimateLateFeeSoFarToman(Collection $installments, float $dailyLateCoef, int $contractDebtRemainingAfterDiscount): int
     {
-        if ($dailyLateCoef <= 0 || $contractDebtRemainingAfterDiscount <= 0) {
-            return 0;
-        }
-
-        $now = Carbon::now()->startOfDay();
-        $sum = 0;
-
-        foreach ($installments as $i) {
-            $unpaid = max(0, (int) $i->amount_toman - (int) $i->paid_amount_toman);
-            if ($unpaid <= 0) {
-                continue;
-            }
-            $due = Carbon::parse($i->due_date)->startOfDay();
-            if ($due->gte($now)) {
-                continue;
-            }
-            $days = (int) $due->diffInDays($now);
-            if ($days < 1) {
-                continue;
-            }
-            $sum += (int) round($unpaid * $dailyLateCoef * $days);
-        }
-
-        return max(0, $sum);
+        return app(LoanFileFinanceCalculator::class)->estimateLateFeeSoFarToman($installments, $dailyLateCoef, $contractDebtRemainingAfterDiscount);
     }
 
     /**
@@ -4648,19 +4511,22 @@ final class CustomerController extends Controller
         $discount = (int) ($loanFile->discount_amount_toman ?? 0);
         $remainingAmount = $loanFile->is_settled
             ? 0
-            : max(0, (int) $snap['schedule_remaining_toman'] - $discount);
-        $unpaidCount = (int) $loanFile->installments->filter(static function (CustomerLoanInstallment $i): bool {
-            return (int) $i->paid_amount_toman < (int) $i->amount_toman;
-        })->count();
+            : (int) $snap['remaining_amount_toman'];
+        $unpaidCount = (int) $snap['unpaid_installments_count'];
         $lateCoef = (float) ($loanFile->loanType?->daily_late_coefficient ?? 0);
         $earlyCoef = (float) ($loanFile->loanType?->daily_early_coefficient ?? 0);
 
         return [
             'paid_installments_count' => (int) $snap['paid_installments_count'],
-            'remaining_installments_count' => $unpaidCount,
+            'remaining_installments_count' => $remainingAmount <= 0 ? 0 : $unpaidCount,
+            'requires_schedule_review' => $snap['requires_schedule_review'],
+            'contract_total_toman' => $snap['contract_total_toman'],
+            'scheduled_total_toman' => $snap['scheduled_total_toman'],
+            'schedule_difference_toman' => $snap['schedule_difference_toman'],
+            'settled_by_balance' => $snap['settled_by_balance'],
             'remaining_amount_toman' => $remainingAmount,
             'paid_installments_amount_toman' => (int) $snap['total_paid_toman'],
-            'late_penalty_toman' => $this->aggregateLatePenaltyToman($loanFile->installments, $lateCoef, $remainingAmount),
+            'late_penalty_toman' => (int) $snap['late_fee_payable_toman'],
             'overdue_installments_total_toman' => $this->sumLoanFileOverdueUnpaidToman($loanFile),
             'early_benefit_toman' => $this->aggregateEarlyBenefitToman($loanFile->installments, $earlyCoef),
         ];
@@ -4671,29 +4537,10 @@ final class CustomerController extends Controller
      */
     private function sumLoanFileOverdueUnpaidToman(CustomerLoanFile $loanFile): int
     {
-        if ($loanFile->revoked_at !== null || $loanFile->is_settled) {
-            return 0;
-        }
+        $finance = app(LoanFileFinanceCalculator::class);
+        $snap = $finance->loanInstallmentFinancialSnapshot($loanFile, $finance->totalRepayableToman($loanFile));
 
-        $today = Carbon::today();
-        $total = 0;
-
-        foreach ($loanFile->installments as $installment) {
-            $amount = (int) $installment->amount_toman;
-            $paid = (int) $installment->paid_amount_toman;
-            if ($paid >= $amount) {
-                continue;
-            }
-
-            $due = Carbon::parse($installment->due_date)->startOfDay();
-            if ($due->gte($today)) {
-                continue;
-            }
-
-            $total += max(0, $amount - $paid);
-        }
-
-        return $total;
+        return (int) $loanFile->installments->sum(static fn (CustomerLoanInstallment $i): int => Carbon::parse($i->due_date)->lt(Carbon::today()) ? (int) ($snap['installment_payables'][(int) $i->id]['remaining_toman'] ?? 0) : 0);
     }
 
     /**
@@ -4768,30 +4615,13 @@ final class CustomerController extends Controller
     /** برآورد حق‌الزحمهٔ دیرکرد روزانه فقط برای بخش پرداخت‌نشدهٔ این قسط تا امروز (همان منطق فایل). */
     private function estimateBookletPenaltyTomanForInstallment(CustomerLoanInstallment $inst, float $dailyLateCoef): int
     {
-        if ($dailyLateCoef <= 0) {
-            return 0;
-        }
-        $unpaid = max(0, (int) $inst->amount_toman - (int) $inst->paid_amount_toman);
-        if ($unpaid <= 0) {
-            return 0;
-        }
-        $due = Carbon::parse($inst->due_date)->startOfDay();
-        $now = Carbon::now()->startOfDay();
-        if ($due->gte($now)) {
-            return 0;
-        }
-        $days = (int) $due->diffInDays($now);
-        if ($days < 1) {
-            return 0;
-        }
-
-        return max(0, (int) round($unpaid * $dailyLateCoef * $days));
+        return app(LoanFileFinanceCalculator::class)->estimateBookletPenaltyTomanForInstallment($inst, $dailyLateCoef);
     }
 
     /**
      * @return array<string, string>
      */
-    private function buildInstallmentBookletPrintRow(CustomerLoanInstallment $inst, float $lateCoef): array
+    private function buildInstallmentBookletPrintRow(CustomerLoanInstallment $inst, float $lateCoef, ?int $payableLateFee = null): array
     {
         $due = Carbon::parse($inst->due_date)->startOfDay();
         $dueFa = Jalali::enToFaNumbers(Jalali::instance($due)->format('Y/m/d'));
@@ -4885,7 +4715,7 @@ final class CustomerController extends Controller
             $lateFa = Jalali::enToFaNumbers((string) (int) $due->diffInDays($now)).' روز از سررسید (پرداخت‌نشده)';
         }
 
-        $penaltyToman = $this->estimateBookletPenaltyTomanForInstallment($inst, $lateCoef);
+        $penaltyToman = $payableLateFee ?? $this->estimateBookletPenaltyTomanForInstallment($inst, $lateCoef);
         $penaltyCell = $penaltyToman > 0 ? $this->formatBookletMoneyFa($penaltyToman) : '—';
 
         return [
@@ -4958,6 +4788,14 @@ final class CustomerController extends Controller
 
         $due = Carbon::parse($inst->due_date)->startOfDay();
         $today = Carbon::now()->startOfDay();
+        $debt = $inst->debtBalance($lateCoef);
+        if ($debt['late_fee_assessed_toman'] > 0) {
+            return [
+                'kind' => 'late',
+                'label' => 'دیرکرد محاسبه‌شده: '.$this->formatBookletMoneyFa($debt['late_fee_assessed_toman'])
+                    .' — پرداخت‌نشده: '.$this->formatBookletMoneyFa($debt['late_fee_remaining_toman']),
+            ];
+        }
         $amount = (int) $inst->amount_toman;
         $paid = (int) $inst->paid_amount_toman;
         $slotFullyPaid = $amount > 0 && $paid >= $amount;
@@ -4976,7 +4814,7 @@ final class CustomerController extends Controller
 
             if ($today->lt($due) && $earlyCoef > 0 && $amount > 0) {
                 $days = (int) $today->diffInDays($due);
-                $unpaid = max(0, $amount - $paid);
+                $unpaid = $inst->remainingDebtToman();
                 if ($days >= 1 && $unpaid > 0) {
                     $benefit = max(0, (int) round($unpaid * $earlyCoef * $days));
                     if ($benefit > 0) {
@@ -5776,7 +5614,7 @@ final class CustomerController extends Controller
         );
         $totalRepayable = max(0, ((int) $loanFile->amount_toman + $profit) - (int) $loanFile->down_payment_toman);
         $snap = $this->loanInstallmentFinancialSnapshot($loanFile, $totalRepayable);
-        $scheduleRemaining = (int) $snap['schedule_remaining_toman'];
+        $scheduleRemaining = (int) $snap['debt_remaining_toman'];
 
         if ($discountAmount > $scheduleRemaining) {
             throw ValidationException::withMessages([
@@ -5858,14 +5696,41 @@ final class CustomerController extends Controller
     private function mapLoanInstallmentPayContext(CustomerLoanInstallment $i, Customer $customer, CustomerLoanFile $file): array
     {
         $base = $this->mapLoanInstallmentRow($i, $customer, $file);
-        $base['remaining_toman'] = max(0, (int) $i->amount_toman - (int) $i->paid_amount_toman);
+        $base['remaining_toman'] = $base['remaining_toman'] ?? $i->remainingDebtToman();
         $file->loadMissing('loanType');
-        $maxPay = $this->loanInstallmentPaymentCeilingToman($file);
+        $maxPay = $this->maxInstallmentPaymentToman($file, $i, Carbon::today());
         $base['max_payment_toman'] = $maxPay;
-        $base['loan_remaining_payable_toman'] = $maxPay;
+        $base['loan_remaining_payable_toman'] = $this->loanInstallmentPaymentCeilingToman($file);
         $base['can_add_payment'] = ! $file->is_settled && $maxPay > 0;
 
         return $base;
+    }
+
+    private function maxInstallmentPaymentToman(
+        CustomerLoanFile $file,
+        CustomerLoanInstallment $installment,
+        Carbon $depositDate,
+        ?int $excludePaymentId = null,
+    ): int {
+        return app(LoanFileFinanceCalculator::class)->installmentPaymentAllowanceToman($file, $installment, $depositDate, $excludePaymentId);
+    }
+
+    private function lockAndValidateInstallmentPayment(
+        CustomerLoanFile $file,
+        CustomerLoanInstallment $installment,
+        Carbon $depositDate,
+        int $amount,
+        ?int $excludePaymentId = null,
+    ): void {
+        $lockedFile = CustomerLoanFile::query()->whereKey($file->id)->lockForUpdate()->firstOrFail();
+        $lockedInstallment = CustomerLoanInstallment::query()->whereKey($installment->id)->lockForUpdate()->firstOrFail();
+        if ($lockedFile->is_settled || $lockedFile->revoked_at !== null) {
+            throw ValidationException::withMessages(['amount_toman' => 'وضعیت پرونده تغییر کرده است؛ اطلاعات را دوباره دریافت کنید.']);
+        }
+        $maximum = $this->maxInstallmentPaymentToman($lockedFile, $lockedInstallment, $depositDate, $excludePaymentId);
+        if ($amount > $maximum) {
+            throw ValidationException::withMessages(['amount_toman' => 'مانده بدهی تغییر کرده است؛ سقف مجاز با احتساب دیرکرد: '.number_format($maximum).' تومان.']);
+        }
     }
 
     /**
@@ -5928,7 +5793,21 @@ final class CustomerController extends Controller
         $paymentMethodsLabel = $this->resolveInstallmentPaymentMethodsLabel($i);
         $paymentMethodLines = $this->resolveInstallmentPaymentMethodLines($i);
         $recLabel = $this->resolveInstallmentRecordedByLabel($i, $customer);
-        $mismatch = $this->resolveInstallmentAmountMismatch((int) $i->amount_toman, $paidAmount);
+        $finance = app(LoanFileFinanceCalculator::class);
+        $snapshot = $finance->loanInstallmentFinancialSnapshot($file, $finance->totalRepayableToman($file));
+        $balance = array_merge($snapshot['installment_balances'][(int) $i->id], $snapshot['installment_payables'][(int) $i->id]);
+        if ($balance['late_fee_assessed_toman'] > 0) {
+            $earlyLate = ['kind' => 'late', 'label' => 'دیرکرد محاسبه‌شده: '.$this->formatBookletMoneyFa($balance['late_fee_assessed_toman']).' — پرداخت‌نشده: '.$this->formatBookletMoneyFa($balance['late_fee_remaining_toman'])];
+        }
+        $mismatch = $this->resolveInstallmentAmountMismatch(
+            (int) $i->amount_toman + $balance['late_fee_assessed_toman'] - $balance['discount_applied_toman'], $paidAmount,
+        );
+        if ($balance['remaining_toman'] <= 0 && $mismatch['kind'] === 'under') {
+            $mismatch = ['kind' => 'none', 'diff_toman' => 0, 'label' => null];
+        }
+        if ($balance['remaining_toman'] > 0 && $paidAmount > 0) {
+            $mismatch = ['kind' => 'under', 'diff_toman' => -$balance['remaining_toman'], 'label' => 'مانده بدهی قسط با دیرکرد: '.$this->formatBookletMoneyFa($balance['remaining_toman'])];
+        }
 
         return [
             'id' => (int) $i->id,
@@ -5938,6 +5817,9 @@ final class CustomerController extends Controller
             'due_jdate' => $dueJalali,
             'due_jdate_fa' => $dueJalaliFa,
             'paid_amount_toman' => $paidAmount,
+            'remaining_toman' => $balance['remaining_toman'],
+            'principal_remaining_toman' => $balance['principal_remaining_toman'],
+            'late_fee_remaining_toman' => $balance['late_fee_remaining_toman'],
             'paid_at' => $paidAt ? $paidAt->format('Y-m-d') : null,
             'paid_jdate' => $paidJalali,
             'paid_jdate_fa' => $paidJalaliFa,
@@ -6074,7 +5956,9 @@ final class CustomerController extends Controller
         $isOverdue = $due->lt($now);
         $amount = (int) $inst->amount_toman;
         $paid = (int) $inst->paid_amount_toman;
-        $unpaid = max(0, $amount - $paid);
+        $finance = app(LoanFileFinanceCalculator::class);
+        $snapshot = $finance->loanInstallmentFinancialSnapshot($loanFile, $finance->totalRepayableToman($loanFile));
+        $unpaid = (int) ($snapshot['installment_payables'][(int) $inst->id]['remaining_toman'] ?? 0);
         // پیامک قسط معوق باید باقیمانده پرداخت‌نشده را نشان دهد، نه مبلغ کامل قسط
         $amountForTemplate = ($smsType === 'installment_overdue' || $isOverdue) ? $unpaid : $amount;
 
@@ -6298,22 +6182,40 @@ final class CustomerController extends Controller
         $totalProfit = (int) $mapped['calculated_profit_toman'];
         $discountRegistered = (int) ($mapped['discount_amount_toman'] ?? 0);
         $remainingAfterDiscount = (int) $mapped['remaining_amount_toman'];
+        if (! empty($mapped['requires_schedule_review'])) {
+            return [
+                'scenario' => 'schedule_review',
+                'headline' => 'اختلاف ریز اقساط با قرارداد',
+                'summary' => 'این پرونده قبل از تسویه خودکار نیاز به تطبیق مبالغ دارد. هیچ مبلغ یا سابقه‌ای تغییر داده نشده است.',
+                'primary_label' => 'مانده طبق محاسبه قرارداد',
+                'primary_amount_toman' => (int) $mapped['remaining_amount_toman'],
+                'rows' => [
+                    ['label' => 'بازپرداخت محاسبه‌شده قرارداد', 'amount_toman' => (int) $mapped['contract_total_toman']],
+                    ['label' => 'جمع مبالغ ذخیره‌شده اقساط', 'amount_toman' => (int) $mapped['scheduled_total_toman']],
+                    ['label' => 'اختلاف', 'amount_toman' => (int) $mapped['schedule_difference_toman']],
+                ],
+                'notes' => ['تعیین مبلغ معتبر به بررسی اسناد این پرونده نیاز دارد.'],
+                'meta' => ['loan_code' => (string) $file->loan_code],
+            ];
+        }
+
         $profitMethod = (string) ($file->profit_calculation_method ?: LoanType::PROFIT_MONTHLY);
 
         $instColl = $file->installments->sortBy('sequence')->values();
         $totalPaid = (int) $instColl->sum(static fn (CustomerLoanInstallment $i): int => (int) $i->paid_amount_toman);
-        $scheduleRemainingContract = max(0, $totalRepayable - $totalPaid);
+        $principalPaid = (int) $instColl->sum(static fn (CustomerLoanInstallment $i): int => $i->principalAppliedToman());
+        $scheduleRemainingContract = max(0, $totalRepayable - $principalPaid);
 
         /** جمع ماندهٔ نامی هر ردیف قسط (برای تشخیص جابه‌جایی پرداخت بین سررسیدها؛ نه به‌عنوان ماندهٔ تعهد) */
         $nominalRemainSum = (int) $instColl->sum(static function (CustomerLoanInstallment $i): int {
-            return max(0, (int) $i->amount_toman - (int) $i->paid_amount_toman);
+            return $i->principalRemainingToman();
         });
 
         $paidInstallmentsCount = (int) ($mapped['paid_installments_count'] ?? 0);
         $paidInstallmentsSlotCount = (int) ($mapped['paid_installments_slot_count'] ?? 0);
 
         $unpaidInstallmentsCount = (int) $instColl->filter(static function (CustomerLoanInstallment $i): bool {
-            return (int) $i->paid_amount_toman < (int) $i->amount_toman;
+            return $i->remainingDebtToman() > 0;
         })->count();
 
         $profitRemaining = $totalRepayable > 0
@@ -6339,7 +6241,7 @@ final class CustomerController extends Controller
         $earlyFactor = min(0.5, $earlyCoef * min(max($daysUntilContractEnd, 0), 365));
         $earlyRebate = (int) round($profitRemaining * $earlyFactor);
         $earlyRebate = max(0, min($earlyRebate, $profitRemaining));
-        $amountWithEarlyRaw = max(0, $scheduleRemainingContract - $earlyRebate);
+        $amountWithEarlyRaw = max(0, $remainingAfterDiscount - $earlyRebate);
         $amountWithEarly = min($remainingAfterDiscount, $amountWithEarlyRaw);
 
         // کسر معادل یک سهم سود از هر قسط معوق (تقریب «بهره ماهانه» برای روش ماهانه؛ برای بانکی یک قسط از سهم سود)
@@ -6351,7 +6253,7 @@ final class CustomerController extends Controller
             ? (int) round($periodProfitSlice / max(1, (int) $file->installments_count))
             : 0;
         $monthlyStyleCut = min($profitRemaining, $periodProfitSlice + $bankExtraSlice);
-        $amountWithMonthlyStyleRaw = max(0, $scheduleRemainingContract - $monthlyStyleCut);
+        $amountWithMonthlyStyleRaw = max(0, $remainingAfterDiscount - $monthlyStyleCut);
         $amountWithMonthlyStyle = min($remainingAfterDiscount, $amountWithMonthlyStyleRaw);
 
         $loanStartFa = $file->loan_start_date
@@ -6364,7 +6266,7 @@ final class CustomerController extends Controller
         $profitMethodLabel = $profitMethod === LoanType::PROFIT_BANK ? 'بانکی (روز شمار)' : 'ماهانه (روز شمار)';
 
         if ($file->is_settled) {
-            $netObligationAfterDiscount = max(0, $totalRepayable - $discountRegistered);
+            $netObligationAfterDiscount = max(0, $totalRepayable + (int) $file->installments->sum(fn ($i) => $i->debtBalance()['late_fee_assessed_toman']) - $discountRegistered);
             $creditor = max(0, $totalPaid - $netObligationAfterDiscount);
             if ($creditor > 0) {
                 return [
@@ -6423,7 +6325,7 @@ final class CustomerController extends Controller
         }
 
         if ($remainingAfterDiscount <= 0) {
-            $netObligationAfterDiscount = max(0, $totalRepayable - $discountRegistered);
+            $netObligationAfterDiscount = max(0, $totalRepayable + (int) $file->installments->sum(fn ($i) => $i->debtBalance()['late_fee_assessed_toman']) - $discountRegistered);
             $creditor = max(0, $totalPaid - $netObligationAfterDiscount);
             $crossPayNote = $nominalRemainSum > 0 && $creditor <= 0;
 
@@ -6471,7 +6373,8 @@ final class CustomerController extends Controller
             'primary_amount_toman' => $remainingAfterDiscount,
             'rows' => array_values(array_filter([
                 ['label' => 'کل بازپرداخت قراردادی', 'amount_toman' => $totalRepayable],
-                ['label' => 'ماندهٔ تعهد قبل از تخفیف (کل − پرداخت‌ها)', 'amount_toman' => $scheduleRemainingContract],
+                ['label' => 'ماندهٔ اصل اقساط', 'amount_toman' => $scheduleRemainingContract],
+                ['label' => 'دیرکرد پرداخت‌نشده', 'amount_toman' => (int) $mapped['late_fee_so_far_toman']],
                 $discountRegistered > 0 ? ['label' => 'تخفیف ثبت‌شده', 'amount_toman' => $discountRegistered] : null,
                 ['label' => 'مانده بعد از تخفیف (خط پایهٔ تسویه)', 'amount_toman' => $remainingAfterDiscount, 'emphasis' => true],
                 $nominalRemainSum !== $scheduleRemainingContract
@@ -6521,7 +6424,9 @@ final class CustomerController extends Controller
         }
         $amount = (int) $inst->amount_toman;
         $paid = (int) $inst->paid_amount_toman;
-        $unpaid = max(0, $amount - $paid);
+        $finance = app(LoanFileFinanceCalculator::class);
+        $snapshot = $finance->loanInstallmentFinancialSnapshot($loanFile, $finance->totalRepayableToman($loanFile));
+        $unpaid = (int) ($snapshot['installment_payables'][(int) $inst->id]['remaining_toman'] ?? 0);
         $due = Carbon::parse($inst->due_date)->startOfDay();
         $isOverdue = $due->lt(Carbon::now()->startOfDay());
         $amtValue = ($smsType === 'installment_overdue' || $isOverdue) ? $unpaid : $amount;

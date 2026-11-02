@@ -11,7 +11,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * ثبت پرداخت‌های قسطی برای بخش ماندهٔ تعهد هنگام تسویهٔ کلی آنلاین (بدون جریمهٔ نامی در اقساط).
+ * ثبت کل وجه تسویه، شامل اصل اقساط و دیرکرد، در ریز واریزی‌های همان اقساط.
  */
 final class LoanFullSettlementOnlinePrincipalAllocator
 {
@@ -22,18 +22,18 @@ final class LoanFullSettlementOnlinePrincipalAllocator
     /**
      * @throws \RuntimeException
      */
-    public function allocatePrincipalAcrossInstallments(
+    public function allocateDebtAcrossInstallments(
         CustomerLoanFile $file,
-        int $principalToman,
+        int $amountToman,
         string $bankRefTrim,
         string $installmentPaymentMethod = CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_ONLINE,
         ?int $recordedByAdminId = null,
         ?string $depositedAtDate = null,
     ): void {
-        if ($principalToman < 0) {
-            throw new \RuntimeException('مبلغ اصلی نامعتبر است.');
+        if ($amountToman < 0) {
+            throw new \RuntimeException('مبلغ تسویه نامعتبر است.');
         }
-        if ($principalToman === 0) {
+        if ($amountToman === 0) {
             return;
         }
 
@@ -47,20 +47,23 @@ final class LoanFullSettlementOnlinePrincipalAllocator
             : Carbon::now()->startOfDay()->format('Y-m-d');
 
         $file->loadMissing([
+            'loanType',
+            'installments.payments',
             'installments' => static function ($q): void {
                 $q->orderBy('sequence');
             },
         ]);
 
-        $pool = $principalToman;
+        $pool = $amountToman;
         /** @var Collection<int, CustomerLoanInstallment> $ordered */
         $ordered = $file->installments->sortBy('sequence')->values();
 
         foreach ($ordered as $inst) {
+            $inst->setRelation('loanFile', $file);
             if ($pool <= 0) {
                 break;
             }
-            $slotRem = max(0, (int) $inst->amount_toman - (int) $inst->paid_amount_toman);
+            $slotRem = $inst->remainingDebtToman();
             if ($slotRem <= 0) {
                 continue;
             }
