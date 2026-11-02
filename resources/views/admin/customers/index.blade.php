@@ -1161,6 +1161,46 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            height: min(90vh, 900px);
+            height: min(90dvh, 900px);
+            container-type: inline-size;
+            container-name: loan-manage;
+        }
+        .loan-manage-modal .loan-manage-modal-head {
+            flex-shrink: 0;
+            align-items: center;
+            padding: 0.55rem 0.8rem;
+            gap: 0.65rem;
+        }
+        .loan-manage-heading {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.25rem 0.7rem;
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+        .loan-manage-heading h2 { font-size: 0.8rem; flex-shrink: 0; }
+        .loan-manage-heading .loan-manage-customer {
+            flex: 0 1 auto;
+            min-height: 2rem;
+            max-width: 100%;
+            padding: 0.25rem 0.45rem;
+            border-color: transparent;
+            border-radius: 0.45rem;
+            background: var(--primary-soft);
+        }
+        .loan-manage-customer .loan-manage-pill-value {
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+        .loan-manage-modal :is(button, summary, input):focus-visible {
+            outline: 2px solid var(--primary-dark);
+            outline-offset: 3px;
+        }
+        .loan-manage-sms-toggle input:focus-visible + .loan-manage-sms-toggle__ui {
+            outline: 2px solid var(--primary-dark);
+            outline-offset: 3px;
         }
         .cust-modal.loan-manage-modal .cust-modal-body.loan-manage-modal-body {
             display: flex;
@@ -1168,12 +1208,14 @@
             flex: 1 1 auto;
             min-height: 0;
             overflow: hidden;
-            padding: 1rem 1rem 1.15rem;
+            padding: 0 0.8rem 0.75rem;
         }
         .loan-manage-sticky {
             flex-shrink: 0;
             z-index: 4;
             background: var(--bg-card);
+            min-width: 0;
+            border-bottom: 1px solid var(--border);
         }
         .loan-manage-scroll {
             flex: 1 1 auto;
@@ -1181,8 +1223,59 @@
             overflow-y: auto;
             overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
-            padding-top: 0.45rem;
+            padding: 0.65rem 0.15rem 0.2rem;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
         }
+        .loan-manage-overview {
+            margin-bottom: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 0.7rem;
+            background: var(--bg-card);
+        }
+        .loan-manage-overview > summary {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.4rem 0.8rem;
+            min-height: 2.75rem;
+            padding: 0.5rem 0.65rem;
+            list-style: none;
+            cursor: pointer;
+            font-size: 0.75rem;
+            color: var(--text);
+        }
+        .loan-manage-overview > summary::-webkit-details-marker { display: none; }
+        .loan-manage-overview-title { font-weight: 800; }
+        .loan-manage-overview-balance {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 0.25rem 0.4rem;
+            margin-inline-start: auto;
+            color: var(--muted);
+        }
+        .loan-manage-overview-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            color: var(--primary-dark);
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+        .loan-manage-overview .overview-label-open,
+        .loan-manage-overview[open] .overview-label-closed { display: none; }
+        .loan-manage-overview[open] .overview-label-open { display: inline; }
+        .loan-manage-overview[open] .loan-manage-overview-chevron { transform: rotate(180deg); }
+        .loan-manage-overview-content {
+            padding: 0.65rem;
+            border-top: 1px solid var(--border);
+        }
+        .loan-manage-overview-content .loan-manage-top { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 0.55rem; }
+        .loan-manage-overview-content .loan-manage-credit-row { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); margin-bottom: 0; }
+        .loan-manage-overview-content .loan-manage-pill { white-space: normal; }
+        .loan-manage-overview-content .loan-manage-pill-value { white-space: normal; overflow-wrap: anywhere; }
+        .loan-manage-overview-content .loan-manage-credit-edit input { background: var(--bg-card); }
         .loan-files-filter-bar {
             display: flex;
             align-items: center;
@@ -1359,6 +1452,16 @@
         .loan-manage-credit-v--warn { color: #b45309; }
         .loan-manage-credit-v--danger { color: #b91c1c; }
         .loan-manage-credit-v--ok { color: #047857; }
+        html[data-theme="dark"] .loan-manage-overview .loan-manage-credit-item {
+            background: rgba(30, 41, 59, 0.65);
+        }
+        html[data-theme="dark"] .loan-manage-overview .loan-manage-credit-item--ceiling {
+            background: var(--primary-soft);
+        }
+        html[data-theme="dark"] .loan-manage-modal :is(.loan-manage-credit-v--ok, .loan-manage-pill-value--good),
+        html[data-theme="dark"] .loan-manage-sms-toggle input:checked ~ .loan-manage-sms-toggle__text { color: #6ee7b7; }
+        html[data-theme="dark"] .loan-manage-modal :is(.loan-manage-credit-v--warn, .loan-manage-pill-value--normal) { color: #fcd34d; }
+        html[data-theme="dark"] .loan-manage-modal :is(.loan-manage-credit-v--danger, .loan-manage-pill-value--weak) { color: #fca5a5; }
         .loan-manage-credit-sub {
             margin: 0.22rem 0 0;
             font-size: 0.66rem;
@@ -1479,6 +1582,7 @@
             gap: 0.55rem;
             flex-wrap: wrap;
         }
+        .loan-files-head > .loan-files-summary { flex: 1 1 20rem; line-height: 1.7; }
         .loan-files-summary { font-size: 0.72rem; color: var(--muted); font-weight: 700; }
         .loan-files-list { display: grid; gap: 0.85rem; }
         .loan-files-list--multi { gap: 1rem; }
@@ -2064,17 +2168,16 @@
         }
         html[data-theme="dark"] .loan-extra-box { background: rgba(30, 41, 59, 0.45); }
         .loan-extra-box[hidden] { display: none !important; }
-        .loan-manage-sep {
-            border: 0;
-            border-top: 1px solid rgba(148, 163, 184, 0.35);
-            margin: 0.1rem 0 0.75rem;
-        }
         .loan-tabs {
             display: flex;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             gap: 0.4rem;
-            margin-bottom: 0.72rem;
-            justify-content: center;
+            margin: 0;
+            padding: 0.45rem 0.15rem;
+            overflow-x: auto;
+            overscroll-behavior-x: contain;
+            scrollbar-width: thin;
+            justify-content: flex-start;
         }
         .loan-tab-btn {
             border: 1px solid var(--border);
@@ -2086,6 +2189,9 @@
             font-weight: 800;
             font-family: inherit;
             cursor: pointer;
+            flex-shrink: 0;
+            min-height: 2.5rem;
+            white-space: nowrap;
         }
         .loan-tab-btn.is-active {
             background: var(--primary-soft);
@@ -2291,11 +2397,40 @@
         .loan-sms-empty { text-align: center; padding: 1rem; color: var(--muted); font-size: 0.8rem; }
         .loan-sms-mobile-note { margin: 0 0 0.5rem; font-size: 0.76rem; color: #b45309; font-weight: 700; }
         @media (max-width: 860px) {
-            .loan-manage-top { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-            .loan-manage-credit-row { grid-template-columns: 1fr; }
+            .loan-manage-overview-content .loan-manage-top { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .loan-manage-overview-content .loan-manage-pill--mobile { grid-column: 1 / -1; }
+            .loan-manage-overview-content .loan-manage-credit-row { grid-template-columns: 1fr; }
+        }
+        @container loan-manage (max-width: 700px) {
+            .loan-manage-overview-content .loan-manage-top { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .loan-manage-overview-content .loan-manage-pill--mobile { grid-column: 1 / -1; }
+            .loan-manage-overview-content .loan-manage-credit-row { grid-template-columns: 1fr; }
+            .loan-files-head-actions { width: 100%; }
+        }
+        @container loan-manage (max-width: 440px) {
+            .loan-manage-overview-content .loan-manage-top { grid-template-columns: 1fr; }
+            .loan-manage-overview-title { flex: 1 1 auto; }
+            .loan-manage-overview-balance { order: 3; flex-basis: 100%; margin-inline-start: 0; }
         }
         @media (max-width: 520px) {
-            .loan-manage-top { grid-template-columns: 1fr; }
+            #loan-manage-overlay { padding: 0.4rem; }
+            .cust-modal.loan-manage-modal { height: calc(100vh - 0.8rem); height: calc(100dvh - 0.8rem); max-height: calc(100dvh - 0.8rem); }
+            .loan-manage-modal .loan-manage-modal-head { padding: 0.45rem 0.55rem; }
+            .loan-manage-heading { display: grid; gap: 0.2rem; }
+            .loan-manage-heading h2 { font-size: 0.72rem; }
+            .loan-manage-heading .loan-manage-customer { padding: 0.15rem 0.3rem; }
+            .loan-manage-customer .loan-manage-pill-label { display: none; }
+            .cust-modal.loan-manage-modal .cust-modal-body.loan-manage-modal-body { padding-inline: 0.5rem; }
+            .loan-manage-modal .admin-mw-actions .cust-modal-close { min-width: 44px; min-height: 44px; }
+            .loan-manage-overview-content .loan-manage-top { grid-template-columns: 1fr; }
+            .loan-manage-overview-title { flex: 1 1 auto; }
+            .loan-manage-overview-balance { order: 3; flex-basis: 100%; margin-inline-start: 0; }
+            .loan-tabs .loan-tab-btn { min-height: 44px; }
+            .loan-files-filter-check { min-height: 44px; }
+            .loan-files-head-actions .cust-mini-btn { min-height: 44px; white-space: normal; }
+            .loan-manage-overview-content .cust-mini-btn,
+            .loan-manage-sms-toggle { min-height: 44px; }
+            .loan-manage-overview-content .loan-manage-credit-edit input { min-height: 44px; font-size: 1rem; }
         }
         html[data-admin-font="large"] .loan-manage-pill {
             min-height: 3.2rem;
@@ -3294,10 +3429,15 @@
     </div>
 
     <div class="cust-overlay" id="loan-manage-overlay" hidden aria-hidden="true">
-        <div class="cust-modal loan-manage-modal" id="loan-manage-modal" role="dialog" aria-modal="true" aria-labelledby="loan-manage-title">
+        <div class="cust-modal loan-manage-modal" id="loan-manage-modal" role="dialog" aria-modal="true" aria-labelledby="loan-manage-title" aria-describedby="loan-manage-customer-name">
             <div class="cust-modal-head loan-manage-modal-head" id="loan-manage-drag-handle">
-                <div>
-                    <h2 id="loan-manage-title">مدیریت وام ها</h2>
+                <div class="loan-manage-heading">
+                    <h2 id="loan-manage-title">مدیریت وام‌ها</h2>
+                    <button type="button" class="loan-manage-pill loan-manage-customer" id="loan-manage-open-edit" title="ویرایش اطلاعات مشتری">
+                        <i class="fa-regular fa-user loan-manage-pill-ico" aria-hidden="true"></i>
+                        <span class="loan-manage-pill-label">مشتری:</span>
+                        <span class="loan-manage-pill-value" id="loan-manage-customer-name">—</span>
+                    </button>
                 </div>
                 <div class="admin-mw-actions loan-manage-window-actions">
                     <button type="button" class="admin-mw-maximize loan-manage-window-btn loan-manage-window-btn--maximize" id="loan-manage-maximize" aria-label="تمام‌صفحه" title="تمام‌صفحه / بازگردانی">
@@ -3308,82 +3448,81 @@
             </div>
             <div class="cust-modal-body loan-manage-modal-body">
                 <div class="loan-manage-sticky">
-                <div class="loan-manage-top">
-                    <button type="button" class="loan-manage-pill" id="loan-manage-open-edit">
-                        <i class="fa-regular fa-user loan-manage-pill-ico" aria-hidden="true"></i>
-                        <span class="loan-manage-pill-label">نام کاربر:</span>
-                        <span class="loan-manage-pill-value" id="loan-manage-customer-name">—</span>
-                    </button>
-                    <div class="loan-manage-pill loan-manage-pill--mobile">
-                        <i class="fa-solid fa-mobile-screen-button loan-manage-pill-ico" aria-hidden="true"></i>
-                        <span class="loan-manage-pill-label">موبایل:</span>
-                        <span class="loan-manage-pill-value" id="loan-manage-customer-mobile">—</span>
-                        <label class="loan-manage-sms-toggle" for="loan-manage-sms-enabled" title="فعال / غیرفعال کردن ارسال پیامک به این مشتری">
-                            <input type="checkbox" id="loan-manage-sms-enabled" checked>
-                            <span class="loan-manage-sms-toggle__ui" aria-hidden="true"></span>
-                            <span class="loan-manage-sms-toggle__text" id="loan-manage-sms-enabled-label">پیامک فعال</span>
-                        </label>
+                    <div class="loan-tabs" role="tablist" aria-label="بخش‌های مدیریت وام">
+                        <button type="button" class="loan-tab-btn is-active" id="loan-tab-files" role="tab" aria-controls="loan-panel-files" aria-selected="true" data-loan-tab="files">پرونده‌های وام</button>
+                        <button type="button" class="loan-tab-btn" id="loan-tab-requests" role="tab" aria-controls="loan-panel-requests" aria-selected="false" tabindex="-1" data-loan-tab="requests">درخواست‌های وام</button>
+                        <button type="button" class="loan-tab-btn" id="loan-tab-transactions" role="tab" aria-controls="loan-panel-transactions" aria-selected="false" tabindex="-1" data-loan-tab="transactions">تراکنش‌ها</button>
+                        <button type="button" class="loan-tab-btn" id="loan-tab-sms" role="tab" aria-controls="loan-panel-sms" aria-selected="false" tabindex="-1" data-loan-tab="sms">پیامک‌ها</button>
+                        <button type="button" class="loan-tab-btn" id="loan-tab-tickets" role="tab" aria-controls="loan-panel-tickets" aria-selected="false" tabindex="-1" data-loan-tab="tickets">تیکت‌ها</button>
+                        <button type="button" class="loan-tab-btn" id="loan-tab-guarantees" role="tab" aria-controls="loan-panel-guarantees" aria-selected="false" tabindex="-1" data-loan-tab="guarantees">تضامین</button>
                     </div>
-                    <div class="loan-manage-pill">
-                        <i class="fa-solid fa-chart-line loan-manage-pill-ico" aria-hidden="true"></i>
-                        <span class="loan-manage-pill-label">وضعیت خوش حسابی:</span>
-                        <span class="loan-manage-pill-value" id="loan-manage-credit-status">در حال ارزیابی</span>
-                    </div>
-                    <button type="button" class="loan-manage-pill" id="loan-manage-open-wallet">
-                        <i class="fa-solid fa-wallet loan-manage-pill-ico" aria-hidden="true"></i>
-                        <span class="loan-manage-pill-label">اعتبار کیف پول:</span>
-                        <span class="loan-manage-pill-value" id="loan-manage-wallet-balance">در حال دریافت...</span>
-                    </button>
                 </div>
-                <div class="loan-manage-credit-row" id="loan-manage-credit-row" aria-label="سقف اعتبار خرید مشتری">
-                    <div class="loan-manage-credit-item loan-manage-credit-item--ceiling">
-                        <div class="loan-manage-credit-k">سقف اعتبار خرید</div>
-                        <div class="loan-manage-credit-v-wrap">
-                            <span class="loan-manage-credit-v" id="loan-manage-credit-ceiling">—</span>
-                            <button type="button" class="cust-mini-btn" id="loan-manage-credit-edit-toggle">تعیین / ویرایش</button>
-                        </div>
-                        <p class="loan-manage-credit-sub" id="loan-manage-credit-ceiling-note">در صورت نبود سقف دستی، از مبلغ چک/سفته با ۳۰٪ کمتر محاسبه می‌شود.</p>
-                        <div class="loan-manage-credit-edit" id="loan-manage-credit-edit" hidden>
-                            <label for="loan-manage-credit-input" class="loan-manage-credit-sub" style="margin:0;">مبلغ سقف (تومان) — برای بازگشت به محاسبه خودکار، ۰ ذخیره کنید</label>
-                            <input type="text" id="loan-manage-credit-input" inputmode="numeric" autocomplete="off" placeholder="مثلاً 70,000,000">
-                            <div class="loan-manage-credit-edit-actions">
-                                <button type="button" class="cust-mini-btn" id="loan-manage-credit-suggest" title="معادل مجموع مبلغ چک/سفته با ۳۰٪ کمتر">اعمال پیشنهاد ۳۰٪ کمتر</button>
-                                <button type="button" class="cust-mini-btn" id="loan-manage-credit-save">ذخیره</button>
-                                <button type="button" class="cust-mini-btn" id="loan-manage-credit-cancel">انصراف</button>
+                <div class="loan-manage-scroll" id="loan-manage-scroll">
+                <details class="loan-manage-overview" id="loan-manage-overview">
+                    <summary>
+                        <span class="loan-manage-overview-title">اطلاعات مشتری و اعتبار خرید</span>
+                        <span class="loan-manage-overview-balance" title="سقف اعتبار خرید منهای اعتبار استفاده‌شده">
+                            <span>مانده اعتبار قابل تخصیص:</span>
+                            <strong class="loan-manage-credit-v" id="loan-manage-credit-available">—</strong>
+                        </span>
+                        <span class="loan-manage-overview-action">
+                            <span class="overview-label-closed">جزئیات</span>
+                            <span class="overview-label-open">بستن جزئیات</span>
+                            <i class="fa-solid fa-chevron-down loan-manage-overview-chevron" aria-hidden="true"></i>
+                        </span>
+                    </summary>
+                    <div class="loan-manage-overview-content">
+                        <div class="loan-manage-top">
+                            <div class="loan-manage-pill loan-manage-pill--mobile">
+                                <i class="fa-solid fa-mobile-screen-button loan-manage-pill-ico" aria-hidden="true"></i>
+                                <span class="loan-manage-pill-label">موبایل:</span>
+                                <span class="loan-manage-pill-value" id="loan-manage-customer-mobile">—</span>
+                                <label class="loan-manage-sms-toggle" for="loan-manage-sms-enabled" title="فعال / غیرفعال کردن ارسال پیامک به این مشتری">
+                                    <input type="checkbox" id="loan-manage-sms-enabled" checked>
+                                    <span class="loan-manage-sms-toggle__ui" aria-hidden="true"></span>
+                                    <span class="loan-manage-sms-toggle__text" id="loan-manage-sms-enabled-label">پیامک فعال</span>
+                                </label>
                             </div>
-                            <p class="loan-manage-credit-hint" id="loan-manage-credit-hint">پیشنهاد بر اساس مجموع مبلغ چک/تضامین مبلغ‌دار عودت‌نشده با ۳۰٪ کمتر محاسبه می‌شود.</p>
+                            <div class="loan-manage-pill">
+                                <i class="fa-solid fa-chart-line loan-manage-pill-ico" aria-hidden="true"></i>
+                                <span class="loan-manage-pill-label">وضعیت خوش حسابی:</span>
+                                <span class="loan-manage-pill-value" id="loan-manage-credit-status">در حال ارزیابی</span>
+                            </div>
+                            <button type="button" class="loan-manage-pill" id="loan-manage-open-wallet">
+                                <i class="fa-solid fa-wallet loan-manage-pill-ico" aria-hidden="true"></i>
+                                <span class="loan-manage-pill-label">اعتبار کیف پول:</span>
+                                <span class="loan-manage-pill-value" id="loan-manage-wallet-balance">در حال دریافت...</span>
+                            </button>
                         </div>
+                        <div class="loan-manage-credit-row" id="loan-manage-credit-row" aria-label="سقف اعتبار خرید مشتری">
+                            <div class="loan-manage-credit-item loan-manage-credit-item--ceiling">
+                                <div class="loan-manage-credit-k">سقف اعتبار خرید</div>
+                                <div class="loan-manage-credit-v-wrap">
+                                    <span class="loan-manage-credit-v" id="loan-manage-credit-ceiling">—</span>
+                                    <button type="button" class="cust-mini-btn" id="loan-manage-credit-edit-toggle" aria-controls="loan-manage-credit-edit" aria-expanded="false">تعیین / ویرایش</button>
+                                </div>
+                                <p class="loan-manage-credit-sub" id="loan-manage-credit-ceiling-note">در صورت نبود سقف دستی، از مبلغ چک/سفته با ۳۰٪ کمتر محاسبه می‌شود.</p>
+                                <div class="loan-manage-credit-edit" id="loan-manage-credit-edit" hidden>
+                                    <label for="loan-manage-credit-input" class="loan-manage-credit-sub" style="margin:0;">مبلغ سقف (تومان) — برای بازگشت به محاسبه خودکار، ۰ ذخیره کنید</label>
+                                    <input type="text" id="loan-manage-credit-input" inputmode="numeric" autocomplete="off" placeholder="مثلاً 70,000,000">
+                                    <div class="loan-manage-credit-edit-actions">
+                                        <button type="button" class="cust-mini-btn" id="loan-manage-credit-suggest" title="معادل مجموع مبلغ چک/سفته با ۳۰٪ کمتر">اعمال پیشنهاد ۳۰٪ کمتر</button>
+                                        <button type="button" class="cust-mini-btn" id="loan-manage-credit-save">ذخیره</button>
+                                        <button type="button" class="cust-mini-btn" id="loan-manage-credit-cancel">انصراف</button>
+                                    </div>
+                                    <p class="loan-manage-credit-hint" id="loan-manage-credit-hint">پیشنهاد بر اساس مجموع مبلغ چک/تضامین مبلغ‌دار عودت‌نشده با ۳۰٪ کمتر محاسبه می‌شود.</p>
+                                </div>
+                            </div>
+                            <div class="loan-manage-credit-item">
+                                <div class="loan-manage-credit-k">اعتبار استفاده‌شده</div>
+                                <div class="loan-manage-credit-v" id="loan-manage-credit-used">—</div>
+                                <p class="loan-manage-credit-sub">مانده بدهی وام‌های جاری (تسویه‌نشده)</p>
+                            </div>
+                        </div>
+                    <p class="loan-manage-credit-sub">مانده اعتبار قابل تخصیص برابر سقف اعتبار خرید منهای اعتبار استفاده‌شده است.</p>
                     </div>
-                    <div class="loan-manage-credit-item">
-                        <div class="loan-manage-credit-k">اعتبار استفاده‌شده</div>
-                        <div class="loan-manage-credit-v" id="loan-manage-credit-used">—</div>
-                        <p class="loan-manage-credit-sub">مانده بدهی وام‌های جاری (تسویه‌نشده)</p>
-                    </div>
-                    <div class="loan-manage-credit-item">
-                        <div class="loan-manage-credit-k">مانده اعتبار قابل تخصیص</div>
-                        <div class="loan-manage-credit-v" id="loan-manage-credit-available">—</div>
-                        <p class="loan-manage-credit-sub">سقف منهای اعتبار استفاده‌شده</p>
-                    </div>
-                </div>
-                <hr class="loan-manage-sep">
-                <div class="loan-tabs" role="tablist" aria-label="تب‌های مدیریت وام">
-                    <button type="button" class="loan-tab-btn is-active" data-loan-tab="files">پرونده وام ها</button>
-                    <button type="button" class="loan-tab-btn" data-loan-tab="requests">درخواست وام ها</button>
-                    <button type="button" class="loan-tab-btn" data-loan-tab="transactions">تراکنش ها</button>
-                    <button type="button" class="loan-tab-btn" data-loan-tab="sms">پیامک ها</button>
-                    <button type="button" class="loan-tab-btn" data-loan-tab="tickets">تیکت ها</button>
-                    <button type="button" class="loan-tab-btn" data-loan-tab="guarantees">تضامین</button>
-                </div>
-                <div class="loan-files-filter-bar" id="loan-files-filter-bar" hidden>
-                    <span class="loan-files-summary" id="loan-files-filter-hint" style="font-size:0.68rem;color:var(--muted);font-weight:700;">فیلتر پرونده‌ها</span>
-                    <label class="loan-files-filter-check" for="loan-files-hide-settled">
-                        <input type="checkbox" id="loan-files-hide-settled" checked>
-                        <span>مخفی کردن پرونده‌های تسویه‌شده</span>
-                    </label>
-                </div>
-                </div>
-                <div class="loan-manage-scroll">
-                <div class="loan-tab-panel" data-loan-panel="files">
+                </details>
+                <div class="loan-tab-panel" id="loan-panel-files" role="tabpanel" aria-labelledby="loan-tab-files" tabindex="0" data-loan-panel="files">
                     <div class="loan-files-head">
                         <div class="loan-files-summary" id="loan-files-summary">برای این مشتری هنوز پرونده وام ثبت نشده است.</div>
                         <div class="loan-files-head-actions">
@@ -3407,11 +3546,18 @@
                             </button>
                         </div>
                     </div>
+                    <div class="loan-files-filter-bar" id="loan-files-filter-bar" hidden>
+                        <span class="loan-files-summary" id="loan-files-filter-hint">فیلتر پرونده‌ها</span>
+                        <label class="loan-files-filter-check" for="loan-files-hide-settled">
+                            <input type="checkbox" id="loan-files-hide-settled" checked>
+                            <span>مخفی کردن پرونده‌های تسویه‌شده</span>
+                        </label>
+                    </div>
                     <div id="loan-files-list" class="loan-files-list">
                         <div class="loan-files-empty">در حال بارگذاری...</div>
                     </div>
                 </div>
-                <div class="loan-tab-panel" data-loan-panel="requests" hidden>
+                <div class="loan-tab-panel" id="loan-panel-requests" role="tabpanel" aria-labelledby="loan-tab-requests" tabindex="0" data-loan-panel="requests" hidden>
                     <div class="loan-lrq-embed-wrap">
                         <div id="loan-manage-lrq-loading" class="loan-lrq-embed-loading" hidden aria-live="polite" aria-busy="false">
                             <div class="loan-lrq-embed-loading-inner">
@@ -3428,7 +3574,7 @@
                         ></iframe>
                     </div>
                 </div>
-                <div class="loan-tab-panel" data-loan-panel="transactions" hidden>
+                <div class="loan-tab-panel" id="loan-panel-transactions" role="tabpanel" aria-labelledby="loan-tab-transactions" tabindex="0" data-loan-panel="transactions" hidden>
                     <div class="loan-lrq-embed-wrap">
                         <div id="loan-manage-ctx-loading" class="loan-lrq-embed-loading" hidden aria-live="polite" aria-busy="false">
                             <div class="loan-lrq-embed-loading-inner">
@@ -3445,7 +3591,7 @@
                         ></iframe>
                     </div>
                 </div>
-                <div class="loan-tab-panel" data-loan-panel="sms" hidden>
+                <div class="loan-tab-panel" id="loan-panel-sms" role="tabpanel" aria-labelledby="loan-tab-sms" tabindex="0" data-loan-panel="sms" hidden>
                     <div class="loan-tab-panel-toolbar-row" dir="ltr">
                         <div class="loan-tab-panel-actions">
                             <button type="button" class="cust-mini-btn" id="loan-sms-reload" title="بارگذاری مجدد"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i></button>
@@ -3481,7 +3627,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="loan-tab-panel" data-loan-panel="tickets" hidden>
+                <div class="loan-tab-panel" id="loan-panel-tickets" role="tabpanel" aria-labelledby="loan-tab-tickets" tabindex="0" data-loan-panel="tickets" hidden>
                     <div class="loan-lrq-embed-wrap">
                         <div id="loan-manage-tickets-loading" class="loan-lrq-embed-loading" hidden aria-live="polite" aria-busy="false">
                             <div class="loan-lrq-embed-loading-inner">
@@ -3498,7 +3644,7 @@
                         ></iframe>
                     </div>
                 </div>
-                    <div class="loan-tab-panel" data-loan-panel="guarantees" hidden>
+                    <div class="loan-tab-panel" id="loan-panel-guarantees" role="tabpanel" aria-labelledby="loan-tab-guarantees" tabindex="0" data-loan-panel="guarantees" hidden>
                     <div class="loan-tab-panel-toolbar-row" dir="ltr">
                         <div class="loan-tab-panel-actions">
                             <button type="button" class="cust-mini-btn" id="loan-guarantees-reload" title="بارگذاری مجدد"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i></button>
@@ -4994,6 +5140,8 @@
             var quickSmsTemplate = document.getElementById('quick-sms-template');
             var quickSmsText = document.getElementById('quick-sms-text');
             var loanManageOverlay = document.getElementById('loan-manage-overlay');
+            var loanManageOverview = document.getElementById('loan-manage-overview');
+            var loanManageScroll = document.getElementById('loan-manage-scroll');
             var loanManageLrqIframe = document.getElementById('loan-manage-lrq-iframe');
             var loanManageLrqLoading = document.getElementById('loan-manage-lrq-loading');
             var loanManageLrqEmbedTmpl = @json($loanManageLrqEmbedUrlTemplate ?? '');
@@ -7437,6 +7585,8 @@
             function setLoanManageCreditEditOpen(open) {
                 if (!loanManageCreditEditWrap) return;
                 loanManageCreditEditWrap.hidden = !open;
+                if (loanManageCreditEditToggle) loanManageCreditEditToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+                if (open && loanManageOverview) loanManageOverview.open = true;
                 if (open && loanManageCreditInput) {
                     var cid = String(loanManageCurrentCustomerId || '');
                     var entry = cid && loanManageMap[cid] ? loanManageMap[cid] : null;
@@ -8815,6 +8965,8 @@
             }
 
             function openLoanManageModal(customerId, customerName, customerMobile) {
+                if (loanManageOverview) loanManageOverview.open = false;
+                if (loanManageScroll) loanManageScroll.scrollTop = 0;
                 loanManageCurrentCustomerId = customerId || null;
                 loanManageCurrentCustomerName = customerName || '';
                 loanManageCurrentCustomerMobile = customerMobile || '';
@@ -8843,10 +8995,13 @@
                 loanTabButtons.forEach(function (btn) {
                     var active = btn.getAttribute('data-loan-tab') === tabId;
                     btn.classList.toggle('is-active', active);
+                    btn.setAttribute('aria-selected', active ? 'true' : 'false');
+                    btn.tabIndex = active ? 0 : -1;
                 });
                 loanTabPanels.forEach(function (panel) {
                     panel.hidden = panel.getAttribute('data-loan-panel') !== tabId;
                 });
+                if (loanManageScroll) loanManageScroll.scrollTop = 0;
                 if (tabId === 'guarantees' && loanManageCurrentCustomerId) {
                     loadLoanGuaranteesReport(loanManageCurrentCustomerId);
                 }
@@ -9280,6 +9435,20 @@
             loanTabButtons.forEach(function (btn) {
                 btn.addEventListener('click', function () {
                     setLoanTab(btn.getAttribute('data-loan-tab') || 'files');
+                });
+                btn.addEventListener('keydown', function (event) {
+                    var index = loanTabButtons.indexOf(btn);
+                    var rtl = window.getComputedStyle(btn.parentElement).direction === 'rtl';
+                    if (event.key === 'Home') index = 0;
+                    else if (event.key === 'End') index = loanTabButtons.length - 1;
+                    else if (event.key === 'ArrowLeft') index += rtl ? 1 : -1;
+                    else if (event.key === 'ArrowRight') index += rtl ? -1 : 1;
+                    else return;
+                    event.preventDefault();
+                    var next = loanTabButtons[(index + loanTabButtons.length) % loanTabButtons.length];
+                    setLoanTab(next.getAttribute('data-loan-tab'));
+                    next.focus({ preventScroll: true });
+                    next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
                 });
             });
             if (loanFilesHideSettledCheckbox) {
