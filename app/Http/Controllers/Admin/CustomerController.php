@@ -23,6 +23,7 @@ use App\Rules\IranNationalId;
 use App\Services\Admin\RawSmsDispatcher;
 use App\Services\Customers\AdminCustomerSettleAllLoansService;
 use App\Services\Customers\AdminCustomerSettleAllOverdueService;
+use App\Services\Customers\CustomerCodeGenerator;
 use App\Services\Customers\CustomerMediaService;
 use App\Services\Loans\LoanFileFinanceCalculator;
 use App\Services\Loans\LoanInstallmentAmountAllocator;
@@ -606,9 +607,6 @@ final class CustomerController extends Controller
 
             try {
                 $finalCode = trim((string) ($validated['customer_code'] ?? ''));
-                if ($finalCode === '') {
-                    $finalCode = $this->generateUniqueCustomerCode();
-                }
                 $this->persistImportedCustomerCore(
                     $finalCode,
                     $username,
@@ -867,7 +865,7 @@ final class CustomerController extends Controller
             $postalCode,
         ): Customer {
             $c = Customer::query()->create([
-                'customer_code' => $customerCode,
+                'customer_code' => app(CustomerCodeGenerator::class)->allocate($customerCode),
                 'username' => $username,
                 'first_name' => $firstName,
                 'last_name' => $lastName,
@@ -3446,9 +3444,6 @@ final class CustomerController extends Controller
         $sendCredentials = $request->boolean('send_credentials');
 
         $customerCode = trim((string) ($validated['customer_code'] ?? ''));
-        if ($customerCode === '') {
-            $customerCode = $this->generateUniqueCustomerCode();
-        }
 
         $plainPassword = (string) $validated['password'];
 
@@ -3464,7 +3459,7 @@ final class CustomerController extends Controller
         ): Customer {
             /** @var Customer $c */
             $c = Customer::query()->create([
-                'customer_code' => $customerCode,
+                'customer_code' => app(CustomerCodeGenerator::class)->allocate($customerCode),
                 'username' => $username,
                 'first_name' => $validated['first_name'],
                 'last_name' => $validated['last_name'],
@@ -3893,6 +3888,9 @@ final class CustomerController extends Controller
                     $data['password_print_encrypted'] = $this->customerPasswordPrintEncrypted($plainPasswordInput);
                 }
 
+                if ((string) $data['customer_code'] !== (string) $customer->customer_code) {
+                    $data['customer_code'] = app(CustomerCodeGenerator::class)->allocate($data['customer_code']);
+                }
                 $customer->update($data);
 
                 $customer->bankAccounts()->delete();
@@ -4052,15 +4050,6 @@ final class CustomerController extends Controller
         }
 
         return $digits;
-    }
-
-    private function generateUniqueCustomerCode(): string
-    {
-        do {
-            $code = 'CUS-'.strtoupper(substr(bin2hex(random_bytes(5)), 0, 10));
-        } while (Customer::query()->where('customer_code', $code)->exists());
-
-        return $code;
     }
 
     private function parseJalaliDate(?string $value): ?Carbon
@@ -4340,6 +4329,29 @@ final class CustomerController extends Controller
         return $query->orderByRaw($expression.' '.($direction === 'desc' ? 'desc' : 'asc'), $bindings);
     }
 
+    private function applyCustomerCodeSort(Builder $query, string $direction): Builder
+    {
+        $column = 'customers.customer_code';
+        $driver = $query->getConnection()->getDriverName();
+        $numeric = match ($driver) {
+            'mysql', 'mariadb' => "$column REGEXP '^[0-9]+$'",
+            'pgsql' => "$column ~ '^[0-9]+$'",
+            'sqlite' => "$column <> '' AND $column NOT GLOB '*[^0-9]*'",
+            default => null,
+        };
+        if ($numeric === null) {
+            return $query->orderBy($column, $direction);
+        }
+        $normalized = in_array($driver, ['mysql', 'mariadb'], true)
+            ? "TRIM(LEADING '0' FROM $column)" : "LTRIM($column, '0')";
+
+        return $query
+            ->orderByRaw("CASE WHEN $numeric THEN 0 ELSE 1 END")
+            ->orderByRaw("CASE WHEN $numeric THEN LENGTH($normalized) END $direction")
+            ->orderByRaw("CASE WHEN $numeric THEN $normalized ELSE $column END $direction")
+            ->orderBy($column, $direction);
+    }
+
     private function applyCustomerListSort(Builder $query, array $sort): void
     {
         $column = $sort['sort'];
@@ -4352,7 +4364,7 @@ final class CustomerController extends Controller
         }
 
         match ($column) {
-            'customer_code' => $query->orderBy('customers.customer_code', $direction),
+            'customer_code' => $this->applyCustomerCodeSort($query, $direction),
             'name' => $query
                 ->orderBy('customers.first_name', $direction)
                 ->orderBy('customers.last_name', $direction),
