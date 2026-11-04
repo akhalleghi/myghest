@@ -29,6 +29,14 @@ final class AdminPermissionService
             return true;
         }
 
+        if ($routeName === 'admin.customers.loan-files.destroy') {
+            return false;
+        }
+
+        if (in_array($routeName, ['admin.customers.media.index', 'admin.customers.media.show'], true)) {
+            return $this->canAccessRoute($admin, 'admin.customers.edit-data');
+        }
+
         if (in_array($routeName, $this->registry->exemptRouteNames(), true)) {
             return true;
         }

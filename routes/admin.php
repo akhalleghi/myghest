@@ -22,6 +22,7 @@ use App\Http\Controllers\Admin\Auth\AdminLoginController;
 use App\Http\Controllers\Admin\Auth\AdminLoginTwoFactorController;
 use App\Http\Controllers\Admin\AdminCustomerNoteController;
 use App\Http\Controllers\Admin\CustomerController;
+use App\Http\Controllers\Admin\CustomerMediaController;
 use App\Http\Controllers\Admin\CustomerWalletController;
 use App\Http\Controllers\Admin\GuaranteeReturnOtpController;
 use App\Http\Controllers\Admin\GuarantorOtpController;
@@ -417,6 +418,12 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
     Route::post('/customers', [CustomerController::class, 'store'])
         ->middleware('throttle:20,1')
         ->name('customers.store');
+
+    Route::get('/customers/{customer}/media', [CustomerMediaController::class, 'index'])
+        ->middleware('throttle:60,1')->name('customers.media.index');
+
+    Route::get('/customers/{customer}/media/{media}', [CustomerMediaController::class, 'show'])
+        ->middleware('throttle:120,1')->name('customers.media.show');
 
     Route::get('/customers/{customer}/edit-data', [CustomerController::class, 'editData'])
         ->middleware('throttle:60,1')

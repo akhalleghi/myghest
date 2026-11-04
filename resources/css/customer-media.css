@@ -1,0 +1,38 @@
+.customer-media-editor { container-type:inline-size; container-name:customer-media-editor; }
+.customer-media-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.75rem; border:0; padding:0; margin:0; min-width:0; }
+.customer-media-slot { min-width:0; border:1px solid var(--border); border-radius:.7rem; padding:.65rem; }
+.customer-media-label { display:block; font-size:.8rem; font-weight:800; margin-bottom:.5rem; }
+.customer-media-preview { min-height:100px; display:grid; place-items:center; background:var(--primary-soft); border-radius:.5rem; font-size:.72rem; color:var(--muted); overflow:hidden; }
+.customer-media-preview img,.customer-media-preview video { width:100%; height:120px; object-fit:contain; }
+.customer-media-slot input[type=file] { max-width:100%; width:100%; margin:.5rem 0; font-size:.72rem; }
+.customer-media-actions { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem; }
+.customer-media-actions button { min-height:40px; }
+.customer-media-remove { display:flex; gap:.4rem; align-items:center; font-size:.72rem; margin-top:.5rem; }
+.customer-media-slot.is-removing .customer-media-preview { opacity:.4; }
+.customer-media-editor [hidden],.customer-media-gallery[hidden],.customer-media-overlay[hidden],.customer-media-overlay [hidden] { display:none !important; }
+.customer-media-sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+.customer-media-gallery { margin:0 0 .75rem; padding:.55rem; border:1px solid var(--border); border-radius:.7rem; }
+.customer-media-gallery h3 { margin:0 0 .4rem; font-size:.75rem; color:var(--muted); }
+.customer-media-thumbnails { display:flex; gap:.65rem; overflow-x:auto; padding:.15rem; }
+.customer-media-thumb { flex:0 0 100px; text-align:center; }
+.customer-media-thumb img,.customer-media-thumb video { display:block; width:100px; height:68px; object-fit:contain; background:var(--primary-soft); border-radius:.45rem; cursor:zoom-in; }
+.customer-media-thumb button { display:block; width:100%; margin-top:.2rem; border:0; background:transparent; color:var(--primary-dark); font:inherit; font-size:.7rem; min-height:32px; cursor:pointer; }
+.customer-media-overlay { position:fixed; inset:0; z-index:6500; display:grid; place-items:center; padding:1rem; background:rgba(8,15,30,.85); overflow:auto; }
+.customer-media-dialog { width:min(760px,100%); max-height:calc(100dvh - 2rem); overflow:auto; background:var(--bg-card); color:var(--text); border:1px solid var(--border); border-radius:.8rem; padding:1rem; }
+.customer-media-dialog-head { display:flex; align-items:center; justify-content:space-between; gap:.6rem; margin-bottom:.75rem; }
+.customer-media-dialog-head h2 { margin:0; font-size:.95rem; }
+.customer-media-dialog button { min-height:44px; }
+.customer-media-device-label { display:flex; align-items:center; gap:.5rem; font-size:.8rem; margin-bottom:.5rem; }
+.customer-media-device-label select { flex:1; min-width:0; min-height:40px; font:inherit; background:var(--bg-card); color:var(--text); }
+#customer-camera-live { display:block; width:100%; max-height:55dvh; background:#080d18; border-radius:.5rem; }
+#customer-camera-status { font-size:.8rem; font-weight:700; }
+.customer-media-viewer { padding:.5rem; }
+.customer-media-viewer .customer-media-dialog { width:100%; height:100%; max-height:none; display:flex; flex-direction:column; }
+#customer-media-viewer-content { flex:1; min-height:0; display:grid; place-items:center; }
+#customer-media-viewer-content img,#customer-media-viewer-content video { width:100%; height:100%; min-height:0; max-height:calc(100dvh - 110px); object-fit:contain; }
+.customer-media-overlay:fullscreen { background:#080d18; }
+.customer-media-overlay :is(button,select):focus-visible { outline:2px solid var(--primary-dark); outline-offset:3px; }
+@media(max-width:900px) { .customer-media-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:520px) { .customer-media-grid { grid-template-columns:1fr; } .customer-media-overlay { padding:.4rem; } .customer-media-dialog { padding:.65rem; max-height:calc(100dvh - .8rem); } .customer-media-thumb button { min-height:44px; } }
+@container customer-media-editor (max-width:900px) { .customer-media-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@container customer-media-editor (max-width:480px) { .customer-media-grid { grid-template-columns:1fr; } }

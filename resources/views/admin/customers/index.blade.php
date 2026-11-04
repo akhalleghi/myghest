@@ -3079,7 +3079,7 @@
                 <button type="button" class="cust-modal-close" id="cust-close-modal" aria-label="بستن">&times;</button>
             </div>
             <div class="cust-modal-body">
-                <form method="post" action="{{ route('admin.customers.store') }}" id="cust-store-form" novalidate>
+                <form method="post" action="{{ route('admin.customers.store') }}" id="cust-store-form" enctype="multipart/form-data" novalidate>
                     @csrf
 
                     <div class="cust-form-grid">
@@ -3165,6 +3165,8 @@
                             @error('postal_code')<div class="cust-field-error">{{ $message }}</div>@enderror
                         </div>
                     </div>
+
+                    @include('admin.customers.partials.media-editor')
 
                     <div class="cust-section">
                         <div class="cust-section-head">
@@ -3455,6 +3457,7 @@
                         <button type="button" class="loan-tab-btn" id="loan-tab-sms" role="tab" aria-controls="loan-panel-sms" aria-selected="false" tabindex="-1" data-loan-tab="sms">پیامک‌ها</button>
                         <button type="button" class="loan-tab-btn" id="loan-tab-tickets" role="tab" aria-controls="loan-panel-tickets" aria-selected="false" tabindex="-1" data-loan-tab="tickets">تیکت‌ها</button>
                         <button type="button" class="loan-tab-btn" id="loan-tab-guarantees" role="tab" aria-controls="loan-panel-guarantees" aria-selected="false" tabindex="-1" data-loan-tab="guarantees">تضامین</button>
+                        <button type="button" class="loan-tab-btn" id="loan-tab-media" role="tab" aria-controls="loan-panel-media" aria-selected="false" tabindex="-1" data-loan-tab="media">تصاویر و مدارک</button>
                     </div>
                 </div>
                 <div class="loan-manage-scroll" id="loan-manage-scroll">
@@ -3643,6 +3646,9 @@
                             referrerpolicy="same-origin"
                         ></iframe>
                     </div>
+                </div>
+                <div class="loan-tab-panel" id="loan-panel-media" role="tabpanel" aria-labelledby="loan-tab-media" tabindex="0" data-loan-panel="media" hidden>
+                    <section class="customer-media-gallery" id="customer-media-gallery" aria-label="تصاویر و مدارک مشتری"></section>
                 </div>
                     <div class="loan-tab-panel" id="loan-panel-guarantees" role="tabpanel" aria-labelledby="loan-tab-guarantees" tabindex="0" data-loan-panel="guarantees" hidden>
                     <div class="loan-tab-panel-toolbar-row" dir="ltr">
@@ -4469,6 +4475,7 @@
 @endsection
 
 @push('scripts')
+    @include('admin.customers.partials.media-dialogs')
     <script src="{{ asset('vendor/persian-datepicker/jquery.min.js') }}"></script>
     <script src="{{ asset('vendor/persian-datepicker/persian-date.min.js') }}"></script>
     <script src="{{ asset('vendor/persian-datepicker/persian-datepicker.min.js') }}"></script>
@@ -5252,6 +5259,8 @@
             var loanManageCurrentCustomerMobile = '';
             var loanManageHideSettledFiles = true;
             var loanManageMap = @json($loanManageMap);
+            var canDeleteLoanFiles = @json(auth('admin')->user()?->isSuperAdmin() ?? false);
+            var loanDeleteInProgress = false;
             var loanTypesData = @json($loanTypes->values());
             var loanCreateOverlay = document.getElementById('loan-create-overlay');
             var loanCreateClose = document.getElementById('loan-create-close');
@@ -5730,6 +5739,8 @@
                 bankIndex = 0;
                 refIndex = 0;
                 form.reset();
+                form.dataset.mediaCustomerId = '';
+                form.dispatchEvent(new CustomEvent('customer-media:reset'));
                 if (sendHidden) {
                     sendHidden.value = '0';
                 }
@@ -5748,6 +5759,8 @@
             }
 
             function openEditModal(customerId) {
+                form.dataset.mediaCustomerId = String(customerId);
+                form.dispatchEvent(new CustomEvent('customer-media:reset'));
                 custFormMode = 'edit';
                 addMethodPut();
                 form.action = custUpdateUrl(customerId);
@@ -8222,7 +8235,7 @@
                             '<div class="loan-file-actions-left">' +
                                 '<button type="button" class="loan-file-btn loan-file-btn--mini" title="چاپ دفترچه اقساط" aria-label="چاپ دفترچه اقساط" data-loan-booklet-print data-loan-id="' + String(row.id || '') + '"><i class="fa-solid fa-print" aria-hidden="true"></i></button>' +
                                 '<button type="button" class="loan-file-btn loan-file-btn--mini" title="پیامک" data-loan-sms-id="' + String(row.id || '') + '" data-loan-default-sms="' + escapeHtmlAttr(defaultLoanSmsText) + '"><i class="fa-regular fa-message" aria-hidden="true"></i></button>' +
-                                '<button type="button" class="loan-file-btn loan-file-btn--mini loan-file-btn--danger" title="حذف" data-loan-delete-id="' + String(row.id || '') + '" data-loan-delete-code="' + escapeHtmlAttr(row.loan_code || '') + '"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>' +
+                                (canDeleteLoanFiles ? '<button type="button" class="loan-file-btn loan-file-btn--mini loan-file-btn--danger" title="حذف پرونده (فقط ادمین اصلی)" aria-label="حذف پرونده پس از سه مرحله تأیید" data-loan-delete-id="' + String(row.id || '') + '" data-loan-delete-code="' + escapeHtmlAttr(row.loan_code || '') + '"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>' : '') +
                                 '<button type="button" class="loan-file-btn loan-file-btn--mini" title="ویرایش" data-loan-edit-id="' + String(row.id || '') + '"><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i></button>' +
                             '</div>' +
                             '<div class="loan-file-actions-right">' +
@@ -8965,6 +8978,11 @@
             }
 
             function openLoanManageModal(customerId, customerName, customerMobile) {
+                var mediaGallery = document.getElementById('customer-media-gallery');
+                if (mediaGallery) {
+                    mediaGallery.dataset.customerId = String(customerId || '');
+                    mediaGallery.replaceChildren();
+                }
                 if (loanManageOverview) loanManageOverview.open = false;
                 if (loanManageScroll) loanManageScroll.scrollTop = 0;
                 loanManageCurrentCustomerId = customerId || null;
@@ -9002,6 +9020,13 @@
                     panel.hidden = panel.getAttribute('data-loan-panel') !== tabId;
                 });
                 if (loanManageScroll) loanManageScroll.scrollTop = 0;
+                if (tabId === 'media' && loanManageCurrentCustomerId) {
+                    var mediaGallery = document.getElementById('customer-media-gallery');
+                    if (mediaGallery) {
+                        mediaGallery.dataset.customerId = String(loanManageCurrentCustomerId);
+                        mediaGallery.dispatchEvent(new CustomEvent('customer-media:load'));
+                    }
+                }
                 if (tabId === 'guarantees' && loanManageCurrentCustomerId) {
                     loadLoanGuaranteesReport(loanManageCurrentCustomerId);
                 }
@@ -9121,6 +9146,7 @@
 
             function closeModal() {
                 if (!overlay) return;
+                form.dispatchEvent(new CustomEvent('customer-media:stop'));
                 overlay.hidden = true;
                 overlay.setAttribute('aria-hidden', 'true');
                 document.body.classList.remove('app-settings-open');
@@ -9541,64 +9567,107 @@
                     openLoanEditModal(loanId);
                 }
             });
-            document.addEventListener('click', function (e) {
+            async function confirmLoanFileDeletion(loanCode, customerName) {
+                var warnings = [
+                    {
+                        title: 'اخطار اول از ۳ — حذف پرونده وام',
+                        text: 'پرونده ' + loanCode + ' متعلق به ' + customerName + ' برای حذف انتخاب شده است. آیا می‌خواهید ادامه دهید؟',
+                        confirmButtonText: 'ادامه به اخطار دوم'
+                    },
+                    {
+                        title: 'اخطار دوم از ۳ — حذف اطلاعات وابسته',
+                        text: 'با حذف پرونده ' + loanCode + '، اقساط، پرداخت‌های اقساط و تضامین وابسته نیز حذف می‌شوند. این عملیات از پنل قابل بازگشت نیست.',
+                        confirmButtonText: 'ادامه به تأیید نهایی'
+                    },
+                    {
+                        title: 'اخطار سوم از ۳ — تأیید حذف قطعی',
+                        text: 'برای حذف قطعی پرونده ' + loanCode + ' متعلق به ' + customerName + '، شماره پرونده را دقیقاً وارد کنید: ' + loanCode,
+                        confirmButtonText: 'حذف قطعی پرونده'
+                    }
+                ];
+                var acknowledgements = [];
+                var typedCode = '';
+                var useSwal = window.AdminSwal && typeof window.AdminSwal.confirm === 'function' && typeof window.Swal !== 'undefined';
+                for (var step = 0; step < warnings.length; step++) {
+                    var result;
+                    if (useSwal) {
+                        var options = Object.assign({}, warnings[step], {
+                            cancelButtonText: 'انصراف از حذف',
+                            confirmButtonColor: '#b91c1c',
+                            focusCancel: true,
+                            allowOutsideClick: false,
+                            allowEnterKey: false
+                        });
+                        if (step === 2) {
+                            options.input = 'text';
+                            options.inputLabel = 'شماره پرونده';
+                            options.inputPlaceholder = loanCode;
+                            options.inputAttributes = { dir: 'ltr', autocomplete: 'off', spellcheck: 'false', maxlength: '40' };
+                            options.inputValidator = function (value) {
+                                return String(value || '').trim() === loanCode ? undefined : 'شماره پرونده را دقیقاً مطابق متن بالا وارد کنید.';
+                            };
+                        }
+                        result = await window.AdminSwal.confirm(options);
+                    } else if (step === 2) {
+                        var entered = window.prompt(warnings[step].title + '\n\n' + warnings[step].text, '');
+                        result = { isConfirmed: entered !== null, value: entered };
+                    } else {
+                        result = { isConfirmed: window.confirm(warnings[step].title + '\n\n' + warnings[step].text) };
+                    }
+                    if (!result || !result.isConfirmed) return null;
+                    if (step === 2) {
+                        typedCode = String(result.value || '').trim();
+                        if (typedCode !== loanCode) throw new Error('شماره پرونده مطابقت ندارد؛ حذف انجام نشد.');
+                    }
+                    acknowledgements.push(true);
+                }
+                return { acknowledgements: acknowledgements, confirmation_code: typedCode };
+            }
+
+            document.addEventListener('click', async function (e) {
                 var deleteLoanBtn = e.target.closest('[data-loan-delete-id]');
                 if (!deleteLoanBtn) return;
                 e.preventDefault();
-                if (!loanManageCurrentCustomerId) return;
+                if (!canDeleteLoanFiles || !loanManageCurrentCustomerId || loanDeleteInProgress) return;
                 var loanId = parseInt(String(deleteLoanBtn.getAttribute('data-loan-delete-id') || '0'), 10);
                 if (loanId <= 0) return;
-                var loanCode = String(deleteLoanBtn.getAttribute('data-loan-delete-code') || '');
-
-                var proceed = function () {
-                    fetch(customerLoanDeleteUrl(loanManageCurrentCustomerId, loanId), {
+                var loanCode = String(deleteLoanBtn.getAttribute('data-loan-delete-code') || '').trim();
+                if (!loanCode) return;
+                var customerId = loanManageCurrentCustomerId;
+                var customerName = loanManageCurrentCustomerName || 'این مشتری';
+                loanDeleteInProgress = true;
+                deleteLoanBtn.disabled = true;
+                try {
+                    var confirmation = await confirmLoanFileDeletion(loanCode, customerName);
+                    if (!confirmation || Number(loanManageCurrentCustomerId) !== Number(customerId)) return;
+                    var response = await fetch(customerLoanDeleteUrl(customerId, loanId), {
                         method: 'DELETE',
                         headers: {
                             'Accept': 'application/json',
+                            'Content-Type': 'application/json',
                             'X-Requested-With': 'XMLHttpRequest',
                             'X-CSRF-TOKEN': @json(csrf_token())
                         },
-                        credentials: 'same-origin'
-                    }).then(function (r) {
-                        return r.json().then(function (json) {
-                            return { ok: r.ok, json: json };
-                        });
-                    }).then(function (res) {
-                        if (!res.ok) {
-                            throw new Error((res.json && res.json.message) ? res.json.message : 'حذف پرونده ناموفق بود.');
-                        }
-                        var key = String(loanManageCurrentCustomerId);
-                        if (!loanManageMap[key]) return;
+                        credentials: 'same-origin',
+                        body: JSON.stringify(confirmation)
+                    });
+                    var data = await response.json().catch(function () { return {}; });
+                    if (!response.ok) throw new Error(data.message || 'حذف پرونده ناموفق بود.');
+                    var key = String(customerId);
+                    if (loanManageMap[key]) {
                         var currentRows = Array.isArray(loanManageMap[key].loan_files) ? loanManageMap[key].loan_files : [];
                         loanManageMap[key].loan_files = currentRows.filter(function (x) {
                             return Number(x.id || 0) !== Number(loanId);
                         });
-                        renderLoanFilesForCustomer(loanManageCurrentCustomerId);
-                        if (window.AdminSwal && window.AdminSwal.success) {
-                            AdminSwal.success((res.json && res.json.message) ? res.json.message : 'پرونده حذف شد.');
-                        }
-                    }).catch(function (err) {
-                        if (window.AdminSwal && window.AdminSwal.error) {
-                            AdminSwal.error(err.message || 'حذف پرونده ناموفق بود.');
-                        }
-                    });
-                };
-
-                if (window.AdminSwal && window.AdminSwal.confirm) {
-                    AdminSwal.confirm({
-                        title: 'حذف پرونده وام',
-                        text: 'پرونده ' + (loanCode || ('#' + loanId)) + ' حذف شود؟ این عمل قابل بازگشت نیست.',
-                        confirmButtonText: 'بله، حذف شود',
-                        cancelButtonText: 'انصراف',
-                    }).then(function (result) {
-                        if (result && result.isConfirmed) {
-                            proceed();
-                        }
-                    });
-                    return;
-                }
-                if (window.confirm('پرونده وام حذف شود؟')) {
-                    proceed();
+                        if (Number(loanManageCurrentCustomerId) === Number(customerId)) renderLoanFilesForCustomer(customerId);
+                    }
+                    if (window.AdminSwal && typeof window.Swal !== 'undefined') AdminSwal.success(data.message || 'پرونده حذف شد.');
+                } catch (err) {
+                    if (window.AdminSwal && typeof window.Swal !== 'undefined') AdminSwal.error(err.message || 'حذف پرونده ناموفق بود.');
+                    else window.alert(err.message || 'حذف پرونده ناموفق بود.');
+                } finally {
+                    loanDeleteInProgress = false;
+                    deleteLoanBtn.disabled = false;
                 }
             });
             document.addEventListener('click', function (e) {

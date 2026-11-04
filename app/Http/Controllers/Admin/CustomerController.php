@@ -23,6 +23,7 @@ use App\Rules\IranNationalId;
 use App\Services\Admin\RawSmsDispatcher;
 use App\Services\Customers\AdminCustomerSettleAllLoansService;
 use App\Services\Customers\AdminCustomerSettleAllOverdueService;
+use App\Services\Customers\CustomerMediaService;
 use App\Services\Loans\LoanFileFinanceCalculator;
 use App\Services\Loans\LoanInstallmentAmountAllocator;
 use App\Services\Loans\LoanInstallmentScheduleService;
@@ -137,6 +138,7 @@ final class CustomerController extends Controller
             'listFilterQuery' => $this->customerListFilterQueryParams($listFilter, $listSort),
             'customerListScopeStats' => $this->buildCustomerListScopeStats(),
             'appDisplayName' => $this->appDisplayName(),
+            'customerMediaAvailable' => app(CustomerMediaService::class)->available(),
             'loanTypes' => LoanType::query()
                 ->latest('id')
                 ->get(['id', 'title', 'interest_rate', 'daily_late_coefficient', 'daily_early_coefficient', 'profit_calculation_method', 'max_loan_amount', 'max_installment_gap', 'installment_gap_unit', 'repayment_periods'])
@@ -1418,14 +1420,35 @@ final class CustomerController extends Controller
         ]);
     }
 
-    public function destroyLoan(Customer $customer, CustomerLoanFile $loanFile): JsonResponse
+    public function destroyLoan(Request $request, Customer $customer, CustomerLoanFile $loanFile): JsonResponse
     {
+        $admin = auth('admin')->user();
+        if (! $admin instanceof Admin || ! $admin->isSuperAdmin()) {
+            abort(403, 'حذف پرونده وام فقط توسط ادمین اصلی مجاز است.');
+        }
+
         if ((int) $loanFile->customer_id !== (int) $customer->id) {
             abort(404);
         }
 
+        $request->validate([
+            'acknowledgements' => ['required', 'array', 'size:3'],
+            'acknowledgements.0' => ['required', 'accepted'],
+            'acknowledgements.1' => ['required', 'accepted'],
+            'acknowledgements.2' => ['required', 'accepted'],
+            'confirmation_code' => ['required', 'string', 'max:40', Rule::in([(string) $loanFile->loan_code])],
+        ], [
+            'acknowledgements.required' => 'برای حذف پرونده، تأیید هر سه اخطار الزامی است.',
+            'acknowledgements.array' => 'برای حذف پرونده، تأیید هر سه اخطار الزامی است.',
+            'acknowledgements.size' => 'برای حذف پرونده، تأیید هر سه اخطار الزامی است.',
+            'acknowledgements.*.required' => 'برای حذف پرونده، تأیید هر سه اخطار الزامی است.',
+            'acknowledgements.*.accepted' => 'برای حذف پرونده، تأیید هر سه اخطار الزامی است.',
+            'confirmation_code.required' => 'شماره پرونده را برای تأیید نهایی حذف وارد کنید.',
+            'confirmation_code.in' => 'شماره پرونده واردشده با پرونده انتخاب‌شده مطابقت ندارد.',
+        ]);
+
         $loanCode = (string) $loanFile->loan_code;
-        $loanFile->delete();
+        DB::transaction(fn () => $loanFile->delete());
 
         return response()->json([
             'message' => 'پرونده وام '.$loanCode.' حذف شد.',
@@ -3429,7 +3452,7 @@ final class CustomerController extends Controller
 
         $plainPassword = (string) $validated['password'];
 
-        $customer = DB::transaction(function () use (
+        $customer = app(CustomerMediaService::class)->withChanges($request, function () use (
             $validated,
             $customerCode,
             $username,
@@ -3827,72 +3850,82 @@ final class CustomerController extends Controller
         $sendCredentials = $request->boolean('send_credentials');
         $plainPasswordInput = trim((string) ($validated['password'] ?? ''));
 
-        DB::transaction(function () use ($validated, $customer, $username, $membershipAt, $birthDate, $accounts, $referrers, $plainPasswordInput): void {
-            $data = [
-                'customer_code' => trim((string) ($validated['customer_code'] ?? '')) !== ''
-                    ? (string) $validated['customer_code']
-                    : $customer->customer_code,
-                'username' => $username,
-                'first_name' => $validated['first_name'],
-                'last_name' => $validated['last_name'],
-                'father_name' => $validated['father_name'] !== null && (string) $validated['father_name'] !== ''
-                    ? (string) $validated['father_name']
-                    : null,
-                'national_id' => $validated['national_id'] !== null && (string) $validated['national_id'] !== ''
-                    ? (string) $validated['national_id']
-                    : null,
-                'mobile' => $validated['mobile'],
-                'mobile2' => $validated['mobile2'] !== null && (string) $validated['mobile2'] !== ''
-                    ? (string) $validated['mobile2']
-                    : null,
-                'phone_landline' => $validated['phone_landline'] !== null && (string) $validated['phone_landline'] !== ''
-                    ? trim((string) $validated['phone_landline'])
-                    : null,
-                'membership_at' => $membershipAt,
-                'birth_date' => $birthDate,
-                'email' => $validated['email'] !== null && $validated['email'] !== ''
-                    ? (string) $validated['email']
-                    : null,
-                'city' => $validated['city'] !== null && (string) $validated['city'] !== ''
-                    ? (string) $validated['city']
-                    : null,
-                'address' => $validated['address'] !== null && (string) $validated['address'] !== ''
-                    ? (string) $validated['address']
-                    : null,
-                'postal_code' => $validated['postal_code'] !== null && (string) $validated['postal_code'] !== ''
-                    ? (string) $validated['postal_code']
-                    : null,
-            ];
+        try {
+            app(CustomerMediaService::class)->withChanges($request, function () use ($validated, $customer, $username, $membershipAt, $birthDate, $accounts, $referrers, $plainPasswordInput): Customer {
+                $data = [
+                    'customer_code' => trim((string) ($validated['customer_code'] ?? '')) !== ''
+                        ? (string) $validated['customer_code']
+                        : $customer->customer_code,
+                    'username' => $username,
+                    'first_name' => $validated['first_name'],
+                    'last_name' => $validated['last_name'],
+                    'father_name' => $validated['father_name'] !== null && (string) $validated['father_name'] !== ''
+                        ? (string) $validated['father_name']
+                        : null,
+                    'national_id' => $validated['national_id'] !== null && (string) $validated['national_id'] !== ''
+                        ? (string) $validated['national_id']
+                        : null,
+                    'mobile' => $validated['mobile'],
+                    'mobile2' => $validated['mobile2'] !== null && (string) $validated['mobile2'] !== ''
+                        ? (string) $validated['mobile2']
+                        : null,
+                    'phone_landline' => $validated['phone_landline'] !== null && (string) $validated['phone_landline'] !== ''
+                        ? trim((string) $validated['phone_landline'])
+                        : null,
+                    'membership_at' => $membershipAt,
+                    'birth_date' => $birthDate,
+                    'email' => $validated['email'] !== null && $validated['email'] !== ''
+                        ? (string) $validated['email']
+                        : null,
+                    'city' => $validated['city'] !== null && (string) $validated['city'] !== ''
+                        ? (string) $validated['city']
+                        : null,
+                    'address' => $validated['address'] !== null && (string) $validated['address'] !== ''
+                        ? (string) $validated['address']
+                        : null,
+                    'postal_code' => $validated['postal_code'] !== null && (string) $validated['postal_code'] !== ''
+                        ? (string) $validated['postal_code']
+                        : null,
+                ];
 
-            if ($plainPasswordInput !== '') {
-                $data['password'] = $plainPasswordInput;
-                $data['password_print_encrypted'] = $this->customerPasswordPrintEncrypted($plainPasswordInput);
-            }
+                if ($plainPasswordInput !== '') {
+                    $data['password'] = $plainPasswordInput;
+                    $data['password_print_encrypted'] = $this->customerPasswordPrintEncrypted($plainPasswordInput);
+                }
 
-            $customer->update($data);
+                $customer->update($data);
 
-            $customer->bankAccounts()->delete();
-            foreach ($accounts as $i => $row) {
-                CustomerBankAccount::query()->create([
-                    'customer_id' => $customer->id,
-                    'account_identifier' => $row['account_identifier'],
-                    'bank_name' => $row['bank_name'],
-                    'branch_name' => $row['branch_name'],
-                    'sort_order' => $i,
-                ]);
-            }
+                $customer->bankAccounts()->delete();
+                foreach ($accounts as $i => $row) {
+                    CustomerBankAccount::query()->create([
+                        'customer_id' => $customer->id,
+                        'account_identifier' => $row['account_identifier'],
+                        'bank_name' => $row['bank_name'],
+                        'branch_name' => $row['branch_name'],
+                        'sort_order' => $i,
+                    ]);
+                }
 
-            $customer->referrers()->delete();
-            foreach ($referrers as $i => $row) {
-                CustomerReferrer::query()->create([
-                    'customer_id' => $customer->id,
-                    'first_name' => $row['first_name'],
-                    'last_name' => $row['last_name'],
-                    'phone' => $row['phone'],
-                    'sort_order' => $i,
-                ]);
-            }
-        });
+                $customer->referrers()->delete();
+                foreach ($referrers as $i => $row) {
+                    CustomerReferrer::query()->create([
+                        'customer_id' => $customer->id,
+                        'first_name' => $row['first_name'],
+                        'last_name' => $row['last_name'],
+                        'phone' => $row['phone'],
+                        'sort_order' => $i,
+                    ]);
+                }
+
+                return $customer;
+            });
+        } catch (ValidationException $e) {
+            return redirect()
+                ->route('admin.customers.index', $request->only('q'))
+                ->withInput($request->except('password'))
+                ->withErrors($e->errors())
+                ->with('open_edit_customer_id', $customer->id);
+        }
 
         $customer->refresh();
 
@@ -3925,7 +3958,7 @@ final class CustomerController extends Controller
 
     public function destroy(Customer $customer): RedirectResponse
     {
-        $customer->delete();
+        app(CustomerMediaService::class)->deleteCustomer($customer);
 
         return redirect()
             ->route('admin.customers.index')

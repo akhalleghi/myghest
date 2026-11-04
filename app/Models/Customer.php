@@ -73,6 +73,11 @@ final class Customer extends Authenticatable
         return $this->hasMany(CustomerBankAccount::class)->orderBy('sort_order')->orderBy('id');
     }
 
+    public function media(): HasMany
+    {
+        return $this->hasMany(CustomerMedia::class);
+    }
+
     public function referrers(): HasMany
     {
         return $this->hasMany(CustomerReferrer::class)->orderBy('sort_order')->orderBy('id');
