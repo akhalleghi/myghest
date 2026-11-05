@@ -1763,6 +1763,7 @@ final class CustomerController extends Controller
     }
 
     public function loanInstallmentPayments(
+        Request $request,
         Customer $customer,
         CustomerLoanFile $loanFile,
         CustomerLoanInstallment $installment,
@@ -1775,6 +1776,35 @@ final class CustomerController extends Controller
         }
         if ($loanFile->revoked_at !== null) {
             return response()->json(['message' => 'قرارداد فسخ شده است.'], 422);
+        }
+
+        // A date preview must not create schedules or backfill legacy receipts.
+        if ($request->boolean('preview')) {
+            $validated = $request->validate([
+                'deposited_jdate' => ['required', 'string', 'max:20'],
+                'payment_id' => ['nullable', 'integer', 'min:1'],
+            ]);
+            $date = $this->parseJalaliDate(trim($validated['deposited_jdate']));
+            if ($date === null) {
+                return response()->json(['message' => 'تاریخ واریز معتبر نیست.'], 422);
+            }
+            $exclude = isset($validated['payment_id']) ? (int) $validated['payment_id'] : null;
+            if ($exclude !== null && ! $installment->payments()->whereKey($exclude)->exists()) {
+                abort(404);
+            }
+            $finance = app(LoanFileFinanceCalculator::class);
+            $snapshot = $finance->loanInstallmentFinancialSnapshot($loanFile, $finance->totalRepayableToman($loanFile), $date, $exclude);
+            $balance = array_merge($snapshot['installment_balances'][(int) $installment->id], $snapshot['installment_payables'][(int) $installment->id]);
+
+            return response()->json([
+                'balance' => $balance,
+                'max_payment_toman' => $finance->installmentPaymentAllowanceToman($loanFile, $installment, $date, $exclude),
+                'requires_schedule_review' => $snapshot['requires_schedule_review'],
+                'has_contract_schedule_difference' => $snapshot['has_contract_schedule_difference'],
+                'contract_total_toman' => $snapshot['contract_total_toman'],
+                'scheduled_total_toman' => $snapshot['scheduled_total_toman'],
+                'schedule_difference_toman' => $snapshot['schedule_difference_toman'],
+            ]);
         }
 
         $loanFile->load('loanType');
@@ -2049,6 +2079,7 @@ final class CustomerController extends Controller
         });
 
         $payment->refresh(['recordedByAdmin']);
+        $loanFile->unsetRelation('installments');
 
         return response()->json([
             'message' => 'پرداخت با موفقیت به‌روزرسانی شد.',
@@ -2091,6 +2122,7 @@ final class CustomerController extends Controller
             $installment->refresh();
             $this->resyncInstallmentPaidTotalsFromPayments($installment);
         });
+        $loanFile->unsetRelation('installments');
 
         return response()->json([
             'message' => 'پرداخت حذف شد.',
@@ -2134,6 +2166,7 @@ final class CustomerController extends Controller
             $installment->refresh();
             $this->resyncInstallmentPaidTotalsFromPayments($installment);
         });
+        $loanFile->unsetRelation('installments');
 
         return response()->json([
             'message' => $deleted > 0
@@ -4608,8 +4641,9 @@ final class CustomerController extends Controller
             'has_custom_daily_early_coefficient' => $file->daily_early_coefficient !== null,
             'custom_daily_early_coefficient' => $file->daily_early_coefficient !== null ? (float) $file->daily_early_coefficient : null,
             'calculated_profit_toman' => $profit,
-            'total_repayable_toman' => $totalRepayable,
+            'total_repayable_toman' => $snap['debt_base_total_toman'],
             'requires_schedule_review' => $snap['requires_schedule_review'],
+            'has_contract_schedule_difference' => $snap['has_contract_schedule_difference'],
             'contract_total_toman' => $snap['contract_total_toman'],
             'scheduled_total_toman' => $snap['scheduled_total_toman'],
             'schedule_difference_toman' => $snap['schedule_difference_toman'],
@@ -4694,6 +4728,7 @@ final class CustomerController extends Controller
             'paid_installments_count' => (int) $snap['paid_installments_count'],
             'remaining_installments_count' => $remainingAmount <= 0 ? 0 : $unpaidCount,
             'requires_schedule_review' => $snap['requires_schedule_review'],
+            'has_contract_schedule_difference' => $snap['has_contract_schedule_difference'],
             'contract_total_toman' => $snap['contract_total_toman'],
             'scheduled_total_toman' => $snap['scheduled_total_toman'],
             'schedule_difference_toman' => $snap['schedule_difference_toman'],
@@ -5878,6 +5913,11 @@ final class CustomerController extends Controller
         $base['max_payment_toman'] = $maxPay;
         $base['loan_remaining_payable_toman'] = $this->loanInstallmentPaymentCeilingToman($file);
         $base['can_add_payment'] = ! $file->is_settled && $maxPay > 0;
+        $finance = app(LoanFileFinanceCalculator::class);
+        $snapshot = $finance->loanInstallmentFinancialSnapshot($file, $finance->totalRepayableToman($file));
+        foreach (['requires_schedule_review', 'has_contract_schedule_difference', 'contract_total_toman', 'scheduled_total_toman', 'schedule_difference_toman'] as $key) {
+            $base[$key] = $snapshot[$key];
+        }
 
         return $base;
     }
@@ -5996,6 +6036,8 @@ final class CustomerController extends Controller
             'remaining_toman' => $balance['remaining_toman'],
             'principal_remaining_toman' => $balance['principal_remaining_toman'],
             'late_fee_remaining_toman' => $balance['late_fee_remaining_toman'],
+            'late_fee_assessed_toman' => $balance['late_fee_assessed_toman'],
+            'late_fee_paid_toman' => $balance['late_fee_paid_toman'],
             'paid_at' => $paidAt ? $paidAt->format('Y-m-d') : null,
             'paid_jdate' => $paidJalali,
             'paid_jdate_fa' => $paidJalaliFa,
@@ -6364,9 +6406,9 @@ final class CustomerController extends Controller
         if (! empty($mapped['requires_schedule_review'])) {
             return [
                 'scenario' => 'schedule_review',
-                'headline' => 'اختلاف ریز اقساط با قرارداد',
-                'summary' => 'این پرونده قبل از تسویه خودکار نیاز به تطبیق مبالغ دارد. هیچ مبلغ یا سابقه‌ای تغییر داده نشده است.',
-                'primary_label' => 'مانده طبق محاسبه قرارداد',
+                'headline' => 'جدول اقساط ناقص است',
+                'summary' => 'تعداد یا ترتیب اقساط با پرونده هم‌خوان نیست؛ پیش از تسویه بررسی شود.',
+                'primary_label' => 'مانده طبق اقساط موجود',
                 'primary_amount_toman' => (int) $mapped['remaining_amount_toman'],
                 'rows' => [
                     ['label' => 'بازپرداخت محاسبه‌شده قرارداد', 'amount_toman' => (int) $mapped['contract_total_toman']],

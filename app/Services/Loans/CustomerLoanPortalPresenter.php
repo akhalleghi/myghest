@@ -200,8 +200,8 @@ final class CustomerLoanPortalPresenter
         );
 
         if ($snap['requires_schedule_review']) {
-            $remainingStatusLineFa = 'نیاز به بررسی تطبیق اقساط با قرارداد';
-            $settleDisabledReasonFa = 'جمع مبالغ اقساط با مبلغ قرارداد متفاوت است؛ برای بررسی با پشتیبانی تماس بگیرید.';
+            $remainingStatusLineFa = 'نیاز به بررسی تعداد یا ترتیب اقساط';
+            $settleDisabledReasonFa = 'تعداد یا ترتیب اقساط پرونده ناقص است؛ برای بررسی با پشتیبانی تماس بگیرید.';
         }
 
         $fullSettlementOnlineToman = 0;
@@ -265,8 +265,8 @@ final class CustomerLoanPortalPresenter
             'ribbon_icon' => $ribbonIcon,
             'settled_at_jalali' => $file->settled_at !== null ? $this->toJalaliFa($file->settled_at) : null,
             'revoked_at_jalali' => $file->revoked_at !== null ? $this->toJalaliFa($file->revoked_at) : null,
-            'total_repayable_toman' => $totalRepayable,
-            'total_repayable_fa' => $this->formatMoneyFa($totalRepayable),
+            'total_repayable_toman' => $snap['debt_base_total_toman'],
+            'total_repayable_fa' => $this->formatMoneyFa($snap['debt_base_total_toman']),
             'progress_percent' => $progressPct,
             'show_settle_button' => $showSettleButton,
             'full_settlement_online_toman' => $fullSettlementOnlineToman,

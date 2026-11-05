@@ -203,7 +203,7 @@ final class LoanInterestFeesReportService
             'principal_toman' => (int) $file->amount_toman,
             'profit_toman' => $profit,
             'down_payment_toman' => (int) $file->down_payment_toman,
-            'total_repayable_toman' => $totalRepayable,
+            'total_repayable_toman' => $snap['debt_base_total_toman'],
             'effective_interest_rate' => (float) $file->effective_interest_rate,
             'effective_interest_rate_label' => $this->formatInterestRateLabel((float) $file->effective_interest_rate),
             'profit_calculation_method' => $profitMethod,

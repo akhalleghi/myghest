@@ -147,7 +147,7 @@ final class MemberLoansByDateReportService
             'customer_national_id' => $customer !== null ? (string) $customer->national_id : '—',
             'customer_mobile' => $customer !== null ? (string) $customer->mobile : '—',
             'principal_toman' => (int) $file->amount_toman,
-            'total_repayable_toman' => $totalRepayable,
+            'total_repayable_toman' => $snap['debt_base_total_toman'],
             'installments_count' => (int) $file->installments_count,
             'installment_amount_toman' => (int) $file->installment_amount_toman,
             'loan_start_jdate' => $file->loan_start_date

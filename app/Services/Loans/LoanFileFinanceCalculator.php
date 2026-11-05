@@ -91,15 +91,23 @@ final class LoanFileFinanceCalculator
             $lateRemaining += $balance['late_fee_remaining_toman'];
             $received += $balance['total_paid_toman'];
         }
-        $principalRemaining = max(0, $totalRepayableContract - $principalPaid);
+        $periodCount = $file->installments->count();
+        $scheduledTotal = (int) $file->installments->sum('amount_toman');
+        // Stored installments are the debt ledger. Recomputing a rounded legacy
+        // contract must never erase a balance still owed on an installment.
+        $debtBase = $periodCount > 0 ? $scheduledTotal : $totalRepayableContract;
+        $principalRemaining = $periodCount > 0
+            ? (int) collect($balances)->sum('principal_remaining_toman')
+            : max(0, $totalRepayableContract - $principalPaid);
         $discount = max(0, (int) ($file->discount_amount_toman ?? 0));
         $closed = $file->is_settled || $file->revoked_at !== null;
         $principalPayable = $closed ? 0 : max(0, $principalRemaining - $discount);
         $latePayable = $closed ? 0 : max(0, $lateRemaining - max(0, $discount - $principalRemaining));
         $remaining = $principalPayable + $latePayable;
-        $periodCount = $file->installments->count();
-        $scheduledTotal = (int) $file->installments->sum('amount_toman');
-        $requiresReview = ! $closed && $periodCount > 0 && $scheduledTotal !== $totalRepayableContract;
+        $expectedCount = (int) $file->installments_count;
+        $sequences = $file->installments->pluck('sequence')->map(static fn ($sequence): int => (int) $sequence)->sort()->values()->all();
+        $requiresReview = ! $closed && $expectedCount > 0
+            && ($periodCount !== $expectedCount || $sequences !== range(1, $expectedCount));
         $principalDiscount = min($discount, $principalRemaining);
         $lateDiscount = max(0, $discount - $principalRemaining);
         $payables = [];
@@ -125,8 +133,10 @@ final class LoanFileFinanceCalculator
 
         return [
             'contract_total_toman' => $totalRepayableContract,
+            'debt_base_total_toman' => $debtBase,
             'scheduled_total_toman' => $scheduledTotal,
             'schedule_difference_toman' => $scheduledTotal - $totalRepayableContract,
+            'has_contract_schedule_difference' => $periodCount > 0 && $scheduledTotal !== $totalRepayableContract,
             'requires_schedule_review' => $requiresReview,
             'settled_by_balance' => $closed || (! $requiresReview && $remaining === 0),
             'schedule_remaining_toman' => $principalRemaining,
@@ -172,12 +182,7 @@ final class LoanFileFinanceCalculator
      */
     public function estimatePenaltyAtDateToman(CustomerLoanInstallment $inst, float $dailyLateCoef, Carbon $untilDate): int
     {
-        return $this->estimatePenaltyForPrincipalAtDateToman(
-            (int) $inst->amount_toman,
-            Carbon::parse($inst->due_date),
-            $dailyLateCoef,
-            $untilDate,
-        );
+        return (int) $inst->debtBalance($dailyLateCoef, $untilDate)['late_fee_assessed_toman'];
     }
 
     public function estimatePenaltyForPrincipalAtDateToman(

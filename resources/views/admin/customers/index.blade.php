@@ -3927,7 +3927,7 @@
                         <div class="loan-inst-summary__value" id="loan-inst-sum-paid-amount">—</div>
                     </div>
                     <div class="loan-inst-summary__card loan-inst-summary__card--late">
-                        <span class="loan-inst-summary__label">مبلغ دیرکرد</span>
+                        <span class="loan-inst-summary__label">دیرکرد پرداخت‌نشده</span>
                         <div class="loan-inst-summary__value" id="loan-inst-sum-late">—</div>
                     </div>
                     <div class="loan-inst-summary__card loan-inst-summary__card--overdue">
@@ -3939,6 +3939,7 @@
                         <div class="loan-inst-summary__value" id="loan-inst-sum-early">—</div>
                     </div>
                 </div>
+                <div id="loan-inst-schedule-review" role="alert" hidden style="margin-bottom:.65rem;color:var(--danger,#b91c1c);font-size:.78rem;line-height:1.9"></div>
                 <div class="loan-inst-table-scroll">
                     <table class="loan-inst-table">
                         <thead>
@@ -6492,7 +6493,9 @@
                     window.jQuery('#loan-inst-pay-ref-due').pDatepicker(payPickerCfg);
                 }
                 if (document.getElementById('loan-inst-pay-dep')) {
-                    window.jQuery('#loan-inst-pay-dep').pDatepicker(payPickerCfg);
+                    window.jQuery('#loan-inst-pay-dep').pDatepicker(Object.assign({}, payPickerCfg, {
+                        onSelect: scheduleLoanInstPaymentPreview
+                    }));
                 }
             }
 
@@ -6650,7 +6653,54 @@
                 }
                 setTimeout(function () {
                     initLoanInstPayBothPickers();
+                    scheduleLoanInstPaymentPreview();
                 }, 0);
+            }
+
+            var loanInstPayPreviewVersion = 0;
+            var loanInstPayPreviewTimer = null;
+            function scheduleLoanInstPaymentPreview() {
+                clearTimeout(loanInstPayPreviewTimer);
+                var version = ++loanInstPayPreviewVersion;
+                loanInstPayPreviewTimer = setTimeout(function () {
+                    if (!loanInstPayFormVisible || !loanInstPayStrip) return;
+                    var date = String((loanInstPayDepInput && loanInstPayDepInput.value) || '').trim();
+                    var quoteBox = document.getElementById('loan-inst-pay-date-preview');
+                    if (!quoteBox) return;
+                    if (!date) { quoteBox.textContent = 'برای محاسبهٔ اصل و دیرکرد قابل پرداخت، تاریخ واریز را انتخاب کنید.'; return; }
+                    quoteBox.textContent = 'در حال محاسبهٔ بدهی تا تاریخ واریز…';
+                    var query = new URLSearchParams({ preview: '1', deposited_jdate: date });
+                    if (loanInstPayEditingPaymentId) query.set('payment_id', String(loanInstPayEditingPaymentId));
+                    fetch(customerLoanInstallmentPaymentsUrl(loanManageCurrentCustomerId, loanInstActiveLoanFileId, loanInstPayCurrentInstallmentId) + '?' + query.toString(), {
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin'
+                    }).then(function (response) {
+                        return response.json().then(function (data) {
+                            if (!response.ok) throw new Error(data.message || 'محاسبهٔ بدهی ناموفق بود.');
+                            return data;
+                        });
+                    }).then(function (quote) {
+                        if (version !== loanInstPayPreviewVersion || !loanInstPayFormVisible) return;
+                        var balance = quote.balance || {};
+                        quoteBox.textContent = 'در تاریخ واریز ' + date + ': ماندهٔ اصل ' + formatToman(balance.principal_remaining_toman || 0) +
+                            ' تومان · دیرکرد پرداخت‌نشده ' + formatToman(balance.late_fee_remaining_toman || 0) +
+                            ' تومان · سقف مجاز ثبت ' + formatToman(quote.max_payment_toman || 0) + ' تومان' +
+                            (loanInstPayEditingPaymentId ? ' (بدون احتساب واریزی در حال ویرایش)' : '');
+                    }).catch(function (error) {
+                        if (version === loanInstPayPreviewVersion && loanInstPayFormVisible) quoteBox.textContent = error.message;
+                    });
+                }, 400);
+            }
+            if (loanInstPayDepInput) {
+                loanInstPayDepInput.addEventListener('input', scheduleLoanInstPaymentPreview);
+                loanInstPayDepInput.addEventListener('change', scheduleLoanInstPaymentPreview);
+            }
+
+            function loanScheduleReviewMessage(loan) {
+                if (loan.requires_schedule_review) return 'تعداد یا ترتیب اقساط پرونده ناقص است؛ پیش از تسویه، جدول اقساط بررسی شود.';
+                if (!loan.has_contract_schedule_difference) return '';
+                return 'جمع اقساط ' + formatToman(loan.scheduled_total_toman || 0) + ' تومان با بازپرداخت قرارداد ' +
+                    formatToman(loan.contract_total_toman || 0) +
+                    ' تومان متفاوت است. مبنای بدهی و پرداخت، اقساط ثبت‌شده به‌اضافهٔ دیرکرد پرداخت‌نشده و پس از کسر تخفیف است.';
             }
 
             function setLoanInstPayStripFromInstallment(insP) {
@@ -6669,7 +6719,12 @@
                     '</span> · مبلغ قسط <strong>' + escapeHtmlText(formatToman(amta) + ' تومان') + '</strong> · پرداخت‌شده <strong>' +
                     escapeHtmlText(formatToman(defp) + ' تومان') + '</strong> · مانده بدهی این قسط با دیرکرد <strong>' +
                     escapeHtmlText(formatToman(remInst) + ' تومان') + '</strong> · سقف مجاز این قسط <strong>' +
-                    escapeHtmlText(formatToman(maxPayStep) + ' تومان') + '</strong> · سقف شامل دیرکرد برآوردی تا امروز';
+                    escapeHtmlText(formatToman(maxPayStep) + ' تومان') + '</strong> · دیرکرد محاسبه‌شده <strong>' +
+                    escapeHtmlText(formatToman(insP.late_fee_assessed_toman || 0) + ' تومان') + '</strong> · دیرکرد پرداخت‌نشده <strong>' +
+                    escapeHtmlText(formatToman(insP.late_fee_remaining_toman || 0) + ' تومان') + '</strong> · محاسبه تا امروز' +
+                    (insP.requires_schedule_review || insP.has_contract_schedule_difference ? '<div role="note" style="margin-top:.4rem">' +
+                        escapeHtmlText(loanScheduleReviewMessage(insP)) + '</div>' : '') +
+                    '<div id="loan-inst-pay-date-preview" aria-live="polite" style="margin-top:.4rem"></div>';
             }
 
             function applyLoanInstPayServerPayload(payload) {
@@ -6709,6 +6764,10 @@
                 if (loanInstPayFormWrap) loanInstPayFormWrap.hidden = !loanInstPayFormVisible;
                 destroyLoanInstPayDatePickers();
                 if (!loanInstPayFormVisible) {
+                    ++loanInstPayPreviewVersion;
+                    clearTimeout(loanInstPayPreviewTimer);
+                    var quoteBox = document.getElementById('loan-inst-pay-date-preview');
+                    if (quoteBox) quoteBox.textContent = '';
                     resetLoanInstPayFormFields(false);
                     loanInstPayResetEditMode();
                     return;
@@ -6725,10 +6784,13 @@
                 setTimeout(function () {
                     initLoanInstPayBothPickers();
                 }, 0);
+                scheduleLoanInstPaymentPreview();
             }
 
             function closeLoanInstallmentPayModal() {
                 if (!loanInstallmentPayOverlay) return;
+                ++loanInstPayPreviewVersion;
+                clearTimeout(loanInstPayPreviewTimer);
                 destroyLoanInstPayDatePickers();
                 loanInstallmentPayOverlay.hidden = true;
                 loanInstallmentPayOverlay.setAttribute('aria-hidden', 'true');
@@ -7389,6 +7451,11 @@
                         : loanLabel;
                 }
                 if (loanInstSummary) loanInstSummary.hidden = false;
+                var scheduleReview = document.getElementById('loan-inst-schedule-review');
+                if (scheduleReview) {
+                    scheduleReview.hidden = !loan.requires_schedule_review && !loan.has_contract_schedule_difference;
+                    scheduleReview.textContent = loanScheduleReviewMessage(loan);
+                }
                 if (loanInstSumType) loanInstSumType.textContent = String(loan.loan_type_title || '—');
                 if (loanInstSumAmount) loanInstSumAmount.textContent = formatToman(loan.amount_toman || 0) + ' تومان';
                 if (loanInstSumStart) loanInstSumStart.textContent = String(loan.loan_start_jdate_fa || loan.loan_start_jdate || '—');

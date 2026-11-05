@@ -104,8 +104,8 @@ final class AdminDashboardStatisticsService
             $paid = (int) ($snapshot['total_paid_toman'] ?? 0);
 
             $principalSum += $principal;
-            $withProfitSum += $totalRepayable;
-            $withProfitAndLateSum += $totalRepayable + $lateFee;
+            $withProfitSum += $snapshot['debt_base_total_toman'];
+            $withProfitAndLateSum += $snapshot['debt_base_total_toman'] + $lateFee;
             $commissionSum += $commission;
             $lateFeeSum += $lateFee;
             $earlyBenefitSum += $earlyBenefit;
@@ -114,7 +114,7 @@ final class AdminDashboardStatisticsService
 
             $now = Carbon::now()->startOfDay();
             foreach ($file->installments as $inst) {
-                $unpaid = $inst->principalRemainingToman();
+                $unpaid = (int) ($snapshot['installment_payables'][(int) $inst->id]['remaining_toman'] ?? 0);
                 if ($unpaid <= 0) {
                     continue;
                 }

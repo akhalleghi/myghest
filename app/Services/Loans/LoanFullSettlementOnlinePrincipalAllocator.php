@@ -9,6 +9,7 @@ use App\Models\CustomerLoanInstallment;
 use App\Models\CustomerLoanInstallmentPayment;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * ثبت کل وجه تسویه، شامل اصل اقساط و دیرکرد، در ریز واریزی‌های همان اقساط.
@@ -23,6 +24,22 @@ final class LoanFullSettlementOnlinePrincipalAllocator
      * @throws \RuntimeException
      */
     public function allocateDebtAcrossInstallments(
+        CustomerLoanFile $file,
+        int $amountToman,
+        string $bankRefTrim,
+        string $installmentPaymentMethod = CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_ONLINE,
+        ?int $recordedByAdminId = null,
+        ?string $depositedAtDate = null,
+    ): void {
+        // Callers may catch allocation errors inside their own transaction.
+        // Keep receipt creation atomic even in that case.
+        DB::transaction(function () use ($file, $amountToman, $bankRefTrim, $installmentPaymentMethod, $recordedByAdminId, $depositedAtDate): void {
+            $lockedFile = CustomerLoanFile::query()->whereKey($file->id)->lockForUpdate()->firstOrFail();
+            $this->allocate($lockedFile, $amountToman, $bankRefTrim, $installmentPaymentMethod, $recordedByAdminId, $depositedAtDate);
+        });
+    }
+
+    private function allocate(
         CustomerLoanFile $file,
         int $amountToman,
         string $bankRefTrim,
@@ -55,6 +72,11 @@ final class LoanFullSettlementOnlinePrincipalAllocator
         ]);
 
         $pool = $amountToman;
+        $finance = app(LoanFileFinanceCalculator::class);
+        $snapshot = $finance->loanInstallmentFinancialSnapshot($file, $finance->totalRepayableToman($file), Carbon::parse($depositedAt));
+        if ($snapshot['requires_schedule_review'] || $amountToman !== $snapshot['remaining_amount_toman']) {
+            throw new \RuntimeException('مبلغ تسویه با بدهی اقساط و دیرکرد تا تاریخ واریز هم‌خوان نیست.');
+        }
         /** @var Collection<int, CustomerLoanInstallment> $ordered */
         $ordered = $file->installments->sortBy('sequence')->values();
 
@@ -63,7 +85,7 @@ final class LoanFullSettlementOnlinePrincipalAllocator
             if ($pool <= 0) {
                 break;
             }
-            $slotRem = $inst->remainingDebtToman();
+            $slotRem = (int) $snapshot['installment_payables'][(int) $inst->id]['remaining_toman'];
             if ($slotRem <= 0) {
                 continue;
             }

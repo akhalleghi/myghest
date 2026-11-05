@@ -122,7 +122,7 @@ final class InstallmentOnlinePaymentResolver
         $totalRepayable = $this->finance->totalRepayableToman($file);
         $snap = $this->finance->loanInstallmentFinancialSnapshot($file, $totalRepayable);
         if ($snap['requires_schedule_review']) {
-            return ['ok' => false, 'message' => 'جمع مبالغ اقساط با قرارداد متفاوت است؛ پرونده باید توسط پشتیبانی بررسی شود.'];
+            return ['ok' => false, 'message' => 'تعداد یا ترتیب اقساط پرونده ناقص است؛ پرونده باید توسط پشتیبانی بررسی شود.'];
         }
         $discount = (int) ($file->discount_amount_toman ?? 0);
         $scheduleRemaining = (int) $snap['schedule_remaining_toman'];
