@@ -115,6 +115,15 @@ final class AdminPermissionHubTest extends TestCase
         );
     }
 
+    public function test_installment_reward_settings_require_wallet_adjust_permission(): void
+    {
+        $admin = $this->makeAdmin();
+        $permissions = app(AdminPermissionService::class);
+        self::assertFalse($permissions->canAccessRoute($admin, 'admin.customers.installment-reward'));
+        AdminPermissionGrant::create(['admin_id' => $admin->id, 'permission_key' => 'customers.wallet.adjust']);
+        self::assertTrue($permissions->canAccessRoute($admin->fresh(), 'admin.customers.installment-reward'));
+    }
+
     public function test_permission_tree_includes_backup_under_app_settings(): void
     {
         $registry = app(AdminPermissionRegistry::class);

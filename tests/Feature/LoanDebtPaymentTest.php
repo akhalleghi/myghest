@@ -26,9 +26,12 @@ use App\Services\Deposits\DepositDeclarationUserService;
 use App\Services\Loans\CustomerLoanPortalPresenter;
 use App\Services\Loans\LoanFileFinanceCalculator;
 use App\Services\Loans\LoanFullSettlementOnlinePrincipalAllocator;
+use App\Services\Loans\LoanInstallmentPaidAmountSyncer;
 use App\Services\Payment\InstallmentOnlinePaymentCompletionService;
 use App\Services\Payment\InstallmentOnlinePaymentResolver;
 use App\Services\Payment\PortalLoanWalletPaymentService;
+use App\Services\Wallet\CustomerWalletService;
+use App\Services\Wallet\InstallmentWalletRewardService;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Database\Schema\Blueprint;
@@ -163,6 +166,7 @@ final class LoanDebtPaymentTest extends TestCase
             '2026_05_14_100000_create_customer_transactions_table.php',
             '2026_05_13_120000_create_customer_loan_installment_online_payment_intents_table.php',
             '2026_05_15_100000_create_customer_loan_full_settlement_online_payment_intents_table.php',
+            '2026_11_05_220000_add_installment_wallet_rewards.php',
         ] as $migration) {
             (require database_path('migrations/'.$migration))->up();
         }
@@ -251,7 +255,7 @@ final class LoanDebtPaymentTest extends TestCase
         self::assertSame(200, $response->getStatusCode());
         self::assertSame(22500, $response->getData(true)['installment']['early_benefit_toman']);
         self::assertSame(472500, $this->snapshot()['remaining_amount_toman']);
-        $controller->destroyLoanInstallmentPayment($this->customer, $this->file->fresh(), $this->installment->fresh(), $payment->fresh());
+        $controller->destroyLoanInstallmentPayment($this->customer, $this->file->fresh(), $this->installment->fresh(), $this->installment->payments()->firstOrFail());
         self::assertSame(0, $this->snapshot()['early_benefit_toman']);
         self::assertSame(945000, $this->snapshot()['remaining_amount_toman']);
     }
@@ -293,6 +297,145 @@ final class LoanDebtPaymentTest extends TestCase
         self::assertSame(1500000, array_sum(array_column($charts['overdue']['monthly'], 'value')));
         self::assertSame(1500000, array_sum(array_column($charts['overdue']['yearly'], 'value')));
         self::assertSame(0, $charts['overdue']['monthly'][23]['value']);
+    }
+
+    private function enableRewards(float $percent = 3): void
+    {
+        app(InstallmentWalletRewardService::class)->saveSettings($this->customer, true, $percent);
+    }
+
+    public function test_reward_is_disabled_by_default_and_does_not_credit_historical_receipts_on_activation(): void
+    {
+        $controller = app(CustomerController::class);
+        self::assertFalse($this->customer->fresh()->installment_reward_enabled);
+        $controller->storeLoanInstallmentPayment($this->request(900000, '2026-08-01'), $this->customer, $this->file, $this->installment);
+        self::assertSame(0, DB::table('installment_wallet_rewards')->count());
+        $this->enableRewards();
+        app(LoanInstallmentPaidAmountSyncer::class)->syncFromPaymentRows($this->installment->fresh());
+        self::assertSame(0, DB::table('installment_wallet_rewards')->count());
+        self::assertSame(0, CustomerWallet::count());
+    }
+
+    public function test_reward_credits_only_after_full_on_time_payment_once_and_uses_frozen_percent(): void
+    {
+        $this->enableRewards();
+        $controller = app(CustomerController::class);
+        $controller->storeLoanInstallmentPayment($this->request(450000, '2026-07-31'), $this->customer, $this->file, $this->installment);
+        self::assertSame(0, CustomerWallet::count());
+        $response = $controller->storeLoanInstallmentPayment($this->request(450000, '2026-08-01'), $this->customer, $this->file->fresh(), $this->installment->fresh());
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame(27000, $this->customer->wallet()->firstOrFail()->balance_toman);
+        self::assertSame(1, DB::table('installment_wallet_rewards')->count());
+        app(InstallmentWalletRewardService::class)->saveSettings($this->customer, true, 10);
+        app(LoanInstallmentPaidAmountSyncer::class)->syncFromPaymentRows($this->installment->fresh());
+        self::assertSame(27000, $this->customer->wallet()->firstOrFail()->balance_toman);
+        self::assertSame(1, DB::table('customer_wallet_transactions')->count());
+    }
+
+    public function test_late_completion_and_legacy_import_never_earn_rewards(): void
+    {
+        $this->enableRewards();
+        $response = app(CustomerController::class)->storeLoanInstallmentPayment($this->request(904500, '2026-08-02'), $this->customer, $this->file, $this->installment);
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame(0, DB::table('installment_wallet_rewards')->count());
+        $this->installment->payments()->update(['payment_method' => 'legacy_import', 'deposited_at' => '2026-08-01']);
+        app(LoanInstallmentPaidAmountSyncer::class)->syncFromPaymentRows($this->installment->fresh());
+        self::assertSame(0, DB::table('installment_wallet_rewards')->count());
+    }
+
+    public function test_spent_reward_blocks_receipt_deletion_and_rolls_back_all_financial_changes(): void
+    {
+        $this->enableRewards();
+        $controller = app(CustomerController::class);
+        $controller->storeLoanInstallmentPayment($this->request(900000, '2026-08-01'), $this->customer, $this->file, $this->installment);
+        $payment = $this->installment->payments()->firstOrFail();
+        $wallet = app(CustomerWalletService::class);
+        $wallet->adjust($this->customer, 'withdraw', 27000, 'Test spending', null, null, null);
+        try {
+            $controller->destroyLoanInstallmentPayment($this->customer, $this->file->fresh(), $this->installment->fresh(), $payment);
+            self::fail('Spent reward must block deletion.');
+        } catch (ValidationException $exception) {
+            self::assertArrayHasKey('reward', $exception->errors());
+        }
+        self::assertSame(1, $this->installment->payments()->count());
+        self::assertSame(900000, $this->installment->fresh()->paid_amount_toman);
+        self::assertSame(27000, (int) DB::table('installment_wallet_rewards')->value('credited_amount_toman'));
+        $wallet->adjust($this->customer, 'deposit', 27000, 'Test replenishment', null, null, null);
+        $controller->destroyLoanInstallmentPayment($this->customer, $this->file->fresh(), $this->installment->fresh(), $this->installment->payments()->firstOrFail());
+        self::assertSame(0, $this->installment->payments()->count());
+        self::assertSame(0, $this->customer->wallet()->firstOrFail()->balance_toman);
+        self::assertSame(0, (int) DB::table('installment_wallet_rewards')->value('credited_amount_toman'));
+    }
+
+    public function test_reward_from_wallet_payment_is_a_separate_credit_not_a_second_receipt(): void
+    {
+        Carbon::setTestNow('2026-08-01');
+        $this->enableRewards();
+        CustomerWallet::create(['customer_id' => $this->customer->id, 'balance_toman' => 900000, 'is_locked' => false]);
+        $result = app(PortalLoanWalletPaymentService::class)->payInstallmentFromWallet($this->customer, $this->installment->id, '55555555-5555-4555-8555-555555555555');
+        self::assertTrue($result['ok'], $result['message']);
+        self::assertSame(27000, $this->customer->wallet()->firstOrFail()->balance_toman);
+        self::assertSame(900000, $this->installment->payments()->sum('amount_toman'));
+        self::assertSame(1, $this->installment->payments()->count());
+        self::assertSame(2, DB::table('customer_wallet_transactions')->count());
+    }
+
+    public function test_reward_gateway_replay_and_sms_sync_cannot_credit_twice(): void
+    {
+        Carbon::setTestNow('2026-08-01');
+        $this->enableRewards();
+        Http::preventStrayRequests();
+        Http::fake(['gateway.zibal.ir/v1/verify' => Http::response(['result' => 100, 'amount' => 9000000, 'refNumber' => 'REWARD-TEST'])]);
+        $intent = CustomerLoanInstallmentOnlinePaymentIntent::create([
+            'customer_id' => $this->customer->id, 'customer_loan_installment_id' => $this->installment->id,
+            'expected_amount_toman' => 900000, 'expected_amount_rial' => 9000000, 'track_id' => 456789,
+            'status' => 'redirected', 'gateway_key' => 'zibal',
+        ]);
+        $service = app(InstallmentOnlinePaymentCompletionService::class);
+        $finalize = new \ReflectionMethod($service, 'finalizeInstallmentIntent');
+        DB::transaction(fn () => $finalize->invoke($service, $intent, 'test-merchant', 456789));
+        DB::transaction(fn () => $finalize->invoke($service, $intent->fresh(), 'test-merchant', 456789));
+        app(LoanInstallmentPaidAmountSyncer::class)->syncFromPaymentRows($this->installment->fresh(), false);
+        self::assertSame(27000, $this->customer->wallet()->firstOrFail()->balance_toman);
+        self::assertSame(1, DB::table('customer_wallet_transactions')->count());
+        Http::assertSentCount(1);
+    }
+
+    public function test_disabling_rewards_preserves_existing_credit_but_receipt_changes_still_reverse_it(): void
+    {
+        $this->enableRewards();
+        $controller = app(CustomerController::class);
+        $controller->storeLoanInstallmentPayment($this->request(900000, '2026-08-01'), $this->customer, $this->file, $this->installment);
+        app(InstallmentWalletRewardService::class)->saveSettings($this->customer, false, 3);
+        self::assertSame(27000, $this->customer->wallet()->firstOrFail()->balance_toman);
+        $controller->destroyAllLoanInstallmentPayments($this->customer, $this->file->fresh(), $this->installment->fresh());
+        self::assertSame(0, $this->customer->wallet()->firstOrFail()->balance_toman);
+        self::assertSame(2, DB::table('customer_wallet_transactions')->count());
+    }
+
+    public function test_reward_is_reversed_when_a_full_receipt_is_edited_to_partial(): void
+    {
+        $this->enableRewards();
+        $controller = app(CustomerController::class);
+        $controller->storeLoanInstallmentPayment($this->request(900000, '2026-08-01'), $this->customer, $this->file, $this->installment);
+        $payment = $this->installment->payments()->firstOrFail();
+        $response = $controller->updateLoanInstallmentPayment($this->request(450000, '2026-08-01'), $this->customer, $this->file->fresh(), $this->installment->fresh(), $payment);
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame(0, $this->customer->wallet()->firstOrFail()->balance_toman);
+        self::assertSame(450000, $payment->fresh()->amount_toman);
+        self::assertSame(0, (int) DB::table('installment_wallet_rewards')->value('credited_amount_toman'));
+    }
+
+    public function test_reward_for_early_full_settlement_uses_nominal_installment_not_discounted_cash(): void
+    {
+        Carbon::setTestNow('2026-07-22');
+        $this->file->update(['daily_early_coefficient' => 0.01]);
+        $this->enableRewards();
+        $service = app(AdminCustomerSettleAllLoansService::class);
+        $result = $service->settle($this->customer, 'cash', Carbon::today(), null, (int) auth('admin')->id());
+        self::assertTrue($result['ok'], $result['message']);
+        self::assertSame(810000, $this->installment->payments()->sum('amount_toman'));
+        self::assertSame(27000, $this->customer->wallet()->firstOrFail()->balance_toman);
     }
 
     private function snapshot(): array

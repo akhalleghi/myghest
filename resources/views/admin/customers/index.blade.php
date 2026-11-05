@@ -3492,6 +3492,16 @@
                                 <span class="loan-manage-pill-label">وضعیت خوش حسابی:</span>
                                 <span class="loan-manage-pill-value" id="loan-manage-credit-status">در حال ارزیابی</span>
                             </div>
+                            <div class="loan-manage-pill" style="flex-wrap:wrap;gap:.45rem" title="یک‌بار برای هر قسط پس از تسویه کامل تا سررسید؛ پرداخت‌های قبلی مشمول نمی‌شوند.">
+                                <label class="loan-manage-sms-toggle" for="loan-reward-enabled">
+                                    <input type="checkbox" id="loan-reward-enabled" disabled>
+                                    <span class="loan-manage-sms-toggle__ui" aria-hidden="true"></span>
+                                    <span class="loan-manage-sms-toggle__text">پاداش خوش‌حسابی</span>
+                                </label>
+                                <label>درصد اصل قسط <input id="loan-reward-percent" type="number" min="0.01" max="100" step="0.01" value="3" disabled style="width:4.5rem"></label>
+                                <button type="button" id="loan-reward-save" class="cust-submit" disabled>ذخیره پاداش</button>
+                                <small id="loan-reward-status" aria-live="polite">پیش‌فرض غیرفعال</small>
+                            </div>
                             <button type="button" class="loan-manage-pill" id="loan-manage-open-wallet">
                                 <i class="fa-solid fa-wallet loan-manage-pill-ico" aria-hidden="true"></i>
                                 <span class="loan-manage-pill-label">اعتبار کیف پول:</span>
@@ -6561,6 +6571,7 @@
             }
 
             function loanInstPayRefreshAfterMutation(cidPay, lfPay, insPay, successMsg) {
+                if (String(cidPay) === String(loanManageCurrentCustomerId)) loadLoanManageWalletSummary(cidPay);
                 return fetch(customerLoanInstallmentPaymentsUrl(cidPay, lfPay, insPay), {
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     credentials: 'same-origin'
@@ -9015,6 +9026,70 @@
                 }).catch(function () { /* noop */ });
             }
 
+            var rewardRequestVersion = 0;
+            function loadLoanRewardSettings(customerId) {
+                var version = ++rewardRequestVersion;
+                var enabled = document.getElementById('loan-reward-enabled');
+                var percent = document.getElementById('loan-reward-percent');
+                var save = document.getElementById('loan-reward-save');
+                var status = document.getElementById('loan-reward-status');
+                if (!enabled || !percent || !save || !status) return;
+                enabled.checked = false;
+                percent.value = '3';
+                enabled.disabled = percent.disabled = save.disabled = true;
+                status.textContent = 'در حال دریافت تنظیمات…';
+                fetch(custListBaseUrl + '/' + encodeURIComponent(customerId) + '/installment-reward', {
+                    headers: { 'Accept': 'application/json' }, credentials: 'same-origin'
+                }).then(function (response) {
+                    if (!response.ok) throw new Error('تنظیم پاداش نیازمند مجوز مدیریت کیف پول است.');
+                    return response.json();
+                }).then(function (data) {
+                    if (version !== rewardRequestVersion || String(customerId) !== String(loanManageCurrentCustomerId)) return;
+                    enabled.checked = !!data.enabled;
+                    percent.value = String(data.percent);
+                    enabled.disabled = percent.disabled = save.disabled = false;
+                    status.textContent = data.enabled ? 'فعال؛ یک‌بار پس از تسویه به‌موقع' : 'غیرفعال';
+                }).catch(function (error) {
+                    if (version === rewardRequestVersion) status.textContent = error.message;
+                });
+            }
+            var loanRewardSave = document.getElementById('loan-reward-save');
+            if (loanRewardSave) loanRewardSave.addEventListener('click', function () {
+                var cid = loanManageCurrentCustomerId;
+                var enabled = document.getElementById('loan-reward-enabled');
+                var percent = document.getElementById('loan-reward-percent');
+                var status = document.getElementById('loan-reward-status');
+                var rate = Number(percent.value);
+                if (!cid || loanRewardSave.disabled) return;
+                if (!Number.isFinite(rate) || rate <= 0 || rate > 100) {
+                    status.textContent = 'درصد باید بیشتر از صفر و حداکثر ۱۰۰ باشد.';
+                    return;
+                }
+                loanRewardSave.disabled = enabled.disabled = percent.disabled = true;
+                fetch(custListBaseUrl + '/' + encodeURIComponent(cid) + '/installment-reward', {
+                    method: 'PUT', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': @json(csrf_token()) },
+                    body: JSON.stringify({ enabled: enabled.checked, percent: rate })
+                }).then(function (response) {
+                    return response.json().then(function (data) {
+                        if (!response.ok) throw new Error(data.message || 'ذخیره پاداش ناموفق بود.');
+                        return data;
+                    });
+                }).then(function (data) {
+                    if (String(cid) === String(loanManageCurrentCustomerId)) {
+                        status.textContent = data.message;
+                        if (window.AdminSwal && AdminSwal.success) AdminSwal.success(data.message);
+                    }
+                }).catch(function (error) {
+                    if (String(cid) === String(loanManageCurrentCustomerId)) {
+                        status.textContent = error.message;
+                        if (window.AdminSwal && AdminSwal.error) AdminSwal.error(error.message);
+                    }
+                }).finally(function () {
+                    if (String(cid) === String(loanManageCurrentCustomerId)) loadLoanRewardSettings(cid);
+                });
+            });
+
             function saveLoanManageSmsEnabled(enabled) {
                 if (!loanManageCurrentCustomerId || loanManageSmsSaving) return;
                 loanManageSmsSaving = true;
@@ -9074,6 +9149,7 @@
                     loanManageCreditStatusView.classList.remove('loan-manage-pill-value--good', 'loan-manage-pill-value--normal', 'loan-manage-pill-value--weak');
                 }
                 loadLoanManageSmsEnabledState(loanManageCurrentCustomerId);
+                loadLoanRewardSettings(loanManageCurrentCustomerId);
                 loadLoanManageWalletSummary(loanManageCurrentCustomerId);
                 setLoanManageCreditEditOpen(false);
                 syncLoanManagePurchaseCreditUi(loanManageCurrentCustomerId);

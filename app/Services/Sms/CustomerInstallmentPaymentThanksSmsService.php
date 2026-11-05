@@ -82,7 +82,7 @@ final class CustomerInstallmentPaymentThanksSmsService
         }
 
         // اطمینان از هم‌خوانی مبلغ پرداخت‌شدهٔ قسط قبل از ساخت متغیرهای قالب
-        $this->paidAmountSyncer->syncFromPaymentRows($installment);
+        $this->paidAmountSyncer->syncFromPaymentRows($installment, false);
         $installment->refresh();
         $loanFile->refresh();
         $loanFile->load(['loanType', 'installments']);

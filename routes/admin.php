@@ -4,30 +4,31 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Admin\AdminCustomerLoanRequestController;
 use App\Http\Controllers\Admin\AdminCustomerLoginReportController;
-use App\Http\Controllers\Admin\AdminCustomerTransactionController;
-use App\Http\Controllers\Admin\AdminDepositDeclarationController;
-use App\Http\Controllers\Admin\AdminLoanRequestStatusDefinitionController;
-use App\Http\Controllers\Admin\AdminReportsController;
-use App\Http\Controllers\Admin\AdminNotificationController;
-use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\AdminCustomerNoteController;
 use App\Http\Controllers\Admin\AdminCustomerSupportTicketController;
-use App\Http\Controllers\Admin\AdminSupportTicketController;
-use App\Http\Controllers\Admin\AdminInternalTicketController;
+use App\Http\Controllers\Admin\AdminCustomerTransactionController;
 use App\Http\Controllers\Admin\AdminDatabaseBackupController;
+use App\Http\Controllers\Admin\AdminDepositDeclarationController;
+use App\Http\Controllers\Admin\AdminInternalTicketController;
+use App\Http\Controllers\Admin\AdminLoanRequestStatusDefinitionController;
+use App\Http\Controllers\Admin\AdminNotificationController;
+use App\Http\Controllers\Admin\AdminReportsController;
+use App\Http\Controllers\Admin\AdminSupportTicketController;
+use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AppSettingsController;
-use App\Http\Controllers\Admin\LoginBackgroundSettingsController;
 use App\Http\Controllers\Admin\Auth\AdminCaptchaController;
 use App\Http\Controllers\Admin\Auth\AdminDashboardController;
 use App\Http\Controllers\Admin\Auth\AdminLoginController;
 use App\Http\Controllers\Admin\Auth\AdminLoginTwoFactorController;
-use App\Http\Controllers\Admin\AdminCustomerNoteController;
 use App\Http\Controllers\Admin\CustomerController;
+use App\Http\Controllers\Admin\CustomerInstallmentRewardController;
 use App\Http\Controllers\Admin\CustomerMediaController;
 use App\Http\Controllers\Admin\CustomerWalletController;
 use App\Http\Controllers\Admin\GuaranteeReturnOtpController;
 use App\Http\Controllers\Admin\GuarantorOtpController;
 use App\Http\Controllers\Admin\LoanCreationOtpController;
 use App\Http\Controllers\Admin\LoanTypeController;
+use App\Http\Controllers\Admin\LoginBackgroundSettingsController;
 use App\Http\Controllers\Admin\OrganizationController;
 use App\Http\Controllers\Admin\SmsManagementController;
 use Illuminate\Support\Facades\Route;
@@ -488,6 +489,9 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
     Route::put('/customers/{customer}/sms-sending', [CustomerController::class, 'updateSmsSendingEnabled'])
         ->middleware('throttle:30,1')
         ->name('customers.sms-sending');
+
+    Route::match(['GET', 'PUT'], '/customers/{customer}/installment-reward', CustomerInstallmentRewardController::class)
+        ->middleware('throttle:30,1')->name('customers.installment-reward');
 
     Route::put('/customers/{customer}', [CustomerController::class, 'update'])
         ->middleware('throttle:20,1')

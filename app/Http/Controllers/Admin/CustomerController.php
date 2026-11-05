@@ -27,11 +27,13 @@ use App\Services\Customers\CustomerCodeGenerator;
 use App\Services\Customers\CustomerMediaService;
 use App\Services\Loans\LoanFileFinanceCalculator;
 use App\Services\Loans\LoanInstallmentAmountAllocator;
+use App\Services\Loans\LoanInstallmentPaidAmountSyncer;
 use App\Services\Loans\LoanInstallmentScheduleService;
 use App\Services\Sms\CustomerSmsCredentialVariables;
 use App\Services\Sms\SmsPanelManager;
 use App\Services\Sms\SmsSettingsService;
 use App\Services\Sms\SmsTemplateRenderer;
+use App\Services\Wallet\InstallmentWalletRewardService;
 use App\Support\GuaranteeReturnOtpSettings;
 use App\Support\InstallmentBookletPrintSettings;
 use App\Support\ListPerPage;
@@ -1398,6 +1400,7 @@ final class CustomerController extends Controller
                 $loanFile->refresh();
                 $loanFile->load(['loanType', 'installments']);
                 $this->assertAndApplyLoanDiscountAmount($loanFile, $discountAmount, $discountMeta);
+                app(InstallmentWalletRewardService::class)->reconcileLoan($loanFile);
             });
         } catch (ValidationException $e) {
             $firstMessage = collect($e->errors())->flatten()->first();
@@ -1446,7 +1449,10 @@ final class CustomerController extends Controller
         ]);
 
         $loanCode = (string) $loanFile->loan_code;
-        DB::transaction(fn () => $loanFile->delete());
+        DB::transaction(function () use ($loanFile): void {
+            app(InstallmentWalletRewardService::class)->reverseLoan($loanFile);
+            $loanFile->delete();
+        });
 
         return response()->json([
             'message' => 'پرونده وام '.$loanCode.' حذف شد.',
@@ -1469,6 +1475,7 @@ final class CustomerController extends Controller
         }
 
         DB::transaction(function () use ($loanFile, $adminId): void {
+            app(InstallmentWalletRewardService::class)->reverseLoan($loanFile);
             CustomerLoanInstallment::query()->where('customer_loan_file_id', $loanFile->id)->delete();
             $loanFile->update([
                 'revoked_at' => now(),
@@ -1748,10 +1755,13 @@ final class CustomerController extends Controller
             return response()->json(['message' => 'تاریخ سررسید معتبر نیست. فرمت صحیح: ۱۴۰۳/۰۶/۱۵'], 422);
         }
 
-        $installment->amount_toman = $amount;
-        $installment->due_date = $dueCarbon->startOfDay()->format('Y-m-d');
-        $installment->recorded_by_label = 'مدیر صندوق';
-        $installment->save();
+        DB::transaction(function () use ($installment, $amount, $dueCarbon): void {
+            $installment->amount_toman = $amount;
+            $installment->due_date = $dueCarbon->startOfDay()->format('Y-m-d');
+            $installment->recorded_by_label = 'مدیر صندوق';
+            $installment->save();
+            app(InstallmentWalletRewardService::class)->reconcile($installment, false);
+        });
 
         $installment->refresh();
         $installment->load('recordedByAdmin');
@@ -2400,6 +2410,7 @@ final class CustomerController extends Controller
                     'discount_updated_at' => now(),
                     'discount_updated_by_admin_id' => (int) $adminId,
                 ]);
+                app(InstallmentWalletRewardService::class)->reconcileLoan($loanFile);
             });
         } catch (ValidationException $e) {
             return response()->json([
@@ -5842,22 +5853,9 @@ final class CustomerController extends Controller
         ]);
     }
 
-    private function resyncInstallmentPaidTotalsFromPayments(CustomerLoanInstallment $installment): void
+    private function resyncInstallmentPaidTotalsFromPayments(CustomerLoanInstallment $installment, bool $allowReward = true): void
     {
-        $sum = (int) CustomerLoanInstallmentPayment::query()
-            ->where('customer_loan_installment_id', (int) $installment->id)
-            ->sum('amount_toman');
-        $installment->paid_amount_toman = $sum;
-        $maxDep = CustomerLoanInstallmentPayment::query()
-            ->where('customer_loan_installment_id', (int) $installment->id)
-            ->max('deposited_at');
-        if ($sum > 0 && $maxDep !== null) {
-            $installment->paid_at = Carbon::parse((string) $maxDep)->startOfDay()->format('Y-m-d');
-        } else {
-            $installment->paid_at = null;
-        }
-
-        $installment->save();
+        app(LoanInstallmentPaidAmountSyncer::class)->syncFromPaymentRows($installment, $allowReward);
     }
 
     /** اگر قبل از وجود ردیف پرداخت جزئی، مبلغی روی خود قسط مانده باشد یک ردیف واحد برای سازگاری با گزارش‌ها می‌سازد. */
@@ -5894,7 +5892,7 @@ final class CustomerController extends Controller
                 'recorded_by_admin_id' => null,
             ]);
             $fresh->refresh();
-            $this->resyncInstallmentPaidTotalsFromPayments($fresh);
+            $this->resyncInstallmentPaidTotalsFromPayments($fresh, false);
         });
         $installment->refresh();
     }

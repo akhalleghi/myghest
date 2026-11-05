@@ -60,13 +60,14 @@ final class CustomerWalletService
         ?string $ipAddress,
         ?string $userAgent,
         ?string $requestUuid = null,
-        ?array $meta = null
+        ?array $meta = null,
+        bool $allowLockedDeposit = false
     ): array {
         if ($amountToman <= 0) {
             throw new RuntimeException('مبلغ تراکنش باید بیشتر از صفر باشد.');
         }
 
-        return DB::transaction(function () use ($customer, $direction, $amountToman, $description, $adminId, $ipAddress, $userAgent, $requestUuid, $meta): array {
+        return DB::transaction(function () use ($customer, $direction, $amountToman, $description, $adminId, $ipAddress, $userAgent, $requestUuid, $meta, $allowLockedDeposit): array {
             if ($requestUuid !== null && $requestUuid !== '') {
                 /** @var CustomerWalletTransaction|null $existingTx */
                 $existingTx = CustomerWalletTransaction::query()
@@ -91,7 +92,7 @@ final class CustomerWalletService
                 $wallet = CustomerWallet::query()->whereKey($wallet->id)->lockForUpdate()->firstOrFail();
             }
 
-            if ($wallet->is_locked) {
+            if ($wallet->is_locked && ! ($allowLockedDeposit && $direction === CustomerWalletTransaction::DIRECTION_DEPOSIT)) {
                 throw new RuntimeException('کیف پول قفل است و امکان ثبت تراکنش وجود ندارد.');
             }
 

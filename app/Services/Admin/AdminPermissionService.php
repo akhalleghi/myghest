@@ -33,6 +33,10 @@ final class AdminPermissionService
             return false;
         }
 
+        if ($routeName === 'admin.customers.installment-reward') {
+            return $this->canAccessRoute($admin, 'admin.customers.wallet.adjust');
+        }
+
         if (in_array($routeName, ['admin.customers.media.index', 'admin.customers.media.show'], true)) {
             return $this->canAccessRoute($admin, 'admin.customers.edit-data');
         }

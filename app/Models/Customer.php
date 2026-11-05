@@ -56,6 +56,9 @@ final class Customer extends Authenticatable
             'credentials_sms_sent_at' => 'datetime',
             'purchase_credit_ceiling_toman' => 'integer',
             'sms_sending_enabled' => 'boolean',
+            'installment_reward_enabled' => 'boolean',
+            'installment_reward_percent' => 'decimal:2',
+            'installment_reward_after_payment_id' => 'integer',
             'password' => 'hashed',
         ];
     }
