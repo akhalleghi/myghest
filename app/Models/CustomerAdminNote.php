@@ -13,6 +13,9 @@ final class CustomerAdminNote extends Model
         'customer_id',
         'admin_id',
         'body',
+        'loan_file_id',
+        'installment_id',
+        'scope_label',
     ];
 
     public function customer(): BelongsTo

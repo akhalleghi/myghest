@@ -18,13 +18,14 @@ final class CustomerAdminNoteService
     /**
      * @return list<array<string, mixed>>
      */
-    public function listForCustomer(Customer $customer, Admin $viewer): array
+    public function listForCustomer(Customer $customer, Admin $viewer, ?int $fileId = null, ?int $installmentId = null): array
     {
         $notes = CustomerAdminNote::query()
             ->where('customer_id', (int) $customer->id)
+            ->when($fileId, fn ($query) => $query->where('loan_file_id', $fileId))
+            ->when($installmentId, fn ($query) => $query->where('installment_id', $installmentId))
             ->with('admin')
             ->orderByDesc('id')
-            ->limit(200)
             ->get();
 
         return $notes->map(fn (CustomerAdminNote $note): array => $this->mapNote($note, $viewer))->all();
@@ -33,7 +34,7 @@ final class CustomerAdminNoteService
     /**
      * @return array<string, mixed>
      */
-    public function create(Customer $customer, Admin $admin, string $body): array
+    public function create(Customer $customer, Admin $admin, string $body, array $scope = []): array
     {
         $clean = $this->normalizeBody($body);
 
@@ -41,6 +42,7 @@ final class CustomerAdminNoteService
             'customer_id' => (int) $customer->id,
             'admin_id' => (int) $admin->id,
             'body' => $clean,
+            ...$scope,
         ]);
 
         $note->load('admin');
@@ -119,6 +121,7 @@ final class CustomerAdminNoteService
         return [
             'id' => (int) $note->id,
             'body' => (string) $note->body,
+            'scope_label' => (string) ($note->scope_label ?? 'یادداشت عمومی مشتری'),
             'author_name' => $authorName,
             'is_mine' => (int) $note->admin_id === (int) $viewer->id,
             'created_at_fa' => $this->formatDateTimeFa($createdAt),

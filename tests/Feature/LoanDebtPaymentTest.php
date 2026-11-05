@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Admin\AdminCustomerNoteController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Models\Admin;
 use App\Models\Customer;
+use App\Models\CustomerAdminNote;
 use App\Models\CustomerDepositDeclaration;
 use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanFullSettlementOnlinePaymentIntent;
@@ -21,6 +23,7 @@ use App\Services\Admin\Reports\LoanInterestFeesReportService;
 use App\Services\Admin\Reports\MemberLoansByDateReportService;
 use App\Services\Customers\AdminCustomerSettleAllLoansService;
 use App\Services\Customers\AdminCustomerSettleAllOverdueService;
+use App\Services\Customers\CustomerAdminNoteService;
 use App\Services\Deposits\DepositDeclarationAdminService;
 use App\Services\Deposits\DepositDeclarationUserService;
 use App\Services\Loans\CustomerLoanPortalPresenter;
@@ -34,6 +37,7 @@ use App\Services\Wallet\CustomerWalletService;
 use App\Services\Wallet\InstallmentWalletRewardService;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Bus;
@@ -167,6 +171,8 @@ final class LoanDebtPaymentTest extends TestCase
             '2026_05_13_120000_create_customer_loan_installment_online_payment_intents_table.php',
             '2026_05_15_100000_create_customer_loan_full_settlement_online_payment_intents_table.php',
             '2026_11_05_220000_add_installment_wallet_rewards.php',
+            '2026_07_17_140000_create_customer_admin_notes_table.php',
+            '2026_11_05_230000_add_note_scopes.php',
         ] as $migration) {
             (require database_path('migrations/'.$migration))->up();
         }
@@ -436,6 +442,27 @@ final class LoanDebtPaymentTest extends TestCase
         self::assertTrue($result['ok'], $result['message']);
         self::assertSame(810000, $this->installment->payments()->sum('amount_toman'));
         self::assertSame(27000, $this->customer->wallet()->firstOrFail()->balance_toman);
+    }
+
+    public function test_scoped_notes_aggregate_without_changing_legacy_notes_or_crossing_customers(): void
+    {
+        $service = app(CustomerAdminNoteService::class);
+        $controller = app(AdminCustomerNoteController::class);
+        $service->create($this->customer, auth('admin')->user(), 'Legacy general note');
+        $response = $controller->store(Request::create('/', 'POST', ['body' => 'Installment follow-up', 'loan_file_id' => $this->file->id, 'installment_id' => $this->installment->id]), $this->customer, $service);
+        self::assertSame(201, $response->getStatusCode());
+        self::assertStringContainsString('قسط 1', $response->getData(true)['note']['scope_label']);
+        self::assertCount(2, $service->listForCustomer($this->customer, auth('admin')->user()));
+        self::assertCount(1, $service->listForCustomer($this->customer, auth('admin')->user(), $this->file->id));
+        self::assertCount(1, $service->listForCustomer($this->customer, auth('admin')->user(), $this->file->id, $this->installment->id));
+        $other = Customer::create(['first_name' => 'Other', 'last_name' => 'Customer']);
+        self::assertCount(0, $service->listForCustomer($other, auth('admin')->user()));
+        try {
+            $controller->store(Request::create('/', 'POST', ['body' => 'Invalid scope', 'loan_file_id' => $this->file->id]), $other, $service);
+            self::fail('Cross-customer scope must be rejected.');
+        } catch (ModelNotFoundException) {
+            self::assertSame(2, CustomerAdminNote::count());
+        }
     }
 
     private function snapshot(): array

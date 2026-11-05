@@ -15,7 +15,7 @@ use Illuminate\Validation\ValidationException;
 
 final class AdminCustomerNoteController extends Controller
 {
-    public function index(Customer $customer, CustomerAdminNoteService $service): JsonResponse
+    public function index(Request $request, Customer $customer, CustomerAdminNoteService $service): JsonResponse
     {
         $admin = Auth::guard('admin')->user();
         if ($admin === null) {
@@ -28,7 +28,7 @@ final class AdminCustomerNoteController extends Controller
                 'name' => $customer->fullName(),
                 'mobile' => (string) ($customer->mobile ?? ''),
             ],
-            'notes' => $service->listForCustomer($customer, $admin),
+            'notes' => $service->listForCustomer($customer, $admin, ...$this->scopeIds($request, $customer)),
         ]);
     }
 
@@ -46,7 +46,14 @@ final class AdminCustomerNoteController extends Controller
         ]);
 
         try {
-            $note = $service->create($customer, $admin, (string) $validated['body']);
+            [$fileId, $installmentId] = $this->scopeIds($request, $customer);
+            $scope = [];
+            if ($fileId !== null) {
+                $file = $customer->loanFiles()->findOrFail($fileId);
+                $scope = ['loan_file_id' => $fileId, 'installment_id' => $installmentId,
+                    'scope_label' => 'پرونده '.$file->loan_code.($installmentId ? ' · قسط '.$file->installments()->findOrFail($installmentId)->sequence : '')];
+            }
+            $note = $service->create($customer, $admin, (string) $validated['body'], $scope);
         } catch (ValidationException $e) {
             return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422);
         }
@@ -86,6 +93,24 @@ final class AdminCustomerNoteController extends Controller
             'message' => 'یادداشت به‌روزرسانی شد.',
             'note' => $payload,
         ]);
+    }
+
+    private function scopeIds(Request $request, Customer $customer): array
+    {
+        $data = $request->validate(['loan_file_id' => ['nullable', 'integer', 'min:1'], 'installment_id' => ['nullable', 'integer', 'min:1']]);
+        $fileId = isset($data['loan_file_id']) ? (int) $data['loan_file_id'] : null;
+        $installmentId = isset($data['installment_id']) ? (int) $data['installment_id'] : null;
+        if ($installmentId && ! $fileId) {
+            abort(422, 'پرونده وام الزامی است.');
+        }
+        if ($fileId) {
+            $file = $customer->loanFiles()->findOrFail($fileId);
+            if ($installmentId) {
+                $file->installments()->findOrFail($installmentId);
+            }
+        }
+
+        return [$fileId, $installmentId];
     }
 
     public function destroy(

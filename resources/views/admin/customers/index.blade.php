@@ -800,6 +800,15 @@
         }
         .cust-ops-trigger:hover,
         .cust-ops-trigger:focus-visible { background: var(--primary-soft); border-color: rgba(37, 99, 235, 0.35); outline: none; }
+        .cust-notes-trigger,
+        .cust-ops > .cust-ops-trigger {
+            width: 2.25rem;
+            height: 2.1rem;
+            padding: 0;
+            justify-content: center;
+            vertical-align: middle;
+        }
+        .cust-notes-trigger { margin-inline-end: .25rem; }
         .cust-ops-menu {
             position: fixed; min-width: 10rem; z-index: 1500;
             border: 1px solid var(--border); border-radius: 0.6rem; background: var(--bg-card);
@@ -990,6 +999,7 @@
             display: grid; place-items: center; padding: 1rem;
         }
         .cust-overlay[hidden] { display: none !important; }
+        #cust-notes-overlay { z-index: 6500; }
         /* بالاتر از بقیهٔ overlayها (مدیریت وام، اقساط، تضامین، …) — همةٔ .cust-overlay فعلاً 1400‌اند و ترتیب DOM روی هم را تعیین می‌کند */
         #loan-instant-settlement-overlay {
             z-index: 5500;
@@ -2975,7 +2985,12 @@
                                     </div>
                                 </td>
                                 <td>
-                                    <div class="cust-ops" data-cust-ops>
+                                    @adminCan('customers.notes.view')
+                                                <button type="button" class="cust-ops-trigger cust-notes-trigger" title="یادداشت‌های مشتری" aria-label="یادداشت‌های مشتری" data-cust-notes data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}" data-customer-mobile="{{ $c->mobile }}">
+                                                    <i class="fa-solid fa-book" aria-hidden="true"></i>
+                                                </button>
+                                            @endadminCan
+<div class="cust-ops" data-cust-ops>
                                         <button
                                             type="button"
                                             class="cust-ops-trigger"
@@ -2995,12 +3010,7 @@
                                                 <i class="fa-solid fa-wallet" aria-hidden="true"></i>
                                                 کیف پول
                                             </button>
-                                            @adminCan('customers.notes.view')
-                                                <button type="button" class="cust-ops-item" data-cust-notes data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}" data-customer-mobile="{{ $c->mobile }}">
-                                                    <i class="fa-solid fa-book" aria-hidden="true"></i>
-                                                    یادداشت‌ها
-                                                </button>
-                                            @endadminCan
+
                                             <button type="button" class="cust-ops-item" data-cust-edit data-customer-id="{{ $c->id }}">
                                                 <i class="fa-regular fa-pen-to-square" aria-hidden="true"></i>
                                                 ویرایش
@@ -3458,6 +3468,7 @@
                         <button type="button" class="loan-tab-btn" id="loan-tab-sms" role="tab" aria-controls="loan-panel-sms" aria-selected="false" tabindex="-1" data-loan-tab="sms">پیامک‌ها</button>
                         <button type="button" class="loan-tab-btn" id="loan-tab-tickets" role="tab" aria-controls="loan-panel-tickets" aria-selected="false" tabindex="-1" data-loan-tab="tickets">تیکت‌ها</button>
                         <button type="button" class="loan-tab-btn" id="loan-tab-guarantees" role="tab" aria-controls="loan-panel-guarantees" aria-selected="false" tabindex="-1" data-loan-tab="guarantees">تضامین</button>
+ @adminCan('customers.notes.view')<button type="button" class="loan-tab-btn" data-loan-notes="customer">یادداشت کل مشتری</button>@endadminCan
                         <button type="button" class="loan-tab-btn" id="loan-tab-media" role="tab" aria-controls="loan-panel-media" aria-selected="false" tabindex="-1" data-loan-tab="media">تصاویر و مدارک</button>
                     </div>
                 </div>
@@ -3902,6 +3913,7 @@
                 <div>
                     <h2 id="loan-inst-title">اقساط و پرداخت</h2>
                     <p id="loan-inst-subtitle" class="loan-inst-modal-sub">در حال بارگذاری...</p>
+ @adminCan('customers.notes.view')<button type="button" class="cust-submit" data-loan-notes="file">یادداشت کل پرونده وام</button>@endadminCan
                 </div>
                 <button type="button" class="cust-modal-close" id="loan-inst-close" aria-label="بستن">&times;</button>
             </div>
@@ -6007,7 +6019,7 @@
                     return;
                 }
                 if (custNotesCurrentCustomerId) {
-                    syncCustomerListNotesFlag(custNotesCurrentCustomerId, Array.isArray(notes) && notes.length > 0);
+                    if (!custNotesScope.loan_file_id) syncCustomerListNotesFlag(custNotesCurrentCustomerId, Array.isArray(notes) && notes.length > 0);
                 }
                 if (!Array.isArray(notes) || !notes.length) {
                     custNotesList.innerHTML = '<p class="cust-notes-empty"><i class="fa-regular fa-note-sticky" aria-hidden="true"></i><br>هنوز یادداشتی ثبت نشده است.<br>اولین نتیجه پیگیری تلفنی یا یادداشت داخلی را اینجا بنویسید.</p>';
@@ -6032,19 +6044,21 @@
                         '<span class="cust-note-author"><i class="fa-solid fa-user-pen" aria-hidden="true"></i> ' + escapeHtmlText(note.author_name || 'ادمین') + (note.is_mine ? ' (شما)' : '') + '</span>' +
                         '<span>' + escapeHtmlText(note.created_at_fa || '') + edited + '</span>' +
                         '</div>' +
-                        '<p class="cust-note-body">' + escapeHtmlText(note.body || '') + '</p>' +
+                        '<div class="cust-notes-hint">' + escapeHtmlText(note.scope_label || 'یادداشت عمومی مشتری') + '</div>' + '<p class="cust-note-body">' + escapeHtmlText(note.body || '') + '</p>' +
                         actions +
                         '</article>';
                 }).join('');
             }
 
+            var custNotesLoadVersion = 0;
             function custNotesLoad(customerId) {
+                var version = ++custNotesLoadVersion;
                 if (!custNotesList || !customerId) {
                     return Promise.resolve();
                 }
                 custNotesSetLoading(true);
                 custNotesList.innerHTML = '<p class="cust-notes-empty">در حال بارگذاری یادداشت‌ها…</p>';
-                return fetch(custNotesIndexUrl(customerId), {
+                return fetch(custNotesIndexUrl(customerId) + '?' + new URLSearchParams(custNotesScope).toString(), {
                     headers: {
                         'Accept': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest'
@@ -6056,15 +6070,27 @@
                     }
                     return r.json();
                 }).then(function (data) {
+                    if (version !== custNotesLoadVersion || Number(customerId) !== Number(custNotesCurrentCustomerId)) return;
                     custNotesRenderList(data.notes || []);
                 }).catch(function () {
+                    if (version !== custNotesLoadVersion) return;
                     custNotesList.innerHTML = '<p class="cust-notes-empty">خطا در بارگذاری یادداشت‌ها.</p>';
                 }).finally(function () {
-                    custNotesSetLoading(false);
+                    if (version === custNotesLoadVersion) custNotesSetLoading(false);
                 });
             }
 
-            function openCustNotesModal(customerId, customerName, customerMobile) {
+            var custNotesScope = {};
+            document.addEventListener('click', function (event) {
+                var button = event.target.closest('[data-loan-notes]');
+                if (!button || !loanManageCurrentCustomerId) return;
+                var kind = button.getAttribute('data-loan-notes');
+                var scope = kind === 'customer' ? {} : {loan_file_id: loanInstActiveLoanFileId};
+                if (kind === 'installment') scope.installment_id = button.getAttribute('data-installment-id');
+                openCustNotesModal(loanManageCurrentCustomerId, loanManageCurrentCustomerName, loanManageCurrentCustomerMobile, scope);
+            });
+            function openCustNotesModal(customerId, customerName, customerMobile, scope) {
+                custNotesScope = scope || {};
                 if (!custNotesOverlay) {
                     return;
                 }
@@ -6073,7 +6099,8 @@
                 custNotesCurrentCustomerMobile = customerMobile || '';
                 custNotesResetCompose();
                 if (custNotesSubtitle) {
-                    custNotesSubtitle.textContent = 'یادداشت‌های داخلی «' + custNotesCustomerLabel(customerName, customerMobile) + '»';
+                    custNotesSubtitle.textContent = 'یادداشت‌های داخلی «' + custNotesCustomerLabel(customerName, customerMobile) + '»' +
+                        (custNotesScope.installment_id ? ' — قسط انتخاب‌شده' : (custNotesScope.loan_file_id ? ' — کل پرونده وام' : ' — کل مشتری و پرونده‌ها'));
                 }
                 custNotesOverlay.hidden = false;
                 custNotesOverlay.setAttribute('aria-hidden', 'false');
@@ -6082,6 +6109,7 @@
             }
 
             function closeCustNotesModal() {
+                ++custNotesLoadVersion;
                 if (!custNotesOverlay) {
                     return;
                 }
@@ -6118,7 +6146,7 @@
                         'X-Requested-With': 'XMLHttpRequest'
                     },
                     credentials: 'same-origin',
-                    body: JSON.stringify({ body: clean })
+                    body: JSON.stringify(Object.assign({ body: clean }, custNotesScope))
                 }).then(function (r) {
                     return r.json().then(function (data) {
                         if (!r.ok) {
@@ -7568,6 +7596,9 @@
                         '<td>' + escapeHtmlText(String(row.recorded_by || '—')) + '</td>' +
                         '<td class="loan-inst-td--sms">' + loanInstMakeSmsCell(row) + '</td>' +
                         '<td><div class="loan-inst-ops">' +
+                        @adminCan('customers.notes.view')
+                            '<button type="button" class="loan-inst-op-btn" data-loan-notes="installment" data-installment-id="' + Number(row.id) + '" title="یادداشت قسط" aria-label="یادداشت قسط"><i class="fa-regular fa-note-sticky" aria-hidden="true"></i></button>' +
+                        @endadminCan
                             '<button type="button" class="loan-inst-op-btn loan-inst-op-btn--danger"' + clearPayData + clearPayDisabled +
                             ' title="حذف واریزی‌های ثبت‌شده برای این قسط (خود قسط حذف نمی‌شود)" aria-label="حذف واریزی‌های این قسط">' +
                             '<i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>' +
