@@ -96,7 +96,7 @@ final class AdminDashboardStatisticsService
             $lateCoef = $file->dailyLateCoefficient();
             $earlyCoef = $file->dailyEarlyCoefficient();
             $lateFee = (int) $snapshot['late_fee_payable_toman'];
-            $earlyBenefit = $this->aggregateEarlyBenefitToman($file->installments, $earlyCoef);
+            $earlyBenefit = $snapshot['early_benefit_toman'];
             $discount = (int) ($file->discount_amount_toman ?? 0);
             $remainingAfterDiscount = $file->is_settled
                 ? 0
@@ -150,8 +150,8 @@ final class AdminDashboardStatisticsService
     private function buildCurrentMonthInstallmentStats(Carbon $today): int
     {
         $jNow = Jalali::instance($today);
-        $monthStart = Carbon::createFromTimestamp($jNow->clone()->startMonth()->getTimestamp())->startOfDay();
-        $monthEnd = Carbon::createFromTimestamp($jNow->clone()->endMonth()->getTimestamp())->endOfDay();
+        $monthStart = Carbon::createFromTimestamp($jNow->clone()->startMonth()->getTimestamp(), $today->getTimezone())->startOfDay();
+        $monthEnd = Carbon::createFromTimestamp($jNow->clone()->endMonth()->getTimestamp(), $today->getTimezone())->endOfDay();
 
         return (int) CustomerLoanInstallment::query()
             ->whereBetween('due_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
@@ -547,6 +547,7 @@ final class AdminDashboardStatisticsService
         $buckets = $this->lastTwelveJalaliMonthBuckets($today);
 
         $installmentValues = [];
+        $receiptCounts = [];
         $newLoanValues = [];
 
         foreach ($buckets as $bucket) {
@@ -555,23 +556,32 @@ final class AdminDashboardStatisticsService
             /** @var Carbon $end */
             $end = $bucket['end'];
 
-            $installmentValues[] = (int) CustomerLoanInstallmentPayment::query()
-                ->whereBetween('deposited_at', [$start->toDateString(), $end->toDateString()])
-                ->sum('amount_toman');
+            $receiptEnd = $end->min($today->copy()->endOfDay());
+            $receipts = CustomerLoanInstallmentPayment::query()
+                ->whereBetween('deposited_at', [$start->toDateTimeString(), $receiptEnd->toDateTimeString()])
+                ->selectRaw('COALESCE(SUM(amount_toman), 0) AS amount, COUNT(*) AS receipt_count')->first();
+            $installmentValues[] = (int) $receipts->amount;
+            $receiptCounts[] = (int) $receipts->receipt_count;
 
             $newLoanValues[] = (int) CustomerLoanFile::query()
                 ->whereNull('revoked_at')
-                ->whereBetween('loan_start_date', [$start->toDateString(), $end->toDateString()])
+                ->whereBetween('loan_start_date', [$start->toDateTimeString(), $end->toDateTimeString()])
                 ->sum('amount_toman');
         }
 
+        $installmentChart = $this->buildChartPayload(
+            $buckets,
+            $installmentValues,
+            '#0ea5e9',
+            'مجموع وصول واقعی اقساط در ماه (تومان)',
+        );
+        foreach ($installmentChart['series'] as $index => &$point) {
+            $point['receipt_count'] = $receiptCounts[$index];
+        }
+        unset($point);
+
         return [
-            'installments' => $this->buildChartPayload(
-                $buckets,
-                $installmentValues,
-                '#0ea5e9',
-                'مجموع وصول اقساط',
-            ),
+            'installments' => $installmentChart,
             'new_loans' => $this->buildChartPayload(
                 $buckets,
                 $newLoanValues,
@@ -616,8 +626,8 @@ final class AdminDashboardStatisticsService
 
         for ($i = 11; $i >= 0; $i--) {
             $j = $current->clone()->subMonths($i);
-            $start = Carbon::createFromTimestamp($j->clone()->startMonth()->getTimestamp())->startOfDay();
-            $end = Carbon::createFromTimestamp($j->clone()->endMonth()->getTimestamp())->endOfDay();
+            $start = Carbon::createFromTimestamp($j->clone()->startMonth()->getTimestamp(), $today->getTimezone())->startOfDay();
+            $end = Carbon::createFromTimestamp($j->clone()->endMonth()->getTimestamp(), $today->getTimezone())->endOfDay();
             $buckets[] = [
                 'label' => (string) $j->format('F'),
                 'period' => Jalali::enToFaNumbers((string) $j->format('F Y')),

@@ -238,7 +238,7 @@ final class ConvertLoanRequestToLoanFileService
                 'daily_early_coefficient' => $request->daily_early_coefficient,
                 'created_by_admin_id' => $adminId,
             ]);
-            $file->loan_code = 'LF-'.str_pad((string) $file->id, 7, '0', STR_PAD_LEFT);
+            $file->loan_code = $file->generatedLoanCode();
             $file->save();
 
             $this->scheduler->ensureSchedule($file);

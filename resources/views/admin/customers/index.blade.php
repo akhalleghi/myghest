@@ -3945,19 +3945,22 @@
                         <thead>
                             <tr>
                                 <th>شماره قسط</th>
-                                <th>مبلغ قسط</th>
                                 <th>تاریخ سررسید</th>
+                                <th>اصل قسط</th>
+                                <th>جریمه دیرکرد</th>
+                                <th>زودکرد</th>
+                                <th>مبلغ نهایی قسط</th>
                                 <th>مبلغ پرداختی</th>
                                 <th>مغایرت مبلغ</th>
                                 <th>تاریخ واریز</th>
-                                <th>دیرکرد / زودکرد</th>
+                                <th>وضعیت زمانی پرداخت</th>
                                 <th>ثبت توسط</th>
                                 <th>پیامک‌ها</th>
                                 <th class="loan-inst-th-ops">عملیات</th>
                             </tr>
                         </thead>
                         <tbody id="loan-inst-tbody">
-                            <tr><td colspan="10" class="loan-inst-empty">در حال بارگذاری...</td></tr>
+                            <tr><td colspan="13" class="loan-inst-empty">در حال بارگذاری...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -6683,6 +6686,7 @@
                         var balance = quote.balance || {};
                         quoteBox.textContent = 'در تاریخ واریز ' + date + ': ماندهٔ اصل ' + formatToman(balance.principal_remaining_toman || 0) +
                             ' تومان · دیرکرد پرداخت‌نشده ' + formatToman(balance.late_fee_remaining_toman || 0) +
+                            ' تومان · زودکرد ' + formatToman(balance.early_benefit_toman || 0) +
                             ' تومان · سقف مجاز ثبت ' + formatToman(quote.max_payment_toman || 0) + ' تومان' +
                             (loanInstPayEditingPaymentId ? ' (بدون احتساب واریزی در حال ویرایش)' : '');
                     }).catch(function (error) {
@@ -6721,7 +6725,9 @@
                     escapeHtmlText(formatToman(remInst) + ' تومان') + '</strong> · سقف مجاز این قسط <strong>' +
                     escapeHtmlText(formatToman(maxPayStep) + ' تومان') + '</strong> · دیرکرد محاسبه‌شده <strong>' +
                     escapeHtmlText(formatToman(insP.late_fee_assessed_toman || 0) + ' تومان') + '</strong> · دیرکرد پرداخت‌نشده <strong>' +
-                    escapeHtmlText(formatToman(insP.late_fee_remaining_toman || 0) + ' تومان') + '</strong> · محاسبه تا امروز' +
+                    escapeHtmlText(formatToman(insP.late_fee_remaining_toman || 0) + ' تومان') + '</strong> · زودکرد <strong>' +
+                    escapeHtmlText(formatToman(insP.early_benefit_toman || 0) + ' تومان') + '</strong> · مبلغ نهایی <strong>' +
+                    escapeHtmlText(formatToman(insP.final_amount_toman || 0) + ' تومان') + '</strong> · محاسبه تا امروز' +
                     (insP.requires_schedule_review || insP.has_contract_schedule_difference ? '<div role="note" style="margin-top:.4rem">' +
                         escapeHtmlText(loanScheduleReviewMessage(insP)) + '</div>' : '') +
                     '<div id="loan-inst-pay-date-preview" aria-live="polite" style="margin-top:.4rem"></div>';
@@ -7476,7 +7482,7 @@
                 if (loanInstSumEarly) loanInstSumEarly.textContent = formatToman(loan.early_benefit_toman || 0) + ' تومان';
                 if (!loanInstTbody) return;
                 if (!rows.length) {
-                    loanInstTbody.innerHTML = '<tr><td colspan="10" class="loan-inst-empty">اقساطی ثبت نشده است.</td></tr>';
+                    loanInstTbody.innerHTML = '<tr><td colspan="13" class="loan-inst-empty">اقساطی ثبت نشده است.</td></tr>';
                     return;
                 }
                 loanInstTbody.innerHTML = rows.map(function (row) {
@@ -7538,8 +7544,12 @@
                         '</span>';
                     return '<tr>' +
                         '<td>' + formatToman(row.sequence || 0) + '</td>' +
-                        '<td>' + escapeHtmlText(formatToman(row.amount_toman || 0) + ' تومان') + '</td>' +
                         '<td>' + escapeHtmlText(String(row.due_jdate_fa || row.due_jdate || '—')) + '</td>' +
+                        '<td>' + escapeHtmlText(formatToman(row.amount_toman || 0) + ' تومان') + '</td>' +
+                        '<td>' + escapeHtmlText(formatToman(row.late_fee_assessed_toman || 0) + ' تومان') + '</td>' +
+                        '<td>' + escapeHtmlText(formatToman(row.early_benefit_toman || 0) + ' تومان') + '</td>' +
+                        '<td><strong>' + escapeHtmlText(formatToman(row.final_amount_toman || 0) + ' تومان') + '</strong>' +
+                        (row.discount_applied_toman > 0 ? '<small style="display:block">تخفیف جداگانه: ' + escapeHtmlText(formatToman(row.discount_applied_toman)) + ' تومان</small>' : '') + '</td>' +
                         '<td>' + paidCell + '</td>' +
                         '<td>' + mismatchCell + '</td>' +
                         '<td>' + escapeHtmlText(paidDate) + '</td>' +
@@ -7570,7 +7580,7 @@
                 }
                 if (loanInstSummary) loanInstSummary.hidden = true;
                 if (loanInstTbody) {
-                    loanInstTbody.innerHTML = '<tr><td colspan="10" class="loan-inst-empty">در حال بارگذاری...</td></tr>';
+                    loanInstTbody.innerHTML = '<tr><td colspan="13" class="loan-inst-empty">در حال بارگذاری...</td></tr>';
                 }
                 fetch(customerLoanInstallmentsUrl(loanManageCurrentCustomerId, loanFileId), {
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -7588,7 +7598,7 @@
                             : 'خطا در دریافت اقساط';
                     }
                     if (loanInstTbody) {
-                        loanInstTbody.innerHTML = '<tr><td colspan="10" class="loan-inst-empty" style="color:#b91c1c">خطا در دریافت اقساط.</td></tr>';
+                        loanInstTbody.innerHTML = '<tr><td colspan="13" class="loan-inst-empty" style="color:#b91c1c">خطا در دریافت اقساط.</td></tr>';
                     }
                 });
             }

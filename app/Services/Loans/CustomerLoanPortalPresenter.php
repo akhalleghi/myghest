@@ -565,7 +565,7 @@ final class CustomerLoanPortalPresenter
         $walletPayEligible = $actionsEnabled && ! $priorNominalSlotUnpaid && $installmentPayCeilingToman > 0;
 
         $depositJalali = $this->resolveDepositDatesFa($inst);
-        $mismatch = $this->resolveInstallmentAmountMismatch($amount + $balance['late_fee_assessed_toman'] - (int) ($payableBalance['discount_applied_toman'] ?? 0), $paid);
+        $mismatch = $this->resolveInstallmentAmountMismatch($balance['final_amount_toman'] - (int) ($payableBalance['discount_applied_toman'] ?? 0), $paid);
 
         if ($slotRemaining <= 0 && $mismatch['kind'] === 'under') {
             $mismatch = ['kind' => 'none', 'diff_toman' => 0, 'label' => null];
@@ -634,6 +634,10 @@ final class CustomerLoanPortalPresenter
             'sequence_fa' => Jalali::enToFaNumbers((string) (int) $inst->sequence),
             'amount_toman' => $amount,
             'amount_fa' => $this->formatMoneyFa($amount),
+            'late_fee_assessed_toman' => $balance['late_fee_assessed_toman'],
+            'early_benefit_toman' => $balance['early_benefit_toman'],
+            'final_amount_toman' => $balance['final_amount_toman'],
+            'final_amount_fa' => $this->formatMoneyFa($balance['final_amount_toman']),
             'due_jalali' => $this->toJalaliFa($due),
             'paid_amount_toman' => $paid,
             'paid_fa' => $paid > 0 ? $this->formatMoneyFa($paid) : '—',

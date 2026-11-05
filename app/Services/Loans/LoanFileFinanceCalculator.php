@@ -85,7 +85,7 @@ final class LoanFileFinanceCalculator
         $coefficient = $file->dailyLateCoefficient();
         foreach ($file->installments as $installment) {
             $installment->setRelation('loanFile', $file);
-            $balance = app(InstallmentDebtCalculator::class)->balance($installment, $coefficient, $at, $excludePaymentId);
+            $balance = app(InstallmentDebtCalculator::class)->balance($installment, $coefficient, $at, $excludePaymentId, $file->dailyEarlyCoefficient());
             $balances[(int) $installment->id] = $balance;
             $principalPaid += $balance['principal_paid_toman'];
             $lateRemaining += $balance['late_fee_remaining_toman'];
@@ -145,6 +145,7 @@ final class LoanFileFinanceCalculator
             'remaining_signed_toman' => $closed ? 0 : $principalRemaining + $lateRemaining - $discount,
             'principal_payable_toman' => $principalPayable,
             'late_fee_payable_toman' => $latePayable,
+            'early_benefit_toman' => (int) collect($balances)->sum('early_benefit_toman'),
             'total_paid_toman' => $received,
             'paid_installments_count' => $remaining === 0 && ! $requiresReview ? $periodCount : $paidCount,
             'paid_installments_slot_count' => $paidCount,

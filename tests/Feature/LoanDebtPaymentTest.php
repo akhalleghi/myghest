@@ -15,6 +15,7 @@ use App\Models\CustomerLoanInstallmentOnlinePaymentIntent;
 use App\Models\CustomerWallet;
 use App\Models\LoanType;
 use App\Services\Admin\AdminDashboardStatisticsService;
+use App\Services\Admin\DashboardPlanningCharts;
 use App\Services\Admin\Reports\InstallmentDueDatesByDateReportService;
 use App\Services\Admin\Reports\LoanInterestFeesReportService;
 use App\Services\Admin\Reports\MemberLoansByDateReportService;
@@ -62,6 +63,7 @@ final class LoanDebtPaymentTest extends TestCase
         });
         Schema::create('customers', function (Blueprint $t): void {
             $t->id();
+            $t->date('membership_at')->nullable();
             $t->string('first_name');
             $t->string('last_name');
             $t->string('national_id')->nullable();
@@ -189,6 +191,108 @@ final class LoanDebtPaymentTest extends TestCase
     {
         return Request::create('/', 'POST', ['payment_method' => 'cash', 'amount_toman' => $amount,
             'deposited_jdate' => Jalali::instance(Carbon::parse($date))->format('Y/m/d')]);
+    }
+
+    public function test_early_payment_quote_and_receipt_close_the_same_net_debt_permanently(): void
+    {
+        Carbon::setTestNow('2026-07-22 12:00:00');
+        $this->file->update(['daily_early_coefficient' => 0.01]);
+        self::assertSame(810000, $this->snapshot()['remaining_amount_toman']);
+        $portal = app(CustomerLoanPortalPresenter::class)->forDashboard($this->customer)['loans'][0];
+        self::assertSame(810000, $portal['installments'][0]['final_amount_toman']);
+        self::assertSame(90000, $portal['installments'][0]['early_benefit_toman']);
+        self::assertSame(810000, app(InstallmentOnlinePaymentResolver::class)->resolveForCustomer($this->customer, $this->installment->id)['amount_toman']);
+        $response = app(CustomerController::class)->storeLoanInstallmentPayment($this->request(810000, '2026-07-22'), $this->customer, $this->file->fresh(), $this->installment);
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame(0, $response->getData(true)['installment']['remaining_toman']);
+        Carbon::setTestNow('2026-09-01');
+        self::assertSame(0, $this->snapshot()['remaining_amount_toman']);
+        self::assertSame(90000, $this->snapshot()['early_benefit_toman']);
+        self::assertTrue($this->snapshot()['settled_by_balance']);
+    }
+
+    public function test_partial_early_receipt_earns_only_its_share_and_remaining_principal_can_accrue_late_fees(): void
+    {
+        Carbon::setTestNow('2026-07-22');
+        $this->file->update(['daily_early_coefficient' => 0.01]);
+        $response = app(CustomerController::class)->storeLoanInstallmentPayment($this->request(405000, '2026-07-22'), $this->customer, $this->file->fresh(), $this->installment);
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame(405000, $this->snapshot()['remaining_amount_toman']);
+        Carbon::setTestNow('2026-08-11');
+        $snapshot = $this->snapshot();
+        self::assertSame(45000, $snapshot['early_benefit_toman']);
+        self::assertSame(22500, $snapshot['late_fee_payable_toman']);
+        self::assertSame(472500, $snapshot['remaining_amount_toman']);
+        self::assertSame(472500, array_sum(array_column($snapshot['installment_payables'], 'remaining_toman')));
+    }
+
+    public function test_early_rebate_and_manual_discount_are_applied_once_in_wallet_full_settlement(): void
+    {
+        Carbon::setTestNow('2026-07-22');
+        $this->file->update(['daily_early_coefficient' => 0.01, 'discount_amount_toman' => 10000]);
+        CustomerWallet::create(['customer_id' => $this->customer->id, 'balance_toman' => 900000, 'is_locked' => false]);
+        self::assertSame(800000, $this->snapshot()['remaining_amount_toman']);
+        $result = app(PortalLoanWalletPaymentService::class)->payFullSettlementFromWallet($this->customer, $this->file->id, '44444444-4444-4444-8444-444444444444');
+        self::assertTrue($result['ok'], $result['message']);
+        self::assertSame(800000, $this->installment->payments()->sum('amount_toman'));
+        self::assertTrue($this->file->fresh()->is_settled);
+        self::assertSame(0, $this->snapshot()['remaining_amount_toman']);
+    }
+
+    public function test_editing_or_deleting_an_early_receipt_recalculates_earned_rebate(): void
+    {
+        Carbon::setTestNow('2026-07-22');
+        $this->file->update(['daily_early_coefficient' => 0.01]);
+        $controller = app(CustomerController::class);
+        $controller->storeLoanInstallmentPayment($this->request(405000, '2026-07-22'), $this->customer, $this->file->fresh(), $this->installment);
+        Carbon::setTestNow('2026-08-11');
+        $payment = $this->installment->payments()->firstOrFail();
+        $response = $controller->updateLoanInstallmentPayment($this->request(427500, '2026-07-27'), $this->customer, $this->file->fresh(), $this->installment->fresh(), $payment);
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame(22500, $response->getData(true)['installment']['early_benefit_toman']);
+        self::assertSame(472500, $this->snapshot()['remaining_amount_toman']);
+        $controller->destroyLoanInstallmentPayment($this->customer, $this->file->fresh(), $this->installment->fresh(), $payment->fresh());
+        self::assertSame(0, $this->snapshot()['early_benefit_toman']);
+        self::assertSame(945000, $this->snapshot()['remaining_amount_toman']);
+    }
+
+    public function test_dashboard_collection_chart_uses_tehran_month_boundaries_and_actual_receipts_only(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-11-05 12:00:00', 'Asia/Tehran'));
+        foreach ([['2026-10-22', 15450000], ['2026-10-23', 1000000], ['2026-11-20', 3000000]] as [$date, $amount]) {
+            $this->installment->payments()->create(['payment_method' => 'cash', 'amount_toman' => $amount, 'deposited_at' => $date]);
+        }
+        // The installment total and nominal amount must not be counted again.
+        $this->installment->update(['paid_amount_toman' => 19450000]);
+        $service = app(AdminDashboardStatisticsService::class);
+        $buckets = (new \ReflectionMethod($service, 'lastTwelveJalaliMonthBuckets'))->invoke($service, Carbon::today());
+        self::assertSame('2026-10-23', $buckets[11]['start']->toDateString());
+        self::assertSame('2026-11-21', $buckets[11]['end']->toDateString());
+        $charts = (new \ReflectionMethod($service, 'buildTwelveMonthCharts'))->invoke($service, Carbon::today());
+        self::assertSame(1000000, $charts['installments']['series'][11]['value']);
+        self::assertSame(1, $charts['installments']['series'][11]['receipt_count']);
+        self::assertSame(15450000, $charts['installments']['series'][10]['value']);
+        self::assertSame(1, $charts['installments']['series'][10]['receipt_count']);
+    }
+
+    public function test_planning_charts_group_unpaid_debt_and_membership_by_tehran_calendar(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-11-05 12:00:00', 'Asia/Tehran'));
+        $this->customer->update(['membership_at' => '2026-10-23']);
+        $this->file->update(['daily_late_coefficient' => 0, 'installments_count' => 4]);
+        $this->installment->update(['due_date' => '2026-10-22']);
+        $this->file->installments()->create(['sequence' => 2, 'amount_toman' => 800000, 'due_date' => '2026-11-06']);
+        $this->file->installments()->create(['sequence' => 3, 'amount_toman' => 700000, 'due_date' => '2026-11-22']);
+        $this->file->installments()->create(['sequence' => 4, 'amount_toman' => 600000, 'due_date' => '2026-08-01']);
+        $charts = app(DashboardPlanningCharts::class)->build(Carbon::today());
+        self::assertCount(12, $charts['upcoming']['series']);
+        self::assertSame([900000, 800000, 700000], array_slice(array_column($charts['upcoming']['series'], 'value'), 0, 3));
+        self::assertSame(2400000, array_sum(array_column($charts['upcoming']['series'], 'value')));
+        self::assertSame(1, $charts['customers-monthly']['series'][11]['value']);
+        self::assertSame(1, $charts['customers-yearly']['series'][11]['value']);
+        self::assertSame(1500000, array_sum(array_column($charts['overdue']['monthly'], 'value')));
+        self::assertSame(1500000, array_sum(array_column($charts['overdue']['yearly'], 'value')));
+        self::assertSame(0, $charts['overdue']['monthly'][23]['value']);
     }
 
     private function snapshot(): array

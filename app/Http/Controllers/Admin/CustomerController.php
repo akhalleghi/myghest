@@ -1098,7 +1098,7 @@ final class CustomerController extends Controller
                     'daily_early_coefficient' => $dailyEarlyCoefficient,
                     'created_by_admin_id' => $adminId,
                 ]);
-                $file->loan_code = 'LF-'.str_pad((string) $file->id, 7, '0', STR_PAD_LEFT);
+                $file->loan_code = $file->generatedLoanCode();
                 $file->save();
                 app(LoanInstallmentScheduleService::class)->ensureSchedule($file, $equalInstallmentForSchedule);
 
@@ -4654,7 +4654,7 @@ final class CustomerController extends Controller
             'paid_installments_amount_toman' => $snap['total_paid_toman'],
             'discount_amount_toman' => $discount,
             'late_fee_so_far_toman' => $latePenalty,
-            'early_benefit_toman' => $this->aggregateEarlyBenefitToman($file->installments, $earlyCoef),
+            'early_benefit_toman' => $snap['early_benefit_toman'],
             'overdue_installments_total_toman' => $overdueTotal,
             'overdue_payable_toman' => $overduePayable,
             'schedule_remaining_before_discount_toman' => $scheduleRemaining,
@@ -4737,7 +4737,7 @@ final class CustomerController extends Controller
             'paid_installments_amount_toman' => (int) $snap['total_paid_toman'],
             'late_penalty_toman' => (int) $snap['late_fee_payable_toman'],
             'overdue_installments_total_toman' => $this->sumLoanFileOverdueUnpaidToman($loanFile),
-            'early_benefit_toman' => $this->aggregateEarlyBenefitToman($loanFile->installments, $earlyCoef),
+            'early_benefit_toman' => $snap['early_benefit_toman'],
         ];
     }
 
@@ -6016,7 +6016,7 @@ final class CustomerController extends Controller
             $earlyLate = ['kind' => 'late', 'label' => 'دیرکرد محاسبه‌شده: '.$this->formatBookletMoneyFa($balance['late_fee_assessed_toman']).' — پرداخت‌نشده: '.$this->formatBookletMoneyFa($balance['late_fee_remaining_toman'])];
         }
         $mismatch = $this->resolveInstallmentAmountMismatch(
-            (int) $i->amount_toman + $balance['late_fee_assessed_toman'] - $balance['discount_applied_toman'], $paidAmount,
+            $balance['final_amount_toman'] - $balance['discount_applied_toman'], $paidAmount,
         );
         if ($balance['remaining_toman'] <= 0 && $mismatch['kind'] === 'under') {
             $mismatch = ['kind' => 'none', 'diff_toman' => 0, 'label' => null];
@@ -6037,6 +6037,9 @@ final class CustomerController extends Controller
             'principal_remaining_toman' => $balance['principal_remaining_toman'],
             'late_fee_remaining_toman' => $balance['late_fee_remaining_toman'],
             'late_fee_assessed_toman' => $balance['late_fee_assessed_toman'],
+            'early_benefit_toman' => $balance['early_benefit_toman'],
+            'final_amount_toman' => $balance['final_amount_toman'],
+            'discount_applied_toman' => $balance['discount_applied_toman'],
             'late_fee_paid_toman' => $balance['late_fee_paid_toman'],
             'paid_at' => $paidAt ? $paidAt->format('Y-m-d') : null,
             'paid_jdate' => $paidJalali,
@@ -6486,7 +6489,7 @@ final class CustomerController extends Controller
         $profitMethodLabel = $profitMethod === LoanType::PROFIT_BANK ? 'بانکی (روز شمار)' : 'ماهانه (روز شمار)';
 
         if ($file->is_settled) {
-            $netObligationAfterDiscount = max(0, $totalRepayable + (int) $file->installments->sum(fn ($i) => $i->debtBalance()['late_fee_assessed_toman']) - $discountRegistered);
+            $netObligationAfterDiscount = max(0, (int) $file->installments->sum(fn ($i) => $i->debtBalance()['final_amount_toman']) - $discountRegistered);
             $creditor = max(0, $totalPaid - $netObligationAfterDiscount);
             if ($creditor > 0) {
                 return [
@@ -6545,7 +6548,7 @@ final class CustomerController extends Controller
         }
 
         if ($remainingAfterDiscount <= 0) {
-            $netObligationAfterDiscount = max(0, $totalRepayable + (int) $file->installments->sum(fn ($i) => $i->debtBalance()['late_fee_assessed_toman']) - $discountRegistered);
+            $netObligationAfterDiscount = max(0, (int) $file->installments->sum(fn ($i) => $i->debtBalance()['final_amount_toman']) - $discountRegistered);
             $creditor = max(0, $totalPaid - $netObligationAfterDiscount);
             $crossPayNote = $nominalRemainSum > 0 && $creditor <= 0;
 

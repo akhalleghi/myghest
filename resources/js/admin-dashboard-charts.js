@@ -242,7 +242,8 @@ function renderDashLineChart(host, config) {
             '<div class="dash-line-chart__tooltip-value">' +
             (c.point.valueLabel || formatNumberFa(c.point.value) + ' تومان') +
             '</div>' +
-            (title ? '<div class="dash-line-chart__tooltip-meta">' + title + '</div>' : '');
+            (title ? '<div class="dash-line-chart__tooltip-meta">' + title + '</div>' : '') +
+            (c.point.receipt_count != null ? '<div class="dash-line-chart__tooltip-meta">تعداد واریزی ثبت‌شده: ' + formatNumberFa(c.point.receipt_count) + '</div>' : '');
 
         tooltip.hidden = false;
 
@@ -290,7 +291,7 @@ function renderDashLineChart(host, config) {
     function indexFromClientX(clientX) {
         const rect = svg.getBoundingClientRect();
         const rel = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-        const xSvg = pad.left + rel * innerW;
+        const xSvg = rel * W;
         let best = 0;
         let bestDist = Infinity;
         coords.forEach((c, i) => {
@@ -365,6 +366,27 @@ function initAdminDashboardCharts() {
     if (loansHost && config.new_loans) {
         renderDashLineChart(loansHost, config.new_loans);
     }
+    Object.entries(config.extra || {}).forEach(([key, chart]) => {
+        const host = document.getElementById('dash-chart-' + key);
+        if (!host) return;
+        if (key !== 'overdue') {
+            renderDashLineChart(host, chart);
+            return;
+        }
+        const mode = document.getElementById('dash-overdue-mode');
+        const count = document.getElementById('dash-overdue-count');
+        const draw = () => {
+            const yearly = mode.value === 'yearly';
+            const options = yearly ? [5, 10, 12] : [6, 12, 24];
+            if (![...count.options].every((option, i) => Number(option.value) === options[i])) {
+                count.replaceChildren(...options.map((n) => new Option(formatNumberFa(n), String(n), false, n === 12)));
+            }
+            renderDashLineChart(host, { ...chart, series: chart[mode.value].slice(-Number(count.value)) });
+        };
+        mode.addEventListener('change', draw);
+        count.addEventListener('change', draw);
+        draw();
+    });
 }
 
 if (document.readyState === 'loading') {

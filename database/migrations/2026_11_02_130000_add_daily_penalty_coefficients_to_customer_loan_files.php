@@ -10,11 +10,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('customer_loan_files', function (Blueprint $table): void {
-            // A following migration captures legacy rates in these new contract fields.
-            $table->decimal('daily_late_coefficient', 12, 6)->nullable();
-            $table->decimal('daily_early_coefficient', 12, 6)->nullable();
-        });
+        // Also tolerate a partially applied schema restored from a backup.
+        foreach (['daily_late_coefficient', 'daily_early_coefficient'] as $column) {
+            if (! Schema::hasColumn('customer_loan_files', $column)) {
+                Schema::table('customer_loan_files', function (Blueprint $table) use ($column): void {
+                    $table->decimal($column, 12, 6)->nullable();
+                });
+            }
+        }
     }
 
     public function down(): void

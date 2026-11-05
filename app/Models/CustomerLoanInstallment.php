@@ -72,7 +72,9 @@ final class CustomerLoanInstallment extends Model
     {
         $dailyLateCoefficient ??= $this->loanFile?->dailyLateCoefficient() ?? 0;
 
-        return app(InstallmentDebtCalculator::class)->balance($this, $dailyLateCoefficient, $at);
+        $early = $this->customer_loan_file_id !== null ? ($this->loanFile?->dailyEarlyCoefficient() ?? 0) : 0;
+
+        return app(InstallmentDebtCalculator::class)->balance($this, $dailyLateCoefficient, $at, null, $early);
     }
 
     public function remainingDebtToman(): int

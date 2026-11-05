@@ -242,6 +242,10 @@
                                                     </span>
                                                 </div>
                                                 <div><span class="portal-inst__k">سررسید</span><span class="portal-inst__v">{{ $inst['due_jalali'] }}</span></div>
+                                                <div><span class="portal-inst__k">اصل قسط</span><span class="portal-inst__v">{{ $inst['amount_fa'] }}</span></div>
+                                                <div><span class="portal-inst__k">دیرکرد</span><span class="portal-inst__v">{{ number_format($inst['late_fee_assessed_toman'] ?? 0) }} تومان</span></div>
+                                                <div><span class="portal-inst__k">زودکرد</span><span class="portal-inst__v">{{ number_format($inst['early_benefit_toman'] ?? 0) }} تومان</span></div>
+                                                <div><span class="portal-inst__k">مبلغ نهایی قسط</span><span class="portal-inst__v">{{ $inst['final_amount_fa'] }}</span></div>
                                                 <div><span class="portal-inst__k">پرداختی</span><span class="portal-inst__v">{{ $inst['paid_fa'] }}</span></div>
                                                 <div><span class="portal-inst__k">تاریخ واریز</span><span class="portal-inst__v">{{ $inst['deposit_jalali'] }}</span></div>
                                             </div>

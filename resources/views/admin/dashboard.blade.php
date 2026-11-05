@@ -891,6 +891,7 @@
             </div>
             <div class="ch-b">
                 <div id="dash-chart-installments" class="dash-line-chart" aria-hidden="false"></div>
+                <p style="font-size:.75rem;color:var(--muted);margin:.5rem 0">هر نقطه، مجموع واریزی‌های ثبت‌شده در همان ماه شمسی است؛ ماه جاری تا امروز محاسبه می‌شود. واحد: تومان.</p>
             </div>
         </div>
         </div>
@@ -910,6 +911,36 @@
         @endif
     </div>
     @endif
+
+    <div class="charts-row">
+    @foreach(($additionalCharts ?? []) as $chartKey => $chart)
+        @if($dashCan($chart['widget_id']))
+        <div class="dash-widget" data-dash-widget="{{ $chart['widget_id'] }}" data-dash-title="{{ $chart['title'] }}" data-dash-group="charts">
+            <div class="chart-card">
+                <div class="ch-h" style="background:{{ $chart['color'] }}">{{ $chart['title'] }}</div>
+                <div class="ch-b">
+                    @if($chartKey === 'overdue')
+                    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
+                        <label>دوره <select id="dash-overdue-mode"><option value="monthly">ماهانه</option><option value="yearly">سالانه</option></select></label>
+                        <label>تعداد دوره <select id="dash-overdue-count"><option value="6">۶</option><option value="12" selected>۱۲</option><option value="24">۲۴</option></select></label>
+                    </div>
+                    @endif
+                    <div id="dash-chart-{{ $chartKey }}" class="dash-line-chart"></div>
+                    <p style="font-size:.75rem;color:var(--muted);margin:.5rem 0">
+                    @if($chartKey === 'upcoming')
+                        ماندهٔ فعلی پرداخت‌نشده بر اساس ماه سررسید، پس از تخفیف و با دیرکرد و زودکرد امروز؛ مبالغ آتی برآورد هستند. معوقات قدیمی‌تر از ماه قبل در این نمودار نیستند.
+                    @elseif($chartKey === 'overdue')
+                        ماندهٔ امروزِ اقساطی که سررسیدشان گذشته، بر اساس ماه یا سال سررسید؛ این نمودار بازسازی ماندهٔ تاریخی در پایان هر دوره نیست. واحد: تومان.
+                    @else
+                        تعداد مشتری بر اساس تاریخ عضویت؛ در صورت نبود آن، تاریخ ثبت در سامانه. دورهٔ جاری تا امروز محاسبه می‌شود.
+                    @endif
+                    </p>
+                </div>
+            </div>
+        </div>
+        @endif
+    @endforeach
+    </div>
 
     @auth('admin')
         <div id="dash-widget-overlay" class="dash-widget-overlay" hidden aria-hidden="true">
@@ -939,6 +970,7 @@
         {!! json_encode([
             'installments' => $installmentChart ?? ['series' => []],
             'new_loans' => $newLoansChart ?? ['series' => []],
+            'extra' => array_filter($additionalCharts ?? [], fn($chart) => $dashCan($chart['widget_id'])),
         ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!}
     </script>
 @endsection

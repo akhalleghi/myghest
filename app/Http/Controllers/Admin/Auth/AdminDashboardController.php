@@ -10,6 +10,8 @@ use App\Models\SmsLog;
 use App\Models\SmsPanelSetting;
 use App\Services\Admin\AdminDashboardStatisticsService;
 use App\Services\Admin\AdminPermissionService;
+use App\Services\Admin\DashboardPlanningCharts;
+use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
@@ -48,7 +50,7 @@ final class AdminDashboardController extends Controller
             $summaryCards[$index]['lines'] = [
                 [
                     'k' => 'ارسال موفق پیامک امروز',
-                    'v' => \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $smsDeliveredToday).' مورد',
+                    'v' => Jalali::enToFaNumbers((string) $smsDeliveredToday).' مورد',
                 ],
                 ['k' => 'وضعیت پنل پیامکی', 'v' => $smsPanelStatusLabel],
             ];
@@ -65,6 +67,7 @@ final class AdminDashboardController extends Controller
             'tables' => $dashboard['tables'],
             'installmentChart' => $dashboard['installmentChart'],
             'newLoansChart' => $dashboard['newLoansChart'],
+            'additionalCharts' => app(DashboardPlanningCharts::class)->build(now()->startOfDay()),
             'allowedDashboardWidgetIds' => $allowedWidgetIds,
         ]);
     }

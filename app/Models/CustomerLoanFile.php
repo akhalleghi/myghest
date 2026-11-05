@@ -10,6 +10,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class CustomerLoanFile extends Model
 {
+    /** New files use the database sequence; existing stored codes stay unchanged. */
+    public function generatedLoanCode(): string
+    {
+        if ($this->getKey() === null) {
+            throw new \LogicException('Save the loan file before generating its code.');
+        }
+
+        return 'DS '.$this->getKey();
+    }
+
     protected static function booted(): void
     {
         self::creating(function (self $file): void {
