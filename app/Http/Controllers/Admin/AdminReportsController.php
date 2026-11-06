@@ -10,6 +10,9 @@ use App\Models\CustomerLoanInstallmentPayment;
 use App\Services\Admin\AdminPermissionService;
 use App\Models\SmsTemplate;
 use App\Services\Admin\Reports\AdminActivityReportService;
+use App\Services\Admin\Reports\CustomerFinancialReportService;
+use App\Support\JalaliInputParser;
+use Illuminate\Validation\ValidationException;
 use App\Services\Admin\Reports\DepositsByDateReportService;
 use App\Services\Admin\Reports\InstallmentDueDatesByDateReportService;
 use App\Services\Admin\Reports\LoanGuaranteesReportService;
@@ -38,6 +41,7 @@ final class AdminReportsController extends Controller
         private readonly LoanInterestFeesReportService $loanInterestFees,
         private readonly AdminActivityReportService $adminActivity,
         private readonly AdminPermissionService $permissions,
+        private readonly CustomerFinancialReportService $customerFinancial,
     ) {}
 
     public function index(): View
@@ -48,6 +52,14 @@ final class AdminReportsController extends Controller
         $jToday = Jalali::instance($today);
 
         $reportCards = [
+                [
+                    'id' => 'customer-financial',
+                    'title' => 'گزارش جامع مالی مشتریان',
+                    'description' => 'فعالیت مالی مشتریان جدید و قدیمی در بازهٔ انتخابی، همراه با مانده بدهی، کیف پول و تضامین فعلی.',
+                    'icon' => 'fa-users',
+                    'accent' => '#0369a1',
+                    'enabled' => $this->permissions->canAccessUiCard($admin, 'reports', 'customer-financial'),
+                ],
                 [
                     'id' => 'member-loans-by-date',
                     'title' => 'وام‌های اعضا بر اساس تاریخ',
@@ -120,6 +132,7 @@ final class AdminReportsController extends Controller
 
         return view('admin.reports.index', [
             'pageTitle' => 'گزارش‌ها',
+            'customerFinancialColumns' => $this->customerFinancial->columns(),
             'defaultFromJdate' => Jalali::enToFaNumbers($jToday->clone()->startYear()->format('Y/m/d')),
             'defaultToJdate' => Jalali::enToFaNumbers($jToday->format('Y/m/d')),
             'quickSmsTemplates' => SmsTemplate::query()->orderBy('title')->get(['id', 'title']),
@@ -130,6 +143,63 @@ final class AdminReportsController extends Controller
             'adminActivityActionOptions' => $this->adminActivity->actionFilterOptions(),
             'reportCards' => $reportCards,
         ]);
+    }
+
+    public function customerFinancialData(Request $request): JsonResponse
+    {
+        $result = $this->customerFinancialResult($request);
+
+        return response()->json($result);
+    }
+
+    public function exportCustomerFinancialExcel(Request $request): StreamedResponse
+    {
+        $result = $this->customerFinancialResult($request);
+        $filename = 'customer-financial-'.now()->format('Ymd-His').'.xls';
+
+        return response()->streamDownload(function () use ($result): void {
+            $out = fopen('php://output', 'wb');
+            if (! is_resource($out)) {
+                return;
+            }
+            fwrite($out, "\xFF\xFE");
+            $this->writeExcelUnicodeRow($out, ['گزارش جامع مالی مشتریان', $result['meta']['from_jdate'], $result['meta']['to_jdate'], $result['meta']['group_label']]);
+            $this->writeExcelUnicodeRow($out, ['مبالغ وام، کارمزد و پرداخت مربوط به بازه است؛ مانده، تعداد وام جاری و تسویه‌شده، کیف پول و تضامین وضعیت فعلی هستند.']);
+            $this->writeExcelUnicodeRow($out, array_values($this->customerFinancial->columns()));
+            foreach ($result['rows'] as $row) {
+                $this->writeExcelUnicodeRow($out, $this->customerFinancial->excelDataRow($row));
+            }
+            $this->writeExcelUnicodeRow($out, $this->customerFinancial->excelDataRow(['customer_name' => 'جمع کل'] + $result['summary']));
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-16LE',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        ]);
+    }
+
+    private function customerFinancialResult(Request $request): array
+    {
+        $validated = $request->validate([
+            'from_jdate' => ['required', 'string', 'max:20'],
+            'to_jdate' => ['required', 'string', 'max:20'],
+            'group' => ['nullable', 'in:all,new,old'],
+            'q' => ['nullable', 'string', 'max:200'],
+        ]);
+        $from = JalaliInputParser::toCarbonDate($validated['from_jdate']);
+        $to = JalaliInputParser::toCarbonDate($validated['to_jdate']);
+        if ($from === null || $to === null || $from->gt($to)) {
+            throw ValidationException::withMessages(['from_jdate' => 'بازهٔ تاریخ معتبر وارد کنید؛ تاریخ شروع باید قبل یا برابر تاریخ پایان باشد.']);
+        }
+        $group = (string) ($validated['group'] ?? 'all');
+        $result = $this->customerFinancial->fetchResult($from, $to->endOfDay(), $group, trim((string) ($validated['q'] ?? '')));
+        $result['meta'] = [
+            'count' => count($result['rows']),
+            'from_jdate' => Jalali::instance($from)->format('Y/m/d'),
+            'to_jdate' => Jalali::instance($to)->format('Y/m/d'),
+            'group_label' => ['all' => 'همه مشتریان', 'new' => 'مشتریان جدید در بازه', 'old' => 'مشتریان عضو قبل از بازه'][$group],
+        ];
+
+        return $result;
     }
 
     public function memberLoansByDateData(Request $request): JsonResponse
@@ -844,6 +914,7 @@ final class AdminReportsController extends Controller
             $adminId,
             (string) ($validated['action'] ?? ''),
             trim((string) ($validated['q'] ?? '')),
+            null,
         );
 
         $filename = 'admin-activity-'
@@ -885,7 +956,7 @@ final class AdminReportsController extends Controller
     private function writeExcelUnicodeRow($out, array $cells): void
     {
         $cleanCells = array_map(static function (string $value): string {
-            return str_replace(["\t", "\r", "\n"], [' ', ' ', ' '], $value);
+            return \App\Support\ExcelUnicodeCell::clean($value);
         }, $cells);
 
         $line = implode("\t", $cleanCells)."\r\n";

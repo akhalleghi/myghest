@@ -31,7 +31,7 @@ final class MemberLoansByDateReportService
         if ($from === null || $to === null) {
             $today = Carbon::today();
             $jToday = Jalali::instance($today);
-            $from = Carbon::createFromTimestamp($jToday->clone()->startYear()->getTimestamp())->startOfDay();
+            $from = Carbon::createFromTimestamp($jToday->clone()->startYear()->getTimestamp(), $today->getTimezone())->startOfDay();
             $to = $today->copy()->endOfDay();
             $fromJdate = Jalali::instance($from)->format('Y/m/d');
             $toJdate = Jalali::instance($to)->format('Y/m/d');
@@ -148,6 +148,7 @@ final class MemberLoansByDateReportService
             'customer_mobile' => $customer !== null ? (string) $customer->mobile : '—',
             'principal_toman' => (int) $file->amount_toman,
             'total_repayable_toman' => $snap['debt_base_total_toman'],
+            'early_benefit_toman' => $snap['early_benefit_toman'],
             'installments_count' => (int) $file->installments_count,
             'installment_amount_toman' => (int) $file->installment_amount_toman,
             'loan_start_jdate' => $file->loan_start_date
@@ -194,6 +195,15 @@ final class MemberLoansByDateReportService
             'تأخیر',
             'تخفیف',
             'پیامک',
+            'شماره پرونده',
+            'نام مشتری',
+            'موبایل',
+            'کد ملی',
+            'اصل وام (تومان)',
+            'کل بازپرداخت اقساط (تومان)',
+            'تعداد اقساط معوق',
+            'دیرکرد پرداخت‌نشده (تومان)',
+            'زودکرد (تومان)',
         ];
     }
 
@@ -248,6 +258,15 @@ final class MemberLoansByDateReportService
             $delay,
             $discount > 0 ? $this->formatExportAmount($discount) : '',
             ! empty($row['sms_installment_id']) ? 'پ س م ت' : '',
+            (string) ($row['loan_code'] ?? ''),
+            (string) ($row['customer_name'] ?? ''),
+            (string) ($row['customer_mobile'] ?? ''),
+            (string) ($row['customer_national_id'] ?? ''),
+            (string) ($row['principal_toman'] ?? 0),
+            (string) ($row['total_repayable_toman'] ?? 0),
+            (string) ($row['overdue_installments_count'] ?? 0),
+            (string) ($row['late_fee_toman'] ?? 0),
+            (string) ($row['early_benefit_toman'] ?? 0),
         ];
     }
 

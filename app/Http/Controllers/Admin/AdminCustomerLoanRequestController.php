@@ -18,6 +18,7 @@ use App\Services\Loans\AdminCustomerLoanRequestUpdateService;
 use App\Services\Loans\AdminLoanRequestEditModalPresenter;
 use App\Services\Loans\ConvertLoanRequestToLoanFileService;
 use App\Services\Loans\LoanRequestDocumentAdminWriter;
+use App\Support\ExcelUnicodeCell;
 use App\Support\ListPerPage;
 use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
@@ -185,19 +186,22 @@ final class AdminCustomerLoanRequestController extends Controller
                 'نظر کارشناس',
                 'شماره تماس',
                 'شهر',
+                'تعداد اقساط',
+                'فاصله اقساط',
+                'نوع فاصله اقساط',
+                'نرخ بهره',
+                'ضریب دیرکرد',
+                'ضریب زودکرد',
+                'توضیحات درخواست',
+                'نظر قابل نمایش به مشتری',
+                'دریافت اصل مدارک',
+                'شناسه پرونده تبدیل‌شده',
             ]);
 
-            $this->buildFilteredQuery($filters, $restrictedCustomerId)
-                ->orderByDesc('submitted_at')
-                ->orderByDesc('id')
-                ->chunkById(200, function ($chunk) use ($out, $statusTitles): void {
-                    foreach ($chunk as $r) {
-                        if (! $r instanceof CustomerLoanRequest) {
-                            continue;
-                        }
-                        $this->writeExcelUnicodeRow($out, $this->buildExportCells($r, $statusTitles));
-                    }
-                });
+            foreach ($this->buildFilteredQuery($filters, $restrictedCustomerId)
+                ->orderByDesc('submitted_at')->orderByDesc('id')->lazy(200) as $r) {
+                $this->writeExcelUnicodeRow($out, $this->buildExportCells($r, $statusTitles));
+            }
 
             fclose($out);
         }, $filename, $headers);
@@ -359,12 +363,12 @@ final class AdminCustomerLoanRequestController extends Controller
                     continue;
                 }
                 $row = $this->mapStatusLogRow($log, $titles);
-                fputcsv($out, [
+                fputcsv($out, array_map([ExcelUnicodeCell::class, 'clean'], [
                     $row['user_label'],
                     $row['created_at_fa'],
                     $row['from_status_customer'],
                     $row['to_status_customer'],
-                ]);
+                ]));
             }
             fclose($out);
         }, $filename, [
@@ -848,7 +852,7 @@ final class AdminCustomerLoanRequestController extends Controller
     private function writeExcelUnicodeRow($out, array $cells): void
     {
         $cleanCells = array_map(static function (string $value): string {
-            return str_replace(["\t", "\r", "\n"], [' ', ' ', ' '], $value);
+            return ExcelUnicodeCell::clean($value);
         }, $cells);
 
         $line = implode("\t", $cleanCells)."\r\n";
@@ -907,6 +911,16 @@ final class AdminCustomerLoanRequestController extends Controller
             $expertNote !== '' ? $expertNote : '—',
             $mobile !== '' ? Jalali::enToFaNumbers($mobile) : '—',
             $city !== '' ? $city : '—',
+            (string) ($r->installments_count ?? ''),
+            (string) ($r->installment_interval_count ?? ''),
+            (string) ($r->installment_interval_unit ?? ''),
+            (string) ($r->interest_rate ?? ''),
+            (string) ($r->daily_late_coefficient ?? ''),
+            (string) ($r->daily_early_coefficient ?? ''),
+            (string) ($r->description ?? ''),
+            (string) ($r->expert_note_customer ?? ''),
+            (string) ($r->documents_physical_received ?? ''),
+            (string) ($r->customer_loan_file_id ?? ''),
         ];
     }
 

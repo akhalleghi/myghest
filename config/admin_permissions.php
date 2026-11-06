@@ -289,6 +289,9 @@ return [
             'label' => 'گزارش‌ها',
             'children' => [
                 ['key' => 'reports.view', 'label' => 'دسترسی به صفحه گزارش‌ها', 'routes' => ['admin.reports.index']],
+                ['key' => 'reports.customer_financial', 'label' => 'گزارش جامع مالی مشتریان', 'routes' => [
+                    'admin.reports.customer-financial.data', 'admin.reports.customer-financial.export-excel',
+                ]],
                 ['key' => 'reports.member_loans', 'label' => 'گزارش وام‌های اعضا', 'routes' => [
                     'admin.reports.member-loans-by-date.data', 'admin.reports.member-loans-by-date.export-excel',
                 ]],
@@ -432,6 +435,7 @@ return [
             'route' => 'admin.reports.index',
             'permission_prefix' => 'reports.',
             'cards' => [
+                'customer-financial' => ['permissions' => ['reports.customer_financial']],
                 'member-loans-by-date' => ['permissions' => ['reports.member_loans']],
                 'installment-due-by-date' => ['permissions' => ['reports.installment_due']],
                 'deposits-by-date' => ['permissions' => ['reports.deposits']],

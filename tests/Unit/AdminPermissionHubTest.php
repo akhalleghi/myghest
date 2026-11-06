@@ -29,6 +29,35 @@ final class AdminPermissionHubTest extends TestCase
         ]);
     }
 
+    public function test_customer_financial_report_renders_in_reports_page(): void
+    {
+        $admin = $this->makeAdmin();
+        $admin->update(['is_super_admin' => true]);
+        $this->actingAs($admin->fresh(), 'admin');
+        $html = app(\App\Http\Controllers\Admin\AdminReportsController::class)->index()->with('errors', new \Illuminate\Support\ViewErrorBag)->render();
+        $this->assertStringContainsString('data-rpt-open="customer-financial"', $html);
+        $this->assertStringContainsString('id="rpt-modal-customer-financial"', $html);
+        $this->assertStringContainsString('id="rpt-cf-form"', $html);
+        $this->assertStringContainsString('واریزی اقساط در بازه (تومان)', $html);
+    }
+
+    public function test_customer_financial_report_requires_its_own_permission(): void
+    {
+        $admin = $this->makeAdmin();
+        $service = app(AdminPermissionService::class);
+        $this->assertFalse($service->canAccessUiCard($admin, 'reports', 'customer-financial'));
+        $this->assertFalse($service->canAccessRoute($admin, 'admin.reports.customer-financial.data'));
+        $this->assertFalse($service->canAccessRoute($admin, 'admin.reports.customer-financial.export-excel'));
+        AdminPermissionGrant::query()->create([
+            'admin_id' => $admin->id, 'permission_key' => 'reports.customer_financial',
+        ]);
+        $admin = $admin->fresh();
+        $service = app(AdminPermissionService::class);
+        $this->assertTrue($service->canAccessUiCard($admin, 'reports', 'customer-financial'));
+        $this->assertTrue($service->canAccessRoute($admin, 'admin.reports.customer-financial.data'));
+        $this->assertTrue($service->canAccessRoute($admin, 'admin.reports.customer-financial.export-excel'));
+    }
+
     public function test_sms_settings_panel_grants_settings_tab_and_panel_feature(): void
     {
         $admin = $this->makeAdmin();

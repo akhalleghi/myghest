@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreLoanTypeRequest;
 use App\Http\Requests\Admin\UpdateLoanTypeRequest;
 use App\Models\LoanType;
+use App\Support\ExcelUnicodeCell;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
@@ -195,6 +196,8 @@ final class LoanTypeController extends Controller
                 'تعداد مدارک لازم',
                 'خلاصه مدارک لازم',
                 'تاریخ ایجاد',
+                'تنظیمات کامل بازپرداخت',
+                'مدارک و شرایط کامل',
             ]);
 
             foreach ($loanTypes as $lt) {
@@ -243,6 +246,8 @@ final class LoanTypeController extends Controller
                     (string) count($docs),
                     implode(' | ', $docSummaryParts),
                     (string) $lt->created_at,
+                    (string) json_encode($rep, JSON_UNESCAPED_UNICODE),
+                    (string) json_encode($docs, JSON_UNESCAPED_UNICODE),
                 ]);
             }
 
@@ -251,13 +256,13 @@ final class LoanTypeController extends Controller
     }
 
     /**
-     * @param resource $out
-     * @param array<int, string> $cells
+     * @param  resource  $out
+     * @param  array<int, string>  $cells
      */
     private function writeExcelUnicodeRow($out, array $cells): void
     {
         $cleanCells = array_map(static function (string $value): string {
-            return str_replace(["\t", "\r", "\n"], [' ', ' ', ' '], $value);
+            return ExcelUnicodeCell::clean($value);
         }, $cells);
 
         $line = implode("\t", $cleanCells)."\r\n";

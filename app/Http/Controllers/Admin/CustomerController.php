@@ -34,6 +34,8 @@ use App\Services\Sms\SmsPanelManager;
 use App\Services\Sms\SmsSettingsService;
 use App\Services\Sms\SmsTemplateRenderer;
 use App\Services\Wallet\InstallmentWalletRewardService;
+use App\Support\ExcelUnicodeCell;
+use App\Support\JalaliInputParser;
 use App\Support\GuaranteeReturnOtpSettings;
 use App\Support\InstallmentBookletPrintSettings;
 use App\Support\ListPerPage;
@@ -226,6 +228,7 @@ final class CustomerController extends Controller
     {
         $queryText = trim((string) $request->query('q', ''));
         $listFilter = $this->customerListFilterFromRequest($request);
+        $sort = $this->customerListSortFromRequest($request);
 
         $filename = 'customers-list-'.now()->format('Ymd-His').'.xls';
         $headers = [
@@ -235,7 +238,7 @@ final class CustomerController extends Controller
             'Pragma' => 'no-cache',
         ];
 
-        return response()->streamDownload(function () use ($queryText, $listFilter): void {
+        return response()->streamDownload(function () use ($queryText, $listFilter, $sort): void {
             $out = fopen('php://output', 'wb');
             if (! is_resource($out)) {
                 return;
@@ -255,21 +258,34 @@ final class CustomerController extends Controller
                 'کد وام‌ها',
                 'کد مشتری',
                 'تاریخ عضویت',
+                'موجودی کیف پول (تومان)',
+                'مجموع اصل وام‌های ثبت‌شده (تومان)',
+                'سقف اعتبار مؤثر (تومان)',
+                'اعتبار استفاده‌شده (تومان)',
+                'اعتبار باقیمانده (تومان)',
+                'نزدیک‌ترین سررسید',
+                'تعداد اقساط معوق',
+                'مانده معوق (تومان)',
+                'مجموع دیرکرد پرداخت‌نشده (تومان)',
+                'مجموع زودکرد (تومان)',
+                'نام کاربری',
+                'نام پدر',
+                'موبایل دوم',
+                'تلفن ثابت',
+                'شهر',
+                'آدرس',
+                'کد پستی',
+                'ایمیل',
             ]);
 
             $customerExportQuery = Customer::query()
-                ->with(['loanFiles.loanType', 'loanFiles.installments']);
+                ->with(['wallet', 'loanFiles.loanType', 'loanFiles.installments.payments']);
             $this->applyCustomerListSearch($customerExportQuery, $queryText);
             $this->applyCustomerListFilters($customerExportQuery, $listFilter);
-            $customerExportQuery
-                ->latest('id')
-                ->chunkById(150, function ($chunk) use ($out): void {
-                    foreach ($chunk as $customer) {
-                        if ($customer instanceof Customer) {
-                            $this->writeExcelUnicodeRow($out, $this->buildCustomerListExportCells($customer));
-                        }
-                    }
-                });
+            $this->applyCustomerListSort($customerExportQuery, $sort);
+            foreach ($customerExportQuery->lazy(150) as $customer) {
+                $this->writeExcelUnicodeRow($out, $this->buildCustomerListExportCells($customer));
+            }
 
             fclose($out);
         }, $filename, $headers);
@@ -298,6 +314,9 @@ final class CustomerController extends Controller
 
         $nid = trim((string) ($customer->national_id ?? ''));
         $mobile = trim((string) ($customer->mobile ?? ''));
+        $credit = $this->purchaseCreditSnapshot($customer, $loanRows, true);
+        $nearest = $this->resolveCustomerNearestDueDate($customer);
+        $overdue = $this->resolveCustomerOverdueSummary($customer);
 
         $membershipFa = '—';
         if ($customer->membership_at !== null) {
@@ -318,6 +337,24 @@ final class CustomerController extends Controller
             $codesJoined,
             trim((string) ($customer->customer_code ?? '')),
             $membershipFa,
+            (string) ($customer->wallet?->balance_toman ?? 0),
+            (string) $loanRows->sum('amount_toman'),
+            (string) $credit['purchase_credit_effective_toman'],
+            (string) $credit['purchase_credit_used_toman'],
+            (string) $credit['purchase_credit_available_toman'],
+            $nearest ? Jalali::instance($nearest)->format('Y/m/d') : '—',
+            (string) ($overdue['count'] ?? 0),
+            (string) ($overdue['total_toman'] ?? 0),
+            (string) $loanRows->sum('late_fee_so_far_toman'),
+            (string) $loanRows->sum('early_benefit_toman'),
+            (string) ($customer->username ?? ''),
+            (string) ($customer->father_name ?? ''),
+            (string) ($customer->mobile2 ?? ''),
+            (string) ($customer->phone_landline ?? ''),
+            (string) ($customer->city ?? ''),
+            (string) ($customer->address ?? ''),
+            (string) ($customer->postal_code ?? ''),
+            (string) ($customer->email ?? ''),
         ];
     }
 
@@ -2545,6 +2582,9 @@ final class CustomerController extends Controller
                 'مبلغ قسط (تومان)',
                 'نوع ضمانت',
                 'اطلاعات ضمانت',
+                'شناسه ضمانت',
+                'وضعیت استرداد',
+                'تاریخ استرداد',
             ]);
             foreach ($customer->loanFiles as $file) {
                 foreach ($file->guarantees as $g) {
@@ -2560,6 +2600,9 @@ final class CustomerController extends Controller
                         number_format((int) $file->installment_amount_toman, 0, '.', ''),
                         (string) ($mapped['type_label'] ?? $g->type),
                         $detail,
+                        (string) $g->id,
+                        $mapped['is_returned'] ? 'مسترد شده' : 'نزد مجموعه',
+                        (string) $mapped['returned_at'],
                     ]);
                 }
             }
@@ -2569,11 +2612,9 @@ final class CustomerController extends Controller
 
     public function exportCustomerSmsLogsExcel(Request $request, Customer $customer): StreamedResponse
     {
-        $rawDate = (string) $request->query('date', Carbon::today()->format('Y-m-d'));
-        $parsed = Carbon::createFromFormat('Y-m-d', $rawDate);
-        $selectedDate = $parsed !== false ? $parsed->startOfDay() : Carbon::today()->startOfDay();
+        [$from, $to] = $this->customerSmsDateRange($request);
 
-        $filename = 'sms-customer-'.$customer->id.'-'.$selectedDate->format('Y-m-d').'.xls';
+        $filename = 'sms-customer-'.$customer->id.'-'.$from->format('Y-m-d').'-'.$to->format('Y-m-d').'.xls';
         $headers = [
             'Content-Type' => 'application/vnd.ms-excel; charset=UTF-16LE',
             'Content-Disposition' => 'attachment; filename="'.$filename.'"',
@@ -2581,7 +2622,7 @@ final class CustomerController extends Controller
             'Pragma' => 'no-cache',
         ];
 
-        return response()->streamDownload(function () use ($customer, $selectedDate): void {
+        return response()->streamDownload(function () use ($customer, $from, $to): void {
             $out = fopen('php://output', 'wb');
             if (! is_resource($out)) {
                 return;
@@ -2595,8 +2636,11 @@ final class CustomerController extends Controller
                 'دریافت کننده',
                 'نوع پیامک',
                 'هزینه',
+                'شناسه پیامک',
+                'کد پاسخ سرویس',
+                'نتیجه ارسال',
             ]);
-            $rows = $this->customerSmsLogsCollection($customer, $selectedDate);
+            $rows = $this->customerSmsLogsCollection($customer, $from, $to);
             foreach ($rows as $log) {
                 $sentAt = $log->sent_at ? Jalali::instance($log->sent_at)->format('Y/m/d H:i') : '';
                 $sentAtFa = $sentAt !== '' ? Jalali::enToFaNumbers($sentAt) : '—';
@@ -2608,6 +2652,9 @@ final class CustomerController extends Controller
                     Jalali::enToFaNumbers((string) ($log->recipient ?? '')),
                     $this->smsTypeLabelFa((string) ($log->type ?? '')),
                     number_format((float) $log->cost, 0, '.', ''),
+                    (string) $log->id,
+                    (string) ($log->meta['response_code'] ?? ''),
+                    (string) ($log->meta['result_message'] ?? ''),
                 ]);
             }
             fclose($out);
@@ -2616,34 +2663,23 @@ final class CustomerController extends Controller
 
     public function customerSmsLogs(Request $request, Customer $customer): JsonResponse
     {
-        $rawDate = (string) $request->query('date', Carbon::today()->format('Y-m-d'));
-        $parsed = Carbon::createFromFormat('Y-m-d', $rawDate);
-        $selectedDate = $parsed !== false ? $parsed->startOfDay() : Carbon::today()->startOfDay();
+        [$from, $to] = $this->customerSmsDateRange($request);
+        $selectedDate = $from;
 
         $canonicalMobile = $this->normalizeCustomerMobileForSmsFilter((string) ($customer->mobile ?? ''));
-        if ($canonicalMobile === '') {
-            return response()->json([
-                'date' => $selectedDate->format('Y-m-d'),
-                'date_jalali' => Jalali::instance($selectedDate)->format('Y/m/d'),
-                'date_jalali_fa' => Jalali::enToFaNumbers(Jalali::instance($selectedDate)->format('Y/m/d')),
-                'prev_date' => $selectedDate->copy()->subDay()->format('Y-m-d'),
-                'next_date' => $selectedDate->copy()->addDay()->format('Y-m-d'),
-                'has_mobile' => false,
-                'logs' => [],
-            ]);
-        }
-
-        $logs = $this->customerSmsLogsCollection($customer, $selectedDate)
+        $logs = $this->customerSmsLogsCollection($customer, $from, $to)
             ->map(fn (SmsLog $log): array => $this->mapSmsLogRow($log))
             ->values();
 
         return response()->json([
+            'from_jdate' => Jalali::instance($from)->format('Y/m/d'),
+            'to_jdate' => Jalali::instance($to)->format('Y/m/d'),
             'date' => $selectedDate->format('Y-m-d'),
             'date_jalali' => Jalali::instance($selectedDate)->format('Y/m/d'),
             'date_jalali_fa' => Jalali::enToFaNumbers(Jalali::instance($selectedDate)->format('Y/m/d')),
             'prev_date' => $selectedDate->copy()->subDay()->format('Y-m-d'),
             'next_date' => $selectedDate->copy()->addDay()->format('Y-m-d'),
-            'has_mobile' => true,
+            'has_mobile' => $canonicalMobile !== '',
             'logs' => $logs->all(),
         ]);
     }
@@ -2651,21 +2687,42 @@ final class CustomerController extends Controller
     /**
      * @return Collection<int, SmsLog>
      */
-    private function customerSmsLogsCollection(Customer $customer, Carbon $day): Collection
+    private function customerSmsLogsCollection(Customer $customer, Carbon $from, Carbon $to): Collection
     {
         $canonicalMobile = $this->normalizeCustomerMobileForSmsFilter((string) ($customer->mobile ?? ''));
         if ($canonicalMobile === '') {
             return collect();
         }
-        $from = $day->copy()->startOfDay();
-        $to = $day->copy()->endOfDay();
         $variants = $this->smsRecipientFilterVariants($canonicalMobile);
 
         return SmsLog::query()
             ->whereBetween('sent_at', [$from, $to])
             ->whereIn('recipient', $variants)
             ->latest('sent_at')
+            ->orderByDesc('id')
             ->get();
+    }
+
+    /** @return array{Carbon, Carbon} */
+    private function customerSmsDateRange(Request $request): array
+    {
+        $validated = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+            'from_jdate' => ['nullable', 'required_with:to_jdate', 'string', 'max:20'],
+            'to_jdate' => ['nullable', 'required_with:from_jdate', 'string', 'max:20'],
+        ]);
+        if (! empty($validated['from_jdate']) || ! empty($validated['to_jdate'])) {
+            $from = JalaliInputParser::toCarbonDate($validated['from_jdate'] ?? null);
+            $to = JalaliInputParser::toCarbonDate($validated['to_jdate'] ?? null);
+            if ($from === null || $to === null || $from->gt($to)) {
+                throw ValidationException::withMessages(['from_jdate' => 'بازهٔ تاریخ معتبر وارد کنید؛ تاریخ شروع باید قبل یا برابر تاریخ پایان باشد.']);
+            }
+
+            return [$from->startOfDay(), $to->endOfDay()];
+        }
+        $day = ! empty($validated['date']) ? Carbon::createFromFormat('!Y-m-d', $validated['date']) : Carbon::today();
+
+        return [$day->copy()->startOfDay(), $day->copy()->endOfDay()];
     }
 
     private function smsTypeLabelFa(string $type): string
@@ -2690,7 +2747,7 @@ final class CustomerController extends Controller
     private function writeExcelUnicodeRow($out, array $cells): void
     {
         $cleanCells = array_map(static function (string $value): string {
-            return str_replace(["\t", "\r", "\n"], [' ', ' ', ' '], $value);
+            return ExcelUnicodeCell::clean($value);
         }, $cells);
 
         $line = implode("\t", $cleanCells)."\r\n";

@@ -59,7 +59,7 @@ final class WalletTransactionsByDateReportService
         if ($from === null || $to === null) {
             $today = Carbon::today();
             $jToday = Jalali::instance($today);
-            $from = Carbon::createFromTimestamp($jToday->clone()->startYear()->getTimestamp())->startOfDay();
+            $from = Carbon::createFromTimestamp($jToday->clone()->startYear()->getTimestamp(), $today->getTimezone())->startOfDay();
             $to = $today->copy()->endOfDay();
         } else {
             if ($from->gt($to)) {
@@ -271,6 +271,13 @@ final class WalletTransactionsByDateReportService
             'جزئیات تراکنش',
             'ثبت نهایی پرداخت',
             'توضیحات',
+            'شناسه ردیف',
+            'شناسه مشتری',
+            'نام مشتری',
+            'کد مشتری',
+            'موبایل',
+            'مبلغ عددی (تومان)',
+            'منبع',
         ];
     }
 
@@ -289,6 +296,13 @@ final class WalletTransactionsByDateReportService
             (string) ($row['details_excel'] ?? ''),
             (string) ($row['finalized_at_fa'] ?? ''),
             (string) ($row['description_text'] ?? ''),
+            (string) ($row['id'] ?? ''),
+            (string) ($row['customer_id'] ?? ''),
+            (string) ($row['customer_name'] ?? ''),
+            (string) ($row['customer_code_fa'] ?? ''),
+            (string) ($row['customer_mobile_fa'] ?? ''),
+            (string) ($row['amount_toman'] ?? 0),
+            (string) ($row['source_key'] ?? ''),
         ];
     }
 

@@ -24,8 +24,7 @@ final class InstallmentDueDatesByDateReportService
 
         if ($from === null || $to === null) {
             $today = Carbon::today();
-            $jToday = Jalali::instance($today);
-            $from = Carbon::createFromTimestamp($jToday->clone()->startYear()->getTimestamp())->startOfDay();
+            $from = $today->copy()->startOfDay();
             $to = $today->copy()->endOfDay();
             $fromJdate = Jalali::instance($from)->format('Y/m/d');
             $toJdate = Jalali::instance($to)->format('Y/m/d');
@@ -167,6 +166,18 @@ final class InstallmentDueDatesByDateReportService
             'توضیحات',
             'پیامک',
             'عملیات',
+            'شماره پرونده',
+            'نام مشتری',
+            'موبایل',
+            'کد ملی',
+            'شماره قسط',
+            'دیرکرد محاسبه‌شده (تومان)',
+            'زودکرد (تومان)',
+            'مبلغ نهایی قسط (تومان)',
+            'تخفیف قسط (تومان)',
+            'مانده فعلی قسط (تومان)',
+            'دیرکرد پرداخت‌نشده (تومان)',
+            'وضعیت پرداخت',
         ];
     }
 
@@ -188,6 +199,18 @@ final class InstallmentDueDatesByDateReportService
             (string) ($row['notes_text'] ?? ''),
             ! empty($row['sms_installment_id']) ? 'پ س م ت' : '',
             'مشاهده اقساط',
+            (string) ($row['loan_code'] ?? ''),
+            (string) ($row['customer_name'] ?? ''),
+            (string) ($row['customer_mobile'] ?? ''),
+            (string) ($row['customer_national_id'] ?? ''),
+            (string) ($row['sequence'] ?? ''),
+            (string) ($row['late_fee_assessed_toman'] ?? 0),
+            (string) ($row['early_benefit_toman'] ?? 0),
+            (string) ($row['final_amount_toman'] ?? 0),
+            (string) ($row['discount_applied_toman'] ?? 0),
+            (string) ($row['remaining_amount_toman'] ?? 0),
+            (string) ($row['late_fee_remaining_toman'] ?? 0),
+            (string) ($row['payment_status'] ?? ''),
         ];
     }
 
@@ -237,6 +260,10 @@ final class InstallmentDueDatesByDateReportService
             'installment_amount_formatted' => $this->formatAmount((int) $inst->amount_toman),
             'paid_amount_toman' => $paidAmount,
             'remaining_amount_toman' => $payable['remaining_toman'],
+            'late_fee_assessed_toman' => $snapshot['installment_balances'][(int) $inst->id]['late_fee_assessed_toman'],
+            'early_benefit_toman' => $snapshot['installment_balances'][(int) $inst->id]['early_benefit_toman'],
+            'final_amount_toman' => $snapshot['installment_balances'][(int) $inst->id]['final_amount_toman'],
+            'discount_applied_toman' => $payable['discount_applied_toman'],
             'late_fee_remaining_toman' => $payable['late_fee_remaining_toman'],
             'paid_amount_formatted' => $paidAmount > 0 ? $this->formatAmount($paidAmount) : '—',
             'due_jdate' => $dueJdate,

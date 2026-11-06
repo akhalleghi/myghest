@@ -9,6 +9,17 @@
         $adminReportsDisplayStyle = \App\Support\AdminReportsDisplaySettings::inlineStyle($adminReportsDisplay);
     @endphp
     <style>
+        .rpt-table--customer-financial { min-width: 2800px; }
+        .rpt-table--customer-financial th { white-space: normal; min-width: 120px; }
+        .rpt-table--customer-financial tfoot td { font-weight: 800; background: var(--primary-soft); }
+        #rpt-cf-form .rpt-export-btn { align-self: end; }
+        #rpt-cf-form select { width: 100%; border: 1px solid var(--border); border-radius: .62rem; padding: .48rem .62rem; background: var(--bg-card); color: var(--text); font-family: inherit; }
+        @media (max-width: 860px) {
+            .rpt-table--customer-financial tfoot, .rpt-table--customer-financial tfoot tr { display: block; width: 100%; }
+            .rpt-table--customer-financial tfoot td { display: grid; grid-template-columns: 40% 1fr; padding: .5rem; white-space: normal; }
+            .rpt-table--customer-financial tfoot td:empty { display: none; }
+            .rpt-table--customer-financial tfoot td::before { content: attr(data-label); }
+        }
         .rpt-page {
             max-width: 100%;
             {{ $adminReportsDisplayStyle }}
@@ -1101,7 +1112,7 @@
                     <form class="rpt-range-form" id="rpt-installment-due-date-form">
                         <div class="rpt-range-field">
                             <label for="rpt-id-from">از تاریخ</label>
-                            <input type="text" id="rpt-id-from" name="from_jdate" value="{{ $defaultFromJdate }}" autocomplete="off" required>
+                            <input type="text" id="rpt-id-from" name="from_jdate" value="{{ $defaultToJdate }}" autocomplete="off" required>
                         </div>
                         <div class="rpt-range-field">
                             <label for="rpt-id-to">تا تاریخ</label>
@@ -1458,6 +1469,7 @@
     @include('admin.reports.partials.modal-loan-guarantees')
     @include('admin.reports.partials.modal-loan-interest-fees')
     @include('admin.reports.partials.modal-admin-activity')
+    @include('admin.reports.partials.modal-customer-financial')
 
     <div class="rpt-quick-overlay" id="rpt-quick-sms-overlay" hidden aria-hidden="true">
         <div class="rpt-quick-modal" role="dialog" aria-modal="true" aria-labelledby="rpt-quick-sms-title">
@@ -1492,6 +1504,9 @@
 
     <script type="application/json" id="rpt-page-config">
         {!! json_encode([
+            'customerFinancialDataUrl' => route('admin.reports.customer-financial.data'),
+            'customerFinancialExportUrl' => route('admin.reports.customer-financial.export-excel'),
+            'customerFinancialColumns' => $customerFinancialColumns,
             'memberLoansDataUrl' => route('admin.reports.member-loans-by-date.data'),
             'memberLoansExportUrl' => route('admin.reports.member-loans-by-date.export-excel'),
             'installmentDueDataUrl' => route('admin.reports.installment-due-by-date.data'),

@@ -13,6 +13,7 @@ use App\Models\SmsPanelSetting;
 use App\Models\SmsTemplate;
 use App\Services\Sms\SmsPanelManager;
 use App\Services\Wallet\CustomerWalletService;
+use App\Support\ExcelUnicodeCell;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -194,6 +195,9 @@ final class CustomerWalletController extends Controller
                 'موجودی بعد از تراکنش (تومان)',
                 'توضیحات',
                 'اپراتور',
+                'شناسه تراکنش',
+                'منبع سیستمی',
+                'درصد پاداش',
             ]);
 
             foreach ($rows as $tx) {
@@ -215,6 +219,9 @@ final class CustomerWalletController extends Controller
                     (string) $tx->balance_after_toman,
                     (string) ($tx->description ?? ''),
                     (string) ($tx->actorAdmin?->name ?? $tx->actorAdmin?->username ?? '—'),
+                    (string) $tx->id,
+                    (string) ($tx->meta['purpose'] ?? $tx->meta['channel'] ?? ''),
+                    (string) ($tx->meta['percent'] ?? ''),
                 ]);
             }
 
@@ -336,7 +343,7 @@ final class CustomerWalletController extends Controller
     private function writeExcelUnicodeRow($out, array $cells): void
     {
         $cleanCells = array_map(static function (string $value): string {
-            return str_replace(["\t", "\r", "\n"], [' ', ' ', ' '], $value);
+            return ExcelUnicodeCell::clean($value);
         }, $cells);
 
         $line = implode("\t", $cleanCells)."\r\n";

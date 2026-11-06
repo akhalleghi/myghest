@@ -100,6 +100,11 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
         ->middleware('throttle:60,1')
         ->name('reports.index');
 
+    Route::get('/reports/customer-financial/data', [AdminReportsController::class, 'customerFinancialData'])
+        ->middleware('throttle:60,1')->name('reports.customer-financial.data');
+    Route::get('/reports/customer-financial/export-excel', [AdminReportsController::class, 'exportCustomerFinancialExcel'])
+        ->middleware('throttle:20,1')->name('reports.customer-financial.export-excel');
+
     Route::get('/reports/member-loans-by-date/data', [AdminReportsController::class, 'memberLoansByDateData'])
         ->middleware('throttle:90,1')
         ->name('reports.member-loans-by-date.data');

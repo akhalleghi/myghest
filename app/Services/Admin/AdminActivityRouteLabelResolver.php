@@ -61,6 +61,7 @@ final class AdminActivityRouteLabelResolver
         'login-background' => 'پس‌زمینه ورود',
         'status-logs' => 'گزارش تغییر وضعیت',
         'status-sms-logs' => 'پیامک‌های وضعیت',
+        'customer-financial' => 'گزارش جامع مالی مشتریان',
         'member-loans-by-date' => 'گزارش وام‌های اعضا',
         'installment-due-by-date' => 'گزارش سررسید اقساط',
         'deposits-by-date' => 'گزارش واریزها',

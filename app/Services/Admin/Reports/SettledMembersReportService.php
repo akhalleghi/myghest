@@ -30,7 +30,7 @@ final class SettledMembersReportService
         if ($from === null || $to === null) {
             $today = Carbon::today();
             $jToday = Jalali::instance($today);
-            $from = Carbon::createFromTimestamp($jToday->clone()->startYear()->getTimestamp())->startOfDay();
+            $from = Carbon::createFromTimestamp($jToday->clone()->startYear()->getTimestamp(), $today->getTimezone())->startOfDay();
             $to = $today->copy()->endOfDay();
         } else {
             if ($from->gt($to)) {
@@ -153,6 +153,9 @@ final class SettledMembersReportService
             'تعداد وام',
             'مجموع وام‌ها',
             'تاریخ آخرین تسویه',
+            'شناسه مشتری',
+            'کد ملی',
+            'مجموع عددی وام‌ها (تومان)',
         ];
     }
 
@@ -169,6 +172,9 @@ final class SettledMembersReportService
             Jalali::enToFaNumbers((string) ($row['settled_loans_count'] ?? '')),
             (string) ($row['total_loans_formatted'] ?? ''),
             (string) ($row['last_settled_jdate'] ?? ''),
+            (string) ($row['customer_id'] ?? ''),
+            (string) ($row['national_id'] ?? ''),
+            (string) ($row['total_loans_toman'] ?? 0),
         ];
     }
 

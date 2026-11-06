@@ -2318,6 +2318,12 @@
             margin-bottom: 0.65rem;
             background: var(--bg-card);
         }
+        #loan-sms-range-form { display: flex; flex-wrap: wrap; justify-content: center; align-items: end; gap: .6rem; }
+        #loan-sms-range-form label { display: flex; flex-direction: column; gap: .25rem; font-size: .78rem; }
+        @media (max-width: 600px) {
+            #loan-sms-range-form label, #loan-sms-range-form button { width: 100%; }
+            #loan-sms-range-form input { width: 100%; box-sizing: border-box; }
+        }
         .loan-sms-day-nav {
             display: flex;
             flex-wrap: wrap;
@@ -3631,6 +3637,16 @@
                             <button type="button" class="loan-sms-day-btn" id="loan-sms-day-next">روز بعد</button>
                         </div>
                     </div>
+                    <form id="loan-sms-range-form" class="loan-sms-date-toolbar">
+                        <label for="loan-sms-from">از تاریخ
+                            <input type="text" class="loan-sms-day-current" id="loan-sms-from" autocomplete="off" required placeholder="۱۴۰۵/۰۱/۰۱">
+                        </label>
+                        <label for="loan-sms-to">تا تاریخ
+                            <input type="text" class="loan-sms-day-current" id="loan-sms-to" autocomplete="off" required placeholder="۱۴۰۵/۱۲/۲۹">
+                        </label>
+                        <button type="submit" class="loan-sms-day-btn">نمایش بازه</button>
+                    </form>
+                    <p class="loan-sms-mobile-note" id="loan-sms-range-summary" role="status" aria-live="polite"></p>
                     <p class="loan-sms-mobile-note" id="loan-sms-mobile-missing" hidden>برای این مشتری شماره موبایل معتبر ثبت نشده؛ گزارش پیامک خالی است.</p>
                     <div class="loan-sms-card">
                         <div class="loan-sms-table-wrap">
@@ -4680,15 +4696,13 @@
             function customerGuaranteesReportUrl(customerId) {
                 return custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/guarantees-report';
             }
-            function customerSmsLogsUrl(customerId, dateYmd) {
-                var u = custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/sms-logs';
-                if (dateYmd) {
-                    u += '?date=' + encodeURIComponent(String(dateYmd));
-                }
-                return u;
+            function customerSmsLogsUrl(customerId, dateYmd, range) {
+                var query = range ? new URLSearchParams(range).toString() : 'date=' + encodeURIComponent(String(dateYmd || ''));
+                return custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/sms-logs?' + query;
             }
-            function customerSmsLogsExportUrl(customerId, dateYmd) {
-                return custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/sms-logs/export-excel?date=' + encodeURIComponent(String(dateYmd || ''));
+            function customerSmsLogsExportUrl(customerId, dateYmd, range) {
+                var query = range ? new URLSearchParams(range).toString() : 'date=' + encodeURIComponent(String(dateYmd || ''));
+                return custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/sms-logs/export-excel?' + query;
             }
             function customerGuaranteesReportExportUrl(customerId) {
                 return custListBaseUrl + '/' + encodeURIComponent(String(customerId || '')) + '/guarantees-report/export-excel';
@@ -5255,6 +5269,11 @@
             var loanSmsMobileMissingNote = document.getElementById('loan-sms-mobile-missing');
             var loanSmsDefaultDate = @json(now()->format('Y-m-d'));
             var loanSmsSelectedDate = loanSmsDefaultDate;
+            var loanSmsSelectedRange = null;
+            var loanSmsRequest = null;
+            var loanSmsFrom = document.getElementById('loan-sms-from');
+            var loanSmsTo = document.getElementById('loan-sms-to');
+            var loanSmsRangeSummary = document.getElementById('loan-sms-range-summary');
             var adminTodayJdate = @json(\Hekmatinasser\Jalali\Jalali::now()->format('Y/m/d'));
             var walletCurrentCustomerId = null;
             var custNotesOverlay = document.getElementById('cust-notes-overlay');
@@ -7922,13 +7941,12 @@
 
             function destroyLoanSmsDayPicker() {
                 if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.pDatepicker) return;
-                var $el = window.jQuery('#loan-sms-day-input');
-                if (!$el.length) return;
-                try {
-                    if ($el.data('datepicker')) {
-                        $el.pDatepicker('destroy');
-                    }
-                } catch (err) { /* noop */ }
+                ['loan-sms-day-input', 'loan-sms-from', 'loan-sms-to'].forEach(function (id) {
+                    var $el = window.jQuery('#' + id);
+                    try {
+                        if ($el.data('datepicker')) $el.pDatepicker('destroy');
+                    } catch (err) { /* noop */ }
+                });
             }
 
             function initLoanSmsDayPicker() {
@@ -7949,20 +7967,38 @@
                         loadLoanManageCustomerSms(loanManageCurrentCustomerId, ymd);
                     }
                 });
+                ['loan-sms-from', 'loan-sms-to'].forEach(function (id) {
+                    window.jQuery('#' + id).pDatepicker({
+                        format: 'YYYY/MM/DD', autoClose: true, initialValue: false,
+                        calendarType: 'persian', initialValueType: 'persian',
+                        toolbox: { calendarSwitch: false }
+                    });
+                });
             }
 
-            function loadLoanManageCustomerSms(customerId, dateYmd) {
+            function loadLoanManageCustomerSms(customerId, dateYmd, range) {
                 if (!loanSmsLogsBody || !customerId) return;
+                if (loanSmsRequest) loanSmsRequest.abort();
+                var controller = new AbortController();
+                loanSmsRequest = controller;
+                var requestedRange = range || null;
                 var day = dateYmd || loanSmsSelectedDate || loanSmsDefaultDate;
                 loanSmsLogsBody.innerHTML = '<tr><td colspan="7" class="loan-sms-empty">در حال بارگذاری...</td></tr>';
                 if (loanSmsMobileMissingNote) loanSmsMobileMissingNote.hidden = true;
-                fetch(customerSmsLogsUrl(customerId, day), {
+                fetch(customerSmsLogsUrl(customerId, day, requestedRange), {
+                    signal: controller.signal,
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     credentials: 'same-origin'
                 }).then(function (r) {
-                    if (!r.ok) throw new Error('bad');
-                    return r.json();
+                    return r.json().then(function (data) {
+                        if (!r.ok) throw new Error(Object.values(data.errors || {}).flat()[0] || data.message || 'خطا در دریافت پیامک‌ها.');
+                        return data;
+                    });
                 }).then(function (data) {
+                    if (controller !== loanSmsRequest || String(customerId) !== String(loanManageCurrentCustomerId)) return;
+                    loanSmsSelectedRange = requestedRange;
+                    if (loanSmsFrom) loanSmsFrom.value = String(data.from_jdate || '');
+                    if (loanSmsTo) loanSmsTo.value = String(data.to_jdate || '');
                     loanSmsSelectedDate = String(data.date || day);
                     if (loanSmsDayInput) {
                         loanSmsDayInput.value = String(data.date_jalali_fa || data.date_jalali || '');
@@ -7971,8 +8007,9 @@
                         loanSmsMobileMissingNote.hidden = !!data.has_mobile;
                     }
                     var logs = Array.isArray(data.logs) ? data.logs : [];
+                    if (loanSmsRangeSummary) loanSmsRangeSummary.textContent = 'از ' + String(data.from_jdate || '') + ' تا ' + String(data.to_jdate || '') + ' · ' + logs.length.toLocaleString('fa-IR') + ' پیامک';
                     if (!logs.length) {
-                        var emptyMsg = data.has_mobile ? 'پیامکی برای این روز یافت نشد.' : '—';
+                        var emptyMsg = data.has_mobile ? 'پیامکی برای این بازه یافت نشد.' : '—';
                         loanSmsLogsBody.innerHTML = '<tr><td colspan="7" class="loan-sms-empty">' + emptyMsg + '</td></tr>';
                         return;
                     }
@@ -7990,7 +8027,9 @@
                             '<td>' + escapeHtmlText(String(log.cost_fa || '')) + '</td>' +
                             '</tr>';
                     }).join('');
-                }).catch(function () {
+                }).catch(function (error) {
+                    if (error.name === 'AbortError' || controller !== loanSmsRequest || String(customerId) !== String(loanManageCurrentCustomerId)) return;
+                    if (loanSmsRangeSummary) loanSmsRangeSummary.textContent = error.message;
                     loanSmsLogsBody.innerHTML = '<tr><td colspan="7" class="loan-sms-empty" style="color:#b91c1c;">خطا در دریافت پیامک‌ها.</td></tr>';
                 });
             }
@@ -9174,6 +9213,11 @@
                 loanManageCurrentCustomerName = customerName || '';
                 loanManageCurrentCustomerMobile = customerMobile || '';
                 loanSmsSelectedDate = loanSmsDefaultDate;
+                loanSmsSelectedRange = null;
+                if (loanSmsRequest) loanSmsRequest.abort();
+                if (loanSmsFrom) loanSmsFrom.value = '';
+                if (loanSmsTo) loanSmsTo.value = '';
+                if (loanSmsRangeSummary) loanSmsRangeSummary.textContent = '';
                 if (loanManageCustomerNameView) loanManageCustomerNameView.textContent = loanManageCurrentCustomerName || '—';
                 if (loanManageCustomerMobileView) loanManageCustomerMobileView.textContent = loanManageCurrentCustomerMobile || '—';
                 if (loanManageCreditStatusView) {
@@ -9218,7 +9262,7 @@
                 }
                 if (tabId === 'sms' && loanManageCurrentCustomerId) {
                     initLoanSmsDayPicker();
-                    loadLoanManageCustomerSms(loanManageCurrentCustomerId, loanSmsSelectedDate);
+                    loadLoanManageCustomerSms(loanManageCurrentCustomerId, loanSmsSelectedDate, loanSmsSelectedRange);
                 }
                 if (tabId === 'requests' && loanManageCurrentCustomerId && loanManageLrqIframe && loanManageLrqEmbedTmpl && loanManageLrqEmbedTmpl.indexOf('__CUSTOMER_ID__') !== -1) {
                     var nextSrc = loanManageLrqEmbedTmpl.replace('__CUSTOMER_ID__', String(loanManageCurrentCustomerId));
@@ -9671,6 +9715,16 @@
                     }
                 });
             }
+            var loanSmsRangeForm = document.getElementById('loan-sms-range-form');
+            if (loanSmsRangeForm) {
+                loanSmsRangeForm.addEventListener('submit', function (event) {
+                    event.preventDefault();
+                    if (!loanManageCurrentCustomerId) return;
+                    loadLoanManageCustomerSms(loanManageCurrentCustomerId, loanSmsSelectedDate, {
+                        from_jdate: loanSmsFrom.value.trim(), to_jdate: loanSmsTo.value.trim()
+                    });
+                });
+            }
             if (loanSmsDayPrev) {
                 loanSmsDayPrev.addEventListener('click', function () {
                     if (!loanManageCurrentCustomerId) return;
@@ -9692,14 +9746,14 @@
             if (loanSmsReloadBtn) {
                 loanSmsReloadBtn.addEventListener('click', function () {
                     if (!loanManageCurrentCustomerId) return;
-                    loadLoanManageCustomerSms(loanManageCurrentCustomerId, loanSmsSelectedDate);
+                    loadLoanManageCustomerSms(loanManageCurrentCustomerId, loanSmsSelectedDate, loanSmsSelectedRange);
                 });
             }
             if (loanSmsExcelBtn) {
                 loanSmsExcelBtn.addEventListener('click', function (e) {
                     e.preventDefault();
                     if (!loanManageCurrentCustomerId) return;
-                    window.location.href = customerSmsLogsExportUrl(loanManageCurrentCustomerId, loanSmsSelectedDate);
+                    window.location.href = customerSmsLogsExportUrl(loanManageCurrentCustomerId, loanSmsSelectedDate, loanSmsSelectedRange);
                 });
             }
             if (loanGuaranteesReloadBtn) {

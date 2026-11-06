@@ -40,7 +40,7 @@ final class LoanGuaranteesReportService
         if ($from === null || $to === null) {
             $today = Carbon::today();
             $jToday = Jalali::instance($today);
-            $from = Carbon::createFromTimestamp($jToday->clone()->startYear()->getTimestamp())->startOfDay();
+            $from = Carbon::createFromTimestamp($jToday->clone()->startYear()->getTimestamp(), $today->getTimezone())->startOfDay();
             $to = $today->copy()->endOfDay();
         } else {
             if ($from->gt($to)) {
@@ -175,6 +175,10 @@ final class LoanGuaranteesReportService
             'مبلغ قسط (تومان)',
             'نوع ضمانت',
             'اطلاعات ضمانت',
+            'شناسه ضمانت',
+            'شماره پرونده',
+            'وضعیت استرداد',
+            'تاریخ استرداد',
         ];
     }
 
@@ -202,6 +206,10 @@ final class LoanGuaranteesReportService
             number_format((int) ($row['installment_amount_toman'] ?? 0), 0, '.', ''),
             (string) ($row['guarantee_type_label'] ?? ''),
             implode(' | ', $detailParts),
+            (string) ($row['guarantee_id'] ?? ''),
+            (string) ($row['loan_code'] ?? ''),
+            (string) ($row['return_status_label'] ?? ''),
+            (string) ($row['returned_at_fa'] ?? ''),
         ];
     }
 
@@ -237,6 +245,8 @@ final class LoanGuaranteesReportService
             'guarantee_highlight_name' => $detail['highlight'],
             'guarantee_detail_lines' => $detail['lines'],
             'is_settled' => (bool) $file->is_settled,
+            'return_status_label' => $g->isMarkedReturned() ? 'مسترد شده' : 'نزد مجموعه',
+            'returned_at_fa' => $g->returned_at ? Jalali::instance($g->returned_at)->format('Y/m/d H:i') : '',
         ];
     }
 

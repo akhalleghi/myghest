@@ -24,7 +24,7 @@ final class AdminActivityReportService
         if ($from === null || $to === null) {
             $today = Carbon::today();
             $jToday = Jalali::instance($today);
-            $from = Carbon::createFromTimestamp($jToday->clone()->startYear()->getTimestamp())->startOfDay();
+            $from = Carbon::createFromTimestamp($jToday->clone()->startYear()->getTimestamp(), $today->getTimezone())->startOfDay();
             $to = $today->copy()->endOfDay();
         } else {
             if ($from->gt($to)) {
@@ -47,6 +47,7 @@ final class AdminActivityReportService
         ?int $adminId = null,
         string $actionFilter = '',
         string $search = '',
+        ?int $limit = 5000,
     ): array {
         $query = AdminActivityLog::query()
             ->with(['admin:id,first_name,last_name,name,username'])
@@ -78,8 +79,11 @@ final class AdminActivityReportService
             });
         }
 
+        if ($limit !== null) {
+            $query->limit(max(1, $limit));
+        }
+
         return $query
-            ->limit(5000)
             ->get()
             ->map(fn (AdminActivityLog $log): array => $this->mapRow($log))
             ->values()

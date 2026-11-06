@@ -15,6 +15,7 @@ use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -126,7 +127,12 @@ final class AdminCustomerTransactionController extends Controller
 
         $row = 2;
         foreach ($list->makeFilteredQuery($filters)->cursor() as $tx) {
-            $sheet->fromArray([$this->buildExportRow($tx, $kindLabels, $statusLabels)], null, 'A'.$row);
+            foreach ($this->buildExportRow($tx, $kindLabels, $statusLabels) as $column => $value) {
+                $type = is_int($value) || is_float($value)
+                    ? DataType::TYPE_NUMERIC
+                    : DataType::TYPE_STRING;
+                $sheet->setCellValueExplicit([$column + 1, $row], $value, $type);
+            }
             $row++;
         }
 

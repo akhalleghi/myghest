@@ -24,7 +24,7 @@ final class DepositsByDateReportService
         if ($from === null || $to === null) {
             $today = Carbon::today();
             $jToday = Jalali::instance($today);
-            $from = Carbon::createFromTimestamp($jToday->clone()->startYear()->getTimestamp())->startOfDay();
+            $from = Carbon::createFromTimestamp($jToday->clone()->startYear()->getTimestamp(), $today->getTimezone())->startOfDay();
             $to = $today->copy()->endOfDay();
             $fromJdate = Jalali::instance($from)->format('Y/m/d');
             $toJdate = Jalali::instance($to)->format('Y/m/d');
@@ -205,6 +205,12 @@ final class DepositsByDateReportService
             'دیرکرد/زودکرد',
             'توضیحات',
             'عملیات',
+            'شماره پرونده',
+            'نام مشتری',
+            'موبایل',
+            'کد ملی',
+            'شناسه واریزی',
+            'شماره قسط',
         ];
     }
 
@@ -225,6 +231,12 @@ final class DepositsByDateReportService
             (string) ($row['early_late_label'] ?? ''),
             (string) ($row['notes_text'] ?? ''),
             'مشاهده اقساط',
+            (string) ($row['loan_code'] ?? ''),
+            (string) ($row['customer_name'] ?? ''),
+            (string) ($row['customer_mobile'] ?? ''),
+            (string) ($row['customer_national_id'] ?? ''),
+            (string) ($row['payment_id'] ?? ''),
+            (string) ($row['sequence'] ?? ''),
         ];
     }
 

@@ -30,6 +30,7 @@ use App\Services\Sms\SmsPanelCreditService;
 use App\Services\Sms\SmsPanelManager;
 use App\Services\Sms\SmsSettingsService;
 use App\Services\Sms\SmsTemplateRenderer;
+use App\Support\ExcelUnicodeCell;
 use App\Support\IranMobile;
 use App\Support\ListPerPage;
 use Carbon\Carbon;
@@ -1337,6 +1338,9 @@ final class SmsManagementController extends Controller
                 'دریافت کننده',
                 'نوع',
                 'هزینه',
+                'شناسه پیامک',
+                'کد نتیجه سرویس',
+                'توضیح نتیجه سرویس',
             ]);
 
             foreach ($rows as $log) {
@@ -1350,6 +1354,9 @@ final class SmsManagementController extends Controller
                     (string) ($log->recipient ?? ''),
                     (string) ($log->type ?? ''),
                     number_format((float) $log->cost, 0, '.', ''),
+                    (string) $log->id,
+                    (string) ($log->meta['response_code'] ?? ''),
+                    (string) ($log->meta['result_message'] ?? ''),
                 ]);
             }
 
@@ -1443,7 +1450,7 @@ final class SmsManagementController extends Controller
     private function writeExcelUnicodeRow($out, array $cells): void
     {
         $cleanCells = array_map(static function (string $value): string {
-            return str_replace(["\t", "\r", "\n"], [' ', ' ', ' '], $value);
+            return ExcelUnicodeCell::clean($value);
         }, $cells);
 
         $line = implode("\t", $cleanCells)."\r\n";

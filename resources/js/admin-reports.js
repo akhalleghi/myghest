@@ -3500,8 +3500,112 @@ function rptInitAdminActivityReport(cfg) {
     return { openModal: openModal, closeModal: closeModal, overlay: overlay };
 }
 
+function rptInitCustomerFinancialReport(cfg) {
+    var overlay = document.getElementById('rpt-modal-customer-financial');
+    var form = document.getElementById('rpt-cf-form');
+    if (!overlay || !form) return;
+    var body = document.getElementById('rpt-cf-tbody');
+    var foot = document.getElementById('rpt-cf-tfoot');
+    var meta = document.getElementById('rpt-cf-meta');
+    var exportLink = document.getElementById('rpt-cf-export');
+    var columns = Object.entries(cfg.customerFinancialColumns || {});
+    var activeRequest;
+    var returnFocus;
+
+    function params() {
+        return new URLSearchParams(new FormData(form));
+    }
+    function updateExport() {
+        exportLink.href = cfg.customerFinancialExportUrl + '?' + params().toString();
+    }
+    function message(text) {
+        body.replaceChildren();
+        var row = body.insertRow();
+        var cell = row.insertCell();
+        cell.colSpan = columns.length;
+        cell.className = 'rpt-empty';
+        cell.textContent = text;
+        foot.replaceChildren();
+    }
+    function renderRow(container, data, total) {
+        var row = container.insertRow();
+        row.className = 'rpt-data-row';
+        columns.forEach(function (column, index) {
+            var key = column[0];
+            var cell = row.insertCell();
+            cell.setAttribute('data-label', column[1]);
+            if (total && index < 6) {
+                cell.textContent = index === 1 ? 'جمع کل' : '';
+            } else if (index >= 6) {
+                cell.textContent = rptFormatAmount(data[key]);
+            } else {
+                cell.textContent = data[key] || '—';
+            }
+            if (key === 'review_count' && Number(data[key]) > 0) cell.classList.add('rpt-text-danger');
+        });
+    }
+    async function load() {
+        if (activeRequest) activeRequest.abort();
+        var controller = new AbortController();
+        activeRequest = controller;
+        updateExport();
+        meta.textContent = 'در حال تهیه گزارش…';
+        message('در حال بارگذاری…');
+        try {
+            var response = await fetch(cfg.customerFinancialDataUrl + '?' + params().toString(), {
+                headers: { Accept: 'application/json' }, signal: controller.signal,
+            });
+            var data = await response.json();
+            if (!response.ok) {
+                var errors = Object.values(data.errors || {}).flat();
+                throw new Error(errors[0] || data.message || 'دریافت گزارش انجام نشد.');
+            }
+            if (controller !== activeRequest) return;
+            body.replaceChildren();
+            if (!data.rows.length) message('مشتری مطابق فیلتر انتخابی یافت نشد.');
+            data.rows.forEach(function (row) { renderRow(body, row, false); });
+            renderRow(foot, data.summary, true);
+            meta.textContent = data.meta.group_label + ' · ' + rptFaNum(data.meta.count) + ' مشتری · از ' + rptFaNum(data.meta.from_jdate) + ' تا ' + rptFaNum(data.meta.to_jdate);
+        } catch (error) {
+            if (error.name === 'AbortError' || controller !== activeRequest) return;
+            meta.textContent = error.message;
+            message('گزارش دریافت نشد. بازه را بررسی و دوباره تلاش کنید.');
+        }
+    }
+    function closeModal() {
+        if (activeRequest) activeRequest.abort();
+        overlay.hidden = true;
+        overlay.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+        if (returnFocus) returnFocus.focus();
+    }
+    form.addEventListener('submit', function (event) { event.preventDefault(); load(); });
+    form.addEventListener('input', updateExport);
+    form.addEventListener('change', updateExport);
+    exportLink.addEventListener('click', function (event) {
+        updateExport();
+        if (!form.reportValidity()) event.preventDefault();
+    });
+    overlay.querySelectorAll('[data-rpt-modal-close]').forEach(function (button) { button.addEventListener('click', closeModal); });
+    overlay.addEventListener('click', function (event) { if (event.target === overlay) closeModal(); });
+    return {
+        overlay: overlay,
+        closeModal: closeModal,
+        openModal: function () {
+            returnFocus = document.activeElement;
+            overlay.hidden = false;
+            overlay.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+            rptInitDatePickers('rpt-cf-from', 'rpt-cf-to');
+            updateExport();
+            document.getElementById('rpt-cf-from').focus();
+        },
+    };
+}
+
 function rptInitReportsPage() {
     var cfg = rptParseConfig();
+    var customerFinancial = rptInitCustomerFinancialReport(cfg);
     var memberLoans = rptInitMemberLoansReport(cfg);
     var installmentDue = rptInitInstallmentDueReport(cfg);
     var depositsByDate = rptInitDepositsByDateReport(cfg);
@@ -3511,6 +3615,7 @@ function rptInitReportsPage() {
     var loanInterestFees = rptInitLoanInterestFeesReport(cfg);
     var adminActivity = rptInitAdminActivityReport(cfg);
     var reportRegistry = {
+        'customer-financial': customerFinancial,
         'member-loans-by-date': memberLoans,
         'installment-due-by-date': installmentDue,
         'deposits-by-date': depositsByDate,
@@ -3523,6 +3628,7 @@ function rptInitReportsPage() {
     rptBindReportCardOpens(reportRegistry);
     rptAutoOpenFromQuery(reportRegistry);
     rptBindReportEscapeHandlers([
+        customerFinancial,
         memberLoans,
         installmentDue,
         depositsByDate,

@@ -31,7 +31,7 @@ final class LoanInterestFeesReportService
         if ($from === null || $to === null) {
             $today = Carbon::today();
             $jToday = Jalali::instance($today);
-            $from = Carbon::createFromTimestamp($jToday->clone()->startYear()->getTimestamp())->startOfDay();
+            $from = Carbon::createFromTimestamp($jToday->clone()->startYear()->getTimestamp(), $today->getTimezone())->startOfDay();
             $to = $today->copy()->endOfDay();
         } else {
             if ($from->gt($to)) {
@@ -204,6 +204,8 @@ final class LoanInterestFeesReportService
             'profit_toman' => $profit,
             'down_payment_toman' => (int) $file->down_payment_toman,
             'total_repayable_toman' => $snap['debt_base_total_toman'],
+            'early_benefit_toman' => $snap['early_benefit_toman'],
+            'late_fee_toman' => $snap['late_fee_payable_toman'],
             'effective_interest_rate' => (float) $file->effective_interest_rate,
             'effective_interest_rate_label' => $this->formatInterestRateLabel((float) $file->effective_interest_rate),
             'profit_calculation_method' => $profitMethod,
@@ -270,6 +272,12 @@ final class LoanInterestFeesReportService
             'مانده',
             'تخفیف',
             'تسویه',
+            'شماره پرونده',
+            'نام مشتری',
+            'موبایل',
+            'کد ملی',
+            'دیرکرد پرداخت‌نشده (تومان)',
+            'زودکرد (تومان)',
         ];
     }
 
@@ -312,6 +320,12 @@ final class LoanInterestFeesReportService
                 ? $this->formatExportAmount((int) $row['discount_toman'])
                 : '',
             (string) ($row['is_settled_label'] ?? '—'),
+            (string) ($row['loan_code'] ?? ''),
+            (string) ($row['customer_name'] ?? ''),
+            (string) ($row['customer_mobile'] ?? ''),
+            (string) ($row['customer_national_id'] ?? ''),
+            (string) ($row['late_fee_toman'] ?? 0),
+            (string) ($row['early_benefit_toman'] ?? 0),
         ];
     }
 

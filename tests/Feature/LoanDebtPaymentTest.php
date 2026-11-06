@@ -18,6 +18,7 @@ use App\Models\CustomerWallet;
 use App\Models\LoanType;
 use App\Services\Admin\AdminDashboardStatisticsService;
 use App\Services\Admin\DashboardPlanningCharts;
+use App\Services\Admin\Reports\CustomerFinancialReportService;
 use App\Services\Admin\Reports\InstallmentDueDatesByDateReportService;
 use App\Services\Admin\Reports\LoanInterestFeesReportService;
 use App\Services\Admin\Reports\MemberLoansByDateReportService;
@@ -465,6 +466,58 @@ final class LoanDebtPaymentTest extends TestCase
         }
     }
 
+    public function test_customer_export_contains_wallet_credit_nearest_due_and_every_page(): void
+    {
+        Schema::table('customers', function (Blueprint $table): void {
+            $table->unsignedBigInteger('purchase_credit_ceiling_toman')->default(0);
+        });
+        Schema::create('customer_loan_guarantees', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('customer_id');
+            $table->string('type');
+            $table->json('meta')->nullable();
+        });
+        $this->customer->update(['purchase_credit_ceiling_toman' => 2000000]);
+        CustomerWallet::create(['customer_id' => $this->customer->id, 'balance_toman' => 123000, 'is_locked' => false]);
+        for ($index = 0; $index < 150; $index++) {
+            Customer::create(['first_name' => 'Additional', 'last_name' => (string) $index, 'customer_code' => 'C-'.$index]);
+        }
+        $response = app(CustomerController::class)->exportCustomersListExcel(Request::create('/', 'GET'));
+        ob_start();
+        $response->sendContent();
+        $contents = ob_get_clean();
+        $decoded = mb_convert_encoding(substr($contents, 2), 'UTF-8', 'UTF-16LE');
+        $lines = array_map(fn ($line) => explode("\t", $line), explode("\r\n", rtrim($decoded, "\r\n")));
+        self::assertCount(152, $lines);
+        $headers = array_shift($lines);
+        foreach ($lines as $line) self::assertCount(count($headers), $line);
+        $line = collect($lines)->first(fn ($cells) => $cells[0] === 'Test');
+        self::assertSame('123000', $line[array_search('موجودی کیف پول (تومان)', $headers, true)]);
+        self::assertSame('900000', $line[array_search('مجموع اصل وام‌های ثبت‌شده (تومان)', $headers, true)]);
+        self::assertSame('1010000', $line[array_search('اعتبار باقیمانده (تومان)', $headers, true)]);
+        self::assertSame(Jalali::instance($this->installment->due_date)->format('Y/m/d'), $line[array_search('نزدیک‌ترین سررسید', $headers, true)]);
+    }
+
+    public function test_financial_report_exports_have_matching_headers_and_explicit_debt_columns(): void
+    {
+        $this->shortPayment();
+        foreach ([MemberLoansByDateReportService::class, LoanInterestFeesReportService::class] as $class) {
+            $service = app($class);
+            $row = (new \ReflectionMethod($service, 'mapRow'))->invoke($service, $this->file->fresh());
+            $cells = $service->excelDataRow($row);
+            self::assertCount(count($service->excelHeaderRow()), $cells);
+            self::assertContains('شماره پرونده', $service->excelHeaderRow());
+        }
+        $service = app(InstallmentDueDatesByDateReportService::class);
+        $installment = $this->installment->fresh(['loanFile.customer', 'loanFile.loanType']);
+        $row = (new \ReflectionMethod($service, 'mapRow'))->invoke($service, $installment);
+        $headers = $service->excelHeaderRow();
+        $cells = $service->excelDataRow($row);
+        self::assertCount(count($headers), $cells);
+        self::assertSame('15000', $cells[array_search('مانده فعلی قسط (تومان)', $headers, true)]);
+        self::assertSame('945000', $cells[array_search('مبلغ نهایی قسط (تومان)', $headers, true)]);
+    }
+
     private function snapshot(): array
     {
         $this->file->refresh();
@@ -699,6 +752,174 @@ final class LoanDebtPaymentTest extends TestCase
         app(LoanFullSettlementOnlinePrincipalAllocator::class)->allocateDebtAcrossInstallments($this->file->fresh(), $quote['amount_toman'], 'TEST');
         self::assertSame(945000, (int) $this->installment->payments()->sum('amount_toman'));
         self::assertSame(0, $this->snapshot()['remaining_amount_toman']);
+    }
+
+    private function createFinancialReportGuaranteesTable(): void
+    {
+        Schema::create('customer_loan_guarantees', function (Blueprint $t): void {
+            $t->id();
+            $t->unsignedBigInteger('customer_id');
+            $t->unsignedBigInteger('loan_file_id');
+            $t->string('type');
+            $t->json('meta')->nullable();
+        });
+    }
+
+    public function test_customer_financial_report_separates_period_activity_from_current_balances(): void
+    {
+        $this->createFinancialReportGuaranteesTable();
+        $this->customer->update(['membership_at' => '2026-07-01']);
+        $this->shortPayment();
+        CustomerWallet::create(['customer_id' => $this->customer->id, 'balance_toman' => 123000]);
+        DB::table('customer_loan_guarantees')->insert([
+            ['customer_id' => $this->customer->id, 'loan_file_id' => $this->file->id, 'type' => 'other', 'meta' => json_encode(['amount_toman' => 100000])],
+            ['customer_id' => $this->customer->id, 'loan_file_id' => $this->file->id, 'type' => 'other', 'meta' => json_encode(['amount_toman' => 50000, 'returned' => true])],
+            ['customer_id' => $this->customer->id, 'loan_file_id' => $this->file->id, 'type' => 'org_self', 'meta' => '{}'],
+        ]);
+        $service = app(CustomerFinancialReportService::class);
+        $result = $service->fetchResult(Carbon::parse('2026-08-10'), Carbon::parse('2026-08-12')->endOfDay());
+        $row = $result['rows'][0];
+        self::assertSame('قدیمی', $row['customer_group']);
+        self::assertSame(0, $row['principal_toman']);
+        self::assertSame(0, $row['profit_toman']);
+        self::assertSame(930000, $row['paid_toman']);
+        self::assertSame(9000, $row['late_assessed_toman']);
+        self::assertSame(30000, $row['late_paid_toman']);
+        self::assertSame(15000, $row['remaining_toman']);
+        self::assertSame(15000, $row['late_remaining_toman']);
+        self::assertSame(1, $row['current_count']);
+        self::assertSame(0, $row['settled_count']);
+        self::assertSame(123000, $row['wallet_toman']);
+        self::assertSame(100000, $row['guarantee_toman']);
+        self::assertSame(1, $row['unvalued_guarantees_count']);
+        self::assertSame($row['paid_toman'], $result['summary']['paid_toman']);
+        self::assertCount(count($service->columns()), $service->excelDataRow($row));
+    }
+
+    public function test_customer_financial_report_membership_groups_dates_and_legacy_receipts(): void
+    {
+        $this->createFinancialReportGuaranteesTable();
+        $this->customer->update(['membership_at' => '2026-07-01']);
+        Customer::create(['first_name' => 'New', 'last_name' => 'Member', 'membership_at' => '2026-07-15']);
+        Customer::create(['first_name' => 'Future', 'last_name' => 'Member', 'membership_at' => '2026-09-01']);
+        $this->file->update(['effective_interest_rate' => 10]);
+        $this->installment->update(['paid_amount_toman' => 20000, 'paid_at' => '2026-07-15']);
+        $service = app(CustomerFinancialReportService::class);
+        $from = Carbon::parse('2026-07-01');
+        $to = Carbon::parse('2026-07-31')->endOfDay();
+        $new = $service->fetchResult($from, $to, 'new');
+        self::assertCount(2, $new['rows']);
+        self::assertSame(900000, $new['summary']['principal_toman']);
+        self::assertSame(90000, $new['summary']['profit_toman']);
+        self::assertSame(20000, $new['summary']['paid_toman']);
+        self::assertSame(1, $new['summary']['loans_count']);
+        self::assertCount(0, $service->fetchResult($from, $to, 'old')['rows']);
+        self::assertCount(1, $service->fetchResult($from, $to, 'all', 'New')['rows']);
+        $this->file->update(['revoked_at' => now()]);
+        $revoked = $service->fetchResult($from, $to);
+        self::assertSame(0, $revoked['summary']['principal_toman']);
+        self::assertSame(0, $revoked['summary']['paid_toman']);
+        self::assertSame(0, $revoked['summary']['remaining_toman']);
+    }
+
+    public function test_customer_financial_report_counts_only_realized_early_benefit_in_period(): void
+    {
+        $this->createFinancialReportGuaranteesTable();
+        $this->customer->update(['membership_at' => '2026-07-01']);
+        Carbon::setTestNow('2026-07-22');
+        $this->file->update(['daily_early_coefficient' => 0.01]);
+        app(CustomerController::class)->storeLoanInstallmentPayment($this->request(810000, '2026-07-22'), $this->customer, $this->file->fresh(), $this->installment);
+        $service = app(CustomerFinancialReportService::class);
+        $before = $service->fetchResult(Carbon::parse('2026-07-01'), Carbon::parse('2026-07-21')->endOfDay());
+        self::assertSame(0, $before['summary']['early_earned_toman']);
+        $paid = $service->fetchResult(Carbon::parse('2026-07-22'), Carbon::parse('2026-07-22')->endOfDay());
+        self::assertSame(90000, $paid['summary']['early_earned_toman']);
+        self::assertSame(810000, $paid['summary']['paid_toman']);
+        self::assertSame(1, $paid['summary']['settled_count']);
+        self::assertSame(0, $paid['summary']['current_count']);
+        self::assertSame(0, $paid['summary']['remaining_toman']);
+    }
+
+    public function test_customer_financial_data_and_excel_share_filters_and_totals(): void
+    {
+        $this->createFinancialReportGuaranteesTable();
+        $this->customer->update(['membership_at' => '2026-07-01']);
+        $this->shortPayment();
+        $params = [
+            'from_jdate' => Jalali::instance(Carbon::parse('2026-08-10'))->format('Y/m/d'),
+            'to_jdate' => Jalali::instance(Carbon::parse('2026-08-12'))->format('Y/m/d'),
+            'group' => 'old',
+            'q' => 'Test',
+        ];
+        $controller = app(\App\Http\Controllers\Admin\AdminReportsController::class);
+        $data = $controller->customerFinancialData(Request::create('/', 'GET', $params))->getData(true);
+        self::assertSame(1, $data['meta']['count']);
+        self::assertSame(930000, $data['summary']['paid_toman']);
+        ob_start();
+        $controller->exportCustomerFinancialExcel(Request::create('/', 'GET', $params))->sendContent();
+        $bytes = ob_get_clean();
+        $lines = explode("\r\n", rtrim(mb_convert_encoding(substr($bytes, 2), 'UTF-8', 'UTF-16LE'), "\r\n"));
+        self::assertCount(5, $lines);
+        $headers = explode("\t", $lines[2]);
+        $row = explode("\t", $lines[3]);
+        $total = explode("\t", $lines[4]);
+        self::assertCount(count($headers), $row);
+        self::assertCount(count($headers), $total);
+        self::assertSame('930000', $row[array_search('واریزی اقساط در بازه (تومان)', $headers)]);
+        self::assertSame('930000', $total[array_search('واریزی اقساط در بازه (تومان)', $headers)]);
+        $params['from_jdate'] = $params['to_jdate'];
+        $params['to_jdate'] = '1400/01/01';
+        $this->expectException(ValidationException::class);
+        $controller->customerFinancialData(Request::create('/', 'GET', $params));
+    }
+
+    public function test_customer_sms_date_range_includes_boundaries_and_matches_excel(): void
+    {
+        (require database_path('migrations/2026_05_06_000003_create_sms_logs_table.php'))->up();
+        $this->customer->update(['mobile' => '09123456789']);
+        foreach ([
+            ['2026-08-09 23:59:59', '09123456789', 'before'],
+            ['2026-08-10 00:00:00', '09123456789', 'first'],
+            ['2026-08-12 23:59:59', '+989123456789', 'last'],
+            ['2026-08-13 00:00:00', '09123456789', 'after'],
+            ['2026-08-11 12:00:00', '09999999999', 'other'],
+        ] as [$date, $recipient, $message]) {
+            \App\Models\SmsLog::create([
+                'sent_at' => $date, 'recipient' => $recipient, 'message_text' => $message,
+                'sms_panel' => 'test', 'status' => 'delivered', 'type' => 'test', 'cost' => 1,
+            ]);
+        }
+        $params = [
+            'from_jdate' => Jalali::instance(Carbon::parse('2026-08-10'))->format('Y/m/d'),
+            'to_jdate' => Jalali::instance(Carbon::parse('2026-08-12'))->format('Y/m/d'),
+        ];
+        $controller = app(CustomerController::class);
+        $result = $controller->customerSmsLogs(Request::create('/', 'GET', $params), $this->customer)->getData(true);
+        self::assertSame(['last', 'first'], array_column($result['logs'], 'message_text'));
+        self::assertSame($params['from_jdate'], $result['from_jdate']);
+        self::assertSame($params['to_jdate'], $result['to_jdate']);
+        ob_start();
+        $controller->exportCustomerSmsLogsExcel(Request::create('/', 'GET', $params), $this->customer)->sendContent();
+        $bytes = ob_get_clean();
+        $lines = explode("\r\n", rtrim(mb_convert_encoding(substr($bytes, 2), 'UTF-8', 'UTF-16LE'), "\r\n"));
+        self::assertCount(3, $lines);
+        self::assertSame('last', explode("\t", $lines[1])[3]);
+        self::assertSame('first', explode("\t", $lines[2])[3]);
+        $day = $controller->customerSmsLogs(Request::create('/', 'GET', ['date' => '2026-08-10']), $this->customer)->getData(true);
+        self::assertSame(['first'], array_column($day['logs'], 'message_text'));
+        self::assertSame('2026-08-10', $day['date']);
+        $this->customer->update(['mobile' => null]);
+        $empty = $controller->customerSmsLogs(Request::create('/', 'GET', $params), $this->customer)->getData(true);
+        self::assertFalse($empty['has_mobile']);
+        self::assertSame([], $empty['logs']);
+    }
+
+    public function test_customer_sms_date_range_rejects_reversed_dates(): void
+    {
+        $this->expectException(ValidationException::class);
+        app(CustomerController::class)->customerSmsLogs(Request::create('/', 'GET', [
+            'from_jdate' => '1405/08/10', 'to_jdate' => '1405/08/01',
+        ]), $this->customer);
     }
 
     private function shortPayment(): void
