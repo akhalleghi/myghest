@@ -6098,6 +6098,7 @@ final class CustomerController extends Controller
             'late_fee_assessed_toman' => $balance['late_fee_assessed_toman'],
             'early_benefit_toman' => $balance['early_benefit_toman'],
             'final_amount_toman' => $balance['final_amount_toman'],
+            'rounding_adjustment_toman' => $balance['rounding_adjustment_toman'],
             'discount_applied_toman' => $balance['discount_applied_toman'],
             'late_fee_paid_toman' => $balance['late_fee_paid_toman'],
             'paid_at' => $paidAt ? $paidAt->format('Y-m-d') : null,

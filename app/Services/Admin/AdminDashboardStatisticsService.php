@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Admin;
 
+use App\Models\Customer;
 use App\Models\CustomerDepositDeclaration;
 use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanInstallment;
@@ -62,6 +63,19 @@ final class AdminDashboardStatisticsService
     private function buildSystemStats(Collection $activeFiles): array
     {
         $today = Carbon::now()->startOfDay();
+        $jToday = Jalali::instance($today);
+        $monthStart = Carbon::createFromTimestamp($jToday->clone()->startMonth()->getTimestamp(), $today->getTimezone())->startOfDay();
+        $monthEnd = Carbon::createFromTimestamp($jToday->clone()->endMonth()->getTimestamp(), $today->getTimezone())->endOfDay();
+        $throughToday = $today->copy()->endOfDay();
+        $newCustomers = Customer::query()
+            ->whereRaw('DATE(COALESCE(membership_at, created_at)) BETWEEN ? AND ?', [$monthStart->toDateString(), $today->toDateString()])
+            ->count();
+        $monthCollected = (int) CustomerLoanInstallmentPayment::query()
+            ->whereBetween('deposited_at', [$monthStart->toDateString(), $today->toDateString()])
+            ->sum('amount_toman');
+        $monthCreatedFiles = 0;
+        $monthLoanPrincipal = 0;
+        $monthUncollected = 0;
         $customersWithDebt = [];
         $loanFilesCount = $activeFiles->count();
         $settledCount = 0;
@@ -78,6 +92,12 @@ final class AdminDashboardStatisticsService
 
         foreach ($activeFiles as $file) {
             $principal = (int) $file->amount_toman;
+            if ($file->created_at !== null && $file->created_at->betweenIncluded($monthStart, $throughToday)) {
+                $monthCreatedFiles++;
+            }
+            if ($file->loan_start_date !== null && $file->loan_start_date->betweenIncluded($monthStart, $throughToday)) {
+                $monthLoanPrincipal += $principal;
+            }
             $commission = $this->financeCalculator->calculateLoanProfitToman(
                 $principal,
                 (float) $file->effective_interest_rate,
@@ -119,6 +139,9 @@ final class AdminDashboardStatisticsService
                     continue;
                 }
                 $due = Carbon::parse($inst->due_date)->startOfDay();
+                if ($due->betweenIncluded($monthStart, $monthEnd)) {
+                    $monthUncollected += $unpaid;
+                }
                 if ($due->gte($now)) {
                     $uncollectedNotDueSum += $unpaid;
                 }
@@ -128,6 +151,11 @@ final class AdminDashboardStatisticsService
         $currentMonthInstallments = $this->buildCurrentMonthInstallmentStats($today);
 
         return [
+            ['label' => 'تعداد مشتریان جدید ماه جاری', 'value' => $this->formatCount($newCustomers)],
+            ['label' => 'تعداد پرونده وام ایجادشده ماه جاری', 'value' => $this->formatCount($monthCreatedFiles)],
+            ['label' => 'مجموع اقساط وصول‌شده ماه جاری', 'value' => $this->formatToman($monthCollected)],
+            ['label' => 'مجموع اقساط وصول‌نشده ماه جاری', 'value' => $this->formatToman($monthUncollected)],
+            ['label' => 'مبلغ کل وام‌های پرداختی ماه جاری', 'value' => $this->formatToman($monthLoanPrincipal)],
             ['label' => 'تعداد مشتری دارای پرونده وام فعال', 'value' => $this->formatCount(count($customersWithDebt))],
             ['label' => 'تعداد پرونده وام', 'value' => $this->formatCount($loanFilesCount)],
             ['label' => 'تعداد وام تسویه', 'value' => $this->formatCount($settledCount)],

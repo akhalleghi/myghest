@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -42,6 +43,21 @@ final class CustomerLoanInstallmentPayment extends Model
         'note',
         'recorded_by_admin_id',
     ];
+
+    protected static function booted(): void
+    {
+        self::saving(static function (self $payment): void {
+            if ($payment->payment_method === self::METHOD_LEGACY_IMPORTED
+                || ! $payment->isDirty(['amount_toman', 'deposited_at'])) {
+                return;
+            }
+            $installment = $payment->installment;
+            if ($installment !== null && $payment->deposited_at !== null
+                && Carbon::parse($payment->deposited_at)->startOfDay()->gt(Carbon::parse($installment->due_date)->startOfDay())) {
+                $payment->overdue_rounding_applied = true;
+            }
+        });
+    }
 
     /**
      * @return array<string, string>
@@ -90,6 +106,7 @@ final class CustomerLoanInstallmentPayment extends Model
         return [
             'customer_loan_installment_id' => 'integer',
             'amount_toman' => 'integer',
+            'overdue_rounding_applied' => 'boolean',
             'reference_due_date' => 'date',
             'deposited_at' => 'date',
             'recorded_by_admin_id' => 'integer',

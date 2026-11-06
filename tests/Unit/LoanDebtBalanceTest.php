@@ -37,6 +37,18 @@ final class LoanDebtBalanceTest extends TestCase
         return $i;
     }
 
+    public function test_overdue_rounding_boundaries_and_partial_receipts(): void
+    {
+        foreach ([1 => 1000, 999 => 1000, 1000 => 1000, 1001 => 2000, 2026670 => 2027000] as $raw => $expected) {
+            $balance = (new InstallmentDebtCalculator)->balance($this->installment($raw, []), 0, Carbon::parse('2026-08-02'));
+            self::assertSame($expected, $balance['final_amount_toman']);
+            self::assertSame($expected, $balance['remaining_toman']);
+        }
+        $partial = (new InstallmentDebtCalculator)->balance($this->installment(2026670, [['2026-08-02', 500500]]), 0, Carbon::parse('2026-08-02'));
+        self::assertSame(1526500, $partial['remaining_toman']);
+        self::assertSame(2027000, $partial['final_amount_toman']);
+    }
+
     public function test_principal_completion_keeps_unpaid_late_fee_as_debt(): void
     {
         $i = $this->installment(900000, [['2026-08-11', 930000]]);
@@ -60,8 +72,9 @@ final class LoanDebtBalanceTest extends TestCase
         $i = $this->installment(250000, [['2026-08-11', 100000]]);
         $balance = (new InstallmentDebtCalculator)->balance($i, 0.001, Carbon::parse('2026-08-16'));
         self::assertSame(150000, $balance['principal_remaining_toman']);
-        self::assertSame(3250, $balance['late_fee_remaining_toman']);
-        self::assertSame(153250, $balance['remaining_toman']);
+        self::assertSame(4000, $balance['late_fee_remaining_toman']);
+        self::assertSame(3250, $balance['late_fee_unrounded_toman']);
+        self::assertSame(154000, $balance['remaining_toman']);
     }
 
     public function test_editing_excludes_the_original_receipt(): void
@@ -94,7 +107,7 @@ final class LoanDebtBalanceTest extends TestCase
         $first = $this->installment(900000, [['2026-08-11', 930000]]);
         $second = $this->installment(900000, [['2026-08-11', 900000]]);
         $second->id = 2;
-        $type = new LoanType(['daily_late_coefficient' => 0.005]);
+        $type = new LoanType(['daily_late_coefficient' => 0.005, 'daily_early_coefficient' => 0]);
         $file = new CustomerLoanFile(['is_settled' => false, 'discount_amount_toman' => 0]);
         $file->setRelation('loanType', $type);
         $file->setRelation('installments', new Collection([$first, $second]));
@@ -131,7 +144,7 @@ final class LoanDebtBalanceTest extends TestCase
     {
         Carbon::setTestNow('2026-08-21');
         $i = $this->installment(900000, [['2026-08-11', 930000]]);
-        $type = new LoanType(['daily_late_coefficient' => 1 / 180]);
+        $type = new LoanType(['daily_late_coefficient' => 1 / 180, 'daily_early_coefficient' => 0]);
         // Keep exact coefficient rather than the production decimal cast in this arithmetic fixture.
         $type->mergeCasts(['daily_late_coefficient' => 'float']);
         $file = new CustomerLoanFile(['amount_toman' => 900000, 'is_settled' => false, 'discount_amount_toman' => 0]);

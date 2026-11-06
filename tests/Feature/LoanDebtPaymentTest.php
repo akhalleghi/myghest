@@ -135,6 +135,7 @@ final class LoanDebtPaymentTest extends TestCase
             $t->timestamps();
         });
         Schema::create('customer_loan_installment_payments', function (Blueprint $t): void {
+            $t->boolean('overdue_rounding_applied')->default(false);
             $t->id();
             $t->unsignedBigInteger('customer_loan_installment_id');
             $t->string('payment_method');
@@ -232,9 +233,9 @@ final class LoanDebtPaymentTest extends TestCase
         Carbon::setTestNow('2026-08-11');
         $snapshot = $this->snapshot();
         self::assertSame(45000, $snapshot['early_benefit_toman']);
-        self::assertSame(22500, $snapshot['late_fee_payable_toman']);
-        self::assertSame(472500, $snapshot['remaining_amount_toman']);
-        self::assertSame(472500, array_sum(array_column($snapshot['installment_payables'], 'remaining_toman')));
+        self::assertSame(23000, $snapshot['late_fee_payable_toman']);
+        self::assertSame(473000, $snapshot['remaining_amount_toman']);
+        self::assertSame(473000, array_sum(array_column($snapshot['installment_payables'], 'remaining_toman')));
     }
 
     public function test_early_rebate_and_manual_discount_are_applied_once_in_wallet_full_settlement(): void
@@ -922,6 +923,92 @@ final class LoanDebtPaymentTest extends TestCase
         ]), $this->customer);
     }
 
+    public function test_system_statistics_include_five_current_jalali_month_indicators(): void
+    {
+        $today = Carbon::today();
+        $start = Carbon::createFromTimestamp(Jalali::instance($today)->clone()->startMonth()->getTimestamp(), $today->getTimezone())->startOfDay();
+        $this->customer->update(['membership_at' => $start]);
+        Customer::create(['first_name' => 'Old', 'last_name' => 'Member', 'membership_at' => $start->copy()->subDay()]);
+        Customer::create(['first_name' => 'Fallback', 'last_name' => 'Member']);
+        $this->file->update(['loan_start_date' => $start]);
+        $this->shortPayment();
+        $this->installment->payments()->create([
+            'payment_method' => 'cash', 'amount_toman' => 7000, 'deposited_at' => $today->copy()->addDay(),
+        ]);
+        $future = $this->file->replicate();
+        $future->loan_code = 'FUTURE';
+        $future->loan_start_date = $today->copy()->addDay();
+        $future->created_at = $today->copy()->addDay();
+        $future->save();
+        $revoked = $this->file->replicate();
+        $revoked->loan_code = 'REVOKED';
+        $revoked->revoked_at = now();
+        $revoked->save();
+        $service = app(AdminDashboardStatisticsService::class);
+        $rows = (new \ReflectionMethod($service, 'buildSystemStats'))->invoke(
+            $service, CustomerLoanFile::whereNull('revoked_at')->with(['loanType', 'installments.payments'])->get()
+        );
+        $stats = array_column($rows, 'value', 'label');
+        self::assertSame(Jalali::enToFaNumbers('2'), $stats['تعداد مشتریان جدید ماه جاری']);
+        self::assertSame(Jalali::enToFaNumbers('1'), $stats['تعداد پرونده وام ایجادشده ماه جاری']);
+        self::assertSame(Jalali::enToFaNumbers('930,000').' تومان', $stats['مجموع اقساط وصول‌شده ماه جاری']);
+        self::assertSame(Jalali::enToFaNumbers('15,000').' تومان', $stats['مجموع اقساط وصول‌نشده ماه جاری']);
+        self::assertSame(Jalali::enToFaNumbers('900,000').' تومان', $stats['مبلغ کل وام‌های پرداختی ماه جاری']);
+        self::assertCount(18, $rows);
+    }
+
+    public function test_overdue_rounding_is_shared_by_admin_portal_sms_reports_and_settlement(): void
+    {
+        $this->file->update(['daily_late_coefficient' => 0]);
+        $this->installment->update(['amount_toman' => 2026670]);
+        self::assertSame(2027000, $this->snapshot()['remaining_amount_toman']);
+        $portal = app(CustomerLoanPortalPresenter::class);
+        self::assertSame(2027000, $portal->forDashboard($this->customer)['loans'][0]['installments'][0]['final_amount_toman']);
+        self::assertSame(2027000, $portal->fullSettlementOnlinePaymentQuote($this->file->fresh())['amount_toman']);
+        self::assertSame(2027000, app(InstallmentOnlinePaymentResolver::class)->resolveForCustomer($this->customer, $this->installment->id)['amount_toman']);
+        self::assertSame(2027000, app(AdminCustomerSettleAllOverdueService::class)->preview($this->customer)['amount_toman']);
+        $vars = app(\App\Services\Sms\InstallmentSmsTemplateVarsBuilder::class)->build($this->customer, $this->file->fresh(), $this->installment->fresh(), null, 'overdue');
+        self::assertSame('2,027,000 تومان', $vars['installment_unpaid_amount']);
+        $service = app(InstallmentDueDatesByDateReportService::class);
+        $row = (new \ReflectionMethod($service, 'mapRow'))->invoke($service, $this->installment->fresh(['loanFile.customer', 'loanFile.loanType']));
+        self::assertSame(2027000, $row['final_amount_toman']);
+        // Paying only the old raw amount leaves the rounding charge outstanding.
+        $response = app(CustomerController::class)->storeLoanInstallmentPayment($this->request(2026670, '2026-08-21'), $this->customer, $this->file->fresh(), $this->installment->fresh());
+        self::assertSame(200, $response->getStatusCode());
+        self::assertTrue($this->installment->payments()->firstOrFail()->overdue_rounding_applied);
+        self::assertSame(330, $this->snapshot()['remaining_amount_toman']);
+        self::assertFalse($this->snapshot()['settled_by_balance']);
+        app(LoanFullSettlementOnlinePrincipalAllocator::class)->allocateDebtAcrossInstallments($this->file->fresh(), 330, 'ROUND');
+        self::assertSame(0, $this->snapshot()['remaining_amount_toman']);
+        self::assertTrue($this->snapshot()['settled_by_balance']);
+        self::assertSame(2027000, (int) $this->installment->payments()->sum('amount_toman'));
+    }
+
+    public function test_overdue_rounding_preserves_old_completed_receipts_and_does_not_round_on_time_debt(): void
+    {
+        $this->file->update(['daily_late_coefficient' => 0]);
+        $this->installment->update(['amount_toman' => 2026670, 'due_date' => '2026-08-21']);
+        self::assertSame(2026670, $this->snapshot()['remaining_amount_toman']);
+        $this->installment->update(['due_date' => '2026-08-01']);
+        $this->installment->payments()->createQuietly(['payment_method' => 'cash', 'amount_toman' => 2026670, 'deposited_at' => '2026-08-11']);
+        self::assertSame(0, $this->snapshot()['remaining_amount_toman']);
+        self::assertSame(0, $this->snapshot()['installment_balances'][$this->installment->id]['rounding_adjustment_toman']);
+        self::assertTrue($this->snapshot()['settled_by_balance']);
+    }
+
+    public function test_wallet_collects_rounded_overdue_total_and_preserves_receipt_amount(): void
+    {
+        $this->file->update(['daily_late_coefficient' => 0]);
+        $this->installment->update(['amount_toman' => 2026670]);
+        CustomerWallet::create(['customer_id' => $this->customer->id, 'balance_toman' => 2030000, 'is_locked' => false]);
+        $result = app(PortalLoanWalletPaymentService::class)->payInstallmentFromWallet($this->customer, $this->installment->id, '44444444-4444-4444-8444-444444444444');
+        self::assertTrue($result['ok'], $result['message']);
+        self::assertSame(2027000, $result['amount_toman']);
+        self::assertSame(3000, $this->customer->wallet()->firstOrFail()->balance_toman);
+        self::assertSame(2027000, (int) $this->installment->payments()->sum('amount_toman'));
+        self::assertSame(0, $this->snapshot()['remaining_amount_toman']);
+    }
+
     private function shortPayment(): void
     {
         app(CustomerController::class)->storeLoanInstallmentPayment($this->request(930000, '2026-08-11'), $this->customer, $this->file, $this->installment);
@@ -1121,12 +1208,12 @@ final class LoanDebtPaymentTest extends TestCase
     {
         $this->file->update(['amount_toman' => 4800000, 'installments_count' => 3, 'installment_amount_toman' => 1600000, 'daily_late_coefficient' => 0.002667]);
         $this->installment->update(['amount_toman' => 1600000, 'due_date' => '2026-06-01']);
-        $this->installment->payments()->create(['payment_method' => 'cash', 'amount_toman' => 1604267, 'deposited_at' => '2026-06-02']);
+        $this->installment->payments()->createQuietly(['payment_method' => 'cash', 'amount_toman' => 1604267, 'deposited_at' => '2026-06-02']);
         $second = $this->file->installments()->create(['sequence' => 2, 'amount_toman' => 1600000, 'due_date' => '2026-07-01']);
-        $second->payments()->create(['payment_method' => 'cash', 'amount_toman' => 1612802, 'deposited_at' => '2026-07-04']);
+        $second->payments()->createQuietly(['payment_method' => 'cash', 'amount_toman' => 1612802, 'deposited_at' => '2026-07-04']);
         $last = $this->file->installments()->create(['sequence' => 3, 'amount_toman' => 1600000, 'due_date' => '2026-08-01']);
         $finance = app(LoanFileFinanceCalculator::class);
-        $expectedFee = 85344; // 1,600,000 * .002667 * 20 days.
+        $expectedFee = 86000; // Raw charge 85,344 plus rounding to a whole 1,000.
         self::assertSame(1600000 + $expectedFee, $finance->installmentPaymentAllowanceToman($this->file->fresh(), $last));
         $resolved = app(InstallmentOnlinePaymentResolver::class)->resolveForCustomer($this->customer, $last->id);
         self::assertTrue($resolved['ok']);
@@ -1222,12 +1309,12 @@ final class LoanDebtPaymentTest extends TestCase
         $controller = app(CustomerController::class);
         self::assertSame(200, $controller->storeLoanInstallmentPayment($this->request(450000, '2026-08-06'), $this->customer, $this->file, $this->installment)->getStatusCode());
         // Five days on 900,000 plus five days on the remaining 450,000.
-        self::assertSame(200, $controller->storeLoanInstallmentPayment($this->request(483750, '2026-08-11'), $this->customer, $this->file->fresh(), $this->installment->fresh())->getStatusCode());
+        self::assertSame(200, $controller->storeLoanInstallmentPayment($this->request(484000, '2026-08-11'), $this->customer, $this->file->fresh(), $this->installment->fresh())->getStatusCode());
         $installment = $this->installment->fresh();
-        self::assertSame(33750, app(LoanFileFinanceCalculator::class)->estimatePenaltyAtDateToman($installment, 0.005, Carbon::parse('2026-08-11')));
+        self::assertSame(34000, app(LoanFileFinanceCalculator::class)->estimatePenaltyAtDateToman($installment, 0.005, Carbon::parse('2026-08-11')));
         $portal = app(CustomerLoanPortalPresenter::class)->forDashboard($this->customer)['loans'][0]['installments'][0];
         self::assertSame(422, $controller->storeLoanInstallmentPayment($this->request(1, '2026-08-21'), $this->customer, $this->file->fresh(), $installment)->getStatusCode());
-        self::assertStringContainsString('۳۳,۷۵۰', $portal['early_late_cell_fa']);
+        self::assertStringContainsString('۳۴,۰۰۰', $portal['early_late_cell_fa']);
         self::assertStringNotContainsString('۴۵,۰۰۰', $portal['early_late_cell_fa']);
     }
 
@@ -1258,11 +1345,11 @@ final class LoanDebtPaymentTest extends TestCase
         $this->file->update(['amount_toman' => 4408000, 'effective_interest_rate' => 3.02,
             'installments_count' => 3, 'installment_amount_toman' => 1600000, 'daily_late_coefficient' => 0.002667]);
         $this->installment->update(['amount_toman' => 1600000, 'due_date' => '2026-06-01', 'paid_amount_toman' => 1604267, 'paid_at' => '2026-06-02']);
-        $this->installment->payments()->create(['payment_method' => 'cash', 'amount_toman' => 1604267, 'deposited_at' => '2026-06-02']);
+        $this->installment->payments()->createQuietly(['payment_method' => 'cash', 'amount_toman' => 1604267, 'deposited_at' => '2026-06-02']);
         $second = $this->file->installments()->create(['sequence' => 2, 'amount_toman' => 1600000, 'due_date' => '2026-07-01', 'paid_amount_toman' => 1612802, 'paid_at' => '2026-07-04']);
-        $second->payments()->create(['payment_method' => 'cash', 'amount_toman' => 1612802, 'deposited_at' => '2026-07-04']);
+        $second->payments()->createQuietly(['payment_method' => 'cash', 'amount_toman' => 1612802, 'deposited_at' => '2026-07-04']);
         $last = $this->file->installments()->create(['sequence' => 3, 'amount_toman' => 1625000, 'due_date' => '2026-09-01', 'paid_amount_toman' => 1607365, 'paid_at' => '2026-08-21']);
-        $last->payments()->create(['payment_method' => 'cash', 'amount_toman' => 1607365, 'deposited_at' => '2026-08-21']);
+        $last->payments()->createQuietly(['payment_method' => 'cash', 'amount_toman' => 1607365, 'deposited_at' => '2026-08-21']);
 
         return $last;
     }
@@ -1322,12 +1409,12 @@ final class LoanDebtPaymentTest extends TestCase
         $quote = $bulk->preview($this->customer);
         self::assertTrue($quote['settleable']);
         self::assertSame(17635, $quote['principal_toman']);
-        self::assertSame(470, $quote['late_fee_toman']);
-        self::assertSame(18105, $quote['amount_toman']);
+        self::assertSame(1000, $quote['late_fee_toman']);
+        self::assertSame(18635, $quote['amount_toman']);
         $result = $bulk->settle($this->customer, 'cash', Carbon::today(), null, (int) auth('admin')->id());
         self::assertTrue($result['ok'], $result['message']);
         self::assertSame(0, $this->snapshot()['remaining_amount_toman']);
-        self::assertSame(1625470, $last->payments()->sum('amount_toman'));
+        self::assertSame(1626000, $last->payments()->sum('amount_toman'));
     }
 
     public function test_full_settlement_allocator_respects_the_same_discounted_installment_balances(): void

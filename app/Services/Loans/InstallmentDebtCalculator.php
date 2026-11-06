@@ -24,18 +24,20 @@ final class InstallmentDebtCalculator
         $installment->loadMissing('payments');
         $receipts = $installment->payments
             ->filter(static fn ($p): bool => $excludePaymentId === null || (int) $p->id !== $excludePaymentId)
-            ->map(static fn ($p): array => ['id' => (int) $p->id, 'date' => Carbon::parse($p->deposited_at)->startOfDay(), 'amount' => max(0, (int) $p->amount_toman)])
+            ->map(static fn ($p): array => ['id' => (int) $p->id, 'date' => Carbon::parse($p->deposited_at)->startOfDay(), 'amount' => max(0, (int) $p->amount_toman), 'rounded' => (bool) $p->overdue_rounding_applied])
             ->all();
         // Older installments may have only a receipt total and payment date.
         if ($installment->payments->isEmpty() && (int) $installment->paid_amount_toman > 0) {
-            $receipts[] = ['id' => 0, 'date' => Carbon::parse($installment->paid_at ?? $at)->startOfDay(), 'amount' => (int) $installment->paid_amount_toman];
+            $receipts[] = ['id' => 0, 'date' => Carbon::parse($installment->paid_at ?? $at)->startOfDay(), 'amount' => (int) $installment->paid_amount_toman, 'rounded' => false];
         }
         usort($receipts, static fn (array $a, array $b): int => ($a['date']->getTimestamp() <=> $b['date']->getTimestamp()) ?: ($a['id'] <=> $b['id']));
+        $hasRoundedReceipt = false;
         foreach ($receipts as $receipt) {
             $date = $receipt['date'];
             if ($date->gt($at)) {
                 continue;
             }
+            $hasRoundedReceipt = $hasRoundedReceipt || ($receipt['rounded'] && $date->gt($due));
             if ($date->gt($cursor)) {
                 $accrued += $principal * max(0, $dailyLateCoefficient) * (int) $cursor->diffInDays($date);
                 $cursor = $date->copy();
@@ -60,13 +62,30 @@ final class InstallmentDebtCalculator
             ? min($principal, max(0, (int) round($principal * max(0, $dailyEarlyCoefficient) * (int) $at->diffInDays($due)))) : 0;
         $netPrincipal = $principal - $earlyAvailable;
 
+        $unroundedAssessed = $assessed;
+        $finalAmount = max(0, $nominal + $assessed - $earlyEarned - $earlyAvailable);
+        $roundingAdjustment = 0;
+        // A dated receipt remembers the new rule, so paying only the old raw
+        // amount cannot silently waive the rounding remainder. Historical fully
+        // paid installments have no marker and keep their original settlement.
+        $legacyClosed = ! $hasRoundedReceipt && $installment->relationLoaded('loanFile')
+            && ($installment->loanFile?->is_settled || $installment->loanFile?->revoked_at !== null);
+        if (! $legacyClosed && $at->gt($due) && ($netPrincipal + $lateRemaining > 0 || $hasRoundedReceipt)) {
+            $roundingAdjustment = (1000 - $finalAmount % 1000) % 1000;
+            $assessed += $roundingAdjustment;
+            $finalAmount += $roundingAdjustment;
+            $lateRemaining = max(0, $assessed - $feePaid);
+        }
+
         return [
             'principal_paid_toman' => $nominal - $principal - $earlyEarned,
             'principal_remaining_toman' => $netPrincipal,
             'early_benefit_toman' => $earlyEarned + $earlyAvailable,
             'early_benefit_earned_toman' => $earlyEarned,
             'early_benefit_available_toman' => $earlyAvailable,
-            'final_amount_toman' => max(0, $nominal + $assessed - $earlyEarned - $earlyAvailable),
+            'final_amount_toman' => $finalAmount,
+            'rounding_adjustment_toman' => $roundingAdjustment,
+            'late_fee_unrounded_toman' => $unroundedAssessed,
             'late_fee_assessed_toman' => $assessed,
             'late_fee_paid_toman' => min($feePaid, $assessed),
             'late_fee_remaining_toman' => $lateRemaining,
