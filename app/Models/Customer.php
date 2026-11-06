@@ -34,6 +34,7 @@ final class Customer extends Authenticatable
         'purchase_credit_ceiling_toman',
         'sms_sending_enabled',
         'credentials_sms_sent_at',
+        'mobile_verified_at',
     ];
 
     /**
@@ -45,15 +46,23 @@ final class Customer extends Authenticatable
         'remember_token',
     ];
 
-    /**
-     * @return array<string, string>
-     */
+    protected static function booted(): void
+    {
+        self::updating(static function (self $customer): void {
+            if ($customer->isDirty('mobile') && $customer->mobile_verified_at !== null) {
+                $customer->mobile_verified_at = null;
+            }
+        });
+    }
+
+    /** @return array<string, string> */
     protected function casts(): array
     {
         return [
             'membership_at' => 'date',
             'birth_date' => 'date',
             'credentials_sms_sent_at' => 'datetime',
+            'mobile_verified_at' => 'datetime',
             'purchase_credit_ceiling_toman' => 'integer',
             'sms_sending_enabled' => 'boolean',
             'installment_reward_enabled' => 'boolean',

@@ -2734,6 +2734,7 @@ final class CustomerController extends Controller
             'wallet-charge-link' => 'لینک شارژ کیف پول',
             'welcome-message' => 'پیام خوش‌آمدگویی',
             'guarantor-otp' => 'کد تأیید ضامن',
+            'customer-mobile-verification' => 'تأیید شماره موبایل مشتری',
             'panel-test' => 'تست پنل پیامک',
             'wallet-transaction' => 'ارتباط با تراکنش کیف پول',
             default => $type !== '' ? $type : 'نامشخص',
@@ -3472,7 +3473,11 @@ final class CustomerController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $request->validate(['credentials_sms_text' => ['nullable', 'string', 'max:1000']]);
+        $request->validate([
+            'credentials_sms_text' => ['nullable', 'string', 'max:1000'],
+            'mobile_verification_required' => ['nullable', 'boolean'],
+            'mobile_verification_token' => ['nullable', 'string', 'size:48', Rule::requiredIf($request->boolean('mobile_verification_required'))],
+        ]);
         if (trim((string) $request->input('email', '')) === '') {
             $request->merge(['email' => null]);
         }
@@ -3548,6 +3553,11 @@ final class CustomerController extends Controller
         $customerCode = trim((string) ($validated['customer_code'] ?? ''));
 
         $plainPassword = (string) $validated['password'];
+        $mobileVerification = app(\App\Services\Customers\CustomerMobileVerification::class);
+        $verificationToken = $request->boolean('mobile_verification_required') ? (string) $request->input('mobile_verification_token') : '';
+        $mobileVerifiedAt = $verificationToken !== ''
+            ? $mobileVerification->proof((int) auth('admin')->id(), $validated['mobile'], $verificationToken)
+            : null;
 
         $customer = app(CustomerMediaService::class)->withChanges($request, function () use (
             $validated,
@@ -3557,7 +3567,8 @@ final class CustomerController extends Controller
             $membershipAt,
             $birthDate,
             $accounts,
-            $referrers
+            $referrers,
+            $mobileVerifiedAt
         ): Customer {
             /** @var Customer $c */
             $c = Customer::query()->create([
@@ -3572,6 +3583,7 @@ final class CustomerController extends Controller
                     ? (string) $validated['national_id']
                     : null,
                 'mobile' => $validated['mobile'],
+                ...($mobileVerifiedAt !== null ? ['mobile_verified_at' => $mobileVerifiedAt] : []),
                 'mobile2' => $validated['mobile2'] !== null && (string) $validated['mobile2'] !== ''
                     ? (string) $validated['mobile2']
                     : null,
@@ -3624,6 +3636,10 @@ final class CustomerController extends Controller
 
             return $c;
         });
+
+        if ($verificationToken !== '') {
+            $mobileVerification->consume($verificationToken);
+        }
 
         $smsMessage = '';
         if ($sendCredentials) {

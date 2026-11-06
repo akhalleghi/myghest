@@ -51,7 +51,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->dontFlash(['credentials_sms_text']);
+        $exceptions->dontFlash(['credentials_sms_text', 'mobile_verification_token', 'code', 'otp_session']);
         $exceptions->render(function (HttpExceptionInterface $e, Request $request) {
             if ($e->getStatusCode() !== 429) {
                 return null;

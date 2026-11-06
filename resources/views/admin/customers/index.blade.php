@@ -2024,6 +2024,7 @@
         }
         .loan-guarantee-guarantor-otp-btn:disabled { opacity: 0.55; cursor: not-allowed; }
         .loan-guarantee-guarantor-otp-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.25rem; }
+        #cust-mobile-otp-code-row:not([hidden]) { display: flex; gap: .5rem; flex-wrap: wrap; }
         .loan-creation-otp-section { border: 1px dashed rgba(37, 99, 235, 0.28); border-radius: 0.65rem; padding: 0.65rem 0.75rem; background: rgba(37, 99, 235, 0.04); }
         .loan-creation-otp-section > label:first-child { margin-bottom: 0.15rem; }
         .loan-creation-otp-skip {
@@ -3254,6 +3255,24 @@
                             @endif
                         </div>
                     </div>
+
+                    <fieldset id="cust-mobile-verification" class="loan-creation-otp-section" style="margin-top:.8rem">
+                        <legend>تأیید اختیاری شماره موبایل</legend>
+                        <label class="cust-send-row">
+                            <input type="checkbox" name="mobile_verification_required" value="1" id="cust-mobile-otp-required" @checked(old('mobile_verification_required'))>
+                            تأیید شماره موبایل مشتری با کد پیامکی
+                        </label>
+                        <p class="loan-interest-note">با فعال کردن این گزینه، شماره موبایل پیش از ذخیره باید تأیید شود. کد را از مشتری دریافت کنید.</p>
+                        <input type="hidden" id="cust-mobile-otp-token" name="mobile_verification_token" value="">
+                        <div id="cust-mobile-otp-flow" hidden>
+                            <button type="button" class="loan-creation-otp-btn" id="cust-mobile-otp-send">پیش‌نمایش و ارسال کد</button>
+                            <div id="cust-mobile-otp-code-row" hidden style="margin-top:.5rem">
+                                <input id="cust-mobile-otp-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-label="کد تأیید موبایل" placeholder="کد ۶ رقمی">
+                                <button type="button" class="loan-creation-otp-btn" id="cust-mobile-otp-verify">تأیید کد</button>
+                            </div>
+                        </div>
+                        <p id="cust-mobile-otp-status" role="status" aria-live="polite" class="loan-interest-note"></p>
+                    </fieldset>
 
                     <input type="hidden" name="send_credentials" value="0" id="cust-send-hidden">
                     <input type="hidden" name="credentials_sms_text" value="" id="cust-credentials-sms-text">
@@ -5110,6 +5129,83 @@
             var mobile = document.getElementById('cust-mobile');
             var userPrev = document.getElementById('cust-username-preview');
             var form = document.getElementById('cust-store-form');
+            var customerMobileOtpBox = document.getElementById('cust-mobile-verification');
+            var customerMobileOtpRequired = document.getElementById('cust-mobile-otp-required');
+            var customerMobileOtpToken = document.getElementById('cust-mobile-otp-token');
+            var customerMobileOtpStatus = document.getElementById('cust-mobile-otp-status');
+            var customerMobileOtpSession = '';
+            var customerMobileOtpGeneration = 0;
+            function resetCustomerMobileOtp() {
+                customerMobileOtpGeneration++;
+                customerMobileOtpSession = '';
+                customerMobileOtpToken.value = '';
+                document.getElementById('cust-mobile-otp-code').value = '';
+                document.getElementById('cust-mobile-otp-code-row').hidden = true;
+                document.getElementById('cust-mobile-otp-flow').hidden = !customerMobileOtpRequired.checked;
+                customerMobileOtpStatus.textContent = '';
+            }
+            async function customerMobileOtpRequest(action, data) {
+                var urls = {
+                    preview: @json(route('admin.customers.mobile-verification.preview')),
+                    send: @json(route('admin.customers.mobile-verification.send')),
+                    verify: @json(route('admin.customers.mobile-verification.verify'))
+                };
+                var response = await fetch(urls[action], {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': @json(csrf_token()) },
+                    body: JSON.stringify(data)
+                });
+                var result = await response.json();
+                if (!response.ok) throw new Error(Object.values(result.errors || {}).flat()[0] || result.message || 'درخواست انجام نشد.');
+                return result;
+            }
+            customerMobileOtpRequired.addEventListener('change', resetCustomerMobileOtp);
+            mobile.addEventListener('input', resetCustomerMobileOtp);
+            form.addEventListener('reset', function () { setTimeout(resetCustomerMobileOtp, 0); });
+            document.getElementById('cust-mobile-otp-send').addEventListener('click', async function () {
+                var button = this;
+                var generation = customerMobileOtpGeneration;
+                var number = toEnglishDigits(mobile.value.trim());
+                button.disabled = true;
+                try {
+                    var preview = await customerMobileOtpRequest('preview', { mobile: number });
+                    if (generation !== customerMobileOtpGeneration) return;
+                    if (!window.Swal) throw new Error('پیش‌نمایش پیامک بارگذاری نشده است؛ صفحه را تازه‌سازی کنید.');
+                    var choice = await Swal.fire({
+                        title: 'تأیید شماره ' + preview.mobile, input: 'textarea', inputValue: preview.body,
+                        inputAttributes: { maxlength: '1000', dir: 'rtl' },
+                        showCancelButton: true, confirmButtonText: 'تأیید و ارسال', cancelButtonText: 'انصراف',
+                        inputValidator: function (value) { if (!/\{\{\s*code\s*\}\}/i.test(value)) return 'عبارت @{{code}} را حفظ کنید.'; }
+                    });
+                    if (!choice.isConfirmed || generation !== customerMobileOtpGeneration) return;
+                    var result = await customerMobileOtpRequest('send', { mobile: number, sms_text: choice.value });
+                    if (generation !== customerMobileOtpGeneration) return;
+                    customerMobileOtpToken.value = '';
+                    customerMobileOtpSession = result.otp_session;
+                    document.getElementById('cust-mobile-otp-code-row').hidden = false;
+                    document.getElementById('cust-mobile-otp-code').focus();
+                    customerMobileOtpStatus.textContent = result.message;
+                } catch (error) {
+                    if (generation === customerMobileOtpGeneration) customerMobileOtpStatus.textContent = error.message;
+                } finally { button.disabled = false; }
+            });
+            document.getElementById('cust-mobile-otp-verify').addEventListener('click', async function () {
+                var button = this;
+                var generation = customerMobileOtpGeneration;
+                button.disabled = true;
+                try {
+                    var result = await customerMobileOtpRequest('verify', {
+                        mobile: toEnglishDigits(mobile.value.trim()), otp_session: customerMobileOtpSession,
+                        code: toEnglishDigits(document.getElementById('cust-mobile-otp-code').value.trim())
+                    });
+                    if (generation !== customerMobileOtpGeneration) return;
+                    customerMobileOtpToken.value = result.verification_token;
+                    customerMobileOtpStatus.textContent = result.message;
+                    document.getElementById('cust-mobile-otp-code-row').hidden = true;
+                } catch (error) {
+                    if (generation === customerMobileOtpGeneration) customerMobileOtpStatus.textContent = error.message;
+                } finally { button.disabled = false; }
+            });
             var sendHidden = document.getElementById('cust-send-hidden');
             var sendChk = document.getElementById('cust-send-chk');
             var bankContainer = document.getElementById('cust-bank-rows');
@@ -5760,6 +5856,8 @@
 
             function openCreateModal() {
                 custFormMode = 'create';
+                customerMobileOtpBox.hidden = false;
+                customerMobileOtpBox.disabled = false;
                 removeMethodField();
                 form.action = custStoreUrl;
                 form.setAttribute('method', 'post');
@@ -5809,6 +5907,9 @@
                 form.dataset.mediaCustomerId = String(customerId);
                 form.dispatchEvent(new CustomEvent('customer-media:reset'));
                 custFormMode = 'edit';
+                resetCustomerMobileOtp();
+                customerMobileOtpBox.hidden = true;
+                customerMobileOtpBox.disabled = true;
                 addMethodPut();
                 form.action = custUpdateUrl(customerId);
                 form.setAttribute('method', 'post');
@@ -12439,6 +12540,12 @@
             var credentialPreviewOpen = false;
             if (form) {
                 form.addEventListener('submit', function (e) {
+                    if (custFormMode === 'create' && customerMobileOtpRequired.checked && !customerMobileOtpToken.value) {
+                        e.preventDefault();
+                        customerMobileOtpStatus.textContent = 'ابتدا شماره موبایل را تأیید کنید یا گزینهٔ تأیید اختیاری را غیرفعال کنید.';
+                        customerMobileOtpStatus.scrollIntoView({ block: 'center' });
+                        return;
+                    }
                     if (skipPrompt) {
                         skipPrompt = false;
                         return;
@@ -12732,6 +12839,8 @@
             openModal();
             @elseif (session('open_edit_customer_id'))
             custFormMode = 'edit';
+            customerMobileOtpBox.hidden = true;
+            customerMobileOtpBox.disabled = true;
             addMethodPut();
             form.action = custUpdateUrl({{ (int) session('open_edit_customer_id') }});
             if (modalTitle) modalTitle.textContent = 'ویرایش مشتری';

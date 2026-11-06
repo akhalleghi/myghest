@@ -56,6 +56,7 @@ final class AdminActivityRouteLabelResolver
         'wallet' => 'کیف پول',
         'templates' => 'الگوهای پیامک',
         'template' => 'الگوی پیامک',
+        'mobile-verification' => 'تأیید شماره موبایل مشتری جدید',
         'guarantor-otp' => 'تأیید OTP ضامن',
         'login-blocks' => 'مسدودسازی ورود',
         'login-background' => 'پس‌زمینه ورود',

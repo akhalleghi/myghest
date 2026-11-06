@@ -514,6 +514,13 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
         ->middleware('throttle:60,1')
         ->name('customers.sms-modal-preview');
 
+    Route::post('/customers/mobile-verification/preview', [\App\Http\Controllers\Admin\CustomerMobileVerificationController::class, 'preview'])
+        ->middleware('throttle:30,1')->name('customers.mobile-verification.preview');
+    Route::post('/customers/mobile-verification/send', [\App\Http\Controllers\Admin\CustomerMobileVerificationController::class, 'send'])
+        ->middleware('throttle:6,1')->name('customers.mobile-verification.send');
+    Route::post('/customers/mobile-verification/verify', [\App\Http\Controllers\Admin\CustomerMobileVerificationController::class, 'verify'])
+        ->middleware('throttle:15,1')->name('customers.mobile-verification.verify');
+
     Route::post('/customers/{customer}/loan-creation-otp/preview', [LoanCreationOtpController::class, 'preview'])
         ->middleware('throttle:60,1')
         ->name('customers.loan-creation-otp.preview');

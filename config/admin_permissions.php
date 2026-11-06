@@ -43,7 +43,7 @@ return [
                 ]],
                 ['key' => 'customers.export', 'label' => 'خروجی اکسل مشتریان', 'routes' => ['admin.customers.export-excel', 'admin.customers.sms-logs.export-excel', 'admin.customers.guarantees-report.export-excel']],
                 ['key' => 'customers.import', 'label' => 'ورود اکسل مشتریان', 'routes' => ['admin.customers.import.sample-excel', 'admin.customers.import-excel']],
-                ['key' => 'customers.create', 'label' => 'افزودن مشتری', 'routes' => ['admin.customers.store']],
+                ['key' => 'customers.create', 'label' => 'افزودن مشتری', 'routes' => ['admin.customers.store', 'admin.customers.mobile-verification.preview', 'admin.customers.mobile-verification.send', 'admin.customers.mobile-verification.verify']],
                 ['key' => 'customers.update', 'label' => 'ویرایش مشتری', 'routes' => [
                     'admin.customers.update',
                     'admin.customers.purchase-credit-ceiling',
