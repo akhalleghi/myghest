@@ -3250,6 +3250,7 @@
                     </div>
 
                     <input type="hidden" name="send_credentials" value="0" id="cust-send-hidden">
+                    <input type="hidden" name="credentials_sms_text" value="" id="cust-credentials-sms-text">
 
                     <div class="cust-send-row">
                         <input type="checkbox" id="cust-send-chk">
@@ -12381,6 +12382,7 @@
                 });
             }
 
+            var credentialPreviewOpen = false;
             if (form) {
                 form.addEventListener('submit', function (e) {
                     if (skipPrompt) {
@@ -12389,6 +12391,47 @@
                     }
                     if (customerFormSubmitting) {
                         e.preventDefault();
+                        return;
+                    }
+                    if (custFormMode === 'create') {
+                        if (credentialPreviewOpen) { e.preventDefault(); return; }
+                        var smsField = document.getElementById('cust-credentials-sms-text');
+                        if (!sendChk || !sendChk.checked) {
+                            if (sendHidden) sendHidden.value = '0';
+                            if (smsField) smsField.value = '';
+                            customerFormSubmitting = true;
+                            setCustomerSubmitLoading(true);
+                            return;
+                        }
+                        e.preventDefault();
+                        if (typeof Swal === 'undefined') {
+                            window.alert('پیش‌نمایش پیامک آماده نیست؛ صفحه را تازه کنید یا گزینه ارسال پیامک را بردارید.');
+                            return;
+                        }
+                        credentialPreviewOpen = true;
+                        var smsText = 'سامانه ' + (appDisplayName || '') + '\nنام کاربری: ' +
+                            String(userPrev ? userPrev.value : '') + '\nرمز عبور: ' + String(pwdInput ? pwdInput.value : '');
+                        Swal.fire({
+                            title: 'بازبینی پیامک اطلاعات ورود', icon: 'question',
+                            input: 'textarea', inputValue: smsText,
+                            inputLabel: 'متن پیامک قابل ویرایش است', inputAttributes: { maxlength: '1000', dir: 'rtl' },
+                            showDenyButton: true, showCancelButton: true,
+                            confirmButtonText: 'ذخیره و ارسال پیامک', denyButtonText: 'فقط ذخیره', cancelButtonText: 'بازگشت',
+                            reverseButtons: true, allowOutsideClick: false,
+                            preConfirm: function (value) {
+                                var text = String(value || '').trim();
+                                if (!text) { Swal.showValidationMessage('متن پیامک را وارد کنید.'); return false; }
+                                return text;
+                            }
+                        }).then(function (result) {
+                            if (!result.isConfirmed && !result.isDenied) return;
+                            sendHidden.value = result.isConfirmed ? '1' : '0';
+                            if (smsField) smsField.value = result.isConfirmed ? result.value : '';
+                            customerFormSubmitting = true;
+                            setCustomerSubmitLoading(true);
+                            skipPrompt = true;
+                            form.requestSubmit();
+                        }).finally(function () { credentialPreviewOpen = false; });
                         return;
                     }
                     if (!sendHidden || sendHidden.value === '1') {

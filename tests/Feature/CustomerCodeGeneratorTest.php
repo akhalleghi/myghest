@@ -6,9 +6,15 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\Admin\CustomerController;
 use App\Models\Customer;
+use App\Models\SmsLog;
+use App\Models\SmsPanelSetting;
 use App\Services\Customers\CustomerCodeGenerator;
+use App\Services\Sms\Contracts\SmsPanelGateway;
+use App\Services\Sms\SmsPanelConnectionResult;
+use App\Services\Sms\SmsPanelManager;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -161,6 +167,46 @@ final class CustomerCodeGeneratorTest extends TestCase
         $controller->update(Request::create('/', 'POST', $payload), $customer);
         self::assertSame('300', $customer->fresh()->customer_code);
         self::assertSame('301', $this->createAutomatic()->customer_code);
+    }
+
+    public function test_new_customer_sends_exact_reviewed_credentials_text_and_save_only_sends_nothing(): void
+    {
+        Schema::table('customers', function (Blueprint $table): void {
+            $table->timestamp('credentials_sms_sent_at')->nullable();
+        });
+        foreach (['2026_05_06_120000_create_sms_panel_settings_table.php', '2026_05_06_000003_create_sms_logs_table.php'] as $migration) {
+            (require database_path('migrations/'.$migration))->up();
+        }
+        $gateway = \Mockery::mock(SmsPanelGateway::class);
+        $gateway->shouldReceive('providerKey')->andReturn('test');
+        $gateway->shouldReceive('displayName')->andReturn('Test');
+        $text = "متن بازبینی‌شده\nنام کاربری: 09121234567\nرمز: test-password";
+        $gateway->shouldReceive('sendTestMessage')->once()->with('test', 'secret', '09121234567', $text, \Mockery::type('array'))
+            ->andReturn(new SmsPanelConnectionResult(true, 'Sent'));
+        $this->app->instance(SmsPanelManager::class, new SmsPanelManager([$gateway]));
+        SmsPanelSetting::create(['provider' => 'test', 'is_active' => true, 'username' => 'test',
+            'password' => Crypt::encryptString('secret')]);
+        $controller = app(CustomerController::class);
+        $payload = [...$this->payload('09121234567'), 'send_credentials' => 1, 'credentials_sms_text' => $text];
+        $controller->store(Request::create('/', 'POST', $payload));
+        self::assertSame($text, SmsLog::sole()->message_text);
+        self::assertNotNull(Customer::where('mobile', '09121234567')->firstOrFail()->credentials_sms_sent_at);
+        $controller->store(Request::create('/', 'POST', [...$this->payload('09351234567'), 'send_credentials' => 0, 'credentials_sms_text' => $text]));
+        self::assertSame(2, Customer::count());
+        self::assertSame(1, SmsLog::count());
+    }
+
+    public function test_oversized_credentials_preview_is_rejected_before_customer_creation(): void
+    {
+        try {
+            app(CustomerController::class)->store(Request::create('/', 'POST', [
+                ...$this->payload('09121234567'), 'send_credentials' => 1, 'credentials_sms_text' => str_repeat('a', 1001),
+            ]));
+            self::fail('Oversized SMS must be rejected.');
+        } catch (ValidationException $exception) {
+            self::assertArrayHasKey('credentials_sms_text', $exception->errors());
+        }
+        self::assertSame(0, Customer::count());
     }
 
     public function test_customer_code_sort_is_numeric_and_retains_legacy_codes(): void

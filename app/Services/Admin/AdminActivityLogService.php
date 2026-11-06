@@ -32,6 +32,7 @@ final class AdminActivityLogService
         'login_session',
         'remember_token',
         'sms_text',
+        'credentials_sms_text',
     ];
 
     public function recordLogin(Admin $admin, Request $request): void

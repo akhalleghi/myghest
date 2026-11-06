@@ -3415,6 +3415,7 @@ final class CustomerController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $request->validate(['credentials_sms_text' => ['nullable', 'string', 'max:1000']]);
         if (trim((string) $request->input('email', '')) === '') {
             $request->merge(['email' => null]);
         }
@@ -3569,9 +3570,12 @@ final class CustomerController extends Controller
 
         $smsMessage = '';
         if ($sendCredentials) {
-            $msg = 'سامانه '.$this->appDisplayName().chr(10)
+            $msg = trim((string) $request->input('credentials_sms_text', ''));
+            if ($msg === '') {
+                $msg = 'سامانه '.$this->appDisplayName().chr(10)
                 .'نام کاربری: '.$customer->username.chr(10)
                 .'رمز عبور: '.$plainPassword;
+            }
             $smsResult = $this->rawSms->send($customer->mobile, $msg);
             $smsMessage = $smsResult['message'];
             if ($smsResult['ok']) {
