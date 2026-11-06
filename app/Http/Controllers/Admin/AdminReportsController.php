@@ -132,6 +132,7 @@ final class AdminReportsController extends Controller
 
         return view('admin.reports.index', [
             'pageTitle' => 'گزارش‌ها',
+            'memberLoanTypes' => \App\Models\LoanType::query()->orderBy('title')->get(['id', 'title']),
             'customerFinancialColumns' => $this->customerFinancial->columns(),
             'defaultFromJdate' => Jalali::enToFaNumbers($jToday->clone()->startYear()->format('Y/m/d')),
             'defaultToJdate' => Jalali::enToFaNumbers($jToday->format('Y/m/d')),
@@ -209,6 +210,8 @@ final class AdminReportsController extends Controller
             'to_jdate' => ['nullable', 'string', 'max:20'],
             'q' => ['nullable', 'string', 'max:200'],
             'settled' => ['nullable', 'string', 'in:yes,no'],
+            'loan_type_ids' => ['nullable', 'array', 'max:500'],
+            'loan_type_ids.*' => ['integer', 'distinct', 'exists:loan_types,id'],
         ]);
 
         $range = $this->memberLoansByDate->resolveDateRange(
@@ -221,6 +224,7 @@ final class AdminReportsController extends Controller
             $range['to'],
             trim((string) ($validated['q'] ?? '')),
             (string) ($validated['settled'] ?? ''),
+            $validated['loan_type_ids'] ?? [],
         );
 
         return response()->json([
@@ -240,6 +244,8 @@ final class AdminReportsController extends Controller
             'to_jdate' => ['nullable', 'string', 'max:20'],
             'q' => ['nullable', 'string', 'max:200'],
             'settled' => ['nullable', 'string', 'in:yes,no'],
+            'loan_type_ids' => ['nullable', 'array', 'max:500'],
+            'loan_type_ids.*' => ['integer', 'distinct', 'exists:loan_types,id'],
         ]);
 
         $range = $this->memberLoansByDate->resolveDateRange(
@@ -252,6 +258,7 @@ final class AdminReportsController extends Controller
             $range['to'],
             trim((string) ($validated['q'] ?? '')),
             (string) ($validated['settled'] ?? ''),
+            $validated['loan_type_ids'] ?? [],
         );
 
         $filename = 'member-loans-'

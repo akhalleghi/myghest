@@ -20,6 +20,11 @@
             .rpt-table--customer-financial tfoot td:empty { display: none; }
             .rpt-table--customer-financial tfoot td::before { content: attr(data-label); }
         }
+        .rpt-type-picker { position: relative; width: 240px; max-width: 100%; }
+        .rpt-type-picker > summary { padding: .55rem .65rem; border: 1px solid var(--border); border-radius: .6rem; cursor: pointer; font-size: .78rem; background: var(--bg-card); }
+        .rpt-type-picker__menu { position: absolute; inset-inline-end: 0; top: calc(100% + .35rem); z-index: 10; width: min(320px, 85vw); max-height: 260px; overflow: auto; padding: .65rem; border: 1px solid var(--border); border-radius: .7rem; background: var(--bg-card); box-shadow: 0 8px 24px rgba(0,0,0,.15); }
+        #rpt-ml-types label { display: flex; gap: .5rem; align-items: center; padding: .45rem .2rem; cursor: pointer; }
+        #rpt-ml-types input { flex: 0 0 auto; width: 1rem; height: 1rem; }
         .rpt-page {
             max-width: 100%;
             {{ $adminReportsDisplayStyle }}
@@ -1042,6 +1047,17 @@
                             <option value="yes">بلی</option>
                         </select>
                     </div>
+                    <details class="rpt-type-picker" id="rpt-ml-types-picker">
+                        <summary id="rpt-ml-types-label">عنوان وام · همه عنوان‌ها</summary>
+                        <div class="rpt-type-picker__menu">
+                            <button type="button" class="rpt-range-submit" id="rpt-ml-types-clear">نمایش همه عنوان‌ها</button>
+                            <div id="rpt-ml-types" role="group" aria-label="انتخاب عنوان وام">
+                                @foreach($memberLoanTypes as $loanType)
+                                    <label><input type="checkbox" value="{{ $loanType->id }}"> <span>{{ $loanType->title }}</span></label>
+                                @endforeach
+                            </div>
+                        </div>
+                    </details>
                     <a
                         id="rpt-ml-export-excel"
                         class="rpt-export-btn"
@@ -1053,6 +1069,7 @@
                     </a>
                 </div>
 
+                <p class="rpt-guarantee-summary" id="rpt-ml-summary" role="status" aria-live="polite" hidden></p>
                 <p class="rpt-meta" id="rpt-ml-meta">بازهٔ تاریخ را انتخاب کنید و «دریافت اطلاعات» را بزنید.</p>
 
                 <div class="rpt-table-card">

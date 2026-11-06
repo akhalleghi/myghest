@@ -55,7 +55,7 @@ final class MemberLoansByDateReportService
     /**
      * @return list<array<string, mixed>>
      */
-    public function fetchRows(Carbon $from, Carbon $to, string $search = '', string $settledFilter = ''): array
+    public function fetchRows(Carbon $from, Carbon $to, string $search = '', string $settledFilter = '', array $loanTypeIds = []): array
     {
         $query = CustomerLoanFile::query()
             ->whereNull('revoked_at')
@@ -63,6 +63,10 @@ final class MemberLoansByDateReportService
             ->with(['customer:id,first_name,last_name,national_id,mobile,customer_code', 'loanType:id,title,daily_late_coefficient,daily_early_coefficient', 'installments.payments'])
             ->orderByDesc('loan_start_date')
             ->orderByDesc('id');
+
+        if ($loanTypeIds !== []) {
+            $query->whereIn('loan_type_id', $loanTypeIds);
+        }
 
         if ($search !== '') {
             $like = '%'.$search.'%';
@@ -139,6 +143,7 @@ final class MemberLoansByDateReportService
             'customer_id' => (int) $file->customer_id,
             'loan_title' => implode(' — ', $loanTitleParts),
             'loan_code' => (string) $file->loan_code,
+            'loan_type_id' => (int) $file->loan_type_id,
             'loan_type_title' => (string) ($file->loanType?->title ?? '—'),
             'loan_description' => trim((string) ($file->description ?? '')) !== ''
                 ? trim((string) $file->description)

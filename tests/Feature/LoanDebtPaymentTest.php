@@ -1009,6 +1009,41 @@ final class LoanDebtPaymentTest extends TestCase
         self::assertSame(0, $this->snapshot()['remaining_amount_toman']);
     }
 
+    public function test_member_loan_report_filters_one_or_multiple_loan_types(): void
+    {
+        $otherType = LoanType::create(['title' => 'Other', 'daily_late_coefficient' => 0]);
+        $other = $this->file->replicate();
+        $other->loan_code = 'OTHER';
+        $other->loan_type_id = $otherType->id;
+        $other->save();
+        $service = app(MemberLoansByDateReportService::class);
+        $from = Carbon::parse('2026-01-01');
+        $to = Carbon::parse('2026-12-31');
+        $rows = $service->fetchRows($from, $to, '', '', [$this->file->loan_type_id]);
+        self::assertCount(1, $rows);
+        self::assertSame($this->file->loan_type_id, $rows[0]['loan_type_id']);
+        self::assertSame(900000, $rows[0]['principal_toman']);
+        self::assertCount(2, $service->fetchRows($from, $to, '', '', [$this->file->loan_type_id, $otherType->id]));
+        self::assertCount(0, $service->fetchRows($from, $to, 'missing', '', [$otherType->id]));
+    }
+
+    public function test_sms_loan_code_pattern_uses_the_selected_file_for_customer_with_multiple_loans(): void
+    {
+        $controller = app(\App\Http\Controllers\Admin\SmsManagementController::class);
+        $patterns = (new \ReflectionMethod($controller, 'templatePatterns'))->invoke($controller);
+        self::assertArrayHasKey('loan_code', $patterns);
+        $other = $this->file->replicate();
+        $other->loan_code = 'DS 96';
+        $other->save();
+        $slot = $other->installments()->create(['sequence' => 1, 'amount_toman' => 900000, 'due_date' => '2026-09-01']);
+        $builder = app(\App\Services\Sms\InstallmentSmsTemplateVarsBuilder::class);
+        $renderer = app(\App\Services\Sms\SmsTemplateRenderer::class);
+        $first = $builder->build($this->customer, $this->file->fresh(), $this->installment->fresh());
+        $second = $builder->build($this->customer, $other->fresh(), $slot);
+        self::assertSame('TEST', $renderer->render('{{loan_code}}', $first));
+        self::assertSame('DS 96', $renderer->render('{{loan_code}}', $second));
+    }
+
     private function shortPayment(): void
     {
         app(CustomerController::class)->storeLoanInstallmentPayment($this->request(930000, '2026-08-11'), $this->customer, $this->file, $this->installment);

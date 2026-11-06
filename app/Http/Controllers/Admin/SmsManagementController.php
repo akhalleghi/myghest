@@ -1565,6 +1565,7 @@ final class SmsManagementController extends Controller
             'wallet_balance' => ['label' => 'موجودی کیف پول', 'sample' => '850,000 تومان'],
             'username' => ['label' => 'نام کاربری', 'sample' => '09121234567'],
             'password' => ['label' => 'رمز ورود', 'sample' => 'Ab12cd34'],
+            'loan_code' => ['label' => 'شماره پرونده وام', 'sample' => 'DS 96'],
             'loan_amount' => ['label' => 'مبلغ کل وام', 'sample' => '50,000,000 تومان'],
             'installment_number' => ['label' => 'شماره قسط', 'sample' => '5'],
             'installment_amount' => ['label' => 'مبلغ قسط', 'sample' => '1,500,000 تومان'],

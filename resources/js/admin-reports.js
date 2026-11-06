@@ -100,9 +100,26 @@ function rptInitMemberLoansReport(cfg) {
         if (settledSelect && String(settledSelect.value || '')) {
             url.searchParams.set('settled', String(settledSelect.value));
         }
+        selectedTypes().forEach(function (id) { url.searchParams.append('loan_type_ids[]', id); });
         exportExcelLink.href = url.toString();
     }
 
+    var types = document.getElementById('rpt-ml-types');
+    var summary = document.getElementById('rpt-ml-summary');
+    function selectedTypes() { return types ? Array.from(types.querySelectorAll('input:checked')).map(function (input) { return String(input.value); }) : []; }
+    var typePicker = document.getElementById('rpt-ml-types-picker');
+    var typeLabel = document.getElementById('rpt-ml-types-label');
+    function updateTypeLabel() {
+        var count = selectedTypes().length;
+        if (typeLabel) typeLabel.textContent = count ? 'عنوان وام · ' + rptFaNum(count) + ' انتخاب‌شده' : 'عنوان وام · همه عنوان‌ها';
+    }
+    document.addEventListener('click', function (event) { if (typePicker && !typePicker.contains(event.target)) typePicker.open = false; });
+    if (typePicker) typePicker.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && typePicker.open) { event.stopPropagation(); typePicker.open = false; typeLabel.focus(); }
+    });
+    if (types) types.addEventListener('change', function () { updateTypeLabel(); applyClientFilters(); });
+    var clearTypes = document.getElementById('rpt-ml-types-clear');
+    if (clearTypes) clearTypes.addEventListener('click', function () { types.querySelectorAll('input').forEach(function (input) { input.checked = false; }); updateTypeLabel(); applyClientFilters(); });
     var allRows = [];
     var serverSearch = '';
     var serverSettled = '';
@@ -313,7 +330,9 @@ function rptInitMemberLoansReport(cfg) {
         var q = searchInput ? String(searchInput.value || '').trim().toLowerCase() : '';
         var settled = settledSelect ? String(settledSelect.value || '') : '';
 
+        var ids = selectedTypes();
         var filtered = allRows.filter(function (row) {
+            if (ids.length && ids.indexOf(String(row.loan_type_id)) === -1) return false;
             if (settled === 'yes' && !row.is_settled) {
                 return false;
             }
@@ -338,6 +357,14 @@ function rptInitMemberLoansReport(cfg) {
         });
 
         renderRows(filtered);
+        if (summary) {
+            var fields = [['principal_toman', 'جمع مبالغ وام'], ['installment_amount_toman', 'جمع مبالغ هر قسط'], ['paid_amount_toman', 'جمع پرداختی'], ['remaining_amount_toman', 'جمع مانده'], ['late_fee_toman', 'جمع دیرکرد'], ['discount_toman', 'جمع تخفیف']];
+            summary.textContent = ['تعداد پرونده وام: ' + rptFaNum(filtered.length)].concat(fields.map(function (field) {
+                var total = filtered.reduce(function (sum, row) { return sum + Number(row[field[0]] || 0); }, 0);
+                return field[1] + ': ' + rptFormatToman(total);
+            })).join(' | ');
+            summary.hidden = false;
+        }
         if (meta) {
             meta.textContent =
                 'نمایش ' + rptFaNum(filtered.length) + ' از ' + rptFaNum(allRows.length) + ' پرونده';
@@ -351,6 +378,7 @@ function rptInitMemberLoansReport(cfg) {
         serverSearch = searchInput ? String(searchInput.value || '').trim() : '';
         serverSettled = settledSelect ? String(settledSelect.value || '') : '';
 
+        if (summary) summary.hidden = true;
         tbody.innerHTML = '<tr><td colspan="12" class="rpt-empty">در حال بارگذاری…</td></tr>';
         if (meta) {
             meta.textContent = 'در حال دریافت اطلاعات…';
