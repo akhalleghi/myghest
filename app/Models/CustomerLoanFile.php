@@ -35,6 +35,7 @@ final class CustomerLoanFile extends Model
 
     protected $fillable = [
         'customer_id',
+        'guarantor_details',
         'loan_type_id',
         'loan_code',
         'loan_start_date',
@@ -71,6 +72,7 @@ final class CustomerLoanFile extends Model
     {
         return [
             'loan_start_date' => 'date',
+            'guarantor_details' => 'array',
             'disbursement_due_date' => 'date',
             'amount_toman' => 'integer',
             'installments_count' => 'integer',

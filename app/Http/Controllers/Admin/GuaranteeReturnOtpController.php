@@ -11,6 +11,7 @@ use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanGuarantee;
 use App\Models\SmsTemplate;
 use App\Services\Admin\RawSmsDispatcher;
+use App\Services\Loans\LoanGuarantor;
 use App\Support\GuaranteeReturnOtpSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -54,7 +55,7 @@ final class GuaranteeReturnOtpController extends Controller
             }
         }
 
-        $mobile = $this->normalizeMobile((string) $customer->mobile);
+        $mobile = $this->normalizeMobile((string) app(LoanGuarantor::class)->forFile($customer, $loanFile)['mobile']);
         if ($mobile === '') {
             return response()->json(['message' => 'شماره موبایل معتبر برای این مشتری ثبت نشده است.'], 422);
         }
@@ -68,9 +69,11 @@ final class GuaranteeReturnOtpController extends Controller
             'customer_id' => (int) $customer->id,
             'loan_file_id' => (int) $loanFile->id,
             'guarantee_id' => $guaranteeId,
+            'party_fingerprint' => app(LoanGuarantor::class)->fingerprint($customer, $loanFile->guarantor_details),
         ], now()->addMinutes(10));
 
-        $customerLabel = $this->smsSafeLine((string) ($validated['customer_name'] ?? ''));
+        $recipient = app(LoanGuarantor::class)->forFile($customer, $loanFile);
+        $customerLabel = $this->smsSafeLine(trim($recipient['first_name'].' '.$recipient['last_name']));
         if ($customerLabel === '') {
             $customerLabel = $this->smsSafeLine(trim((string) $customer->first_name.' '.(string) $customer->last_name));
         }
@@ -94,7 +97,7 @@ final class GuaranteeReturnOtpController extends Controller
         }
 
         return response()->json([
-            'message' => 'کد تایید عودت به موبایل مشتری ارسال شد.',
+            'message' => 'کد تأیید عودت به موبایل دارندهٔ ضمانت ارسال شد.',
             'otp_session' => $sessionId,
             'mobile_masked' => $this->maskMobile($mobile),
         ]);
@@ -116,7 +119,7 @@ final class GuaranteeReturnOtpController extends Controller
             'guarantee_id' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        $mobile = $this->normalizeMobile((string) $customer->mobile);
+        $mobile = $this->normalizeMobile((string) app(LoanGuarantor::class)->forFile($customer, $loanFile)['mobile']);
         if ($mobile === '') {
             return response()->json(['message' => 'شماره موبایل معتبر برای این مشتری ثبت نشده است.'], 422);
         }
@@ -133,14 +136,15 @@ final class GuaranteeReturnOtpController extends Controller
             }
         }
 
-        $codeIn = $this->toEnglishDigits(preg_replace('/\D/', '', (string) $validated['code']) ?? '');
+        $codeIn = preg_replace('/\D/', '', $this->toEnglishDigits((string) $validated['code'])) ?? '';
         $sessionKey = 'guarantee_return_otp:'.trim((string) $validated['otp_session']);
         $data = Cache::get($sessionKey);
 
         if (! is_array($data)
             || (int) ($data['customer_id'] ?? 0) !== (int) $customer->id
             || (int) ($data['loan_file_id'] ?? 0) !== (int) $loanFile->id
-            || (string) ($data['mobile'] ?? '') !== $mobile) {
+            || (string) ($data['mobile'] ?? '') !== $mobile
+            || (isset($data['party_fingerprint']) && $data['party_fingerprint'] !== app(LoanGuarantor::class)->fingerprint($customer, $loanFile->guarantor_details))) {
             return response()->json(['message' => 'جلسه ارسال کد معتبر نیست؛ دوباره درخواست کد دهید.'], 422);
         }
 
@@ -159,6 +163,7 @@ final class GuaranteeReturnOtpController extends Controller
             'customer_id' => (int) $customer->id,
             'loan_file_id' => (int) $loanFile->id,
             'guarantee_id' => $guaranteeId,
+            'party_fingerprint' => app(LoanGuarantor::class)->fingerprint($customer, $loanFile->guarantor_details),
         ], now()->addMinutes(30));
         Cache::forget($sessionKey);
 

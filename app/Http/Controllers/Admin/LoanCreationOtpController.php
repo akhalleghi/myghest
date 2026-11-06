@@ -9,6 +9,7 @@ use App\Models\AppSetting;
 use App\Models\Customer;
 use App\Models\SmsTemplate;
 use App\Services\Admin\RawSmsDispatcher;
+use App\Services\Loans\LoanGuarantor;
 use App\Support\LoanCreationOtpSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,27 +25,31 @@ final class LoanCreationOtpController extends Controller
 
     public function preview(Request $request, Customer $customer): JsonResponse
     {
-        if (! LoanCreationOtpSettings::isEnabled()) {
+        $party = app(LoanGuarantor::class)->fromRequest($request);
+        $recipient = app(LoanGuarantor::class)->recipient($customer, $party);
+        if (! LoanCreationOtpSettings::isEnabled() && $party === null) {
             return response()->json(['message' => 'تایید پیامکی ایجاد وام در تنظیمات غیرفعال است.'], 422);
         }
 
         $validated = $request->validate([
             'customer_name' => ['nullable', 'string', 'max:200'],
         ]);
-        $mobile = $this->normalizeMobile((string) $customer->mobile);
+        $mobile = $this->normalizeMobile((string) $recipient['mobile']);
         if ($mobile === '') {
-            return response()->json(['message' => 'شماره موبایل معتبر برای این مشتری ثبت نشده است.'], 422);
+            return response()->json(['message' => 'شماره موبایل معتبر برای دارندهٔ ضمانت ثبت نشده است.'], 422);
         }
 
         return response()->json([
-            'body' => $this->loanCreationOtpSmsText($this->customerLabel($customer, $validated), $this->appDisplayName(), '{{code}}'),
+            'body' => ($party !== null ? 'تأیید ضمانت خرید برای '.$this->smsSafeLine($customer->fullName()).chr(10) : '').$this->loanCreationOtpSmsText(($party === null ? $this->customerLabel($customer, $validated) : $this->smsSafeLine(trim($recipient['first_name'].' '.$recipient['last_name']))), $this->appDisplayName(), '{{code}}'),
             'mobile_masked' => $this->maskMobile($mobile),
         ]);
     }
 
     public function send(Request $request, Customer $customer): JsonResponse
     {
-        if (! LoanCreationOtpSettings::isEnabled()) {
+        $party = app(LoanGuarantor::class)->fromRequest($request);
+        $recipient = app(LoanGuarantor::class)->recipient($customer, $party);
+        if (! LoanCreationOtpSettings::isEnabled() && $party === null) {
             return response()->json(['message' => 'تایید پیامکی ایجاد وام در تنظیمات غیرفعال است.'], 422);
         }
 
@@ -53,12 +58,16 @@ final class LoanCreationOtpController extends Controller
             'sms_text' => ['sometimes', 'required', 'string', 'max:1000'],
         ]);
 
-        $mobile = $this->normalizeMobile((string) $customer->mobile);
+        $mobile = $this->normalizeMobile((string) $recipient['mobile']);
         if ($mobile === '') {
-            return response()->json(['message' => 'شماره موبایل معتبر برای این مشتری ثبت نشده است.'], 422);
+            return response()->json(['message' => 'شماره موبایل معتبر برای دارندهٔ ضمانت ثبت نشده است.'], 422);
         }
 
         $customText = isset($validated['sms_text']) ? trim((string) $validated['sms_text']) : null;
+        if ($party !== null) {
+            $context = 'تأیید ضمانت خرید برای '.$this->smsSafeLine($customer->fullName());
+            $customText = ($customText !== null && str_starts_with($customText, $context)) ? $customText : $context.chr(10).($customText ?? $this->loanCreationOtpSmsText(trim($recipient['first_name'].' '.$recipient['last_name']), $this->appDisplayName(), '{{code}}'));
+        }
         if ($customText !== null && ! preg_match('/\{\{\s*code\s*\}\}/i', $customText)) {
             throw ValidationException::withMessages([
                 'sms_text' => 'عبارت {{code}} باید در متن حفظ شود تا کد تایید در پیامک درج شود.',
@@ -72,11 +81,13 @@ final class LoanCreationOtpController extends Controller
             'code' => $code,
             'mobile' => $mobile,
             'customer_id' => (int) $customer->id,
+            'party_fingerprint' => app(LoanGuarantor::class)->fingerprint($customer, $party),
+            'admin_id' => (int) auth('admin')->id(),
         ], now()->addMinutes(10));
 
         $text = $customText !== null
             ? $this->renderTemplateBody($customText, ['code' => $code])
-            : $this->loanCreationOtpSmsText($this->customerLabel($customer, $validated), $this->appDisplayName(), $code);
+            : $this->loanCreationOtpSmsText(($party === null ? $this->customerLabel($customer, $validated) : $this->smsSafeLine(trim($recipient['first_name'].' '.$recipient['last_name']))), $this->appDisplayName(), $code);
         $result = $this->rawSms->send($mobile, $text, 'loan-creation-otp');
         if (! $result['ok']) {
             Cache::forget('loan_creation_otp:'.$sessionId);
@@ -87,7 +98,7 @@ final class LoanCreationOtpController extends Controller
         }
 
         return response()->json([
-            'message' => 'کد تایید به موبایل مشتری ارسال شد.',
+            'message' => 'کد تأیید به شمارهٔ دارندهٔ ضمانت ارسال شد.',
             'otp_session' => $sessionId,
             'mobile_masked' => $this->maskMobile($mobile),
         ]);
@@ -111,7 +122,9 @@ final class LoanCreationOtpController extends Controller
 
     public function verify(Request $request, Customer $customer): JsonResponse
     {
-        if (! LoanCreationOtpSettings::isEnabled()) {
+        $party = app(LoanGuarantor::class)->fromRequest($request);
+        $recipient = app(LoanGuarantor::class)->recipient($customer, $party);
+        if (! LoanCreationOtpSettings::isEnabled() && $party === null) {
             return response()->json(['message' => 'تایید پیامکی ایجاد وام در تنظیمات غیرفعال است.'], 422);
         }
 
@@ -120,18 +133,20 @@ final class LoanCreationOtpController extends Controller
             'code' => ['required', 'string', 'min:4', 'max:12'],
         ]);
 
-        $mobile = $this->normalizeMobile((string) $customer->mobile);
+        $mobile = $this->normalizeMobile((string) $recipient['mobile']);
         if ($mobile === '') {
-            return response()->json(['message' => 'شماره موبایل معتبر برای این مشتری ثبت نشده است.'], 422);
+            return response()->json(['message' => 'شماره موبایل معتبر برای دارندهٔ ضمانت ثبت نشده است.'], 422);
         }
 
-        $codeIn = $this->toEnglishDigits(preg_replace('/\D/', '', (string) $validated['code']) ?? '');
+        $codeIn = preg_replace('/\D/', '', $this->toEnglishDigits((string) $validated['code'])) ?? '';
         $sessionKey = 'loan_creation_otp:'.trim((string) $validated['otp_session']);
         $data = Cache::get($sessionKey);
 
         if (! is_array($data)
             || (int) ($data['customer_id'] ?? 0) !== (int) $customer->id
-            || (string) ($data['mobile'] ?? '') !== $mobile) {
+            || (string) ($data['mobile'] ?? '') !== $mobile
+            || (isset($data['party_fingerprint']) && $data['party_fingerprint'] !== app(LoanGuarantor::class)->fingerprint($customer, $party))
+            || (isset($data['admin_id']) && $data['admin_id'] !== (int) auth('admin')->id())) {
             return response()->json(['message' => 'جلسه ارسال کد معتبر نیست؛ دوباره درخواست کد دهید.'], 422);
         }
 
@@ -143,6 +158,8 @@ final class LoanCreationOtpController extends Controller
         Cache::put('loan_creation_verified:'.$token, [
             'mobile' => $mobile,
             'customer_id' => (int) $customer->id,
+            'party_fingerprint' => app(LoanGuarantor::class)->fingerprint($customer, $party),
+            'admin_id' => (int) auth('admin')->id(),
         ], now()->addMinutes(30));
         Cache::forget($sessionKey);
 

@@ -40,6 +40,7 @@ use App\Support\GuaranteeReturnOtpSettings;
 use App\Support\InstallmentBookletPrintSettings;
 use App\Support\ListPerPage;
 use App\Support\LoanCreationOtpSettings;
+use App\Services\Loans\LoanGuarantor;
 use App\Support\LoanInstallmentRoundingSettings;
 use App\Support\PrivateStoragePaths;
 use Carbon\Carbon;
@@ -961,10 +962,12 @@ final class CustomerController extends Controller
             'skip_customer_verification' => ['nullable', 'boolean'],
         ]);
 
-        if (LoanCreationOtpSettings::isEnabled()) {
-            $skipCustomerVerification = (bool) ($validated['skip_customer_verification'] ?? false);
+        $party = app(LoanGuarantor::class)->fromRequest($request);
+        $validated['guarantor_details'] = $party;
+        if (LoanCreationOtpSettings::isEnabled() || $party !== null) {
+            $skipCustomerVerification = $party === null && (bool) ($validated['skip_customer_verification'] ?? false);
             if (! $skipCustomerVerification) {
-                $mobile = $this->normalizeCustomerMobileForSmsFilter((string) $customer->mobile);
+                $mobile = $this->normalizeCustomerMobileForSmsFilter((string) app(LoanGuarantor::class)->recipient($customer, $party)['mobile']);
                 if ($mobile === '') {
                     return response()->json(['message' => 'شماره موبایل معتبر برای این مشتری ثبت نشده است؛ ثبت وام با تایید پیامکی ممکن نیست.'], 422);
                 }
@@ -1113,6 +1116,7 @@ final class CustomerController extends Controller
                     'customer_id' => $customer->id,
                     'loan_type_id' => $loanType->id,
                     'loan_code' => 'TMP',
+                    ...($validated['guarantor_details'] !== null ? ['guarantor_details' => $validated['guarantor_details']] : []),
                     'loan_start_date' => $startDate,
                     'disbursement_due_date' => $disbursementDueDate,
                     'amount_toman' => $amount,
@@ -1194,6 +1198,7 @@ final class CustomerController extends Controller
         }
 
         $validated = $request->validate([
+            'customer_verification_token' => ['nullable', 'string', 'max:128'],
             'loan_start_jdate' => ['required', 'string', 'max:20'],
             'disbursement_due_jdate' => ['nullable', 'string', 'max:20'],
             'loan_type_id' => ['required', 'integer', 'exists:loan_types,id'],
@@ -1216,6 +1221,15 @@ final class CustomerController extends Controller
             'has_custom_daily_early_coefficient' => ['nullable', 'boolean'],
             'custom_daily_early_coefficient' => ['nullable', 'numeric', 'min:0', 'max:999999.999999'],
         ]);
+
+        if ($request->has('guarantee_by_self')) {
+            $party = app(LoanGuarantor::class)->fromRequest($request);
+            if ($party !== null && app(LoanGuarantor::class)->fingerprint($customer, $party) !== app(LoanGuarantor::class)->fingerprint($customer, $loanFile->guarantor_details)
+                && ! $this->consumeLoanCreationVerificationToken($request, $customer)) {
+                return response()->json(['message' => 'اطلاعات ضامن تغییر کرده است؛ تأیید پیامکی ضامن جدید لازم است.'], 422);
+            }
+            $validated['guarantor_details'] = $party;
+        }
 
         $startDate = $this->parseJalaliDate((string) $validated['loan_start_jdate']);
         if ($startDate === null) {
@@ -1402,6 +1416,7 @@ final class CustomerController extends Controller
             ): void {
                 $updates = [
                     'loan_type_id' => $loanType->id,
+                    ...(array_key_exists('guarantor_details', $validated) ? ['guarantor_details' => $validated['guarantor_details']] : []),
                     'loan_start_date' => $startDate,
                     'disbursement_due_date' => $disbursementDueDate,
                     'amount_toman' => $amount,
@@ -2982,6 +2997,10 @@ final class CustomerController extends Controller
             abort(404);
         }
 
+        if ($request->input('type') === CustomerLoanGuarantee::TYPE_CHEQUE) {
+            $request->merge(app(LoanGuarantor::class)->chequeOwnerFields($loanFile));
+        }
+
         $validated = $request->validate($this->loanGuaranteeValidationRules($request, false));
 
         $type = (string) $validated['type'];
@@ -3103,6 +3122,10 @@ final class CustomerController extends Controller
     {
         if ((int) $loanFile->customer_id !== (int) $customer->id || (int) $guarantee->loan_file_id !== (int) $loanFile->id) {
             abort(404);
+        }
+
+        if ($request->input('type') === CustomerLoanGuarantee::TYPE_CHEQUE) {
+            $request->merge(app(LoanGuarantor::class)->chequeOwnerFields($loanFile));
         }
 
         $validated = $request->validate($this->loanGuaranteeValidationRules($request, true));
@@ -4635,6 +4658,7 @@ final class CustomerController extends Controller
             return [
                 'id' => $file->id,
                 'loan_code' => (string) $file->loan_code,
+            'guarantor_details' => $file->guarantor_details,
                 'loan_type_id' => (int) $file->loan_type_id,
                 'loan_type_title' => (string) ($file->loanType?->title ?? '—'),
                 'loan_start_jdate' => $file->loan_start_date ? Jalali::instance(Carbon::parse($file->loan_start_date))->format('Y/m/d') : '',
@@ -5788,7 +5812,7 @@ final class CustomerController extends Controller
             return false;
         }
 
-        $mobile = $this->normalizeCustomerMobileForSmsFilter((string) $customer->mobile);
+        $mobile = $this->normalizeCustomerMobileForSmsFilter((string) app(LoanGuarantor::class)->forFile($customer, $loanFile)['mobile']);
         if ($mobile === '') {
             return false;
         }
@@ -5804,7 +5828,8 @@ final class CustomerController extends Controller
         return (int) ($payload['customer_id'] ?? 0) === (int) $customer->id
             && (int) ($payload['loan_file_id'] ?? 0) === (int) $loanFile->id
             && $payloadGuaranteeId === $expectedGuaranteeId
-            && (string) ($payload['mobile'] ?? '') === $mobile;
+            && (string) ($payload['mobile'] ?? '') === $mobile
+            && (isset($payload['party_fingerprint']) ? $payload['party_fingerprint'] === app(LoanGuarantor::class)->fingerprint($customer, $loanFile->guarantor_details) : $loanFile->guarantor_details === null);
     }
 
     private function storeGuaranteeReturnDocument(UploadedFile $file): string
@@ -5849,7 +5874,8 @@ final class CustomerController extends Controller
             return false;
         }
 
-        $mobile = $this->normalizeCustomerMobileForSmsFilter((string) $customer->mobile);
+        $party = app(LoanGuarantor::class)->fromRequest($request);
+        $mobile = $this->normalizeCustomerMobileForSmsFilter((string) app(LoanGuarantor::class)->recipient($customer, $party)['mobile']);
         if ($mobile === '') {
             return false;
         }
@@ -5858,7 +5884,9 @@ final class CustomerController extends Controller
 
         return is_array($payload)
             && (int) ($payload['customer_id'] ?? 0) === (int) $customer->id
-            && (string) ($payload['mobile'] ?? '') === $mobile;
+            && (string) ($payload['mobile'] ?? '') === $mobile
+            && (isset($payload['party_fingerprint']) ? $payload['party_fingerprint'] === app(LoanGuarantor::class)->fingerprint($customer, $party) : $party === null)
+            && (! isset($payload['admin_id']) || $payload['admin_id'] === (int) auth('admin')->id());
     }
 
     private function storeGuaranteeAttachment(UploadedFile $file): string
