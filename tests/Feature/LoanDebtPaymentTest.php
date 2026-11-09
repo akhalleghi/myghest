@@ -174,6 +174,7 @@ final class LoanDebtPaymentTest extends TestCase
             '2026_05_13_120000_create_customer_loan_installment_online_payment_intents_table.php',
             '2026_05_15_100000_create_customer_loan_full_settlement_online_payment_intents_table.php',
             '2026_11_05_220000_add_installment_wallet_rewards.php',
+            '2026_11_09_215000_add_installment_late_fee_waivers.php',
             '2026_07_17_140000_create_customer_admin_notes_table.php',
             '2026_11_05_230000_add_note_scopes.php',
         ] as $migration) {
@@ -1593,6 +1594,53 @@ final class LoanDebtPaymentTest extends TestCase
         DB::rollBack();
         Bus::assertNotDispatched(\App\Jobs\SendInstallmentWalletRewardSmsJob::class);
         self::assertSame(0, CustomerWallet::count());
+    }
+
+    public function test_late_fee_waiver_is_shared_by_admin_portal_reports_sms_and_settlement(): void
+    {
+        app(CustomerController::class)->storeLoanInstallmentPayment($this->request(910000, '2026-08-11'), $this->customer, $this->file, $this->installment);
+        self::assertSame(35000, $this->snapshot()['late_fee_payable_toman']);
+        $waivers = app(\App\Services\Loans\InstallmentLateFeeWaiverService::class);
+        $before = $waivers->preview($this->file->fresh(), $this->installment->fresh());
+        $waivers->reduce($this->customer->id, $this->file->id, $this->installment->id, 1234, $before['version'], 'بخشودگی آزمایشی', auth('admin')->id());
+        self::assertSame(1234, $this->snapshot()['remaining_amount_toman']);
+        $portal = app(CustomerLoanPortalPresenter::class);
+        self::assertSame(1234, $portal->forDashboard($this->customer)['loans'][0]['installments'][0]['slot_remaining_toman']);
+        self::assertSame(1234, $portal->fullSettlementOnlinePaymentQuote($this->file->fresh())['amount_toman']);
+        self::assertSame(1234, app(InstallmentOnlinePaymentResolver::class)->resolveForCustomer($this->customer, $this->installment->id)['amount_toman']);
+        self::assertSame(1234, app(AdminCustomerSettleAllOverdueService::class)->preview($this->customer)['amount_toman']);
+        $vars = app(\App\Services\Sms\InstallmentSmsTemplateVarsBuilder::class)->build($this->customer, $this->file->fresh(), $this->installment->fresh(), null, 'installment_overdue');
+        self::assertSame('1,234 تومان', $vars['installment_unpaid_amount']);
+        $aggregate = app(\App\Services\Sms\InstallmentSmsTemplateVarsBuilder::class)->buildOverdueTotal($this->customer);
+        self::assertSame('1234', $aggregate['overdue_total_toman']);
+        self::assertSame('2,000 تومان', $aggregate['installment_amount']);
+        $service = app(InstallmentDueDatesByDateReportService::class);
+        $row = (new \ReflectionMethod($service, 'mapRow'))->invoke($service, $this->installment->fresh(['loanFile.customer', 'loanFile.loanType']));
+        self::assertSame(1234, $row['remaining_amount_toman']);
+        self::assertSame(911234, $row['final_amount_toman']);
+        $before = $waivers->preview($this->file->fresh(), $this->installment->fresh());
+        $waivers->reduce($this->customer->id, $this->file->id, $this->installment->id, 0, $before['version'], 'بخشودگی کامل', auth('admin')->id());
+        self::assertSame(0, $this->snapshot()['remaining_amount_toman']);
+        self::assertTrue($this->snapshot()['settled_by_balance']);
+        $portalCell = $portal->forDashboard($this->customer)['loans'][0]['installments'][0]['early_late_cell_fa'];
+        self::assertStringContainsString(Jalali::enToFaNumbers('10,000'), $portalCell);
+        self::assertSame(0, array_sum(array_column(app(DashboardPlanningCharts::class)->build(Carbon::today())['upcoming']['series'], 'value')));
+        self::assertSame(0, app(\App\Services\Sms\InstallmentSmsTemplateVarsBuilder::class)->buildOverdueTotal($this->customer)['overdue_installment_count'] + 0);
+    }
+
+    public function test_schedule_edit_preserves_waivers_even_after_receipts_are_deleted(): void
+    {
+        app(CustomerController::class)->storeLoanInstallmentPayment($this->request(910000, '2026-08-11'), $this->customer, $this->file, $this->installment);
+        $waivers = app(\App\Services\Loans\InstallmentLateFeeWaiverService::class);
+        $before = $waivers->preview($this->file->fresh(), $this->installment->fresh());
+        $waivers->reduce($this->customer->id, $this->file->id, $this->installment->id, 0, $before['version'], 'بخشودگی', auth('admin')->id());
+        $this->installment->payments()->delete();
+        $this->installment->update(['paid_amount_toman' => 0, 'paid_at' => null]);
+        app(\App\Services\Loans\LoanInstallmentScheduleService::class)->syncScheduleFromLoanFile($this->file->fresh(), 900000);
+        self::assertSame($this->installment->id, $this->file->installments()->firstOrFail()->id);
+        self::assertSame(35000, $this->installment->fresh()->late_fee_waived_toman);
+        self::assertSame(900000, $this->snapshot()['installment_balances'][$this->installment->id]['principal_remaining_toman']);
+        self::assertSame(1, DB::table('installment_late_fee_waivers')->count());
     }
 
 }

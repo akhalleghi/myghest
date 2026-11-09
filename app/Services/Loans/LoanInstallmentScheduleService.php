@@ -47,11 +47,11 @@ final class LoanInstallmentScheduleService
         $installmentsCount = (int) $file->installments_count;
         if ($installmentsCount < 1) {
             $hasPaidInstallment = $file->installments()
-                ->where('paid_amount_toman', '>', 0)
+                ->where(fn ($q) => $q->where('paid_amount_toman', '>', 0)->orWhere('late_fee_waived_toman', '>', 0))
                 ->exists();
             if ($hasPaidInstallment) {
                 throw ValidationException::withMessages([
-                    'installments_count' => 'کاهش تعداد اقساط به صفر ممکن نیست؛ برخی اقساط پرداخت ثبت‌شده دارند.',
+                    'installments_count' => 'کاهش تعداد اقساط به صفر ممکن نیست؛ برخی اقساط دارای پرداخت یا بخشودگی دیرکرد هستند.',
                 ]);
             }
 
@@ -79,7 +79,7 @@ final class LoanInstallmentScheduleService
                 ]);
             }
 
-            if ($totalPaid === 0 && $existing->isNotEmpty()) {
+            if ($totalPaid === 0 && $existing->isNotEmpty() && ! $existing->contains(fn ($i): bool => (int) $i->late_fee_waived_toman > 0)) {
                 $file->installments()->delete();
                 $this->insertScheduleRows(
                     $file,
@@ -148,9 +148,9 @@ final class LoanInstallmentScheduleService
                     continue;
                 }
 
-                if ((int) $installment->paid_amount_toman > 0) {
+                if ((int) $installment->paid_amount_toman > 0 || (int) $installment->late_fee_waived_toman > 0) {
                     throw ValidationException::withMessages([
-                        'installments_count' => 'کاهش تعداد اقساط ممکن نیست؛ برخی اقساط حذفی پرداخت ثبت‌شده دارند.',
+                        'installments_count' => 'کاهش تعداد اقساط ممکن نیست؛ برخی اقساط حذفی دارای پرداخت یا بخشودگی دیرکرد هستند.',
                     ]);
                 }
 

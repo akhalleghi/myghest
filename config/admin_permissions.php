@@ -93,6 +93,7 @@ return [
                                     'admin.customers.loan-files.installments.index',
                                     'admin.customers.loan-files.installments.payments.index',
                                 ]],
+                                ['key' => 'customers.loans.installments.waive_late_fee', 'label' => 'کاهش یا بخشودگی دیرکرد قسط پرداخت‌شده', 'routes' => ['admin.customers.loan-files.installments.late-fee-waiver']],
                                 ['key' => 'customers.loans.installments.update', 'label' => 'ویرایش قسط', 'routes' => ['admin.customers.loan-files.installments.update']],
                                 [
                                     'key' => 'customers.loans.installments.payments',

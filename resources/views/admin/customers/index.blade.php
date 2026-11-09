@@ -2952,15 +2952,15 @@
                                     </div>
                                 </td>
                                 <td class="cust-amount">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($loanTotalWithProfit, 0)) }} تومان</td>
-                                <td class="cust-amount">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($loanRemainInstallments, 0)) }} تومان</td>
-                                <td class="cust-amount @if($overdueTotalToman > 0) cust-amount--overdue @endif">
+                                <td class="cust-amount" data-cust-loan-remaining-cell="{{ $c->id }}">{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($loanRemainInstallments, 0)) }} تومان</td>
+                                <td class="cust-amount @if($overdueTotalToman > 0) cust-amount--overdue @endif" data-cust-overdue-cell="{{ $c->id }}">
                                     @if ($overdueTotalToman > 0)
                                         {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($overdueTotalToman, 0)) }} تومان
                                     @else
                                         —
                                     @endif
                                 </td>
-                                <td class="@if($nearestDueIsOverdue) cust-amount--overdue @endif">
+                                <td class="@if($nearestDueIsOverdue) cust-amount--overdue @endif" data-cust-nearest-due-cell="{{ $c->id }}">
                                     @if ($nearestDueCarbon !== null)
                                         {{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(\Hekmatinasser\Jalali\Jalali::instance($nearestDueCarbon)->format('Y/m/d')) }}
                                     @else
@@ -7177,6 +7177,26 @@
                     loanManageMap[cid].loan_count = Number(jb.loan_count != null ? jb.loan_count : loanManageMap[cid].loan_files.length);
                     loanManageMap[cid].loan_total_with_profit = Number(jb.loan_total_with_profit != null ? jb.loan_total_with_profit : 0);
                     loanManageMap[cid].loan_remaining_installments = Number(jb.loan_remaining_installments != null ? jb.loan_remaining_installments : 0);
+                    var overdueTotal = Number(jb.overdue_total_toman || 0);
+                    loanManageMap[cid].overdue_total_toman = overdueTotal;
+                    loanManageMap[cid].overdue_installment_count = Number(jb.overdue_installment_count || 0);
+                    var remainingCell = document.querySelector('[data-cust-loan-remaining-cell="' + cid + '"]');
+                    if (remainingCell) remainingCell.textContent = formatToman(jb.loan_remaining_installments || 0) + ' تومان';
+                    var overdueCell = document.querySelector('[data-cust-overdue-cell="' + cid + '"]');
+                    if (overdueCell) {
+                        overdueCell.textContent = overdueTotal > 0 ? formatToman(overdueTotal) + ' تومان' : '—';
+                        overdueCell.classList.toggle('cust-amount--overdue', overdueTotal > 0);
+                    }
+                    var nearestCell = document.querySelector('[data-cust-nearest-due-cell="' + cid + '"]');
+                    if (nearestCell) {
+                        nearestCell.textContent = jb.nearest_due_date_fa || '—';
+                        nearestCell.classList.toggle('cust-amount--overdue', !!jb.nearest_due_is_overdue);
+                    }
+                    var overdueSms = document.querySelector('[data-sms-type="overdue_total"][data-customer-id="' + cid + '"]');
+                    if (overdueSms) {
+                        overdueSms.disabled = overdueTotal <= 0;
+                        overdueSms.title = overdueTotal > 0 ? 'ارسال مجموع معوق با دیرکرد؛ گرد به بالای ۲٬۰۰۰ تومان' : 'قسط معوق پرداخت‌نشده‌ای وجود ندارد';
+                    }
                     mergePurchaseCreditIntoLoanManageMap(cid, jb);
                     if (loanManageCurrentCustomerId && String(loanManageCurrentCustomerId) === cid) {
                         renderLoanFilesForCustomer(customerId);
@@ -7855,7 +7875,13 @@
                         '<td>' + formatToman(row.sequence || 0) + '</td>' +
                         '<td>' + escapeHtmlText(String(row.due_jdate_fa || row.due_jdate || '—')) + '</td>' +
                         '<td>' + escapeHtmlText(formatToman(row.amount_toman || 0) + ' تومان') + '</td>' +
-                        '<td>' + escapeHtmlText(formatToman(row.late_fee_assessed_toman || 0) + ' تومان') + '</td>' +
+                        '<td>' + escapeHtmlText(formatToman(row.late_fee_assessed_toman || 0) + ' تومان') +
+                        (row.late_fee_waived_toman > 0 ? '<small style="display:block;color:var(--muted)">بخشودگی: ' + escapeHtmlText(formatToman(row.late_fee_waived_toman)) + ' تومان</small>' : '') +
+                        @adminCan('customers.loans.installments.waive_late_fee')
+                        (paidAmt > 0 && Number(row.principal_remaining_toman) === 0 && (row.late_fee_remaining_toman > 0 || row.late_fee_waiver_recorded_toman > 0)
+                            ? '<button type="button" class="loan-inst-op-btn loan-inst-op-btn--note" style="width:auto;padding:.3rem .5rem;margin-top:.35rem" data-loan-inst-waive-late="' + Number(row.id) + '" title="کاهش یا بخشودگی جریمه پرداخت‌نشده و مشاهده سابقه"><i class="fa-solid fa-percent" aria-hidden="true"></i> جریمه</button>' : '') +
+                        @endadminCan
+                        '</td>' +
                         '<td>' + escapeHtmlText(formatToman(row.early_benefit_toman || 0) + ' تومان') + '</td>' +
                         '<td><strong>' + escapeHtmlText(formatToman(row.final_amount_toman || 0) + ' تومان') + '</strong>' +
                         (row.discount_applied_toman > 0 ? '<small style="display:block">تخفیف جداگانه: ' + escapeHtmlText(formatToman(row.discount_applied_toman)) + ' تومان</small>' : '') + '</td>' +
@@ -7877,6 +7903,67 @@
                         '</div></td>' +
                         '</tr>';
                 }).join('');
+            }
+
+            async function openLateFeeWaiverModal(installmentId) {
+                if (typeof Swal === 'undefined' || !loanManageCurrentCustomerId || !loanInstActiveLoanFileId) return;
+                var customerId = loanManageCurrentCustomerId;
+                var fileId = loanInstActiveLoanFileId;
+                var url = customerLoanInstallmentUpdateUrl(customerId, fileId, installmentId) + '/late-fee-waiver';
+                try {
+                    var response = await fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+                    var data = await response.json();
+                    if (!response.ok) throw new Error(data.message || 'دریافت اطلاعات جریمه ناموفق بود.');
+                    if (String(customerId) !== String(loanManageCurrentCustomerId) || String(fileId) !== String(loanInstActiveLoanFileId)) return;
+                    var history = (data.history || []).map(function (item) {
+                        return '<li style="margin:.5rem 0">' + escapeHtmlText(item.date + ' · ' + item.admin_name) + '<br>' +
+                            escapeHtmlText(formatToman(item.before) + ' ← ' + formatToman(item.after) + ' تومان') + '<br>' + escapeHtmlText(item.reason) + '</li>';
+                    }).join('');
+                    var result = await Swal.fire({
+                        title: 'بخشودگی دیرکرد قسط',
+                        html: '<p>جریمه پرداخت‌نشده فعلی <strong>' + escapeHtmlText(formatToman(data.remaining_late_fee_toman)) + ' تومان</strong></p>' +
+                            (data.allowed ? '<p>اصل قسط پرداخت شده است. مبلغ جدید فقط جریمه پرداخت‌نشده را کاهش می‌دهد.</p>' +
+                                '<label for="late-waiver-amount">جریمه پرداخت‌نشده جدید (تومان)</label>' +
+                                '<input id="late-waiver-amount" class="swal2-input" inputmode="numeric" maxlength="15" value="' + Number(data.remaining_late_fee_toman) + '">' +
+                                '<button type="button" id="late-waiver-zero" class="cust-cancel">صفر کردن جریمه</button>' +
+                                '<label for="late-waiver-reason" style="display:block;margin-top:.7rem">دلیل بخشودگی</label><textarea id="late-waiver-reason" class="swal2-textarea" maxlength="1000" placeholder="دلیل تغییر را بنویسید"></textarea>' :
+                                '<p>این قسط در حال حاضر شرایط کاهش جریمه را ندارد.</p>') +
+                            (history ? '<details style="text-align:start;margin-top:1rem"><summary>سوابق بخشودگی</summary><ul>' + history + '</ul></details>' : ''),
+                        showCancelButton: true, showConfirmButton: !!data.allowed,
+                        confirmButtonText: 'ثبت بخشودگی', cancelButtonText: 'بستن', showLoaderOnConfirm: true,
+                        allowOutsideClick: function () { return !Swal.isLoading(); },
+                        didOpen: function () {
+                            Swal.getContainer().style.zIndex = '20000';
+                            var zero = document.getElementById('late-waiver-zero');
+                            if (zero) zero.addEventListener('click', function () { document.getElementById('late-waiver-amount').value = '0'; });
+                        },
+                        preConfirm: async function () {
+                            var amount = toEnglishDigits(document.getElementById('late-waiver-amount').value).replace(/[,٬\s]/g, '');
+                            var reason = document.getElementById('late-waiver-reason').value.trim();
+                            if (!/^\d+$/.test(amount) || Number(amount) >= Number(data.remaining_late_fee_toman)) {
+                                Swal.showValidationMessage('مبلغ جدید باید نامنفی و کمتر از جریمه فعلی باشد.'); return false;
+                            }
+                            if (reason.length < 3) { Swal.showValidationMessage('دلیل بخشودگی را بنویسید.'); return false; }
+                            try {
+                                var saved = await fetch(url, {
+                                    method: 'PUT', credentials: 'same-origin',
+                                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': @json(csrf_token()) },
+                                    body: JSON.stringify({ remaining_toman: Number(amount), reason: reason, version: data.version })
+                                });
+                                var payload = await saved.json();
+                                if (!saved.ok) throw new Error(payload.message || 'ثبت بخشودگی ناموفق بود.');
+                                return payload;
+                            } catch (error) { Swal.showValidationMessage(error.message); return false; }
+                        }
+                    });
+                    if (result.isConfirmed && String(customerId) === String(loanManageCurrentCustomerId)) {
+                        await refreshLoanManageMapFromServer(customerId);
+                        if (String(fileId) === String(loanInstActiveLoanFileId)) reloadActiveLoanInstallmentsQuiet();
+                        if (window.AdminSwal && AdminSwal.success) AdminSwal.success(result.value.message);
+                    }
+                } catch (error) {
+                    if (window.AdminSwal && AdminSwal.error) AdminSwal.error(error.message);
+                }
             }
 
             function openLoanInstallmentsModal(loanFileId) {
@@ -10502,6 +10589,12 @@
                             return;
                         }
                         if (window.confirm('تمام واریزی‌های ثبت‌شده برای این قسط حذف شود؟ (خود قسط حذف نمی‌شود)')) runClearInstPayments();
+                        return;
+                    }
+                    var waiverBtn = e.target.closest('[data-loan-inst-waive-late]');
+                    if (waiverBtn && loanInstallmentsOverlay.contains(waiverBtn)) {
+                        e.preventDefault();
+                        openLateFeeWaiverModal(Number(waiverBtn.getAttribute('data-loan-inst-waive-late')));
                         return;
                     }
                     var editBtn = e.target.closest('[data-loan-inst-edit]');

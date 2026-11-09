@@ -34,6 +34,8 @@ final class CustomerLoanInstallment extends Model
             'amount_toman' => 'integer',
             'due_date' => 'date',
             'paid_amount_toman' => 'integer',
+            'late_fee_waived_toman' => 'integer',
+            'late_fee_waived_at' => 'datetime',
             'paid_at' => 'date',
             'recorded_by_admin_id' => 'integer',
         ];

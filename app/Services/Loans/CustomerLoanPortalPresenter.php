@@ -694,6 +694,9 @@ final class CustomerLoanPortalPresenter
         if ($isRevoked) {
             return '—';
         }
+        if ((int) $inst->late_fee_waived_toman > 0) {
+            return 'دیرکرد پس از بخشودگی: '.$this->formatMoneyFa($inst->debtBalance($lateCoef)['late_fee_assessed_toman']);
+        }
         if ($slotFullyPaid && $paidAt !== null) {
             if ($paidAt->lt($due)) {
                 $days = (int) $paidAt->diffInDays($due);

@@ -6,6 +6,7 @@ namespace App\Services\Loans;
 
 use App\Models\CustomerLoanInstallment;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /** Rebuilds principal and unpaid simple late charges from dated receipts. */
 final class InstallmentDebtCalculator
@@ -77,6 +78,22 @@ final class InstallmentDebtCalculator
             $lateRemaining = max(0, $assessed - $feePaid);
         }
 
+        // A waiver only reduces unpaid fees, after rounding. It can never repay
+        // principal, manufacture a receipt, or refund fees already collected.
+        $beforeWaiver = $assessed;
+        $waiver = max(0, (int) $installment->late_fee_waived_toman);
+        // Historical quotes use the waiver that was in effect on that day.
+        if ($waiver > 0 && $installment->late_fee_waived_at !== null
+            && $at->lt($installment->late_fee_waived_at->copy()->startOfDay())) {
+            $waiver = (int) DB::table('installment_late_fee_waivers')->where('installment_id', $installment->id)
+                ->where('created_at', '<=', $at->copy()->endOfDay())->orderByDesc('id')->value('new_waived_toman');
+        }
+        $waived = min($lateRemaining, $waiver);
+        $assessed -= $waived;
+        $lateRemaining -= $waived;
+        $finalAmount -= $waived;
+        $roundingAdjustment = max(0, $roundingAdjustment - $waived);
+
         return [
             'principal_paid_toman' => $nominal - $principal - $earlyEarned,
             'principal_remaining_toman' => $netPrincipal,
@@ -87,6 +104,8 @@ final class InstallmentDebtCalculator
             'rounding_adjustment_toman' => $roundingAdjustment,
             'late_fee_unrounded_toman' => $unroundedAssessed,
             'late_fee_assessed_toman' => $assessed,
+            'late_fee_before_waiver_toman' => $beforeWaiver,
+            'late_fee_waived_toman' => $waived,
             'late_fee_paid_toman' => min($feePaid, $assessed),
             'late_fee_remaining_toman' => $lateRemaining,
             'remaining_toman' => $netPrincipal + $lateRemaining,

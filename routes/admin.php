@@ -575,6 +575,9 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
         ->middleware('throttle:30,1')
         ->name('customers.loan-files.installment-booklet');
 
+    Route::match(['GET', 'PUT'], '/customers/{customer}/loan-files/{loanFile}/installments/{installment}/late-fee-waiver', [\App\Http\Controllers\Admin\InstallmentLateFeeWaiverController::class, '__invoke'])
+        ->middleware('throttle:30,1')->name('customers.loan-files.installments.late-fee-waiver');
+
     Route::put('/customers/{customer}/loan-files/{loanFile}/installments/{installment}', [CustomerController::class, 'updateLoanInstallment'])
         ->middleware('throttle:30,1')
         ->name('customers.loan-files.installments.update');

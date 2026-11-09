@@ -3758,11 +3758,18 @@ final class CustomerController extends Controller
         $remainingInstallments = (int) $loanFiles->sum(static fn (array $row): int => (int) ($row['remaining_amount_toman'] ?? 0));
         $credit = $this->purchaseCreditSnapshot($customer, $loanFiles, true);
 
+        $overdue = $this->resolveCustomerOverdueSummary($customer);
+        $nearest = $this->resolveCustomerNearestDueDate($customer);
+
         return response()->json([
             'loan_files' => $loanFiles->all(),
             'loan_count' => $loanFiles->count(),
             'loan_total_with_profit' => $loanTotalWithProfit,
             'loan_remaining_installments' => $remainingInstallments,
+            'overdue_total_toman' => (int) ($overdue['total_toman'] ?? 0),
+            'overdue_installment_count' => (int) ($overdue['count'] ?? 0),
+            'nearest_due_date_fa' => $nearest ? Jalali::enToFaNumbers(Jalali::instance($nearest)->format('Y/m/d')) : null,
+            'nearest_due_is_overdue' => $nearest !== null && $nearest->lt(Carbon::today()),
             ...$credit,
         ]);
     }
@@ -5121,6 +5128,9 @@ final class CustomerController extends Controller
         $due = Carbon::parse($inst->due_date)->startOfDay();
         $today = Carbon::now()->startOfDay();
         $debt = $inst->debtBalance($lateCoef);
+        if ($debt['late_fee_waived_toman'] > 0 && $debt['late_fee_assessed_toman'] === 0) {
+            return ['label' => 'جریمه دیرکرد بخشوده شده است.', 'kind' => 'none'];
+        }
         if ($debt['late_fee_assessed_toman'] > 0) {
             return [
                 'kind' => 'late',
@@ -6151,6 +6161,8 @@ final class CustomerController extends Controller
             'principal_remaining_toman' => $balance['principal_remaining_toman'],
             'late_fee_remaining_toman' => $balance['late_fee_remaining_toman'],
             'late_fee_assessed_toman' => $balance['late_fee_assessed_toman'],
+            'late_fee_waived_toman' => $balance['late_fee_waived_toman'],
+            'late_fee_waiver_recorded_toman' => (int) $i->late_fee_waived_toman,
             'early_benefit_toman' => $balance['early_benefit_toman'],
             'final_amount_toman' => $balance['final_amount_toman'],
             'rounding_adjustment_toman' => $balance['rounding_adjustment_toman'],
