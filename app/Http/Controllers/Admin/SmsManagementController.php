@@ -1560,14 +1560,18 @@ final class SmsManagementController extends Controller
     private function templatePatterns(): array
     {
         return [
+            'app_url' => ['label' => 'آدرس سامانه', 'sample' => route('customer.login')],
             'store_name' => ['label' => 'نام فروشگاه', 'sample' => 'فروشگاه مهر'],
             'customer_name' => ['label' => 'نام مشتری', 'sample' => 'علی رضایی'],
+            'reward_amount' => ['label' => 'مبلغ پاداش خوش‌حسابی', 'sample' => '27,000 تومان'],
+            'reward_percent' => ['label' => 'درصد پاداش خوش‌حسابی', 'sample' => '3'],
             'wallet_balance' => ['label' => 'موجودی کیف پول', 'sample' => '850,000 تومان'],
             'username' => ['label' => 'نام کاربری', 'sample' => '09121234567'],
             'password' => ['label' => 'رمز ورود', 'sample' => 'Ab12cd34'],
             'loan_code' => ['label' => 'شماره پرونده وام', 'sample' => 'DS 96'],
             'loan_amount' => ['label' => 'مبلغ کل وام', 'sample' => '50,000,000 تومان'],
             'installment_number' => ['label' => 'شماره قسط', 'sample' => '5'],
+            'overdue_installment_count' => ['label' => 'تعداد اقساط معوق', 'sample' => '3'],
             'installment_amount' => ['label' => 'مبلغ قسط', 'sample' => '1,500,000 تومان'],
             'paid_amount' => ['label' => 'مبلغ واریز', 'sample' => '600,000 تومان'],
             'payment_date' => ['label' => 'تاریخ واریز', 'sample' => '1405/02/22'],

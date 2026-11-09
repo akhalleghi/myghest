@@ -121,8 +121,20 @@ function rptInitMemberLoansReport(cfg) {
     var clearTypes = document.getElementById('rpt-ml-types-clear');
     if (clearTypes) clearTypes.addEventListener('click', function () { types.querySelectorAll('input').forEach(function (input) { input.checked = false; }); updateTypeLabel(); applyClientFilters(); });
     var allRows = [];
-    var serverSearch = '';
-    var serverSettled = '';
+    var loadedRange = null;
+    var activeRequest = null;
+    function dateKey(value) { return String(value || '').trim().replace(/[۰-۹]/g, function (d) { return String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)); }).replace(/[٠-٩]/g, function (d) { return String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)); }); }
+    function rangeMatches() { return loadedRange && loadedRange[0] === dateKey(fromInput.value) && loadedRange[1] === dateKey(toInput.value); }
+    function invalidateRange() {
+        if (rangeMatches()) return;
+        if (activeRequest) activeRequest.abort();
+        loadedRange = null;
+        allRows = [];
+        if (summary) summary.hidden = true;
+        tbody.innerHTML = '<tr><td colspan="12" class="rpt-empty">برای بازهٔ انتخاب‌شده «دریافت اطلاعات» را بزنید.</td></tr>';
+        if (meta) meta.textContent = 'بازه تغییر کرده است؛ دریافت اطلاعات لازم است.';
+    }
+    [fromInput, toInput].forEach(function (input) { if (input) { input.addEventListener('input', invalidateRange); input.addEventListener('change', invalidateRange); } });
 
     function openModal() {
         overlay.hidden = false;
@@ -327,6 +339,7 @@ function rptInitMemberLoansReport(cfg) {
     }
 
     function applyClientFilters() {
+        if (!rangeMatches()) { invalidateRange(); rptUpdateExportUrl(); return; }
         var q = searchInput ? String(searchInput.value || '').trim().toLowerCase() : '';
         var settled = settledSelect ? String(settledSelect.value || '') : '';
 
@@ -359,24 +372,31 @@ function rptInitMemberLoansReport(cfg) {
         renderRows(filtered);
         if (summary) {
             var fields = [['principal_toman', 'جمع مبالغ وام'], ['installment_amount_toman', 'جمع مبالغ هر قسط'], ['paid_amount_toman', 'جمع پرداختی'], ['remaining_amount_toman', 'جمع مانده'], ['late_fee_toman', 'جمع دیرکرد'], ['discount_toman', 'جمع تخفیف']];
-            summary.textContent = ['تعداد پرونده وام: ' + rptFaNum(filtered.length)].concat(fields.map(function (field) {
-                var total = filtered.reduce(function (sum, row) { return sum + Number(row[field[0]] || 0); }, 0);
-                return field[1] + ': ' + rptFormatToman(total);
-            })).join(' | ');
+            summary.replaceChildren();
+            [['count', 'تعداد پرونده وام']].concat(fields).forEach(function (field) {
+                var total = field[0] === 'count' ? filtered.length : filtered.reduce(function (sum, row) { return sum + Number(row[field[0]] || 0); }, 0);
+                var card = document.createElement('div'); card.className = 'rpt-summary-card';
+                var label = document.createElement('small'); label.textContent = field[1];
+                var value = document.createElement('strong'); value.textContent = field[0] === 'count' ? rptFaNum(total) : rptFormatToman(total);
+                card.append(label, value); summary.appendChild(card);
+            });
             summary.hidden = false;
         }
         if (meta) {
             meta.textContent =
-                'نمایش ' + rptFaNum(filtered.length) + ' از ' + rptFaNum(allRows.length) + ' پرونده';
+                'بازه ' + rptFaNum(loadedRange[0]) + ' تا ' + rptFaNum(loadedRange[1]) + ' — نمایش ' + rptFaNum(filtered.length) + ' از ' + rptFaNum(allRows.length) + ' پرونده';
         }
         rptUpdateExportUrl();
     }
 
     function loadData() {
+        if (activeRequest) activeRequest.abort();
+        var controller = new AbortController();
+        activeRequest = controller;
+        loadedRange = null;
+        allRows = [];
         var fromVal = fromInput ? String(fromInput.value || '').trim() : '';
         var toVal = toInput ? String(toInput.value || '').trim() : '';
-        serverSearch = searchInput ? String(searchInput.value || '').trim() : '';
-        serverSettled = settledSelect ? String(settledSelect.value || '') : '';
 
         if (summary) summary.hidden = true;
         tbody.innerHTML = '<tr><td colspan="12" class="rpt-empty">در حال بارگذاری…</td></tr>';
@@ -387,25 +407,22 @@ function rptInitMemberLoansReport(cfg) {
         var url = new URL(cfg.memberLoansDataUrl || '', window.location.origin);
         url.searchParams.set('from_jdate', fromVal);
         url.searchParams.set('to_jdate', toVal);
-        if (serverSearch) {
-            url.searchParams.set('q', serverSearch);
-        }
-        if (serverSettled) {
-            url.searchParams.set('settled', serverSettled);
-        }
-
         fetch(url.toString(), {
+            signal: controller.signal,
             headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin',
         })
             .then(function (r) {
                 if (!r.ok) {
-                    throw new Error('bad');
+                    return r.json().then(function (data) { throw new Error(Object.values(data.errors || {}).flat()[0] || data.message || 'خطا در دریافت گزارش.'); });
                 }
 
                 return r.json();
             })
             .then(function (data) {
+                if (controller !== activeRequest) return;
+                if (dateKey(fromInput.value) !== dateKey(fromVal) || dateKey(toInput.value) !== dateKey(toVal)) { invalidateRange(); return; }
+                loadedRange = [dateKey(fromVal), dateKey(toVal)];
                 allRows = Array.isArray(data.rows) ? data.rows : [];
                 if (meta && data.meta) {
                     meta.textContent =
@@ -417,19 +434,16 @@ function rptInitMemberLoansReport(cfg) {
                         rptFaNum(data.meta.count || allRows.length) +
                         ' پرونده';
                 }
-                if (searchInput) {
-                    searchInput.value = serverSearch;
-                }
-                if (settledSelect) {
-                    settledSelect.value = serverSettled;
-                }
                 applyClientFilters();
             })
-            .catch(function () {
+            .catch(function (error) {
+                if (error.name === 'AbortError' || controller !== activeRequest) return;
+                loadedRange = null; allRows = [];
+                if (summary) summary.hidden = true;
                 tbody.innerHTML =
                     '<tr><td colspan="12" class="rpt-empty" style="color:#b91c1c;">خطا در دریافت گزارش.</td></tr>';
                 if (meta) {
-                    meta.textContent = 'خطا در دریافت اطلاعات.';
+                    meta.textContent = error.message || 'خطا در دریافت اطلاعات.';
                 }
             });
     }

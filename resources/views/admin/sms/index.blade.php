@@ -1023,7 +1023,7 @@
                         </div>
 
                         <div class="sms-reminder-section sms-reminder-full">
-                            <p class="sms-reminder-section-title"><i class="fa-solid fa-triangle-exclamation"></i> پیامک معوق</p>
+                            <p class="sms-reminder-section-title"><i class="fa-solid fa-triangle-exclamation"></i> پیامک مجموع بدهی معوق مشتری</p>
                             <div class="sms-settings-field">
                                 <label for="sms-overdue-days-after">پیامک اقساط معوق چند روز پس از سررسید ارسال شود؟</label>
                                 <input id="sms-overdue-days-after" type="number" min="0" max="365" step="1" name="overdue_days_after" value="{{ old('overdue_days_after', $smsReminderSettings['overdue_days_after'] ?? '') }}" placeholder="مثلاً 3">
@@ -1053,6 +1053,7 @@
                                         <option value="{{ $tpl->id }}" @selected(old('overdue_template_id', $smsReminderSettings['overdue_template_id'] ?? '') == (string) $tpl->id)>{{ $tpl->title }}</option>
                                     @endforeach
                                 </select>
+                                <p class="sms-hint">در هر روز یادآوری، برای هر مشتری یک پیامک شامل مجموع مانده اقساط معوق و دیرکرد ارسال می‌شود. مبلغ کل رو به بالا به مضرب ۲٬۰۰۰ تومان گرد می‌شود.</p>
                                 @error('overdue_template_id')<div class="sms-field-error">{{ $message }}</div>@enderror
                             </div>
                         </div>

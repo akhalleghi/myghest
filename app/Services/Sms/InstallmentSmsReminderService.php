@@ -45,6 +45,7 @@ final class InstallmentSmsReminderService
 
         try {
 
+            $overdueGroups = [];
             $preDueSent = 0;
             $dueDaySent = 0;
             $overdueSent = 0;
@@ -88,6 +89,7 @@ final class InstallmentSmsReminderService
                     $overdueDaysAfter,
                     $overdueRepeatMode,
                     $overdueRepeatIntervalDays,
+                    &$overdueGroups,
                     &$preDueSent,
                     &$dueDaySent,
                     &$overdueSent,
@@ -100,7 +102,7 @@ final class InstallmentSmsReminderService
                         if ($fileForBalance === null) {
                             continue;
                         }
-                        $snapshot = $finance->loanInstallmentFinancialSnapshot($fileForBalance, $finance->totalRepayableToman($fileForBalance));
+                        $snapshot = $finance->loanInstallmentFinancialSnapshot($fileForBalance, $finance->totalRepayableToman($fileForBalance), $today);
                         if ((int) ($snapshot['installment_payables'][(int) $installment->id]['remaining_toman'] ?? 0) <= 0) {
                             continue;
                         }
@@ -155,28 +157,32 @@ final class InstallmentSmsReminderService
                             $this->tallySendResult($sent, $dueDaySent, $skipped, $failed);
                         }
 
-                        if ($overdueTemplateId !== null && $daysPastDue >= $overdueDaysAfter) {
+                        if ($overdueTemplateId !== null && $due->lt($today) && $daysPastDue >= $overdueDaysAfter) {
                             $firstOverdueDay = $due->copy()->addDays($overdueDaysAfter);
                             if (! $this->shouldSendOverdueToday($today, $firstOverdueDay, $overdueRepeatMode, $overdueRepeatIntervalDays)) {
                                 continue;
                             }
 
-                            $businessDate = $overdueRepeatMode === 'once' ? $firstOverdueDay : $today;
-                            $sent = $this->trySend(
-                                $installment,
-                                $customer,
-                                $loanFile,
-                                $mobile,
-                                InstallmentSmsReminderDispatch::KIND_OVERDUE,
-                                $businessDate,
-                                $overdueTemplateId,
-                                'installment_overdue',
-                                $dryRun
-                            );
-                            $this->tallySendResult($sent, $overdueSent, $skipped, $failed);
+                            if ($overdueRepeatMode === 'once' && InstallmentSmsReminderDispatch::query()
+                                ->where('customer_loan_installment_id', $installment->id)
+                                ->where('kind', InstallmentSmsReminderDispatch::KIND_OVERDUE)->exists()) {
+                                continue;
+                            }
+                            $overdueGroups[$customer->id][] = $installment;
                         }
                     }
                 });
+
+            foreach ($overdueGroups as $group) {
+                $installment = $group[0];
+                $file = $installment->loanFile;
+                $customer = $file->customer;
+                $sent = $this->trySend($installment, $customer, $file,
+                    $this->normalizeMobile((string) $customer->mobile),
+                    InstallmentSmsReminderDispatch::KIND_OVERDUE, $today,
+                    $overdueTemplateId, 'installment_overdue', $dryRun, $group);
+                $this->tallySendResult($sent, $overdueSent, $skipped, $failed);
+            }
 
             return new InstallmentSmsReminderRunResult(
                 status: 'completed',
@@ -204,12 +210,20 @@ final class InstallmentSmsReminderService
         int $templateId,
         string $smsLogType,
         bool $dryRun,
+        array $overdueGroup = [],
     ): string {
-        $exists = InstallmentSmsReminderDispatch::query()
-            ->where('customer_loan_installment_id', $installment->id)
+        if ($overdueGroup !== []) {
+            $customer->refresh();
+        }
+        $dispatchQuery = InstallmentSmsReminderDispatch::query()
             ->where('kind', $kind)
-            ->whereDate('business_date', $businessDate->toDateString())
-            ->exists();
+            ->whereDate('business_date', $businessDate->toDateString());
+        if ($overdueGroup !== []) {
+            $dispatchQuery->whereHas('installment.loanFile', static fn ($q) => $q->where('customer_id', $customer->id));
+        } else {
+            $dispatchQuery->where('customer_loan_installment_id', $installment->id);
+        }
+        $exists = $dispatchQuery->exists();
         if ($exists) {
             return 'skipped';
         }
@@ -229,7 +243,12 @@ final class InstallmentSmsReminderService
             return 'failed';
         }
 
-        $vars = $this->varsBuilder->build($customer, $loanFile, $installment, $businessDate, $smsLogType);
+        $vars = $overdueGroup !== []
+            ? $this->varsBuilder->buildOverdueTotal($customer, $businessDate)
+            : $this->varsBuilder->build($customer, $loanFile, $installment, $businessDate, $smsLogType);
+        if ($overdueGroup !== [] && (int) $vars['overdue_total_toman'] <= (int) ($customer->overdue_sms_minimum_toman ?? 0)) {
+            return 'skipped';
+        }
         $body = trim($this->templateRenderer->render((string) $template->body, $vars));
         if ($body === '') {
             return 'failed';
@@ -247,19 +266,23 @@ final class InstallmentSmsReminderService
             'template_id' => $templateId,
             'business_date' => $businessDate->toDateString(),
             'automated' => true,
+            'overdue_total' => $overdueGroup !== [],
+            'overdue_installment_count' => $vars['overdue_installment_count'] ?? null,
         ]);
 
         if (! $result['ok']) {
             return 'failed';
         }
 
-        DB::transaction(function () use ($installment, $kind, $businessDate, $result): void {
-            InstallmentSmsReminderDispatch::query()->create([
-                'customer_loan_installment_id' => $installment->id,
-                'kind' => $kind,
-                'business_date' => $businessDate->toDateString(),
-                'sms_log_id' => $result['sms_log_id'],
-            ]);
+        DB::transaction(function () use ($installment, $overdueGroup, $kind, $businessDate, $result): void {
+            foreach ($overdueGroup !== [] ? $overdueGroup : [$installment] as $item) {
+                InstallmentSmsReminderDispatch::query()->create([
+                    'customer_loan_installment_id' => $item->id,
+                    'kind' => $kind,
+                    'business_date' => $businessDate->toDateString(),
+                    'sms_log_id' => $result['sms_log_id'],
+                ]);
+            }
         });
 
         return 'sent';

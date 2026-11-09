@@ -18,6 +18,37 @@ final class InstallmentSmsTemplateVarsBuilder
         private readonly LoanFileFinanceCalculator $financeCalculator,
     ) {}
 
+    /** @return array<string, string> */
+    public function buildOverdueTotal(Customer $customer, ?Carbon $today = null): array
+    {
+        $today ??= Carbon::today();
+        $total = 0;
+        $count = 0;
+        $files = $customer->loanFiles()->whereNull('revoked_at')->where('is_settled', false)
+            ->with(['loanType', 'installments.payments'])->get();
+        foreach ($files as $file) {
+            $snapshot = $this->financeCalculator->loanInstallmentFinancialSnapshot($file, $this->financeCalculator->totalRepayableToman($file), $today);
+            foreach ($file->installments as $installment) {
+                $remaining = (int) ($snapshot['installment_payables'][$installment->id]['remaining_toman'] ?? 0);
+                if ($installment->due_date->lt($today) && $remaining > 0) {
+                    $total += $remaining;
+                    $count++;
+                }
+            }
+        }
+        $amount = number_format(intdiv($total + 1999, 2000) * 2000, 0, '.', ',').' تومان';
+
+        return [
+            'store_name' => $this->appDisplayName(), 'customer_name' => $customer->fullName(),
+            'installment_amount' => $amount, 'installment_unpaid_amount' => $amount,
+            'overdue_total_toman' => (string) $total,
+            'overdue_installment_count' => (string) $count, 'loan_code' => '—',
+            'installment_number' => $count > 0 ? (string) $count : '—', 'days_until_due' => '0',
+            'paid_amount' => '0 تومان', 'remaining_loan' => $amount,
+            'payment_link' => '—', 'payment_link_variable' => '—',
+        ];
+    }
+
     /**
      * @return array<string, string>
      */

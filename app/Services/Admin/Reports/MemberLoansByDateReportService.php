@@ -13,6 +13,7 @@ use Carbon\Carbon;
 use Hekmatinasser\Jalali\Jalali;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
 
 final class MemberLoansByDateReportService
 {
@@ -28,6 +29,20 @@ final class MemberLoansByDateReportService
         $from = JalaliInputParser::toCarbonDate($fromJdate);
         $to = JalaliInputParser::toCarbonDate($toJdate);
 
+        foreach ([[$fromJdate, $from], [$toJdate, $to]] as [$input, $parsed]) {
+            if (trim((string) $input) === '') {
+                continue;
+            }
+            $normalized = JalaliInputParser::toEnglishDigits(trim($input));
+            if (! preg_match('~^(\d{4})/(\d{1,2})/(\d{1,2})$~D', $normalized, $parts)
+                || $parsed === null || Jalali::instance($parsed)->format('Y/m/d') !== sprintf('%04d/%02d/%02d', (int) $parts[1], (int) $parts[2], (int) $parts[3])) {
+                throw ValidationException::withMessages(['from_jdate' => 'تاریخ معتبر شمسی با قالب سال/ماه/روز وارد کنید.']);
+            }
+        }
+        $hasInput = trim((string) $fromJdate) !== '' || trim((string) $toJdate) !== '';
+        if ($hasInput && ($from === null || $to === null)) {
+            throw ValidationException::withMessages(['from_jdate' => 'هر دو تاریخ شروع و پایان را به‌صورت معتبر وارد کنید.']);
+        }
         if ($from === null || $to === null) {
             $today = Carbon::today();
             $jToday = Jalali::instance($today);
@@ -37,7 +52,7 @@ final class MemberLoansByDateReportService
             $toJdate = Jalali::instance($to)->format('Y/m/d');
         } else {
             if ($from->gt($to)) {
-                [$from, $to] = [$to->copy()->startOfDay(), $from->copy()->endOfDay()];
+                throw ValidationException::withMessages(['from_jdate' => 'تاریخ شروع باید قبل یا برابر تاریخ پایان باشد.']);
             } else {
                 $from = $from->startOfDay();
                 $to = $to->endOfDay();
@@ -59,7 +74,8 @@ final class MemberLoansByDateReportService
     {
         $query = CustomerLoanFile::query()
             ->whereNull('revoked_at')
-            ->whereBetween('loan_start_date', [$from->toDateString(), $to->toDateString()])
+            ->whereDate('loan_start_date', '>=', $from->toDateString())
+            ->whereDate('loan_start_date', '<=', $to->toDateString())
             ->with(['customer:id,first_name,last_name,national_id,mobile,customer_code', 'loanType:id,title,daily_late_coefficient,daily_early_coefficient', 'installments.payments'])
             ->orderByDesc('loan_start_date')
             ->orderByDesc('id');

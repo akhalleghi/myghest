@@ -33,6 +33,7 @@ final class Customer extends Authenticatable
         'postal_code',
         'purchase_credit_ceiling_toman',
         'sms_sending_enabled',
+        'overdue_sms_minimum_toman',
         'credentials_sms_sent_at',
         'mobile_verified_at',
     ];
@@ -65,6 +66,7 @@ final class Customer extends Authenticatable
             'mobile_verified_at' => 'datetime',
             'purchase_credit_ceiling_toman' => 'integer',
             'sms_sending_enabled' => 'boolean',
+            'overdue_sms_minimum_toman' => 'integer',
             'installment_reward_enabled' => 'boolean',
             'installment_reward_percent' => 'decimal:2',
             'installment_reward_after_payment_id' => 'integer',

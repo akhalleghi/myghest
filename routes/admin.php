@@ -21,6 +21,7 @@ use App\Http\Controllers\Admin\Auth\AdminDashboardController;
 use App\Http\Controllers\Admin\Auth\AdminLoginController;
 use App\Http\Controllers\Admin\Auth\AdminLoginTwoFactorController;
 use App\Http\Controllers\Admin\CustomerController;
+use App\Http\Controllers\Admin\CustomerCredentialsSmsController;
 use App\Http\Controllers\Admin\CustomerInstallmentRewardController;
 use App\Http\Controllers\Admin\CustomerMediaController;
 use App\Http\Controllers\Admin\CustomerWalletController;
@@ -491,6 +492,9 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
         ->middleware('throttle:30,1')
         ->name('customers.purchase-credit-ceiling');
 
+    Route::put('/customers/{customer}/overdue-sms-minimum', [CustomerController::class, 'updateOverdueSmsMinimum'])
+        ->middleware('throttle:30,1')->name('customers.overdue-sms-minimum');
+
     Route::put('/customers/{customer}/sms-sending', [CustomerController::class, 'updateSmsSendingEnabled'])
         ->middleware('throttle:30,1')
         ->name('customers.sms-sending');
@@ -513,6 +517,16 @@ Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'lo
     Route::get('/customers/{customer}/sms-modal-preview', [CustomerController::class, 'quickSmsModalPreview'])
         ->middleware('throttle:60,1')
         ->name('customers.sms-modal-preview');
+
+    Route::post('/customers/credentials-sms/draft-preview', [CustomerCredentialsSmsController::class, 'draftPreview'])
+        ->middleware('throttle:20,1')->name('customers.credentials-sms.draft-preview');
+    Route::post('/customers/credentials-sms/draft-send', [CustomerCredentialsSmsController::class, 'draftSend'])
+        ->middleware('throttle:5,1')->name('customers.credentials-sms.draft-send');
+
+    Route::post('/customers/{customer}/credentials-sms/preview', [CustomerCredentialsSmsController::class, 'preview'])
+        ->middleware('throttle:20,1')->name('customers.credentials-sms.preview');
+    Route::post('/customers/{customer}/credentials-sms/send', [CustomerCredentialsSmsController::class, 'send'])
+        ->middleware('throttle:5,1')->name('customers.credentials-sms.send');
 
     Route::post('/customers/mobile-verification/preview', [\App\Http\Controllers\Admin\CustomerMobileVerificationController::class, 'preview'])
         ->middleware('throttle:30,1')->name('customers.mobile-verification.preview');

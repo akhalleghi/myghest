@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Wallet;
 
+use App\Jobs\SendInstallmentWalletRewardSmsJob;
 use App\Models\Customer;
 use App\Models\CustomerLoanFile;
 use App\Models\CustomerLoanInstallment;
@@ -12,6 +13,7 @@ use App\Models\CustomerWalletTransaction;
 use App\Services\Loans\LoanFileFinanceCalculator;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -97,7 +99,7 @@ final class InstallmentWalletRewardService
             return;
         }
         try {
-            app(CustomerWalletService::class)->adjust($customer,
+            [, $walletTransaction] = app(CustomerWalletService::class)->adjust($customer,
                 $target > $credited ? CustomerWalletTransaction::DIRECTION_DEPOSIT : CustomerWalletTransaction::DIRECTION_WITHDRAW,
                 abs($target - $credited), ($target > $credited ? 'پاداش پرداخت به‌موقع قسط ' : 'برگشت پاداش قسط ').$installment->sequence.' — '.$file->loan_code,
                 null, null, null, (string) Str::uuid(),
@@ -110,6 +112,18 @@ final class InstallmentWalletRewardService
             'customer_id' => $customer->id, 'percent' => $percent, 'credited_amount_toman' => $target,
             'activation_payment_id' => $afterId, 'created_at' => $award->created_at ?? now(), 'updated_at' => now(),
         ]);
+        if ($target > $credited) {
+            $transactionId = (int) $walletTransaction->id;
+            DB::afterCommit(static function () use ($transactionId): void {
+                try {
+                    SendInstallmentWalletRewardSmsJob::dispatch($transactionId);
+                } catch (\Throwable $exception) {
+                    Log::error('installment_wallet_reward_sms_dispatch_failed', [
+                        'wallet_transaction_id' => $transactionId, 'error' => $exception->getMessage(),
+                    ]);
+                }
+            });
+        }
     }
 
     public function reverseLoan(CustomerLoanFile $file): void

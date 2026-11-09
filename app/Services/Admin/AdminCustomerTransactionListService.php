@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Services\Admin;
 
+use App\Models\CustomerLoanInstallmentPayment;
 use App\Models\CustomerTransaction;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 final class AdminCustomerTransactionListService
 {
@@ -26,9 +28,7 @@ final class AdminCustomerTransactionListService
      */
     public function paginate(array $filters, ?int $perPage = null): LengthAwarePaginator
     {
-        $query = CustomerTransaction::query()
-            ->with(['customer:id,customer_code,first_name,last_name,mobile,national_id'])
-            ->orderByDesc('id');
+        $query = $this->transactionQuery();
 
         $this->applyFilters($query, $filters);
 
@@ -52,13 +52,46 @@ final class AdminCustomerTransactionListService
      */
     public function makeFilteredQuery(array $filters): Builder
     {
-        $query = CustomerTransaction::query()
-            ->with(['customer:id,customer_code,first_name,last_name,mobile,national_id'])
-            ->orderByDesc('id');
+        $query = $this->transactionQuery();
 
         $this->applyFilters($query, $filters);
 
         return $query;
+    }
+
+    /** Include admin receipts directly so edits and deletions are reflected without ledger backfills. */
+    private function transactionQuery(): Builder
+    {
+        $columns = ['id', 'customer_id', 'kind', 'status', 'amount_toman', 'amount_rial',
+            'gateway_key', 'track_id', 'bank_reference', 'title', 'detail', 'meta',
+            'source_type', 'source_id', 'failure_reason', 'created_at', 'updated_at'];
+        $ledger = DB::table('customer_transactions')->select($columns);
+        $receipts = DB::table('customer_loan_installment_payments as p')
+            ->join('customer_loan_installments as i', 'i.id', '=', 'p.customer_loan_installment_id')
+            ->join('customer_loan_files as f', 'f.id', '=', 'i.customer_loan_file_id')
+            ->where(function ($query): void {
+                $query->whereIn('p.payment_method', [
+                    CustomerLoanInstallmentPayment::METHOD_CASH,
+                    CustomerLoanInstallmentPayment::METHOD_BANK_TRANSFER,
+                    CustomerLoanInstallmentPayment::METHOD_CARD_TERMINAL,
+                    CustomerLoanInstallmentPayment::METHOD_GOLD,
+                    CustomerLoanInstallmentPayment::METHOD_LEGACY_IMPORTED,
+                ])->orWhere(function ($online): void {
+                    $online->where('p.payment_method', CustomerLoanInstallmentPayment::METHOD_ONLINE)
+                        ->whereNotNull('p.recorded_by_admin_id');
+                });
+            })
+            ->selectRaw('(-CAST(p.id AS SIGNED)) as id, f.customer_id, ? as kind, ? as status, p.amount_toman, p.amount_toman * 10 as amount_rial,
+                NULL as gateway_key, NULL as track_id, NULL as bank_reference, ? as title, p.note as detail, JSON_OBJECT(\'loan_code\', f.loan_code, \'installment_sequence\', i.sequence, \'payment_method\', p.payment_method) as meta,
+                ? as source_type, p.id as source_id, NULL as failure_reason,
+                COALESCE(p.deposited_at, p.created_at) as created_at, p.updated_at', [
+                CustomerTransaction::KIND_INSTALLMENT_ADMIN_PAYMENT, CustomerTransaction::STATUS_COMPLETED,
+                'واریزی قسط ثبت‌شده توسط ادمین', CustomerLoanInstallmentPayment::class,
+            ]);
+
+        return CustomerTransaction::query()->fromSub($ledger->unionAll($receipts), 'customer_transactions')
+            ->with(['customer:id,customer_code,first_name,last_name,mobile,national_id'])
+            ->orderByDesc('created_at')->orderByDesc('id');
     }
 
     /**
@@ -115,6 +148,7 @@ final class AdminCustomerTransactionListService
                     $n = (int) $digits;
                     if ($n > 0) {
                         $w->orWhere('id', $n)
+                            ->orWhere('source_id', $n)
                             ->orWhere('customer_id', $n)
                             ->orWhere('track_id', $n);
                     }

@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  */
 final class CustomerTransaction extends Model
 {
+    public const KIND_INSTALLMENT_ADMIN_PAYMENT = 'installment_admin_payment';
+
     public const KIND_INSTALLMENT_ONLINE_PAYMENT = 'installment_online_payment';
 
     public const KIND_INSTALLMENT_WALLET_PAYMENT = 'installment_wallet_payment';
@@ -38,6 +40,7 @@ final class CustomerTransaction extends Model
     public static function kindKeys(): array
     {
         return [
+            self::KIND_INSTALLMENT_ADMIN_PAYMENT,
             self::KIND_INSTALLMENT_ONLINE_PAYMENT,
             self::KIND_INSTALLMENT_WALLET_PAYMENT,
             self::KIND_WALLET_TOPUP,

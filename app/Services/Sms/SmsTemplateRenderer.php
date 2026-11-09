@@ -11,6 +11,10 @@ final class SmsTemplateRenderer
      */
     public function render(string $body, array $vars): string
     {
+        if (preg_match('/\{\{\s*app_url\s*\}\}/i', $body) === 1) {
+            $vars['app_url'] = route('customer.login');
+        }
+
         $out = $body;
         foreach ($vars as $k => $v) {
             $replacement = (string) $v;

@@ -24,9 +24,9 @@
         </div>
         <p class="ctx-lead">
             @if(!empty($ctxEmbedCustomer) && $ctxEmbedCustomer instanceof \App\Models\Customer)
-                تراکنش‌های دفتر همین مشتری در سامانه. می‌توانید با بازهٔ تاریخ، نوع، وضعیت، درگاه و جستجو گزارش را محدود کنید.
+                تراکنش‌های همین مشتری شامل پرداخت‌های درگاه، کیف پول و واریزی‌های اقساط ثبت‌شده توسط ادمین. می‌توانید با بازهٔ تاریخ، نوع، وضعیت، درگاه و جستجو گزارش را محدود کنید.
             @else
-                نمایش تمام تراکنش‌های ثبت‌شده در دفتر مشتریان (پرداخت درگاه قسط، و انواع دیگر در آینده). با فیلتر بازهٔ تاریخ شمسی، نوع، وضعیت، درگاه و جستجوی متنی می‌توانید گزارش را محدود کنید.
+                نمایش تراکنش‌های درگاه و کیف پول و واریزی‌های اقساط ثبت‌شده توسط ادمین. با فیلتر بازهٔ تاریخ شمسی، نوع، وضعیت، درگاه و جستجوی متنی می‌توانید گزارش را محدود کنید.
             @endif
         </p>
 
@@ -79,6 +79,9 @@
             <div class="ctx-filters-actions">
                 <button type="submit" class="ctx-btn ctx-btn--pri"><i class="fa-solid fa-filter" aria-hidden="true"></i> اعمال فیلتر</button>
                 <a href="{{ $ctxIndex([]) }}" class="ctx-btn ctx-btn--ghost">پاک‌سازی</a>
+                @if ($ctxForcedCustomerId !== null)
+                    <a href="{{ $ctxIndex(['date_from' => '', 'date_to' => '']) }}" class="ctx-btn ctx-btn--ghost">همهٔ تاریخ‌ها</a>
+                @endif
             </div>
         </form>
 
@@ -87,7 +90,7 @@
                 <thead>
                     <tr>
                         <th>#</th>
-                        <th>تاریخ ثبت</th>
+                        <th>تاریخ تراکنش</th>
                         <th>مشتری</th>
                         <th>نوع</th>
                         <th>وضعیت</th>
@@ -120,7 +123,7 @@
                             $createdFa = \Hekmatinasser\Jalali\Jalali::enToFaNumbers(\Hekmatinasser\Jalali\Jalali::instance($created)->format('Y/m/d H:i'));
                         @endphp
                         <tr>
-                            <td>{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $tx->id) }}</td>
+                            <td>{{ \Hekmatinasser\Jalali\Jalali::enToFaNumbers(($tx->kind === \App\Models\CustomerTransaction::KIND_INSTALLMENT_ADMIN_PAYMENT ? 'R-'.(string) $tx->source_id : (string) $tx->id)) }}</td>
                             <td>{{ $createdFa }}</td>
                             <td>
                                 {{ $custBrief }}<br>

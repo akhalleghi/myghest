@@ -55,6 +55,10 @@ final class AdminCustomerTransactionController extends Controller
      */
     public function customerEmbedPanel(Request $request, Customer $customer, AdminCustomerTransactionListService $list): View
     {
+        if (! $request->has('date_from') && ! $request->has('date_to')) {
+            $today = Jalali::instance(Carbon::today())->format('Y/m/d');
+            $request->merge(['date_from' => $today, 'date_to' => $today]);
+        }
         $parsed = $this->parseListingFilters($request);
         $filters = $parsed['filters'];
         $filters['customer_id'] = (int) $customer->id;
@@ -102,7 +106,7 @@ final class AdminCustomerTransactionController extends Controller
 
         $headers = [
             'شناسه تراکنش',
-            'تاریخ ثبت (شمسی)',
+            'تاریخ تراکنش (شمسی)',
             'شناسه مشتری',
             'نام مشتری',
             'موبایل',
@@ -238,7 +242,7 @@ final class AdminCustomerTransactionController extends Controller
             : '';
 
         return [
-            (int) $tx->id,
+            $tx->kind === CustomerTransaction::KIND_INSTALLMENT_ADMIN_PAYMENT ? 'R-'.$tx->source_id : (int) $tx->id,
             $createdFa,
             (int) $tx->customer_id,
             $c !== null ? trim($c->fullName()) : '',
@@ -273,6 +277,7 @@ final class AdminCustomerTransactionController extends Controller
     private function kindLabelsFa(): array
     {
         return [
+            CustomerTransaction::KIND_INSTALLMENT_ADMIN_PAYMENT => 'واریزی قسط (ثبت ادمین)',
             CustomerTransaction::KIND_INSTALLMENT_ONLINE_PAYMENT => 'پرداخت قسط (درگاه)',
             CustomerTransaction::KIND_INSTALLMENT_WALLET_PAYMENT => 'پرداخت قسط (کیف پول)',
             CustomerTransaction::KIND_WALLET_TOPUP => 'شارژ کیف پول',

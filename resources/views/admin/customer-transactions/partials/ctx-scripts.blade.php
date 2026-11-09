@@ -197,14 +197,13 @@
                 };
                 window.jQuery('#ctx-date-from, #ctx-date-to').each(function () {
                     var $el = window.jQuery(this);
-                    var hasVal = String($el.val() || '').trim() !== '';
                     try {
                         if ($el.data('datepicker')) {
                             $el.pDatepicker('destroy');
                         }
                     } catch (e) { /* noop */ }
                     $el.pDatepicker(window.jQuery.extend({}, common, {
-                        initialValue: hasVal
+                        initialValue: false
                     }));
                 });
             });

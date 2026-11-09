@@ -16,6 +16,7 @@ use App\Models\CustomerLoanInstallment;
 use App\Models\CustomerLoanInstallmentOnlinePaymentIntent;
 use App\Models\CustomerWallet;
 use App\Models\LoanType;
+use App\Models\SmsLog;
 use App\Services\Admin\AdminDashboardStatisticsService;
 use App\Services\Admin\DashboardPlanningCharts;
 use App\Services\Admin\Reports\CustomerFinancialReportService;
@@ -330,6 +331,7 @@ final class LoanDebtPaymentTest extends TestCase
         $controller = app(CustomerController::class);
         $controller->storeLoanInstallmentPayment($this->request(450000, '2026-07-31'), $this->customer, $this->file, $this->installment);
         self::assertSame(0, CustomerWallet::count());
+        Bus::assertNotDispatched(\App\Jobs\SendInstallmentWalletRewardSmsJob::class);
         $response = $controller->storeLoanInstallmentPayment($this->request(450000, '2026-08-01'), $this->customer, $this->file->fresh(), $this->installment->fresh());
         self::assertSame(200, $response->getStatusCode());
         self::assertSame(27000, $this->customer->wallet()->firstOrFail()->balance_toman);
@@ -338,6 +340,7 @@ final class LoanDebtPaymentTest extends TestCase
         app(LoanInstallmentPaidAmountSyncer::class)->syncFromPaymentRows($this->installment->fresh());
         self::assertSame(27000, $this->customer->wallet()->firstOrFail()->balance_toman);
         self::assertSame(1, DB::table('customer_wallet_transactions')->count());
+        Bus::assertDispatchedTimes(\App\Jobs\SendInstallmentWalletRewardSmsJob::class, 1);
     }
 
     public function test_late_completion_and_legacy_import_never_earn_rewards(): void
@@ -491,7 +494,9 @@ final class LoanDebtPaymentTest extends TestCase
         $lines = array_map(fn ($line) => explode("\t", $line), explode("\r\n", rtrim($decoded, "\r\n")));
         self::assertCount(152, $lines);
         $headers = array_shift($lines);
-        foreach ($lines as $line) self::assertCount(count($headers), $line);
+        foreach ($lines as $line) {
+            self::assertCount(count($headers), $line);
+        }
         $line = collect($lines)->first(fn ($cells) => $cells[0] === 'Test');
         self::assertSame('123000', $line[array_search('موجودی کیف پول (تومان)', $headers, true)]);
         self::assertSame('900000', $line[array_search('مجموع اصل وام‌های ثبت‌شده (تومان)', $headers, true)]);
@@ -885,7 +890,7 @@ final class LoanDebtPaymentTest extends TestCase
             ['2026-08-13 00:00:00', '09123456789', 'after'],
             ['2026-08-11 12:00:00', '09999999999', 'other'],
         ] as [$date, $recipient, $message]) {
-            \App\Models\SmsLog::create([
+            SmsLog::create([
                 'sent_at' => $date, 'recipient' => $recipient, 'message_text' => $message,
                 'sms_panel' => 'test', 'status' => 'delivered', 'type' => 'test', 'cost' => 1,
             ]);
@@ -1042,6 +1047,31 @@ final class LoanDebtPaymentTest extends TestCase
         $second = $builder->build($this->customer, $other->fresh(), $slot);
         self::assertSame('TEST', $renderer->render('{{loan_code}}', $first));
         self::assertSame('DS 96', $renderer->render('{{loan_code}}', $second));
+    }
+
+    public function test_member_loan_date_range_accepts_persian_dates_and_includes_both_boundary_days(): void
+    {
+        $service = app(MemberLoansByDateReportService::class);
+        $range = $service->resolveDateRange('۱۴۰۵/۰۷/۰۱', '۱۴۰۵/۰۸/۱۶');
+        self::assertSame('2026-09-23', $range['from']->toDateString());
+        self::assertSame('2026-11-07', $range['to']->toDateString());
+        foreach (['2026-09-22', '2026-09-23', '2026-11-07', '2026-11-08'] as $date) {
+            $file = $this->file->replicate();
+            $file->loan_code = $date;
+            $file->loan_start_date = $date;
+            $file->save();
+            DB::table('customer_loan_files')->where('id', $file->id)->update(['loan_start_date' => $date.' 18:30:00']);
+        }
+        $rows = $service->fetchRows($range['from'], $range['to']);
+        self::assertSame(['2026-11-07', '2026-09-23'], array_column($rows, 'loan_code'));
+        self::assertCount(1, $service->fetchRows($range['from'], $range['to'], '2026-11-07'));
+        self::assertSame(1800000, array_sum(array_column($rows, 'principal_toman')));
+    }
+
+    public function test_member_loan_report_rejects_invalid_dates_instead_of_using_default_range(): void
+    {
+        $this->expectException(ValidationException::class);
+        app(MemberLoansByDateReportService::class)->resolveDateRange('invalid', '1405/08/16');
     }
 
     private function shortPayment(): void
@@ -1536,4 +1566,33 @@ final class LoanDebtPaymentTest extends TestCase
         self::assertFalse($row['settled_for_ui']);
         self::assertNull($row['ribbon']);
     }
+    public function test_overdue_total_sms_rounds_only_the_aggregate_up_to_two_thousand(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-09-01'));
+        $this->file->update(['daily_late_coefficient' => 0, 'daily_early_coefficient' => 0]);
+        $this->installment->update(['paid_amount_toman' => 1]);
+        $customer = $this->customer->fresh();
+        $customer->load(['loanFiles.installments.payments', 'loanFiles.loanType']);
+        $controller = app(CustomerController::class);
+        $summaryMethod = new \ReflectionMethod($controller, 'resolveCustomerOverdueSummary');
+        $summary = $summaryMethod->invoke($controller, $customer);
+        $before = $summary['total_toman'];
+        $vars = (new \ReflectionMethod($controller, 'customerOverdueTotalSmsVars'))->invoke($controller, $customer);
+        self::assertSame(number_format(intdiv($before + 1999, 2000) * 2000).' تومان', $vars['installment_amount']);
+        self::assertSame($vars['installment_amount'], $vars['remaining_loan']);
+        self::assertSame('1', $vars['overdue_installment_count']);
+        self::assertSame($before, $summaryMethod->invoke($controller, $customer)['total_toman']);
+    }
+
+    public function test_reward_notification_is_deferred_until_commit_and_cancelled_on_rollback(): void
+    {
+        $this->enableRewards();
+        DB::beginTransaction();
+        app(CustomerController::class)->storeLoanInstallmentPayment($this->request(900000, '2026-08-01'), $this->customer, $this->file, $this->installment);
+        Bus::assertNotDispatched(\App\Jobs\SendInstallmentWalletRewardSmsJob::class);
+        DB::rollBack();
+        Bus::assertNotDispatched(\App\Jobs\SendInstallmentWalletRewardSmsJob::class);
+        self::assertSame(0, CustomerWallet::count());
+    }
+
 }

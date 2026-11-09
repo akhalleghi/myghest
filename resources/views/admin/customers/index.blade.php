@@ -363,6 +363,14 @@
             font-weight: 900;
             font-size: 0.72rem;
         }
+        .cust-sms-circle-btn--overdue-total {
+            background: #b45309;
+            color: #fff;
+            border: 2px solid #fbbf24;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, .18);
+            font-weight: 900;
+        }
+        .cust-sms-circle-btn--overdue-total:not(:disabled):hover { background: #92400e; }
         .cust-sms-circle-btn--inst-over {
             border-color: rgba(220, 38, 38, 0.38);
             background: rgba(254, 202, 202, 0.35);
@@ -781,6 +789,11 @@
             color: #f0fdf4;
             border-color: #86efac;
         }
+        .loan-inst-op-btn--note { color:#92400e; border-color:#f59e0b; background:#fef3c7; }
+        .loan-inst-op-btn--note:hover { color:#78350f; border-color:#d97706; background:#fde68a; }
+        .loan-inst-op-btn--note:focus-visible { outline:2px solid #d97706; outline-offset:2px; }
+        html[data-theme="dark"] .loan-inst-op-btn--note { color:#fef3c7; border-color:#fbbf24; background:#78350f; }
+        html[data-theme="dark"] .loan-inst-op-btn--note:hover { color:#fffbeb; border-color:#fcd34d; background:#92400e; }
         .loan-inst-op-btn:disabled {
             opacity: 0.42;
             cursor: not-allowed;
@@ -1360,6 +1373,11 @@
         .loan-manage-pill-value--good { color: #047857; }
         .loan-manage-pill-value--normal { color: #b45309; }
         .loan-manage-pill-value--weak { color: #b91c1c; }
+        .loan-overdue-sms-minimum { flex-basis: 100%; display: grid; gap: .4rem; padding-top: .6rem; border-top: 1px solid var(--border); }
+        .loan-overdue-sms-minimum label { font-size: .78rem; font-weight: 700; }
+        .loan-overdue-sms-minimum__row { display: flex; gap: .4rem; flex-wrap: wrap; }
+        .loan-overdue-sms-minimum input { flex: 1; width: 8rem; min-width: 0; padding: .5rem; border: 1px solid var(--border); border-radius: .5rem; background: var(--bg-card); color: var(--text); font-family: inherit; }
+        .loan-overdue-sms-minimum small { font-size: .7rem; color: var(--muted); line-height: 1.7; }
         .loan-manage-pill--mobile {
             flex-wrap: wrap;
             row-gap: 0.35rem;
@@ -2889,7 +2907,7 @@
                                 $nearestDueCarbon = $nearestDueRaw !== '' ? \Carbon\Carbon::parse($nearestDueRaw)->startOfDay() : null;
                                 $nearestDueIsOverdue = $nearestDueCarbon !== null && $nearestDueCarbon->lt(\Carbon\Carbon::today());
                                 $overdueSmsTitle = $overdueTotalToman > 0
-                                    ? 'ارسال پیامک مجموع معوق'.($overdueCount > 1 ? ' ('.\Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $overdueCount).' قسط معوق)' : '')
+                                    ? 'ارسال مجموع معوق با دیرکرد؛ گرد به بالای ۲٬۰۰۰ تومان'.($overdueCount > 1 ? ' ('.\Hekmatinasser\Jalali\Jalali::enToFaNumbers((string) $overdueCount).' قسط معوق)' : '')
                                     : 'قسط معوق پرداخت‌نشده‌ای وجود ندارد';
                                 $purchaseCreditAvailable = (int) ($loanMeta['purchase_credit_available_toman'] ?? 0);
                                 $purchaseCreditEffective = (int) ($loanMeta['purchase_credit_effective_toman'] ?? 0);
@@ -2980,7 +2998,7 @@
                                         <button type="button" class="cust-sms-circle-btn cust-sms-circle-btn--welcome" data-cust-quick-sms data-sms-type="welcome" data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}" data-customer-mobile="{{ $c->mobile }}" title="ارسال پیامک خوش‌آمدگویی">خ</button>
                                         <button
                                             type="button"
-                                            class="cust-sms-circle-btn cust-sms-circle-btn--inst-over"
+                                            class="cust-sms-circle-btn cust-sms-circle-btn--overdue-total"
                                             data-cust-quick-sms
                                             data-sms-type="overdue_total"
                                             data-customer-id="{{ $c->id }}"
@@ -3275,11 +3293,9 @@
                     </fieldset>
 
                     <input type="hidden" name="send_credentials" value="0" id="cust-send-hidden">
-                    <input type="hidden" name="credentials_sms_text" value="" id="cust-credentials-sms-text">
-
                     <div class="cust-send-row">
-                        <input type="checkbox" id="cust-send-chk">
-                        <label for="cust-send-chk">ارسال نام کاربری و رمز عبور برای کاربر (پیامک)</label>
+                        <button type="button" class="loan-creation-otp-btn" id="cust-send-credentials">پیش‌نمایش و ارسال اطلاعات ورود</button>
+                        <p id="cust-send-credentials-note" class="cust-field-hint" role="status">پیامک با اطلاعات همین فرم ارسال می‌شود؛ برای فعال شدن حساب، ثبت مشتری را تکمیل کنید.</p>
                     </div>
 
                     <div class="cust-actions">
@@ -3514,7 +3530,7 @@
                     </summary>
                     <div class="loan-manage-overview-content">
                         <div class="loan-manage-top">
-                            <div class="loan-manage-pill loan-manage-pill--mobile">
+                            <div class="loan-manage-pill loan-manage-pill--mobile" style="flex-wrap:wrap">
                                 <i class="fa-solid fa-mobile-screen-button loan-manage-pill-ico" aria-hidden="true"></i>
                                 <span class="loan-manage-pill-label">موبایل:</span>
                                 <span class="loan-manage-pill-value" id="loan-manage-customer-mobile">—</span>
@@ -3523,6 +3539,17 @@
                                     <span class="loan-manage-sms-toggle__ui" aria-hidden="true"></span>
                                     <span class="loan-manage-sms-toggle__text" id="loan-manage-sms-enabled-label">پیامک فعال</span>
                                 </label>
+                                @adminCan('customers.update')
+                                <div class="loan-overdue-sms-minimum">
+                                    <label for="loan-overdue-sms-minimum">حداقل بدهی پیامک معوق خودکار (تومان)</label>
+                                    <div class="loan-overdue-sms-minimum__row">
+                                        <input id="loan-overdue-sms-minimum" type="text" inputmode="numeric" maxlength="15" placeholder="بدون حداقل مبلغ" aria-describedby="loan-overdue-sms-minimum-help" disabled>
+                                        <button type="button" id="loan-overdue-sms-minimum-save" class="cust-submit" disabled>ذخیره</button>
+                                    </div>
+                                    <small id="loan-overdue-sms-minimum-help">ارسال فقط برای بدهی معوق بیشتر از مبلغ تعیین‌شده؛ خالی یعنی ارسال با هر میزان بدهی معوق.</small>
+                                    <small id="loan-overdue-sms-minimum-status" role="status" aria-live="polite"></small>
+                                </div>
+                                @endadminCan
                             </div>
                             <div class="loan-manage-pill">
                                 <i class="fa-solid fa-chart-line loan-manage-pill-ico" aria-hidden="true"></i>
@@ -5282,14 +5309,62 @@
                 } finally { button.disabled = false; }
             });
             var sendHidden = document.getElementById('cust-send-hidden');
-            var sendChk = document.getElementById('cust-send-chk');
+            var credentialsCustomerId = null;
+            var credentialsBusy = false;
+            var credentialsButton = document.getElementById('cust-send-credentials');
+            var credentialsNote = document.getElementById('cust-send-credentials-note');
+            function syncCredentialsButton(customerId) {
+                credentialsCustomerId = customerId || null;
+                if (credentialsButton) credentialsButton.disabled = credentialsBusy;
+                if (credentialsNote) credentialsNote.textContent = credentialsCustomerId
+                    ? 'ذخیره اطلاعات و ارسال پیامک مستقل‌اند. تغییر موبایل یا رمز را پیش از ارسال ذخیره کنید.'
+                    : 'پیامک با اطلاعات همین فرم ارسال می‌شود؛ برای فعال شدن حساب، ثبت مشتری را تکمیل کنید.';
+            }
+            async function requestCredentialsSms(customerId, action, data) {
+                var response = await fetch(customerId ? custListBaseUrl + '/' + encodeURIComponent(customerId) + '/credentials-sms/' + action : custListBaseUrl + '/credentials-sms/draft-' + action, {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': @json(csrf_token()) },
+                    body: JSON.stringify(data || {})
+                });
+                var result = await response.json();
+                if (!response.ok) throw new Error(Object.values(result.errors || {}).flat()[0] || result.message || 'ارسال انجام نشد.');
+                return result;
+            }
+            if (credentialsButton) credentialsButton.addEventListener('click', async function () {
+                if (credentialsBusy) return;
+                var customerId = credentialsCustomerId;
+                credentialsBusy = true;
+                credentialsButton.disabled = true;
+                try {
+                    var draft = customerId ? null : { mobile: toEnglishDigits(mobile.value.trim()), password: pwdInput ? pwdInput.value : '' };
+                    if (customerId && pwdInput && pwdInput.value.trim()) throw new Error('ابتدا رمز جدید را ذخیره کنید؛ سپس ارسال را بزنید.');
+                    var preview = await requestCredentialsSms(customerId, 'preview', draft);
+                    if (credentialsCustomerId !== customerId) return;
+                    if (toEnglishDigits(mobile.value.trim()) !== preview.mobile) throw new Error('ابتدا تغییر شماره موبایل را ذخیره کنید.');
+                    if (!window.Swal) throw new Error('پیش‌نمایش آماده نیست؛ صفحه را تازه‌سازی کنید.');
+                    var choice = await Swal.fire({
+                        title: 'ارسال اطلاعات ورود به ' + preview.mobile, input: 'textarea', inputValue: preview.body,
+                        inputLabel: 'متن پیامک قابل ویرایش است', inputAttributes: { maxlength: '1000', dir: 'rtl' },
+                        showCancelButton: true, confirmButtonText: 'تأیید و ارسال پیامک', cancelButtonText: 'انصراف',
+                        preConfirm: function (value) { if (!String(value || '').trim()) { Swal.showValidationMessage('متن پیامک را وارد کنید.'); return false; } return value.trim(); }
+                    });
+                    if (!choice.isConfirmed || credentialsCustomerId !== customerId) return;
+                    if (draft && (draft.mobile !== toEnglishDigits(mobile.value.trim()) || draft.password !== pwdInput.value)) throw new Error('اطلاعات فرم تغییر کرده است؛ پیش‌نمایش را دوباره باز کنید.');
+                    var result = await requestCredentialsSms(customerId, 'send', Object.assign({}, draft || {}, { sms_text: choice.value, preview_token: preview.preview_token }));
+                    if (credentialsCustomerId === customerId) credentialsNote.textContent = result.message;
+                } catch (error) {
+                    if (credentialsCustomerId === customerId) credentialsNote.textContent = error.message;
+                } finally {
+                    credentialsBusy = false;
+                    if (credentialsButton) credentialsButton.disabled = false;
+                }
+            });
             var bankContainer = document.getElementById('cust-bank-rows');
             var refContainer = document.getElementById('cust-referrer-rows');
             var bankBtn = document.getElementById('cust-add-bank');
             var refBtn = document.getElementById('cust-add-referrer');
             var bankIndex = {{ max(count(old('accounts', [])), 0) }};
             var refIndex = {{ max(count(old('referrers', [])), 0) }};
-            var skipPrompt = false;
             var pwdInput = document.getElementById('cust-password');
             var pwdReq = document.getElementById('cust-password-req');
             var pwdHint = document.getElementById('cust-password-hint');
@@ -5931,6 +6006,7 @@
 
             function openCreateModal() {
                 custFormMode = 'create';
+                syncCredentialsButton(null);
                 customerMobileOtpBox.hidden = false;
                 customerMobileOtpBox.disabled = false;
                 removeMethodField();
@@ -5964,9 +6040,6 @@
                 if (sendHidden) {
                     sendHidden.value = '0';
                 }
-                if (sendChk) {
-                    sendChk.checked = false;
-                }
                 customerFormSubmitting = false;
                 setCustomerSubmitLoading(false);
                 destroyCustPickers();
@@ -5982,6 +6055,7 @@
                 form.dataset.mediaCustomerId = String(customerId);
                 form.dispatchEvent(new CustomEvent('customer-media:reset'));
                 custFormMode = 'edit';
+                syncCredentialsButton(customerId);
                 resetCustomerMobileOtp();
                 customerMobileOtpBox.hidden = true;
                 customerMobileOtpBox.disabled = true;
@@ -7793,7 +7867,7 @@
                         '<td class="loan-inst-td--sms">' + loanInstMakeSmsCell(row) + '</td>' +
                         '<td><div class="loan-inst-ops">' +
                         @adminCan('customers.notes.view')
-                            '<button type="button" class="loan-inst-op-btn" data-loan-notes="installment" data-installment-id="' + Number(row.id) + '" title="یادداشت قسط" aria-label="یادداشت قسط"><i class="fa-regular fa-note-sticky" aria-hidden="true"></i></button>' +
+                            '<button type="button" class="loan-inst-op-btn loan-inst-op-btn--note" data-loan-notes="installment" data-installment-id="' + Number(row.id) + '" title="یادداشت قسط" aria-label="یادداشت قسط"><i class="fa-regular fa-note-sticky" aria-hidden="true"></i></button>' +
                         @endadminCan
                             '<button type="button" class="loan-inst-op-btn loan-inst-op-btn--danger"' + clearPayData + clearPayDisabled +
                             ' title="حذف واریزی‌های ثبت‌شده برای این قسط (خود قسط حذف نمی‌شود)" aria-label="حذف واریزی‌های این قسط">' +
@@ -9243,6 +9317,71 @@
                 resetLoanCreationOtpUi();
             }
 
+            var overdueMinimumVersion = 0;
+            var overdueMinimumInput = document.getElementById('loan-overdue-sms-minimum');
+            var overdueMinimumSave = document.getElementById('loan-overdue-sms-minimum-save');
+            var overdueMinimumStatus = document.getElementById('loan-overdue-sms-minimum-status');
+
+            function loadOverdueSmsMinimum(customerId) {
+                if (!overdueMinimumInput || !overdueMinimumSave) return;
+                var version = ++overdueMinimumVersion;
+                overdueMinimumInput.value = '';
+                overdueMinimumInput.disabled = true;
+                overdueMinimumSave.disabled = true;
+                overdueMinimumStatus.textContent = 'در حال دریافت تنظیمات…';
+                fetch(custListBaseUrl + '/' + encodeURIComponent(customerId) + '/loan-manage-modal-context', {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                }).then(function (response) {
+                    if (!response.ok) throw new Error('دریافت تنظیمات ناموفق بود. پنجره را دوباره باز کنید.');
+                    return response.json();
+                }).then(function (data) {
+                    if (version !== overdueMinimumVersion || String(customerId) !== String(loanManageCurrentCustomerId)) return;
+                    overdueMinimumInput.value = data.overdue_sms_minimum_toman == null ? '' : String(data.overdue_sms_minimum_toman);
+                    overdueMinimumInput.disabled = false;
+                    overdueMinimumSave.disabled = false;
+                    overdueMinimumStatus.textContent = '';
+                }).catch(function (error) {
+                    if (version === overdueMinimumVersion && String(customerId) === String(loanManageCurrentCustomerId)) overdueMinimumStatus.textContent = error.message;
+                });
+            }
+
+            if (overdueMinimumSave) overdueMinimumSave.addEventListener('click', function () {
+                if (!loanManageCurrentCustomerId || overdueMinimumSave.disabled) return;
+                var customerId = loanManageCurrentCustomerId;
+                var version = overdueMinimumVersion;
+                var value = toEnglishDigits(overdueMinimumInput.value).replace(/[,٬\s]/g, '');
+                if (value !== '' && (!/^\d+$/.test(value) || Number(value) > 999999999999)) {
+                    overdueMinimumStatus.textContent = 'مبلغ صحیح و نامنفی به تومان وارد کنید.';
+                    return;
+                }
+                overdueMinimumInput.disabled = true;
+                overdueMinimumSave.disabled = true;
+                overdueMinimumStatus.textContent = 'در حال ذخیره…';
+                fetch(custListBaseUrl + '/' + encodeURIComponent(customerId) + '/overdue-sms-minimum', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': @json(csrf_token()) },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ overdue_sms_minimum_toman: value === '' ? null : Number(value) })
+                }).then(function (response) {
+                    return response.json().then(function (data) {
+                        if (!response.ok) throw new Error(data.message || 'ذخیره تنظیمات ناموفق بود.');
+                        return data;
+                    });
+                }).then(function (data) {
+                    if (version !== overdueMinimumVersion || String(customerId) !== String(loanManageCurrentCustomerId)) return;
+                    overdueMinimumInput.value = data.overdue_sms_minimum_toman == null ? '' : String(data.overdue_sms_minimum_toman);
+                    overdueMinimumStatus.textContent = data.message;
+                }).catch(function (error) {
+                    if (version === overdueMinimumVersion && String(customerId) === String(loanManageCurrentCustomerId)) overdueMinimumStatus.textContent = error.message;
+                }).finally(function () {
+                    if (version === overdueMinimumVersion && String(customerId) === String(loanManageCurrentCustomerId)) {
+                        overdueMinimumInput.disabled = false;
+                        overdueMinimumSave.disabled = false;
+                    }
+                });
+            });
+
             function syncLoanManageSmsEnabledUi(enabled) {
                 var on = enabled !== false;
                 if (loanManageSmsEnabledInput) {
@@ -9405,6 +9544,7 @@
                     loanManageCreditStatusView.classList.remove('loan-manage-pill-value--good', 'loan-manage-pill-value--normal', 'loan-manage-pill-value--weak');
                 }
                 loadLoanManageSmsEnabledState(loanManageCurrentCustomerId);
+                loadOverdueSmsMinimum(loanManageCurrentCustomerId);
                 loadLoanRewardSettings(loanManageCurrentCustomerId);
                 loadLoanManageWalletSummary(loanManageCurrentCustomerId);
                 setLoanManageCreditEditOpen(false);
@@ -9466,7 +9606,7 @@
                     setLoanManageLrqLoading(false);
                 }
                 if (tabId === 'transactions' && loanManageCurrentCustomerId && loanManageCtxIframe && loanManageCtxEmbedTmpl && loanManageCtxEmbedTmpl.indexOf('__CUSTOMER_ID__') !== -1) {
-                    var ctxNextSrc = loanManageCtxEmbedTmpl.replace('__CUSTOMER_ID__', String(loanManageCurrentCustomerId));
+                    var ctxNextSrc = new URL(loanManageCtxEmbedTmpl.replace('__CUSTOMER_ID__', String(loanManageCurrentCustomerId)), window.location.href).href;
                     setLoanManageCtxLoading(true);
                     if (loanManageCtxIframe.src === ctxNextSrc) {
                         setLoanManageCtxLoading(false);
@@ -12613,13 +12753,6 @@
             if (bankBtn) bankBtn.addEventListener('click', addBankRow);
             if (refBtn) refBtn.addEventListener('click', addRefRow);
 
-            if (sendChk && sendHidden) {
-                sendChk.addEventListener('change', function () {
-                    sendHidden.value = sendChk.checked ? '1' : '0';
-                });
-            }
-
-            var credentialPreviewOpen = false;
             if (form) {
                 form.addEventListener('submit', function (e) {
                     if (custFormMode === 'create' && customerMobileOtpRequired.checked && !customerMobileOtpToken.value) {
@@ -12628,107 +12761,13 @@
                         customerMobileOtpStatus.scrollIntoView({ block: 'center' });
                         return;
                     }
-                    if (skipPrompt) {
-                        skipPrompt = false;
-                        return;
-                    }
                     if (customerFormSubmitting) {
                         e.preventDefault();
                         return;
                     }
-                    if (custFormMode === 'create') {
-                        if (credentialPreviewOpen) { e.preventDefault(); return; }
-                        var smsField = document.getElementById('cust-credentials-sms-text');
-                        if (!sendChk || !sendChk.checked) {
-                            if (sendHidden) sendHidden.value = '0';
-                            if (smsField) smsField.value = '';
-                            customerFormSubmitting = true;
-                            setCustomerSubmitLoading(true);
-                            return;
-                        }
-                        e.preventDefault();
-                        if (typeof Swal === 'undefined') {
-                            window.alert('پیش‌نمایش پیامک آماده نیست؛ صفحه را تازه کنید یا گزینه ارسال پیامک را بردارید.');
-                            return;
-                        }
-                        credentialPreviewOpen = true;
-                        var smsText = 'سامانه ' + (appDisplayName || '') + '\nنام کاربری: ' +
-                            String(userPrev ? userPrev.value : '') + '\nرمز عبور: ' + String(pwdInput ? pwdInput.value : '');
-                        Swal.fire({
-                            title: 'بازبینی پیامک اطلاعات ورود', icon: 'question',
-                            input: 'textarea', inputValue: smsText,
-                            inputLabel: 'متن پیامک قابل ویرایش است', inputAttributes: { maxlength: '1000', dir: 'rtl' },
-                            showDenyButton: true, showCancelButton: true,
-                            confirmButtonText: 'ذخیره و ارسال پیامک', denyButtonText: 'فقط ذخیره', cancelButtonText: 'بازگشت',
-                            reverseButtons: true, allowOutsideClick: false,
-                            preConfirm: function (value) {
-                                var text = String(value || '').trim();
-                                if (!text) { Swal.showValidationMessage('متن پیامک را وارد کنید.'); return false; }
-                                return text;
-                            }
-                        }).then(function (result) {
-                            if (!result.isConfirmed && !result.isDenied) return;
-                            sendHidden.value = result.isConfirmed ? '1' : '0';
-                            if (smsField) smsField.value = result.isConfirmed ? result.value : '';
-                            customerFormSubmitting = true;
-                            setCustomerSubmitLoading(true);
-                            skipPrompt = true;
-                            form.requestSubmit();
-                        }).finally(function () { credentialPreviewOpen = false; });
-                        return;
-                    }
-                    if (!sendHidden || sendHidden.value === '1') {
-                        customerFormSubmitting = true;
-                        setCustomerSubmitLoading(true);
-                        return;
-                    }
-                    e.preventDefault();
-                    if (typeof Swal === 'undefined') {
-                        customerFormSubmitting = true;
-                        setCustomerSubmitLoading(true);
-                        skipPrompt = true;
-                        form.submit();
-                        return;
-                    }
-                    Swal.fire({
-                        icon: 'question',
-                        title: 'ارسال پیامک',
-                        text: 'آیا می‌خواهید نام کاربری و رمز عبور برای مشتری پیامک شود؟',
-                        showDenyButton: true,
-                        showCancelButton: true,
-                        confirmButtonText: 'بله، ارسال و ذخیره',
-                        denyButtonText: 'خیر، فقط ذخیره',
-                        cancelButtonText: 'عدم ذخیره',
-                        reverseButtons: true,
-                        allowOutsideClick: false,
-                        focusCancel: false,
-                        didOpen: function () {
-                            var p = document.querySelector('.swal2-popup');
-                            if (p) {
-                                p.setAttribute('dir', 'rtl');
-                            }
-                        }
-                    }).then(function (result) {
-                        if (result.isConfirmed) {
-                            sendHidden.value = '1';
-                            customerFormSubmitting = true;
-                            setCustomerSubmitLoading(true);
-                            skipPrompt = true;
-                            form.requestSubmit();
-                            return;
-                        }
-                        if (result.isDenied) {
-                            sendHidden.value = '0';
-                            customerFormSubmitting = true;
-                            setCustomerSubmitLoading(true);
-                            skipPrompt = true;
-                            form.requestSubmit();
-                            return;
-                        }
-                        // cancel، ESC یا بستن: هیچ‌چیز ذخیره نشود
-                        customerFormSubmitting = false;
-                        setCustomerSubmitLoading(false);
-                    });
+                    if (sendHidden) sendHidden.value = '0';
+                    customerFormSubmitting = true;
+                    setCustomerSubmitLoading(true);
                 });
             }
 
@@ -12921,6 +12960,7 @@
             openModal();
             @elseif (session('open_edit_customer_id'))
             custFormMode = 'edit';
+            syncCredentialsButton({{ (int) session('open_edit_customer_id') }});
             customerMobileOtpBox.hidden = true;
             customerMobileOtpBox.disabled = true;
             addMethodPut();

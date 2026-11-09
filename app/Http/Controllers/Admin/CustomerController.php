@@ -194,13 +194,7 @@ final class CustomerController extends Controller
 
     private function loanManageCustomerTransactionsEmbedUrlTemplate(): string
     {
-        $id = (int) Customer::query()->orderBy('id')->value('id');
-        if ($id < 1) {
-            return '';
-        }
-        $u = route('admin.customers.customer-transactions.embed', ['customer' => $id]);
-
-        return preg_replace('#/'.preg_quote((string) $id, '#').'/#', '/__CUSTOMER_ID__/', $u, 1);
+        return route('admin.customers.customer-transactions.embed', ['customer' => '__CUSTOMER_ID__'], false);
     }
 
     private function loanManageLoanRequestEmbedUrlTemplate(): string
@@ -2747,6 +2741,7 @@ final class CustomerController extends Controller
             'loan-file-created' => 'ثبت پرونده وام',
             'installment-payment-registered' => 'ثبت واریز قسط',
             'wallet-charge-link' => 'لینک شارژ کیف پول',
+            'installment-wallet-reward' => 'شارژ کیف پول بابت پاداش خوش‌حسابی',
             'welcome-message' => 'پیام خوش‌آمدگویی',
             'guarantor-otp' => 'کد تأیید ضامن',
             'customer-mobile-verification' => 'تأیید شماره موبایل مشتری',
@@ -3670,7 +3665,7 @@ final class CustomerController extends Controller
             if ($msg === '') {
                 $msg = 'سامانه '.$this->appDisplayName().chr(10)
                 .'نام کاربری: '.$customer->username.chr(10)
-                .'رمز عبور: '.$plainPassword;
+                .'رمز عبور: '.$plainPassword.chr(10).'ورود به سامانه: '.route('customer.login');
             }
             $smsResult = $this->rawSms->send($customer->mobile, $msg);
             $smsMessage = $smsResult['message'];
@@ -3686,7 +3681,7 @@ final class CustomerController extends Controller
         }
 
         return redirect()
-            ->route('admin.customers.index')
+            ->route('admin.customers.index', ['open_customer_edit' => 1, 'customer_id' => $customer->id])
             ->with('flash_success', $flash);
     }
 
@@ -3700,6 +3695,7 @@ final class CustomerController extends Controller
             'name' => $customer->fullName(),
             'mobile' => (string) ($customer->mobile ?? ''),
             'sms_sending_enabled' => $customer->receivesOutboundSms(),
+            'overdue_sms_minimum_toman' => $customer->overdue_sms_minimum_toman,
         ]);
     }
 
@@ -3789,6 +3785,20 @@ final class CustomerController extends Controller
         return response()->json([
             'message' => 'سقف اعتبار خرید ذخیره شد.',
             ...$credit,
+        ]);
+    }
+
+    public function updateOverdueSmsMinimum(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'overdue_sms_minimum_toman' => ['present', 'nullable', 'integer', 'min:0', 'max:999999999999'],
+        ], [], ['overdue_sms_minimum_toman' => 'حداقل بدهی پیامک معوق']);
+        $customer->overdue_sms_minimum_toman = $validated['overdue_sms_minimum_toman'];
+        $customer->save();
+
+        return response()->json([
+            'message' => 'حداقل بدهی پیامک معوق خودکار ذخیره شد.',
+            'overdue_sms_minimum_toman' => $customer->overdue_sms_minimum_toman,
         ]);
     }
 
@@ -3954,7 +3964,7 @@ final class CustomerController extends Controller
 
         if ($validator->fails()) {
             return redirect()
-                ->route('admin.customers.index', $request->only('q'))
+                ->route('admin.customers.index', array_merge($request->only('q'), ['open_customer_edit' => 1, 'customer_id' => $customer->id]))
                 ->withInput($request->except('password'))
                 ->withErrors($validator)
                 ->with('open_edit_customer_id', $customer->id);
@@ -3969,7 +3979,7 @@ final class CustomerController extends Controller
         $username = $this->usernameFromMobile($validated['mobile']);
         if (Customer::query()->where('username', $username)->where('id', '!=', $customer->id)->exists()) {
             return redirect()
-                ->route('admin.customers.index', $request->only('q'))
+                ->route('admin.customers.index', array_merge($request->only('q'), ['open_customer_edit' => 1, 'customer_id' => $customer->id]))
                 ->withInput($request->except('password'))
                 ->withErrors(['mobile' => 'این شماره موبایل قبلاً به‌عنوان نام کاربری ثبت شده است.'])
                 ->with('open_edit_customer_id', $customer->id);
@@ -3980,7 +3990,7 @@ final class CustomerController extends Controller
             $referrers = $this->validatedReferrers($request->input('referrers', []));
         } catch (ValidationException $e) {
             return redirect()
-                ->route('admin.customers.index', $request->only('q'))
+                ->route('admin.customers.index', array_merge($request->only('q'), ['open_customer_edit' => 1, 'customer_id' => $customer->id]))
                 ->withInput($request->except('password'))
                 ->withErrors($e->errors())
                 ->with('open_edit_customer_id', $customer->id);
@@ -4063,7 +4073,7 @@ final class CustomerController extends Controller
             });
         } catch (ValidationException $e) {
             return redirect()
-                ->route('admin.customers.index', $request->only('q'))
+                ->route('admin.customers.index', array_merge($request->only('q'), ['open_customer_edit' => 1, 'customer_id' => $customer->id]))
                 ->withInput($request->except('password'))
                 ->withErrors($e->errors())
                 ->with('open_edit_customer_id', $customer->id);
@@ -4080,6 +4090,7 @@ final class CustomerController extends Controller
             } else {
                 $msg .= 'رمز عبور تغییر نکرده است.';
             }
+            $msg .= chr(10).'ورود به سامانه: '.route('customer.login');
             $smsResult = $this->rawSms->send($customer->mobile, $msg);
             $smsMessage = $smsResult['message'];
             if ($smsResult['ok']) {
@@ -4094,7 +4105,7 @@ final class CustomerController extends Controller
         }
 
         return redirect()
-            ->route('admin.customers.index', $request->only('q'))
+            ->route('admin.customers.index', array_merge($request->only('q'), ['open_customer_edit' => 1, 'customer_id' => $customer->id]))
             ->with('flash_success', $flash);
     }
 
@@ -6331,26 +6342,7 @@ final class CustomerController extends Controller
      */
     private function customerOverdueTotalSmsVars(Customer $customer): array
     {
-        $customer->loadMissing(['loanFiles.installments', 'loanFiles.loanType']);
-        $summary = $this->resolveCustomerOverdueSummary($customer);
-        $total = (int) ($summary['total_toman'] ?? 0);
-        $count = (int) ($summary['count'] ?? 0);
-        $amountText = number_format($total, 0, '.', ',').' تومان';
-
-        return [
-            'store_name' => $this->appDisplayName(),
-            'customer_name' => $customer->fullName(),
-            'installment_amount' => $amountText,
-            'installment_unpaid_amount' => $amountText,
-            'overdue_installment_count' => (string) $count,
-            'loan_code' => '—',
-            'installment_number' => $count > 0 ? (string) $count : '—',
-            'days_until_due' => '0',
-            'paid_amount' => number_format(0, 0, '.', ',').' تومان',
-            'remaining_loan' => $amountText,
-            'payment_link' => '—',
-            'payment_link_variable' => '—',
-        ];
+        return app(\App\Services\Sms\InstallmentSmsTemplateVarsBuilder::class)->buildOverdueTotal($customer);
     }
 
     /**
@@ -6362,18 +6354,7 @@ final class CustomerController extends Controller
             $customer->loadMissing(['loanFiles.installments', 'loanFiles.loanType']);
             $vars = $this->customerOverdueTotalSmsVars($customer);
 
-            $prefId = $this->resolveInstallmentScenarioTemplateId('installment_overdue');
-            if ($prefId !== null) {
-                $tpl = SmsTemplate::query()->find($prefId);
-                if ($tpl !== null) {
-                    return [
-                        'body' => trim($this->renderTemplate($tpl->body, $vars, $customer)),
-                        'template_id' => (int) $tpl->id,
-                    ];
-                }
-            }
-
-            $tpl = SmsTemplate::query()->where('template_key', 'default_installment_overdue_reminder')->first();
+            $tpl = SmsTemplate::query()->where('template_key', 'default_customer_overdue_total')->first();
             if ($tpl !== null) {
                 return [
                     'body' => trim($this->renderTemplate($tpl->body, $vars, $customer)),
@@ -6382,7 +6363,7 @@ final class CustomerController extends Controller
             }
 
             return [
-                'body' => 'مشتری گرامی '.$customer->fullName().'؛ سررسید قسط به مبلغ '.($vars['installment_amount'] ?? '—').' معوق شده است، لطفا در اسرع وقت نسبت به پرداخت اقدام فرمایید.'."\n".$this->appDisplayName(),
+                'body' => 'مشتری گرامی '.$customer->fullName().'؛ مجموع بدهی معوق شما با احتساب جریمه دیرکرد، '.($vars['installment_amount'] ?? '—').' است. لطفاً نسبت به پرداخت اقدام فرمایید.'."\n".$this->appDisplayName(),
                 'template_id' => null,
             ];
         }

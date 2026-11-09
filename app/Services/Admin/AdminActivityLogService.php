@@ -33,6 +33,7 @@ final class AdminActivityLogService
         'remember_token',
         'sms_text',
         'credentials_sms_text',
+        'preview_token',
         'mobile_verification_token',
         'otp_session',
     ];

@@ -25,6 +25,11 @@
         .rpt-type-picker__menu { position: absolute; inset-inline-end: 0; top: calc(100% + .35rem); z-index: 10; width: min(320px, 85vw); max-height: 260px; overflow: auto; padding: .65rem; border: 1px solid var(--border); border-radius: .7rem; background: var(--bg-card); box-shadow: 0 8px 24px rgba(0,0,0,.15); }
         #rpt-ml-types label { display: flex; gap: .5rem; align-items: center; padding: .45rem .2rem; cursor: pointer; }
         #rpt-ml-types input { flex: 0 0 auto; width: 1rem; height: 1rem; }
+        .rpt-summary-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:.65rem; margin:.75rem 0; }
+        .rpt-summary-cards[hidden] { display:none; }
+        .rpt-summary-card { border:1px solid var(--border); border-radius:.75rem; padding:.8rem; background:var(--bg-card); box-shadow:0 3px 12px rgba(15,23,42,.04); }
+        .rpt-summary-card small { display:block; color:var(--muted); margin-bottom:.4rem; }
+        .rpt-summary-card strong { color:var(--text); font-size:.9rem; }
         .rpt-page {
             max-width: 100%;
             {{ $adminReportsDisplayStyle }}
@@ -104,19 +109,22 @@
         .rpt-modal-overlay {
             position: fixed;
             inset: 0;
+            inset-inline-start: var(--sidebar-w, 258px);
             z-index: 1250;
             background: rgba(15, 23, 42, 0.52);
             backdrop-filter: blur(2px);
             display: grid;
-            place-items: center;
-            padding: 0.75rem;
+            place-items: stretch;
+            padding: 0.5rem;
         }
 
         .rpt-modal-overlay[hidden] { display: none !important; }
 
         .rpt-modal {
-            width: min(1280px, 100%);
-            max-height: min(92vh, 920px);
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            max-height: 100%;
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 1rem;
@@ -153,6 +161,8 @@
         }
 
         .rpt-modal__body {
+            flex: 1;
+            min-height: 0;
             overflow: auto;
             padding: 0.65rem 0.55rem 0.75rem;
             -webkit-overflow-scrolling: touch;
@@ -793,6 +803,10 @@
             color: #fff;
         }
 
+        @media (max-width: 960px) {
+            .rpt-modal-overlay { inset-inline-start: 0; }
+        }
+
         @media (max-width: 860px) {
             .rpt-modal-overlay {
                 padding: 0;
@@ -1069,7 +1083,7 @@
                     </a>
                 </div>
 
-                <p class="rpt-guarantee-summary" id="rpt-ml-summary" role="status" aria-live="polite" hidden></p>
+                <div class="rpt-summary-cards" id="rpt-ml-summary" role="status" aria-live="polite" hidden></div>
                 <p class="rpt-meta" id="rpt-ml-meta">بازهٔ تاریخ را انتخاب کنید و «دریافت اطلاعات» را بزنید.</p>
 
                 <div class="rpt-table-card">
