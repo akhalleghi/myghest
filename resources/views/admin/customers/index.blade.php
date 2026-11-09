@@ -5336,7 +5336,11 @@
                 credentialsBusy = true;
                 credentialsButton.disabled = true;
                 try {
-                    var draft = customerId ? null : { mobile: toEnglishDigits(mobile.value.trim()), password: pwdInput ? pwdInput.value : '' };
+                    var draft = customerId ? null : {
+                        mobile: toEnglishDigits(mobile.value.trim()), password: pwdInput ? pwdInput.value : '',
+                        first_name: document.getElementById('cust-fname').value.trim(),
+                        last_name: document.getElementById('cust-lname').value.trim()
+                    };
                     if (customerId && pwdInput && pwdInput.value.trim()) throw new Error('ابتدا رمز جدید را ذخیره کنید؛ سپس ارسال را بزنید.');
                     var preview = await requestCredentialsSms(customerId, 'preview', draft);
                     if (credentialsCustomerId !== customerId) return;
@@ -5350,6 +5354,7 @@
                     });
                     if (!choice.isConfirmed || credentialsCustomerId !== customerId) return;
                     if (draft && (draft.mobile !== toEnglishDigits(mobile.value.trim()) || draft.password !== pwdInput.value)) throw new Error('اطلاعات فرم تغییر کرده است؛ پیش‌نمایش را دوباره باز کنید.');
+                    if (draft && (draft.first_name !== document.getElementById('cust-fname').value.trim() || draft.last_name !== document.getElementById('cust-lname').value.trim())) throw new Error('نام مشتری تغییر کرده است؛ پیش‌نمایش را دوباره باز کنید.');
                     var result = await requestCredentialsSms(customerId, 'send', Object.assign({}, draft || {}, { sms_text: choice.value, preview_token: preview.preview_token }));
                     if (credentialsCustomerId === customerId) credentialsNote.textContent = result.message;
                 } catch (error) {

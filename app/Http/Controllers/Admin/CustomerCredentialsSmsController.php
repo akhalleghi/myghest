@@ -7,8 +7,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\Customer;
+use App\Models\SmsTemplate;
 use App\Services\Admin\RawSmsDispatcher;
 use App\Services\Sms\CustomerSmsCredentialVariables;
+use App\Services\Sms\SmsTemplateRenderer;
 use App\Support\JalaliInputParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,6 +22,15 @@ use Illuminate\Validation\ValidationException;
 
 final class CustomerCredentialsSmsController extends Controller
 {
+    private function messageBody(array $vars): string
+    {
+        $body = SmsTemplate::query()->where('template_key', 'default_customer_credentials')->value('body')
+            ?? "سامانه {{store_name}}\nنام کاربری: {{username}}\nرمز عبور: {{password}}\nورود به سامانه: {{app_url}}";
+        $vars['store_name'] = AppSetting::query()->where('key', 'app_display_name')->value('value') ?: config('app.name');
+
+        return app(SmsTemplateRenderer::class)->render($body, $vars);
+    }
+
     private function fingerprint(Customer $customer): string
     {
         return hash('sha256', json_encode([(int) $customer->id, (string) $customer->mobile, (string) $customer->username, (string) $customer->password]));
@@ -32,6 +43,8 @@ final class CustomerCredentialsSmsController extends Controller
         return $request->validate([
             'mobile' => ['required', 'string', 'regex:/^09[0-9]{9}$/D', Rule::unique('customers', 'mobile'), Rule::unique('customers', 'username')],
             'password' => ['required', 'string', 'min:8', 'max:255'],
+            'first_name' => ['nullable', 'string', 'max:120'],
+            'last_name' => ['nullable', 'string', 'max:120'],
         ]);
     }
 
@@ -43,8 +56,10 @@ final class CustomerCredentialsSmsController extends Controller
     public function draftPreview(Request $request): JsonResponse
     {
         $data = $this->draftData($request);
-        $appName = AppSetting::query()->where('key', 'app_display_name')->value('value') ?: config('app.name');
-        $text = 'سامانه '.$appName.chr(10).'نام کاربری: '.$data['mobile'].chr(10).'رمز عبور: '.$data['password'].chr(10).'ورود به سامانه: '.route('customer.login');
+        $text = $this->messageBody([
+            'username' => $data['mobile'], 'password' => $data['password'],
+            'customer_name' => trim(($data['first_name'] ?? '').' '.($data['last_name'] ?? '')),
+        ]);
         $token = Str::random(48);
         Cache::put('customer_credentials_draft:'.$token, ['fingerprint' => $this->draftFingerprint($data), 'admin_id' => (int) auth('admin')->id()], now()->addMinutes(5));
 
@@ -78,8 +93,7 @@ final class CustomerCredentialsSmsController extends Controller
         if (! $passwordMatches) {
             throw ValidationException::withMessages(['password' => 'رمز قابل ارسال موجود نیست؛ ابتدا رمز جدیدی برای مشتری ذخیره کنید.']);
         }
-        $appName = AppSetting::query()->where('key', 'app_display_name')->value('value') ?: config('app.name');
-        $text = 'سامانه '.$appName.chr(10).'نام کاربری: '.$vars['username'].chr(10).'رمز عبور: '.$vars['password'].chr(10).'ورود به سامانه: '.route('customer.login');
+        $text = $this->messageBody([...$vars, 'customer_name' => $customer->fullName()]);
         $token = Str::random(48);
         Cache::put('customer_credentials_preview:'.$token, ['fingerprint' => $this->fingerprint($customer), 'admin_id' => (int) auth('admin')->id()], now()->addMinutes(5));
 

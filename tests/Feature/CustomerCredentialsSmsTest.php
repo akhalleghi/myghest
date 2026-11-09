@@ -141,4 +141,33 @@ final class CustomerCredentialsSmsTest extends TestCase
         self::assertStringContainsString('id="cust-send-credentials"', $html);
         self::assertStringNotContainsString('id="cust-send-chk"', $html);
     }
+
+    public function test_system_template_edits_are_used_for_saved_and_draft_credentials(): void
+    {
+        $template = \App\Models\SmsTemplate::where('template_key', 'default_customer_credentials')->firstOrFail();
+        $body = '{{customer_name}} | {{username}} | {{password}} | {{app_url}}';
+        $this->put(route('admin.sms.templates.update', $template), [
+            'title' => $template->title, 'category' => $template->category, 'body' => $body,
+        ])->assertSessionHasNoErrors();
+        self::assertSame($body, $template->fresh()->body);
+        self::assertTrue($template->fresh()->is_system);
+
+        $customer = $this->customer();
+        $controller = app(CustomerCredentialsSmsController::class);
+        $preview = $controller->preview($customer)->getData(true);
+        self::assertSame('Test User | 09123456789 | secret123 | '.route('customer.login'), $preview['body']);
+        self::assertSame([], $this->messages);
+        $controller->send(Request::create('/', 'POST', ['sms_text' => $preview['body'], 'preview_token' => $preview['preview_token']]), $customer, app(RawSmsDispatcher::class));
+
+        $draft = ['mobile' => '09123456780', 'password' => 'draftSecret123', 'first_name' => 'New', 'last_name' => 'Member'];
+        $preview = $controller->draftPreview(Request::create('/', 'POST', $draft))->getData(true);
+        self::assertSame('New Member | 09123456780 | draftSecret123 | '.route('customer.login'), $preview['body']);
+        $controller->draftSend(Request::create('/', 'POST', $draft + ['sms_text' => $preview['body'], 'preview_token' => $preview['preview_token']]), app(RawSmsDispatcher::class));
+        self::assertCount(2, $this->messages);
+        self::assertSame($preview['body'], $this->messages[1]);
+        self::assertSame(1, Customer::count());
+
+        (require database_path('migrations/2026_11_09_216000_seed_customer_credentials_sms_template.php'))->up();
+        self::assertSame($body, $template->fresh()->body);
+    }
 }
