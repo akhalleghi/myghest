@@ -883,11 +883,11 @@
     @if ($dashCan('chart-installments-12m') || $dashCan('chart-new-loans-12m'))
     <div class="charts-row">
         @if ($dashCan('chart-installments-12m'))
-        <div class="dash-widget" data-dash-widget="chart-installments-12m" data-dash-title="آمار اقساط (۱۲ ماه اخیر)" data-dash-group="charts">
+        <div class="dash-widget" data-dash-widget="chart-installments-12m" data-dash-title="آمار وصولی اقساط (۱۲ ماه اخیر)" data-dash-group="charts">
         <div class="chart-card">
             <div class="ch-h" style="background:linear-gradient(90deg,#0ea5e9,#0284c7);">
                 <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
-                آمار اقساط (۱۲ ماه اخیر)
+                آمار وصولی اقساط (۱۲ ماه اخیر)
             </div>
             <div class="ch-b">
                 <div id="dash-chart-installments" class="dash-line-chart" aria-hidden="false"></div>

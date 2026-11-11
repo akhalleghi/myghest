@@ -179,6 +179,7 @@ final class LoanGuarantorTest extends TestCase
         $response = $controller->storeLoanGuarantee(Request::create('/', 'POST', [
             'type' => 'cheque', 'amount_toman' => 900000, 'cheque_owner_name' => 'Wrong owner',
             'cheque_owner_national_id' => '0000000000', 'cheque_owner_mobile' => $this->customer->mobile,
+            'description' => 'Cheque custody note',
             'cheque_serial' => '12345', 'cheque_sayadi' => '1234567890123456', 'cheque_due_jdate' => $this->payload()['loan_start_jdate'],
         ]), $this->customer, $file);
         self::assertSame(200, $response->getStatusCode(), $response->getContent());
@@ -186,6 +187,15 @@ final class LoanGuarantorTest extends TestCase
         self::assertSame('Guarantor Y', $guarantee->meta['cheque_owner_name']);
         self::assertSame($this->party()['mobile'], $guarantee->meta['cheque_owner_mobile']);
         self::assertSame($this->party()['national_id'], $guarantee->meta['cheque_owner_national_id']);
+        self::assertSame('Cheque custody note', $guarantee->description);
+        $response = $controller->updateLoanGuarantee(Request::create('/', 'PUT', [
+            'type' => 'cheque', 'amount_toman' => 900000,
+            'cheque_serial' => '12345', 'cheque_sayadi' => '1234567890123456',
+            'cheque_due_jdate' => $this->payload()['loan_start_jdate'], 'description' => 'Updated cheque note',
+        ]), $this->customer, $file, $guarantee);
+        self::assertSame(200, $response->getStatusCode(), $response->getContent());
+        self::assertSame('Updated cheque note', $guarantee->fresh()->description);
+        self::assertSame($this->party()['mobile'], $guarantee->fresh()->meta['cheque_owner_mobile']);
     }
 
     public function test_guarantor_optional_fields_can_be_omitted_during_verification_creation_and_edit(): void

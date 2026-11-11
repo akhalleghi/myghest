@@ -941,7 +941,9 @@ final class SmsManagementController extends Controller
         if ($recipients === []) {
             $reason = $source === 'manual_numbers' || $source === 'excel'
                 ? 'شماره معتبر با متن پیام قابل ارسال پیدا نشد.'
-                : 'مشتری واجد شرایط با شماره معتبر و اجازه دریافت پیامک پیدا نشد.';
+                : ($source === 'all_customers'
+                    ? 'مشتری با شماره موبایل معتبر پیدا نشد.'
+                    : 'مشتری واجد شرایط با شماره معتبر و اجازه دریافت پیامک پیدا نشد.');
 
             return redirect()
                 ->route('admin.sms.index')

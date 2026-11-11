@@ -271,6 +271,7 @@ final class CustomerController extends Controller
                 'آدرس',
                 'کد پستی',
                 'ایمیل',
+                'وضعیت پیامک',
             ]);
 
             $customerExportQuery = Customer::query()
@@ -350,6 +351,7 @@ final class CustomerController extends Controller
             (string) ($customer->address ?? ''),
             (string) ($customer->postal_code ?? ''),
             (string) ($customer->email ?? ''),
+            $customer->receivesOutboundSms() ? 'فعال' : 'غیرفعال',
         ];
     }
 
@@ -1710,6 +1712,10 @@ final class CustomerController extends Controller
             : 'iransans';
 
         $printSettings = InstallmentBookletPrintSettings::resolved();
+        $installmentAmounts = $loanFile->installments->pluck('amount_toman');
+        $installmentAmountDisplay = $installmentAmounts->unique()->count() > 1
+            ? 'از '.$this->formatBookletMoneyFa((int) $installmentAmounts->min()).' تا '.$this->formatBookletMoneyFa((int) $installmentAmounts->max())
+            : $this->formatBookletMoneyFa((int) ($installmentAmounts->first() ?? 0));
         $appLogoPath = AppSetting::query()->where('key', 'app_logo_path')->value('value');
         $appLogoPath = is_string($appLogoPath) ? trim($appLogoPath) : '';
 
@@ -1730,6 +1736,17 @@ final class CustomerController extends Controller
             'subtitleSales' => (string) ($printSettings['subtitle'] ?? 'فروش اقساطی'),
             'loanAmountLabel' => (string) ($printSettings['loan_amount_label'] ?? 'مبلغ وام'),
             'loanAmountDisplay' => $this->formatBookletMoneyFa((int) $loanFile->amount_toman),
+            'scheduledTotalDisplay' => $this->formatBookletMoneyFa((int) $snapshot['scheduled_total_toman']),
+            'contractTotalDisplay' => $this->formatBookletMoneyFa((int) $snapshot['contract_total_toman']),
+            'contractProfitDisplay' => $this->formatBookletMoneyFa($finance->calculateLoanProfitToman(
+                (int) $loanFile->amount_toman, (float) $loanFile->effective_interest_rate,
+                (string) ($loanFile->profit_calculation_method ?: LoanType::PROFIT_MONTHLY),
+                (int) $loanFile->installments_count, (int) $loanFile->installment_interval_count,
+                (string) $loanFile->installment_interval_unit,
+            )),
+            'downPaymentToman' => (int) $loanFile->down_payment_toman,
+            'downPaymentDisplay' => $this->formatBookletMoneyFa((int) $loanFile->down_payment_toman),
+            'hasScheduleDifference' => $snapshot['has_contract_schedule_difference'] || $snapshot['requires_schedule_review'],
             'showLoanAmount' => ($printSettings['show_loan_amount'] ?? '1') === '1',
             'showSummaryTable' => ($printSettings['show_summary_table'] ?? '1') === '1',
             'showDetailTable' => ($printSettings['show_detail_table'] ?? '1') === '1',
@@ -1750,8 +1767,8 @@ final class CustomerController extends Controller
             'borrowerPasswordDisplay' => $this->customerPrintPasswordDisplay($customer, $printSettings),
             'loanFileSummary' => $fileSummaryLine,
             'contractDateFa' => $contractStartFa,
-            'installmentsCountDisplay' => Jalali::enToFaNumbers((string) (int) $loanFile->installments_count),
-            'installmentAmountDisplay' => $this->formatBookletMoneyFa((int) $loanFile->installment_amount_toman),
+            'installmentsCountDisplay' => Jalali::enToFaNumbers((string) $loanFile->installments->count()),
+            'installmentAmountDisplay' => $installmentAmountDisplay,
             'bookletRows' => $bookletRows,
             'visibleColumns' => $visibleColumns,
             'portalUrl' => rtrim((string) url('/'), '/'),
@@ -4388,7 +4405,7 @@ final class CustomerController extends Controller
     }
 
     /**
-     * @return array{list_scope: string, disbursement_due_overdue: bool}
+     * @return array{list_scope: string, disbursement_due_overdue: bool, sms_status: ?string}
      */
     private function customerListFilterFromRequest(Request $request): array
     {
@@ -4403,6 +4420,7 @@ final class CustomerController extends Controller
         return [
             'list_scope' => $scope,
             'disbursement_due_overdue' => $request->boolean('disbursement_due_overdue'),
+            'sms_status' => in_array($request->query('sms_status'), ['enabled', 'disabled'], true) ? $request->query('sms_status') : null,
         ];
     }
 
@@ -4438,11 +4456,16 @@ final class CustomerController extends Controller
     }
 
     /**
-     * @param  array{list_scope: string, disbursement_due_overdue: bool}  $filters
+     * @param  array{list_scope: string, disbursement_due_overdue: bool, sms_status: ?string}  $filters
      */
     private function applyCustomerListFilters(Builder $query, array $filters): void
     {
         $today = now()->toDateString();
+        if (($filters['sms_status'] ?? null) === 'enabled') {
+            $query->where(static fn (Builder $q) => $q->where('sms_sending_enabled', true)->orWhereNull('sms_sending_enabled'));
+        } elseif (($filters['sms_status'] ?? null) === 'disabled') {
+            $query->where('sms_sending_enabled', false);
+        }
 
         if ($filters['list_scope'] !== 'all') {
             $scopes = $this->customerDebtScopeIds();
@@ -4555,34 +4578,38 @@ final class CustomerController extends Controller
     }
 
     /**
-     * @param  array{list_scope: string, disbursement_due_overdue: bool}  $filters
+     * @param  array{list_scope: string, disbursement_due_overdue: bool, sms_status: ?string}  $filters
      */
     private function customerListFilterLabel(array $filters): ?string
     {
+        $smsLabel = match ($filters['sms_status'] ?? null) {
+            'enabled' => 'پیامک فعال', 'disabled' => 'پیامک غیرفعال', default => null,
+        };
+        $scopeLabel = null;
         if ($filters['list_scope'] === 'overdue_installment') {
-            return 'مشتریان دارای قسط سررسید گذشته / معوق';
-        }
-        if ($filters['list_scope'] === 'active_loan') {
-            return 'مشتریان دارای وام فعال';
-        }
-        if ($filters['list_scope'] === 'no_debt') {
-            return 'مشتریان بدون بدهی';
-        }
-        if ($filters['disbursement_due_overdue']) {
-            return 'مشتریان دارای سررسید واریز به طرف حساب (گذشته از موعد)';
+            $scopeLabel = 'مشتریان دارای قسط سررسید گذشته / معوق';
+        } elseif ($filters['list_scope'] === 'active_loan') {
+            $scopeLabel = 'مشتریان دارای وام فعال';
+        } elseif ($filters['list_scope'] === 'no_debt') {
+            $scopeLabel = 'مشتریان بدون بدهی';
+        } elseif ($filters['disbursement_due_overdue']) {
+            $scopeLabel = 'مشتریان دارای سررسید واریز به طرف حساب (گذشته از موعد)';
         }
 
-        return null;
+        return implode(' · ', array_filter([$scopeLabel, $smsLabel])) ?: null;
     }
 
     /**
-     * @param  array{list_scope: string, disbursement_due_overdue: bool}  $filters
+     * @param  array{list_scope: string, disbursement_due_overdue: bool, sms_status: ?string}  $filters
      * @param  array{sort: ?string, dir: 'asc'|'desc'}  $sort
      * @return array<string, int|string>
      */
     private function customerListFilterQueryParams(array $filters, array $sort = ['sort' => null, 'dir' => 'asc']): array
     {
         $params = [];
+        if (! empty($filters['sms_status'])) {
+            $params['sms_status'] = $filters['sms_status'];
+        }
         if ($filters['list_scope'] !== 'all') {
             $params['list_scope'] = $filters['list_scope'];
         }

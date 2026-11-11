@@ -538,7 +538,7 @@
                             <option value="settled_customers" @selected(old('recipient_source') === 'settled_customers')>مشتریان بدون بدهی با وام تسویه‌شده</option>
                             <option value="no_debt_customers" @selected(old('recipient_source') === 'no_debt_customers')>همهٔ مشتریان بدون بدهی</option>
                             <option value="wallet_positive_customers" @selected(old('recipient_source') === 'wallet_positive_customers')>مشتریان دارای موجودی کیف پول</option>
-                            <option value="all_customers" @selected(old('recipient_source') === 'all_customers')>همهٔ مشتریان</option>
+                            <option value="all_customers" @selected(old('recipient_source') === 'all_customers')>همهٔ مشتریان (با پیامک فعال و غیرفعال)</option>
                             <option value="excel" @selected(old('recipient_source') === 'excel')>مخاطبان و پیام‌های فایل اکسل</option>
                         </select>
                     </div>
@@ -1191,7 +1191,7 @@
                     var source = String(smsFreeRecipientSource.value || '');
                     if (['all_customers', 'overdue_customers', 'settled_customers', 'no_debt_customers', 'wallet_positive_customers'].indexOf(source) !== -1) {
                         var labels = {
-                            all_customers: 'همه مشتریان دارای شماره معتبر و مجاز به دریافت پیامک',
+                            all_customers: 'همه مشتریان دارای شماره معتبر (با پیامک فعال و غیرفعال)',
                             overdue_customers: 'همه مشتریان دارای قسط معوق',
                             settled_customers: 'همه مشتریان دارای وام تسویه‌شده و بدون بدهی جاری',
                             no_debt_customers: 'همه مشتریان بدون بدهی',

@@ -1391,6 +1391,14 @@
             user-select: none;
             flex-shrink: 0;
         }
+        .cust-sms-status-switch { margin: 0; justify-content: center; }
+        .cust-sms-status-switch .loan-manage-sms-toggle__ui::after { inset-inline-start: auto; left: 1px; transition: left .15s ease; }
+        .loan-manage-sms-toggle.cust-sms-status-switch input:checked + .loan-manage-sms-toggle__ui::after { inset-inline-start: auto; left: calc(100% - .95rem); }
+        .cust-sms-status-switch input:disabled ~ span { opacity: .65; }
+        .cust-sms-status-switch input:focus-visible + .loan-manage-sms-toggle__ui { outline: 2px solid var(--primary); outline-offset: 3px; }
+        .cust-sms-status-filter summary { display: flex; align-items: center; gap: .4rem; cursor: pointer; list-style: none; white-space: nowrap; }
+        .cust-sms-status-filter summary::-webkit-details-marker { display: none; }
+        .cust-sms-status-filter select { margin-top: .5rem; padding: .4rem; width: 100%; min-width: 120px; color: var(--text); background: var(--bg-card); border: 1px solid var(--border); border-radius: .5rem; font-family: inherit; }
         .loan-manage-sms-toggle input {
             position: absolute;
             opacity: 0;
@@ -2672,9 +2680,10 @@
             ['q' => ($search ?? '') !== '' ? $search : null]
         ));
         $custPerPageQuery = $listPerPage !== ListPerPage::DEFAULT ? ['per_page' => $listPerPage] : [];
-        $custScopeUrl = static function (string $scope) use ($search, $listSort, $listSortDir, $custPerPageQuery): string {
+        $custScopeUrl = static function (string $scope) use ($search, $listSort, $listSortDir, $custPerPageQuery, $listFilterQuery): string {
             return route('admin.customers.index', array_filter(array_merge($custPerPageQuery, [
                 'list_scope' => $scope !== 'all' ? $scope : null,
+                'sms_status' => $listFilterQuery['sms_status'] ?? null,
                 'q' => ($search ?? '') !== '' ? $search : null,
                 'sort' => $listSort ?: null,
                 'dir' => $listSort ? $listSortDir : null,
@@ -2722,6 +2731,9 @@
                     @endif
                     @if (!empty($listFilterQuery['disbursement_due_overdue']))
                         <input type="hidden" name="disbursement_due_overdue" value="1">
+                    @endif
+                    @if (!empty($listFilterQuery['sms_status']))
+                        <input type="hidden" name="sms_status" value="{{ $listFilterQuery['sms_status'] }}">
                     @endif
                     <label for="cust-per-page-preset">تعداد در صفحه</label>
                     <select id="cust-per-page-preset" aria-label="انتخاب تعداد مشتریان در هر صفحه">
@@ -2829,6 +2841,9 @@
                 @if (!empty($listFilterQuery['disbursement_due_overdue']))
                     <input type="hidden" name="disbursement_due_overdue" value="1">
                 @endif
+                @if (!empty($listFilterQuery['sms_status']))
+                    <input type="hidden" name="sms_status" value="{{ $listFilterQuery['sms_status'] }}">
+                @endif
                 @if ($listPerPage !== \App\Support\ListPerPage::DEFAULT)
                     <input type="hidden" name="per_page" value="{{ $listPerPage }}">
                 @endif
@@ -2889,6 +2904,24 @@
                                 <span title="مانده سقف اعتبار خرید پس از کسر بدهی وام‌های جاری">اعتبار باقیمانده خرید</span>
                             </th>
                             <th>پیامک‌ها</th>
+                            <th>
+                                <details class="cust-sms-status-filter">
+                                    <summary title="فیلتر وضعیت پیامک"><span>وضعیت پیامک</span><i class="fa-solid fa-filter" aria-hidden="true"></i></summary>
+                                    <form method="get" action="{{ route('admin.customers.index') }}">
+                                        @foreach(array_merge($listFilterQuery, $custPerPageQuery, ['q' => $search ?? '']) as $key => $value)
+                                            @if($key !== 'sms_status' && $value !== null && $value !== '')
+                                                <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                                            @endif
+                                        @endforeach
+                                        <select name="sms_status" aria-label="فیلتر وضعیت پیامک" onchange="this.form.submit()">
+                                            <option value="">همه</option>
+                                            <option value="enabled" @selected(($listFilterQuery['sms_status'] ?? '') === 'enabled')>فعال</option>
+                                            <option value="disabled" @selected(($listFilterQuery['sms_status'] ?? '') === 'disabled')>غیرفعال</option>
+                                        </select>
+                                        <noscript><button type="submit">اعمال فیلتر</button></noscript>
+                                    </form>
+                                </details>
+                            </th>
                             <th>عملیات</th>
                         </tr>
                     </thead>
@@ -2994,8 +3027,6 @@
                                 </td>
                                 <td>
                                     <div class="cust-sms-actions">
-                                        <button type="button" class="cust-sms-circle-btn cust-sms-circle-btn--link" data-cust-quick-sms data-sms-type="wallet_link" data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}" data-customer-mobile="{{ $c->mobile }}" title="ارسال لینک شارژ کیف پول">ل</button>
-                                        <button type="button" class="cust-sms-circle-btn cust-sms-circle-btn--welcome" data-cust-quick-sms data-sms-type="welcome" data-customer-id="{{ $c->id }}" data-customer-name="{{ e($c->fullName()) }}" data-customer-mobile="{{ $c->mobile }}" title="ارسال پیامک خوش‌آمدگویی">خ</button>
                                         <button
                                             type="button"
                                             class="cust-sms-circle-btn cust-sms-circle-btn--overdue-total"
@@ -3008,6 +3039,13 @@
                                             title="{{ $overdueSmsTitle }}"
                                         >م</button>
                                     </div>
+                                </td>
+                                <td>
+                                    <label class="loan-manage-sms-toggle cust-sms-status-switch" title="وضعیت ارسال پیامک مشتری">
+                                        <input type="checkbox" role="switch" data-cust-sms-toggle="{{ $c->id }}" @checked($c->receivesOutboundSms()) aria-label="وضعیت پیامک {{ $c->fullName() }}" @adminCan('customers.update') @else disabled @endadminCan>
+                                        <span class="loan-manage-sms-toggle__ui" aria-hidden="true"></span>
+                                        <span class="loan-manage-sms-toggle__text" data-cust-sms-label>{{ $c->receivesOutboundSms() ? 'فعال' : 'غیرفعال' }}</span>
+                                    </label>
                                 </td>
                                 <td>
                                     @adminCan('customers.notes.view')
@@ -3054,7 +3092,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="11" class="cust-empty">هنوز مشتری ثبت نشده است.</td>
+                                <td colspan="12" class="cust-empty">هنوز مشتری ثبت نشده است.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -4427,6 +4465,10 @@
                                 <div class="cust-field"><label>شماره صیادی <span class="req">*</span></label><input name="cheque_sayadi"></div>
                                 <div class="cust-field"><label>مبلغ چک (تومان) <span class="req">*</span></label><input name="cheque_amount_toman" id="loan-guarantee-cheque-amount" inputmode="numeric" placeholder="مثلاً 50,000,000" data-cheque-amount></div>
                                 <div class="cust-field" style="grid-column: 1 / -1;">
+                                    <label for="loan-guarantee-cheque-desc">یادداشت چک ضمانت (اختیاری)</label>
+                                    <textarea name="description" id="loan-guarantee-cheque-desc" maxlength="2000" rows="3"></textarea>
+                                </div>
+                                <div class="cust-field" style="grid-column: 1 / -1;">
                                     <label class="loan-guarantee-check-row" for="loan-guarantee-cheque-collected">
                                         <input type="checkbox" name="cheque_collected" value="1" id="loan-guarantee-cheque-collected">
                                         وصول شده؟
@@ -5490,7 +5532,11 @@
             var loanManageSmsToggleWrap = loanManageSmsEnabledInput
                 ? loanManageSmsEnabledInput.closest('.loan-manage-sms-toggle')
                 : null;
-            var loanManageSmsSaving = false;
+            var customerSmsRequests = {};
+            var customerSmsCanUpdate = false;
+            @adminCan('customers.update')
+                customerSmsCanUpdate = true;
+            @endadminCan
             var loanManageCreditStatusView = document.getElementById('loan-manage-credit-status');
             var loanManageWalletBalanceView = document.getElementById('loan-manage-wallet-balance');
             var loanManageCreditCeilingView = document.getElementById('loan-manage-credit-ceiling');
@@ -9218,6 +9264,8 @@
                 loanGuaranteeRemoveExistingAttachment = false;
                 if (loanGuaranteeTypeInput) loanGuaranteeTypeInput.value = gtype;
                 var sharedDescription = guaranteeData.description || '';
+                var chequeDescEl = document.getElementById('loan-guarantee-cheque-desc');
+                if (chequeDescEl) chequeDescEl.value = sharedDescription;
                 var goldDescEl = document.getElementById('loan-guarantee-gold-desc');
                 var otherDescEl = document.getElementById('loan-guarantee-other-desc');
                 var orgOtherDescEl = document.getElementById('loan-guarantee-org-other-desc');
@@ -9485,6 +9533,7 @@
                 if (loanManageCurrentCustomerId && loanManageMap[String(loanManageCurrentCustomerId)]) {
                     loanManageMap[String(loanManageCurrentCustomerId)].sms_sending_enabled = on;
                 }
+                syncCustomerSmsListUi(loanManageCurrentCustomerId, on);
             }
 
             function loadLoanManageSmsEnabledState(customerId) {
@@ -9572,11 +9621,33 @@
                 });
             });
 
-            function saveLoanManageSmsEnabled(enabled) {
-                if (!loanManageCurrentCustomerId || loanManageSmsSaving) return;
-                loanManageSmsSaving = true;
-                if (loanManageSmsToggleWrap) loanManageSmsToggleWrap.classList.add('is-saving');
-                fetch(custSmsSendingUrl(loanManageCurrentCustomerId), {
+            function syncCustomerSmsListUi(customerId, enabled) {
+                var cid = String(customerId || '');
+                var busy = !!customerSmsRequests[cid];
+                document.querySelectorAll('[data-cust-sms-toggle="' + cid + '"]').forEach(function (input) {
+                    input.checked = enabled;
+                    input.disabled = busy || !customerSmsCanUpdate;
+                    var label = input.closest('label').querySelector('[data-cust-sms-label]');
+                    if (label) label.textContent = enabled ? 'فعال' : 'غیرفعال';
+                });
+                if (loanManageMap[cid]) loanManageMap[cid].sms_sending_enabled = enabled;
+                if (String(loanManageCurrentCustomerId) === cid && loanManageSmsEnabledInput) {
+                    loanManageSmsEnabledInput.checked = enabled;
+                    loanManageSmsEnabledInput.disabled = busy || !customerSmsCanUpdate;
+                    if (loanManageSmsEnabledLabel) loanManageSmsEnabledLabel.textContent = enabled ? 'پیامک فعال' : 'پیامک غیرفعال';
+                    if (loanManageSmsToggleWrap) loanManageSmsToggleWrap.classList.toggle('is-saving', busy);
+                }
+            }
+
+            function saveCustomerSmsEnabled(customerId, enabled) {
+                var cid = String(customerId || '');
+                if (!cid || customerSmsRequests[cid] || !customerSmsCanUpdate) return Promise.resolve(false);
+                var entry = loanManageMap[cid];
+                var previous = entry && entry.sms_sending_enabled != null ? entry.sms_sending_enabled !== false : !enabled;
+                var resolved = previous;
+                customerSmsRequests[cid] = true;
+                syncCustomerSmsListUi(cid, enabled);
+                return fetch(custSmsSendingUrl(cid), {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -9597,20 +9668,37 @@
                         throw new Error((res.json && res.json.message) ? String(res.json.message) : 'ذخیره وضعیت پیامک ناموفق بود.');
                     }
                     var on = res.json.sms_sending_enabled !== false;
-                    syncLoanManageSmsEnabledUi(on);
+                    resolved = on;
+                    syncCustomerSmsListUi(cid, on);
                     if (window.AdminSwal && window.AdminSwal.success) {
                         AdminSwal.success(res.json.message || (on ? 'پیامک فعال شد.' : 'پیامک غیرفعال شد.'));
                     }
+                    return true;
                 }).catch(function (err) {
-                    syncLoanManageSmsEnabledUi(!enabled);
+                    syncCustomerSmsListUi(cid, previous);
                     if (window.AdminSwal && window.AdminSwal.error) {
                         AdminSwal.error(err.message || 'ذخیره وضعیت پیامک ناموفق بود.');
                     }
+                    return false;
                 }).finally(function () {
-                    loanManageSmsSaving = false;
-                    if (loanManageSmsToggleWrap) loanManageSmsToggleWrap.classList.remove('is-saving');
+                    delete customerSmsRequests[cid];
+                    syncCustomerSmsListUi(cid, resolved);
                 });
             }
+
+            function saveLoanManageSmsEnabled(enabled) {
+                return saveCustomerSmsEnabled(loanManageCurrentCustomerId, enabled);
+            }
+
+            document.addEventListener('change', function (event) {
+                var input = event.target.closest('[data-cust-sms-toggle]');
+                if (!input) return;
+                var enabled = input.checked;
+                saveCustomerSmsEnabled(input.getAttribute('data-cust-sms-toggle'), enabled).then(function (saved) {
+                    var filter = @json($listFilterQuery['sms_status'] ?? null);
+                    if (saved && filter && (filter === 'enabled') !== enabled) window.location.reload();
+                });
+            });
 
             function openLoanManageModal(customerId, customerName, customerMobile) {
                 var mediaGallery = document.getElementById('customer-media-gallery');

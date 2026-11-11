@@ -248,7 +248,14 @@
 @endif
 
 @if (!empty($showLoanAmount))
-    <div class="loan-amount-banner">{{ $loanAmountLabel }}: {{ $loanAmountDisplay }}</div>
+    <div class="loan-amount-banner">
+        <div>{{ $loanAmountLabel }} (اصل وام): {{ $loanAmountDisplay }}</div>
+        <div style="font-size:.9em;margin-top:.35rem">جمع مبلغ اقساط ثبت‌شده با کارمزد: {{ $scheduledTotalDisplay }}</div>
+        <div style="font-size:.8em;margin-top:.35rem">کارمزد قرارداد: {{ $contractProfitDisplay }}@if($downPaymentToman > 0) · پیش‌پرداخت: {{ $downPaymentDisplay }}@endif</div>
+        @if($hasScheduleDifference)
+            <div style="font-size:.8em;margin-top:.35rem">اقساط ثبت‌شده با برنامهٔ قرارداد متفاوت است. مبلغ بازپرداخت قرارداد: {{ $contractTotalDisplay }}</div>
+        @endif
+    </div>
 @endif
 
 @if (!empty($showSummaryTable))
@@ -317,6 +324,7 @@
         </tr>
     @endforelse
     </tbody>
+    <tfoot><tr><td colspan="{{ max(count($visibleColumns), 1) }}">جمع مبلغ اقساط ثبت‌شده: {{ $scheduledTotalDisplay }}</td></tr></tfoot>
 </table>
 </div>
 @endif

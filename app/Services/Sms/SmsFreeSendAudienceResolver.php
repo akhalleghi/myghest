@@ -23,11 +23,15 @@ final class SmsFreeSendAudienceResolver
     public function resolve(string $source, array $customerIds = []): array
     {
         $query = Customer::query()
-            ->where(function ($query): void {
-                $query->whereNull('sms_sending_enabled')->orWhere('sms_sending_enabled', true);
-            })
             ->with('wallet:id,customer_id,balance_toman')
             ->orderBy('id');
+
+        // The explicit all-customers audience includes disabled SMS settings too.
+        if ($source !== 'all_customers') {
+            $query->where(function ($query): void {
+                $query->whereNull('sms_sending_enabled')->orWhere('sms_sending_enabled', true);
+            });
+        }
 
         if ($source === 'selected_customers') {
             $selectedIds = array_values(array_unique(array_filter(array_map('intval', $customerIds), static fn (int $id): bool => $id > 0)));

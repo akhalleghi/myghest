@@ -142,6 +142,69 @@ final class CustomerCredentialsSmsTest extends TestCase
         self::assertStringNotContainsString('id="cust-send-chk"', $html);
     }
 
+    public function test_sms_status_filter_matches_shared_setting_and_excel_export(): void
+    {
+        $enabled = $this->customer();
+        $disabled = Customer::create(['customer_code' => '2', 'username' => 'disabled', 'mobile' => '09123456780', 'password' => 'password', 'first_name' => 'Disabled', 'last_name' => 'Customer', 'sms_sending_enabled' => false]);
+        $controller = app(CustomerController::class);
+        $request = Request::create('/', 'GET', ['sms_status' => 'disabled']);
+        $data = $controller->index($request)->getData();
+        self::assertSame([$disabled->id], $data['customers']->pluck('id')->all());
+        self::assertFalse($data['loanManageMap'][(string) $disabled->id]['sms_sending_enabled']);
+        self::assertSame('disabled', $data['listFilterQuery']['sms_status']);
+        $html = $controller->index($request)->with('errors', new ViewErrorBag)->render();
+        self::assertStringContainsString('data-cust-sms-toggle="'.$disabled->id.'"', $html);
+        self::assertStringNotContainsString('data-cust-sms-toggle="'.$enabled->id.'"', $html);
+        ob_start();
+        $controller->exportCustomersListExcel($request)->sendContent();
+        $export = mb_convert_encoding(substr(ob_get_clean(), 2), 'UTF-8', 'UTF-16LE');
+        self::assertStringContainsString('Disabled', $export);
+        self::assertStringContainsString('وضعیت پیامک', $export);
+        self::assertStringNotContainsString('09123456789', $export);
+
+        $this->putJson(route('admin.customers.sms-sending', $disabled), ['sms_sending_enabled' => true])->assertOk();
+        self::assertTrue($disabled->fresh()->receivesOutboundSms());
+        self::assertSame(0, $controller->index($request)->getData()['customers']->total());
+        self::assertSame(2, $controller->index(Request::create('/', 'GET', ['sms_status' => 'enabled']))->getData()['customers']->total());
+        self::assertSame([], $this->messages);
+    }
+
+    public function test_booklet_totals_use_actual_schedule_and_separate_principal_from_profit(): void
+    {
+        $customer = $this->customer();
+        $type = \App\Models\LoanType::create(['title' => 'Print test', 'profit_calculation_method' => 'monthly', 'interest_rate' => 10, 'daily_late_coefficient' => 0, 'daily_early_coefficient' => 0, 'installment_gap_unit' => 'monthly', 'repayment_periods' => ['type' => 'all']]);
+        $file = \App\Models\CustomerLoanFile::create([
+            'customer_id' => $customer->id, 'loan_type_id' => $type->id, 'loan_code' => 'DS 99',
+            'loan_start_date' => '2026-11-01', 'amount_toman' => 1000000,
+            'base_interest_rate' => 10, 'effective_interest_rate' => 10, 'profit_calculation_method' => 'monthly',
+            'installments_count' => 2, 'installment_interval_count' => 1, 'installment_interval_unit' => 'monthly',
+            'installment_amount_toman' => 550000, 'down_payment_toman' => 100000,
+        ]);
+        foreach ([540000, 560000] as $index => $amount) {
+            $file->installments()->create(['sequence' => $index + 1, 'due_date' => '2026-12-01', 'amount_toman' => $amount]);
+        }
+        $before = $file->installments()->get()->toArray();
+        $view = app(CustomerController::class)->loanInstallmentBookletPrint($customer, $file);
+        $data = $view->getData();
+        $money = fn (int $amount) => \Hekmatinasser\Jalali\Jalali::enToFaNumbers(number_format($amount)).' تومان';
+        self::assertSame($money(1000000), $data['loanAmountDisplay']);
+        self::assertSame($money(1100000), $data['scheduledTotalDisplay']);
+        self::assertSame($money(200000), $data['contractProfitDisplay']);
+        self::assertFalse($data['hasScheduleDifference']);
+        self::assertStringContainsString($money(540000), $data['installmentAmountDisplay']);
+        self::assertStringContainsString($money(560000), $data['installmentAmountDisplay']);
+        $html = $view->render();
+        self::assertStringContainsString('جمع مبلغ اقساط ثبت‌شده', $html);
+        self::assertStringContainsString('پیش‌پرداخت', $html);
+        self::assertSame($before, $file->installments()->get()->toArray());
+
+        $file->installments()->where('sequence', 2)->update(['amount_toman' => 570000]);
+        $data = app(CustomerController::class)->loanInstallmentBookletPrint($customer, $file->fresh())->getData();
+        self::assertSame($money(1110000), $data['scheduledTotalDisplay']);
+        self::assertSame($money(1100000), $data['contractTotalDisplay']);
+        self::assertTrue($data['hasScheduleDifference']);
+    }
+
     public function test_system_template_edits_are_used_for_saved_and_draft_credentials(): void
     {
         $template = \App\Models\SmsTemplate::where('template_key', 'default_customer_credentials')->firstOrFail();

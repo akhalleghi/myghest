@@ -22,7 +22,7 @@ final class AdminDashboardWidgetRegistry
         'tbl-bank-transactions' => 'جدول تراکنش‌های بانک',
         'tbl-fund-transactions' => 'جدول تراکنش‌های صندوق',
         'tbl-special-box' => 'جعبه‌شکن / تراکنش ویژه',
-        'chart-installments-12m' => 'نمودار اقساط (۱۲ ماه اخیر)',
+        'chart-installments-12m' => 'آمار وصولی اقساط (۱۲ ماه اخیر)',
         'chart-new-loans-12m' => 'نمودار وام‌های جدید (۱۲ ماه اخیر)',
         'chart-upcoming-installments' => 'نمودار اقساط پرداخت‌نشده آتی',
         'chart-new-customers-monthly' => 'مشتریان جدید ماهانه',

@@ -42,7 +42,7 @@ final class SmsFreeSendAudienceResolverTest extends TestCase
         });
     }
 
-    public function test_wallet_and_all_customer_audiences_respect_valid_mobile_and_sms_opt_out(): void
+    public function test_all_customers_includes_disabled_sms_while_other_audiences_preserve_the_setting(): void
     {
         $positiveWalletCustomer = Customer::query()->create([
             'first_name' => 'Wallet', 'last_name' => 'Customer', 'mobile' => '09121234567', 'sms_sending_enabled' => true,
@@ -51,7 +51,7 @@ final class SmsFreeSendAudienceResolverTest extends TestCase
         Customer::query()->create([
             'first_name' => 'No', 'last_name' => 'Balance', 'mobile' => '09351234567', 'sms_sending_enabled' => true,
         ]);
-        Customer::query()->create([
+        $disabledCustomer = Customer::query()->create([
             'first_name' => 'Opted', 'last_name' => 'Out', 'mobile' => '09125551234', 'sms_sending_enabled' => false,
         ]);
         Customer::query()->create([
@@ -63,9 +63,22 @@ final class SmsFreeSendAudienceResolverTest extends TestCase
         $wallet = $resolver->resolve('wallet_positive_customers');
         $noDebt = $resolver->resolve('no_debt_customers');
 
-        self::assertCount(2, $all);
+        self::assertCount(3, $all);
+        self::assertContains($disabledCustomer->id, array_column($all, 'customer_id'));
+        self::assertSame([], $resolver->resolve('selected_customers', [$disabledCustomer->id]));
+        self::assertFalse($disabledCustomer->fresh()->receivesOutboundSms());
         self::assertCount(1, $wallet);
         self::assertSame(250000, $wallet[0]['wallet_balance_toman']);
         self::assertCount(2, $noDebt);
+    }
+
+    public function test_all_customers_keeps_mobile_validation_deduplication_and_legacy_defaults(): void
+    {
+        foreach (['09121234567', '+989121234567', 'invalid', null] as $mobile) {
+            Customer::create(['mobile' => $mobile, 'sms_sending_enabled' => null]);
+        }
+        $all = app(SmsFreeSendAudienceResolver::class)->resolve('all_customers');
+        self::assertCount(1, $all);
+        self::assertSame('09121234567', $all[0]['mobile']);
     }
 }
