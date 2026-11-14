@@ -1,5 +1,5 @@
 <section class="cust-section customer-media-editor" data-customer-media-editor
-    data-base-url="{{ url('/admin/customers') }}" data-available="{{ ($customerMediaAvailable ?? false) ? '1' : '0' }}">
+    data-base-url="{{ $customerMediaBaseUrl ?? url('/admin/customers') }}" data-available="{{ ($customerMediaAvailable ?? false) ? '1' : '0' }}">
     <div class="cust-section-head">
         <h3>تصاویر و مدارک مشتری <small>(اختیاری)</small></h3>
         <p>می‌توانید اکنون فایل انتخاب کنید یا بعداً از ویرایش مشتری اضافه کنید. عکس: JPG، PNG یا WEBP تا ۵ مگابایت؛ ویدئو: MP4، WEBM یا MOV تا ۲۰ مگابایت.</p>

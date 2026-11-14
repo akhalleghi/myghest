@@ -28,12 +28,34 @@ function initializeCustomerMedia() {
     let captureKind = null;
     let captureCancelled = true;
     let previousFocus = null;
+    let suspendedDialogs = [];
+    function raiseMediaOverlay() {
+        if (suspendedDialogs.length) return;
+        suspendedDialogs = [...document.querySelectorAll('dialog[open]')].map(dialog => ({
+            dialog, scrollTop: dialog.scrollTop, maximized: dialog.classList.contains('is-maximized'),
+        }));
+        if (suspendedDialogs.length) form.dataset.mediaOverlayActive = '1';
+        suspendedDialogs.forEach(({dialog}) => dialog.close());
+    }
+    function restoreMediaHost() {
+        if (!camera.hidden || !viewer.hidden) return;
+        const hosts = suspendedDialogs;
+        suspendedDialogs = [];
+        hosts.forEach(({dialog, scrollTop, maximized}) => {
+            if (!dialog.isConnected) return;
+            if (!dialog.open) dialog.showModal();
+            if (maximized) dialog.querySelector('.admin-mw-maximize')?.click();
+            dialog.scrollTop = scrollTop;
+        });
+        delete form.dataset.mediaOverlayActive;
+    }
     const mediaUrl = id => `${editor.dataset.baseUrl}/${encodeURIComponent(id)}/media`;
     const isVideo = kind => kind === 'video';
     const releaseUrls = () => { objectUrls.forEach(url => URL.revokeObjectURL(url)); objectUrls.clear(); };
 
     function showViewer(item, fullscreen = false) {
         previousFocus = document.activeElement;
+        raiseMediaOverlay();
         const content = document.getElementById('customer-media-viewer-content');
         content.replaceChildren();
         document.getElementById('customer-media-viewer-title').textContent = item.label;
@@ -57,6 +79,7 @@ function initializeCustomerMedia() {
         viewer.querySelectorAll('video').forEach(video => video.pause());
         document.getElementById('customer-media-viewer-content').replaceChildren();
         viewer.hidden = true;
+        restoreMediaHost();
         previousFocus?.focus();
     }
 
@@ -162,7 +185,7 @@ function initializeCustomerMedia() {
         gallery.textContent = 'در حال دریافت تصاویر مشتری…';
         try {
             const data = await readItems(id);
-            if (version !== galleryVersion) return;
+            if (version !== galleryVersion || id !== gallery.dataset.customerId) return;
             gallery.replaceChildren();
             if (!data.items.length) {
                 gallery.textContent = 'برای این مشتری مدرکی ثبت نشده است. می‌توانید از ویرایش مشتری، تصاویر یا ویدئو اضافه کنید.';
@@ -186,7 +209,7 @@ function initializeCustomerMedia() {
         cameraVersion++; captureCancelled = true; clearRecordingTimers();
         if (recorder?.state === 'recording') recorder.stop();
         recorder = null; stopTracks();
-        if (!camera.hidden) { camera.hidden = true; previousFocus?.focus(); }
+        if (!camera.hidden) { camera.hidden = true; restoreMediaHost(); previousFocus?.focus(); }
     }
 
     async function startCamera(deviceId = '') {
@@ -221,6 +244,7 @@ function initializeCustomerMedia() {
 
     function openCamera(kind) {
         closeCamera(); captureKind = kind; previousFocus = document.activeElement;
+        raiseMediaOverlay();
         camera.hidden = false; deviceSelect.disabled = false;
         photoButton.hidden = isVideo(kind); recordButton.hidden = !isVideo(kind); stopButton.hidden = true;
         document.getElementById('customer-camera-title').textContent = `ثبت ${slots.get(kind).querySelector('.customer-media-label').textContent}`;
@@ -287,6 +311,7 @@ function initializeCustomerMedia() {
     }
     form.addEventListener('customer-media:reset', resetEditor);
     form.addEventListener('customer-media:stop', () => { closeCamera(); closeViewer(); });
+    window.addEventListener('pagehide', () => { clearRecordingTimers(); stopTracks(); releaseUrls(); });
     gallery?.addEventListener('customer-media:load', loadGallery);
     document.addEventListener('keydown', event => {
         const active = !viewer.hidden ? viewer : !camera.hidden ? camera : null;

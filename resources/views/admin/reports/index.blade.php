@@ -1003,6 +1003,12 @@
         <p class="rpt-sub">گزارش‌های تحلیلی و عملیاتی سامانه. هر گزارش در پنجرهٔ جدا با فیلتر تاریخ و جستجو نمایش داده می‌شود.</p>
 
         <div class="rpt-grid">
+            @adminCan('cheques.reports')
+            <a class="rpt-card" href="{{ route('admin.cheques.reports') }}" style="text-decoration:none;color:inherit;border-top:3px solid #0d9488">
+                <div class="rpt-card__head"><span class="rpt-card__ico" style="background:#0d9488"><i class="fa-solid fa-money-check"></i></span><h2 class="rpt-card__title">گزارش مستقل فروش چکی</h2></div>
+                <p class="rpt-card__desc">مشتریان چکی، سررسید، وصول، انتقال، برگشت و مانده بدهی با فیلتر و خروجی اکسل.</p><span class="rpt-card__foot">مشاهده گزارش ←</span>
+            </a>
+            @endadminCan
             @foreach ($reportCards as $card)
                 <button
                     type="button"

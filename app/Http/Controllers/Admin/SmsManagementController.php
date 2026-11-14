@@ -1536,6 +1536,7 @@ final class SmsManagementController extends Controller
     {
         return [
             'installment' => 'قسط',
+            'cheque_sales' => 'فروش چکی (مستقل)',
             'status_change' => 'تغییر وضعیت',
             'loan_request_status' => 'درخواست وام (وضعیت)',
             'panel_login' => 'ورود به پنل',
@@ -1562,6 +1563,11 @@ final class SmsManagementController extends Controller
     private function templatePatterns(): array
     {
         return [
+            'cheque_number' => ['label' => 'شماره صیاد چک خرید', 'sample' => '1234567890123456'],
+            'cheque_amount' => ['label' => 'مبلغ چک خرید با کارمزد', 'sample' => '5,000,000 تومان'],
+            'cheque_due_date' => ['label' => 'سررسید چک خرید', 'sample' => '1405/09/01'],
+            'cheque_debt' => ['label' => 'مانده بدهی چک با دیرکرد و زودکرد', 'sample' => '5,100,000 تومان'],
+            'cheque_sale_code' => ['label' => 'شماره پرونده فروش چکی', 'sample' => 'CS 1'],
             'app_url' => ['label' => 'آدرس سامانه', 'sample' => route('customer.login')],
             'store_name' => ['label' => 'نام فروشگاه', 'sample' => 'فروشگاه مهر'],
             'customer_name' => ['label' => 'نام مشتری', 'sample' => 'علی رضایی'],

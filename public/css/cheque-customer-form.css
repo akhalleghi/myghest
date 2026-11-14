@@ -1,0 +1,29 @@
+/* Use the installment panel's theme, controls and shared media component. */
+.cq-page { --cq-accent: var(--primary-dark,#2563eb); }
+.cq-page .cq-primary,.cq-page .cq-tabs a.is-active { background: var(--primary-dark,#2563eb); border-color: var(--primary-dark,#2563eb); color: #fff; }
+.cq-page .cq-detail-tabs button[aria-selected="true"] { background: var(--primary-dark,#2563eb); }
+.cq-page .cq-summary article { border-top-color: var(--primary-dark,#2563eb); }
+.cq-page .cq-table th,.cq-page .cq-badge { background: var(--primary-soft); }
+.cq-page .cq-btn { font-weight: 700; }
+.cq-page .cq-section,.cq-page .cust-section { border: 1px solid var(--border); border-radius: .85rem; padding: 1rem; margin: 1rem 0; background: var(--bg-card); }
+.cq-page .cq-section h3,.cq-page .cust-section-head h3 { margin: 0; font-size: .9rem; color: var(--text); }
+.cq-page .cust-section-head { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem; margin-bottom: .8rem; }
+.cq-page .cust-section-head p { width: 100%; color: var(--muted); font-size: .75rem; line-height: 1.9; margin: .3rem 0; }
+.cq-page .cust-section-head small { font-size: .75rem; font-weight: 500; color: var(--muted); }
+.cq-page .cust-mini-btn { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; padding: .5rem .75rem; border: 1px solid var(--border); border-radius: .55rem; color: var(--text); background: var(--primary-soft); font: inherit; font-size: .75rem; cursor: pointer; }
+.cq-page .cust-mini-btn:hover { border-color: var(--primary-dark,#2563eb); }
+.cq-page .cust-mini-btn:disabled { opacity: .55; cursor: not-allowed; }
+.cq-page .cust-field-hint { color: var(--muted); font-size: .75rem; line-height: 1.8; }
+.cq-page .cust-field-error { color: #dc2626; font-size: .75rem; line-height: 1.8; }
+.cq-page label.customer-media-remove { flex-direction: row; align-items: center; }
+.cq-page .customer-media-remove input[type="checkbox"] { width: 1.1rem; height: 1.1rem; flex: 0 0 auto; }
+.cq-page .customer-media-slot input[type="file"] { padding: .3rem; }
+.cq-page .customer-media-dialog h2 { margin: 0; font-size: 1rem; }
+.cq-page input:focus-visible,.cq-page select:focus-visible,.cq-page textarea:focus-visible { outline: 2px solid var(--primary-dark,#2563eb); outline-offset: 1px; }
+#cq-customer-form > header { position: sticky; top: -1.2rem; z-index: 2; border-bottom: 1px solid var(--border); padding: .65rem 0 .75rem; background: var(--bg-card); }
+#cq-customer-form > footer { background: var(--bg-card); }
+@media(max-width:600px) {
+    .cq-page .cust-section,.cq-page .cq-section { padding: .75rem; }
+    .cq-page .customer-media-actions .cust-mini-btn { flex: 1 1 auto; }
+    #cq-customer-form > header { top: -.9rem; }
+}

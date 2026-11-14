@@ -13,6 +13,23 @@ return [
 
     'tree' => [
         [
+            'key' => 'cheques', 'label' => 'مدیریت مشتریان چکی',
+            'children' => [
+                ['key' => 'cheques.view', 'label' => 'مشاهده مشتریان و چک‌ها', 'routes' => ['admin.cheques.index', 'admin.cheques.details', 'admin.cheques.customers.notes', 'admin.cheques.media.index', 'admin.cheques.media.show']],
+                ['key' => 'cheques.customers.create', 'label' => 'افزودن مشتری چکی', 'routes' => ['admin.cheques.customers.store']],
+                ['key' => 'cheques.customers.update', 'label' => 'ویرایش مشتری چکی', 'routes' => ['admin.cheques.customers.update']],
+                ['key' => 'cheques.create', 'label' => 'ثبت پرونده و چک', 'routes' => ['admin.cheques.sales.store', 'admin.cheques.quote']],
+                ['key' => 'cheques.manage', 'label' => 'انتقال، برگشت و عودت چک', 'routes' => ['admin.cheques.actions']],
+                ['key' => 'cheques.receive', 'label' => 'ثبت وصول و دریافت وجه چک', 'routes' => ['admin.cheques.receipts']],
+                ['key' => 'cheques.notes', 'label' => 'ثبت یادداشت چک', 'routes' => ['admin.cheques.notes', 'admin.cheques.customers.notes.store']],
+                ['key' => 'cheques.sms', 'label' => 'پیامک چک با پیش‌نمایش', 'routes' => ['admin.cheques.sms.preview', 'admin.cheques.sms.send', 'admin.cheques.customers.sms.preview', 'admin.cheques.customers.sms.send']],
+                ['key' => 'cheques.wallet', 'label' => 'شارژ و برداشت کیف پول چکی', 'routes' => ['admin.cheques.wallet']],
+                ['key' => 'cheques.verification', 'label' => 'احراز پیامکی مشتری و دارنده چک', 'routes' => ['admin.cheques.verification.preview', 'admin.cheques.verification.send', 'admin.cheques.verification.confirm']],
+                ['key' => 'cheques.reports', 'label' => 'گزارش فروش چکی', 'routes' => ['admin.cheques.reports', 'admin.reports.index']],
+                ['key' => 'cheques.export', 'label' => 'خروجی اکسل چک‌ها', 'routes' => ['admin.cheques.export']],
+            ],
+        ],
+        [
             'key' => 'dashboard',
             'label' => 'داشبورد',
         ],
@@ -469,6 +486,7 @@ return [
         ['label' => 'داشبورد', 'href' => 'admin.dashboard', 'icon' => 'fa-gauge-high', 'route' => 'admin.dashboard', 'permission' => 'dashboard.view'],
         ['label' => 'تعریف انواع وام', 'href' => 'admin.loan-types.index', 'icon' => 'fa-money-bill-transfer', 'route' => 'admin.loan-types.index', 'permission' => 'loan_types.view'],
         ['label' => 'لیست مشتریان', 'href' => 'admin.customers.index', 'icon' => 'fa-users', 'route' => 'admin.customers.index', 'permission' => 'customers.view'],
+        ['label' => 'مدیریت مشتریان چکی', 'icon' => 'fa-money-check', 'route' => 'admin.cheques.index', 'permission' => 'cheques.view'],
         ['label' => 'اعلام واریزها', 'href' => 'admin.deposit-declarations.index', 'icon' => 'fa-building-columns', 'route' => 'admin.deposit-declarations.index', 'permission' => 'deposit_declarations.view'],
         ['label' => 'تراکنش‌ها', 'href' => 'admin.customer-transactions.index', 'icon' => 'fa-receipt', 'route' => 'admin.customer-transactions.index', 'permission' => 'customer_transactions.view'],
         ['label' => 'تیکت‌ها', 'href' => 'admin.tickets.index', 'icon' => 'fa-ticket', 'route' => 'admin.tickets.index', 'permission' => 'tickets.view'],

@@ -60,6 +60,8 @@ final class AdminDashboardController extends Controller
         /** @var Admin $admin */
         $admin = Auth::guard('admin')->user();
         $allowedWidgetIds = array_fill_keys($this->permissions->allowedDashboardWidgetIds($admin), true);
+        $chequeStatistics = $this->permissions->hasPermission($admin, 'cheques.view')
+            ? app(\App\Services\Cheques\ChequeStatistics::class)->build() : ['rows' => [], 'charts' => []];
 
         return view('admin.dashboard', [
             'systemStatRows' => $dashboard['systemStatRows'],
@@ -67,7 +69,8 @@ final class AdminDashboardController extends Controller
             'tables' => $dashboard['tables'],
             'installmentChart' => $dashboard['installmentChart'],
             'newLoansChart' => $dashboard['newLoansChart'],
-            'additionalCharts' => app(DashboardPlanningCharts::class)->build(now()->startOfDay()),
+            'additionalCharts' => array_merge(app(DashboardPlanningCharts::class)->build(now()->startOfDay()), $chequeStatistics['charts']),
+            'chequeStatistics' => $chequeStatistics,
             'allowedDashboardWidgetIds' => $allowedWidgetIds,
         ]);
     }

@@ -11,3 +11,5 @@ Artisan::command('inspire', function () {
 Schedule::command('sms:send-installment-reminders')
     ->everyFiveMinutes()
     ->withoutOverlapping(10);
+
+Schedule::command('sms:send-cheque-reminders')->dailyAt('10:00')->timezone('Asia/Tehran')->withoutOverlapping(10);

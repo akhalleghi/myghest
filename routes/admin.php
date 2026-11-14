@@ -92,6 +92,8 @@ Route::middleware(['auth:admin', 'portal.session:admin'])->group(function (): vo
 
 Route::middleware(['auth:admin', 'portal.session:admin', 'admin.permission', 'log.admin.activity'])->group(function (): void {
 
+    require __DIR__.'/admin-cheques.php';
+
     /*
     | داشبورد موقت؛ ساخت صفحه‌های واقعی سیستم اقساط در گام بعدی خواهد بود.
     */

@@ -12,6 +12,10 @@ final class AdminDashboardWidgetRegistry
     /** @var array<string, string> widget_id => label */
     public const WIDGETS = [
         'system-stats' => 'آمار سیستم',
+        'cheque-sales-stats' => 'آمار مستقل فروش چکی',
+        'cheques-past' => 'چک‌ها؛ ۱۲ ماه قبل',
+        'cheques-future' => 'چک‌ها؛ ماه جاری و ۱۲ ماه آینده',
+        'cheques-years' => 'چک‌ها؛ ۹ سال قبل تا سال آینده',
         'summary-overdue' => 'اقساط سررسید شده و معوق',
         'summary-deposit-notifications' => 'اعلام واریزی‌های جدید',
         'summary-loan-requests' => 'درخواست وام‌ها',

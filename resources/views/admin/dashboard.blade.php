@@ -881,6 +881,11 @@
     @endforeach
 
     @if ($dashCan('chart-installments-12m') || $dashCan('chart-new-loans-12m'))
+    @if($dashCan('cheque-sales-stats') && !empty($chequeStatistics['rows']))
+        <div class="dash-widget" data-dash-widget="cheque-sales-stats" data-dash-title="آمار مستقل فروش چکی" data-dash-group="general">
+            @include('admin.cheques.statistics')
+        </div>
+    @endif
     <div class="charts-row">
         @if ($dashCan('chart-installments-12m'))
         <div class="dash-widget" data-dash-widget="chart-installments-12m" data-dash-title="آمار وصولی اقساط (۱۲ ماه اخیر)" data-dash-group="charts">
@@ -931,6 +936,8 @@
                         ماندهٔ فعلی پرداخت‌نشده بر اساس ماه سررسید، پس از تخفیف و با دیرکرد و زودکرد امروز؛ مبالغ آتی برآورد هستند. معوقات قدیمی‌تر از ماه قبل در این نمودار نیستند.
                     @elseif($chartKey === 'overdue')
                         ماندهٔ امروزِ اقساطی که سررسیدشان گذشته، بر اساس ماه یا سال سررسید؛ این نمودار بازسازی ماندهٔ تاریخی در پایان هر دوره نیست. واحد: تومان.
+                    @elseif(str_starts_with($chartKey, 'cheques-'))
+                        مبلغ اسمی چک‌های فروش چکی، بر اساس سررسید شمسی؛ شامل تمام وضعیت‌ها و مستقل از وام و اقساط. واحد: تومان.
                     @else
                         تعداد مشتری بر اساس تاریخ عضویت؛ در صورت نبود آن، تاریخ ثبت در سامانه. دورهٔ جاری تا امروز محاسبه می‌شود.
                     @endif

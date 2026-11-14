@@ -126,7 +126,7 @@ final class AdminReportsController extends Controller
                 ],
         ];
 
-        if (! collect($reportCards)->contains(static fn (array $card): bool => ! empty($card['enabled']))) {
+        if (! collect($reportCards)->contains(static fn (array $card): bool => ! empty($card['enabled'])) && ! $this->permissions->hasPermission($admin, 'cheques.reports')) {
             abort(403, 'شما به هیچ گزارشی دسترسی ندارید.');
         }
 

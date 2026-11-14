@@ -167,7 +167,7 @@
     .admin-mw-panel.sms-mini-modal,
     .admin-mw-panel.dash-widget-dialog,
     .admin-mw-panel.login-blocks-modal,
-    dialog.admin-mw-panel {
+    dialog.admin-mw-panel[open] {
         display: flex;
         flex-direction: column;
     }
@@ -205,4 +205,9 @@
         min-height: 0;
         overflow: auto;
     }
+}
+
+/* Native dialogs stay hidden until showModal()/show() sets open. */
+dialog.admin-mw-panel:not([open]) {
+    display: none !important;
 }
