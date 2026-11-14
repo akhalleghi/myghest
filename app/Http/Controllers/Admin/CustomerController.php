@@ -1900,13 +1900,15 @@ final class CustomerController extends Controller
 
         $labels = CustomerLoanInstallmentPayment::methodLabels();
         $options = [];
-        foreach (CustomerLoanInstallmentPayment::creatablePaymentMethodKeys() as $key) {
-            $options[] = ['value' => (string) $key, 'label' => $labels[$key]];
+        foreach ([...CustomerLoanInstallmentPayment::creatablePaymentMethodKeys(), CustomerLoanInstallmentPayment::METHOD_WALLET] as $key) {
+            $options[] = ['value' => (string) $key, 'label' => $key === CustomerLoanInstallmentPayment::METHOD_WALLET ? 'کسر از کیف پول' : $labels[$key]];
         }
         $editMethodOptions = [];
-        foreach (CustomerLoanInstallmentPayment::methodKeys() as $key) {
+        foreach (array_diff(CustomerLoanInstallmentPayment::methodKeys(), [CustomerLoanInstallmentPayment::METHOD_WALLET, CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET]) as $key) {
             $editMethodOptions[] = ['value' => (string) $key, 'label' => $labels[$key]];
         }
+
+        $paymentWallet = CustomerWallet::where('customer_id', $customer->id)->first(['balance_toman', 'is_locked']);
 
         return response()->json([
             'loan' => [
@@ -1927,8 +1929,13 @@ final class CustomerController extends Controller
                 'remaining_amount_toman' => (int) $snap['remaining_amount_toman'],
             ],
             'installment' => $this->mapLoanInstallmentPayContext($installment, $customer, $loanFile),
+            'wallet' => [
+                'balance_toman' => (int) ($paymentWallet?->balance_toman ?? 0),
+                'is_locked' => (bool) $paymentWallet?->is_locked,
+                'today_jdate' => Jalali::instance(Carbon::today())->format('Y/m/d'),
+            ],
             'payment_method_options' => $options,
-            /** همهٔ کلیدها شامل «ثبت قبلی» برای ویرایش ردیف‌های مهاجرت‌یافته */
+            /** روش‌های قابل ویرایش، شامل ثبت قبلی و بدون اسناد متصل به کیف پول. */
             'payment_method_edit_options' => $editMethodOptions,
             'payments' => $installment->payments
                 ->map(fn (CustomerLoanInstallmentPayment $p): array => $this->mapInstallmentPaymentRow($p))
@@ -1948,10 +1955,10 @@ final class CustomerController extends Controller
         if ((int) $installment->customer_loan_file_id !== (int) $loanFile->id) {
             abort(404);
         }
-        if ($loanFile->revoked_at !== null) {
+        if ($request->input('payment_method') !== CustomerLoanInstallmentPayment::METHOD_WALLET && $loanFile->revoked_at !== null) {
             return response()->json(['message' => 'قرارداد فسخ شده است؛ ثبت پرداخت ممکن نیست.'], 422);
         }
-        if ($loanFile->is_settled) {
+        if ($request->input('payment_method') !== CustomerLoanInstallmentPayment::METHOD_WALLET && $loanFile->is_settled) {
             return response()->json(['message' => 'پرونده تسویه‌شده است؛ ثبت پرداخت مجاز نیست.'], 422);
         }
 
@@ -1961,7 +1968,8 @@ final class CustomerController extends Controller
         }
 
         $validated = $request->validate([
-            'payment_method' => ['required', 'string', Rule::in(CustomerLoanInstallmentPayment::creatablePaymentMethodKeys())],
+            'payment_method' => ['required', 'string', Rule::in([...CustomerLoanInstallmentPayment::creatablePaymentMethodKeys(), CustomerLoanInstallmentPayment::METHOD_WALLET])],
+            'request_uuid' => ['required_if:payment_method,wallet', 'nullable', 'uuid'],
             'amount_toman' => ['required', 'integer', 'min:1', 'max:999999999999'],
             'reference_due_jdate' => ['nullable', 'string', 'max:20'],
             'deposited_jdate' => ['required', 'string', 'max:20'],
@@ -1995,7 +2003,7 @@ final class CustomerController extends Controller
         }
 
         $maxPayment = $this->maxInstallmentPaymentToman($loanFile, $installment, $depCarbon);
-        if ($amountNew > $maxPayment) {
+        if ($validated['payment_method'] !== CustomerLoanInstallmentPayment::METHOD_WALLET && $amountNew > $maxPayment) {
             return response()->json([
                 'message' => $maxPayment <= 0
                     ? 'طبق ماندهٔ قسط و دیرکرد محاسبه‌شده تا تاریخ واریز، مبلغ دیگری قابل ثبت نیست.'
@@ -2007,22 +2015,31 @@ final class CustomerController extends Controller
         $noteTrim = isset($validated['note']) ? trim((string) $validated['note']) : '';
         $noteStored = $noteTrim !== '' ? $noteTrim : null;
 
-        $payment = DB::transaction(function () use ($loanFile, $installment, $validated, $refDueCarbon, $depCarbon, $adminId, $noteStored): CustomerLoanInstallmentPayment {
-            $this->lockAndValidateInstallmentPayment($loanFile, $installment, $depCarbon, (int) $validated['amount_toman']);
-            $row = CustomerLoanInstallmentPayment::query()->create([
-                'customer_loan_installment_id' => (int) $installment->id,
-                'payment_method' => (string) $validated['payment_method'],
-                'amount_toman' => (int) $validated['amount_toman'],
-                'reference_due_date' => $refDueCarbon?->startOfDay()->format('Y-m-d'),
-                'deposited_at' => $depCarbon->startOfDay()->format('Y-m-d'),
-                'note' => $noteStored,
-                'recorded_by_admin_id' => (int) $adminId,
-            ]);
-            $installment->refresh();
-            $this->resyncInstallmentPaidTotalsFromPayments($installment);
+        $walletReplay = false;
+        if ($validated['payment_method'] === CustomerLoanInstallmentPayment::METHOD_WALLET) {
+            $walletResult = app(\App\Services\Payment\AdminInstallmentWalletPaymentService::class)->pay(
+                $customer, (int) $loanFile->id, (int) $installment->id, $amountNew, $depCarbon, $refDueCarbon, $noteStored, (int) $adminId, (string) $validated['request_uuid']
+            );
+            $payment = $walletResult['payment'];
+            $walletReplay = $walletResult['replay'];
+        } else {
+            $payment = DB::transaction(function () use ($loanFile, $installment, $validated, $refDueCarbon, $depCarbon, $adminId, $noteStored): CustomerLoanInstallmentPayment {
+                $this->lockAndValidateInstallmentPayment($loanFile, $installment, $depCarbon, (int) $validated['amount_toman']);
+                $row = CustomerLoanInstallmentPayment::query()->create([
+                    'customer_loan_installment_id' => (int) $installment->id,
+                    'payment_method' => (string) $validated['payment_method'],
+                    'amount_toman' => (int) $validated['amount_toman'],
+                    'reference_due_date' => $refDueCarbon?->startOfDay()->format('Y-m-d'),
+                    'deposited_at' => $depCarbon->startOfDay()->format('Y-m-d'),
+                    'note' => $noteStored,
+                    'recorded_by_admin_id' => (int) $adminId,
+                ]);
+                $installment->refresh();
+                $this->resyncInstallmentPaidTotalsFromPayments($installment);
 
-            return $row->fresh(['recordedByAdmin']);
-        });
+                return $row->fresh(['recordedByAdmin']);
+            });
+        }
 
         $installment->refresh();
         $installment->load(['recordedByAdmin']);
@@ -2030,7 +2047,7 @@ final class CustomerController extends Controller
         $loanFile->load(['loanType', 'installments']);
 
         $smsFeedback = '';
-        if ((bool) ($validated['send_sms'] ?? false)) {
+        if (! $walletReplay && (bool) ($validated['send_sms'] ?? false)) {
             if (! $customer->receivesOutboundSms()) {
                 $smsFeedback = ' ارسال پیامک برای این مشتری غیرفعال است.';
             } else {
@@ -2061,7 +2078,7 @@ final class CustomerController extends Controller
         }
 
         return response()->json([
-            'message' => 'پرداخت با موفقیت ثبت شد.'.$smsFeedback,
+            'message' => ($walletReplay ? 'این پرداخت قبلاً ثبت شده است؛ برداشت مجدد انجام نشد.' : 'پرداخت با موفقیت ثبت شد.').$smsFeedback,
             'payment' => $this->mapInstallmentPaymentRow($payment),
             'installment' => $this->mapLoanInstallmentRow($installment->fresh(['recordedByAdmin']), $customer, $loanFile),
             'payments' => CustomerLoanInstallmentPayment::query()
@@ -2089,6 +2106,9 @@ final class CustomerController extends Controller
         }
         if ((int) $payment->customer_loan_installment_id !== (int) $installment->id) {
             abort(404);
+        }
+        if (in_array($payment->payment_method, [CustomerLoanInstallmentPayment::METHOD_WALLET, CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET], true) || in_array($request->input('payment_method'), [CustomerLoanInstallmentPayment::METHOD_WALLET, CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET], true)) {
+            return response()->json(['message' => 'پرداخت کیف پول سند مالی مرتبط دارد و ویرایش یا حذف مستقیم آن مجاز نیست.'], 422);
         }
         if ($loanFile->revoked_at !== null) {
             return response()->json(['message' => 'قرارداد فسخ شده است؛ ویرایش پرداخت ممکن نیست.'], 422);
@@ -2183,6 +2203,9 @@ final class CustomerController extends Controller
         if ((int) $payment->customer_loan_installment_id !== (int) $installment->id) {
             abort(404);
         }
+        if (in_array($payment->payment_method, [CustomerLoanInstallmentPayment::METHOD_WALLET, CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET], true)) {
+            return response()->json(['message' => 'پرداخت کیف پول سند مالی مرتبط دارد و ویرایش یا حذف مستقیم آن مجاز نیست.'], 422);
+        }
         if ($loanFile->revoked_at !== null) {
             return response()->json(['message' => 'قرارداد فسخ شده است؛ حذف پرداخت ممکن نیست.'], 422);
         }
@@ -2232,7 +2255,12 @@ final class CustomerController extends Controller
         }
 
         $deleted = 0;
-        DB::transaction(function () use ($installment, &$deleted): void {
+        DB::transaction(function () use ($loanFile, $installment, &$deleted): void {
+            CustomerLoanFile::whereKey($loanFile->id)->lockForUpdate()->firstOrFail();
+            CustomerLoanInstallment::whereKey($installment->id)->lockForUpdate()->firstOrFail();
+            if ($installment->payments()->whereIn('payment_method', [CustomerLoanInstallmentPayment::METHOD_WALLET, CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET])->exists()) {
+                throw ValidationException::withMessages(['payment' => 'این قسط پرداخت مرتبط با کیف پول دارد؛ حذف گروهی برای حفظ سوابق مالی مجاز نیست.']);
+            }
             $deleted = (int) CustomerLoanInstallmentPayment::query()
                 ->where('customer_loan_installment_id', (int) $installment->id)
                 ->delete();
@@ -6131,6 +6159,7 @@ final class CustomerController extends Controller
         return [
             'id' => (int) $p->id,
             'payment_method' => $methodKey,
+            'wallet_linked' => in_array($methodKey, [CustomerLoanInstallmentPayment::METHOD_WALLET, CustomerLoanInstallmentPayment::METHOD_FULL_SETTLEMENT_WALLET], true),
             'payment_method_label' => $labels[$methodKey] ?? $methodKey,
             'amount_toman' => (int) $p->amount_toman,
             'reference_due_date' => $refDue !== null ? $refDue->format('Y-m-d') : null,

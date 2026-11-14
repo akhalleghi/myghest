@@ -4184,6 +4184,7 @@
                         <div class="cust-field">
                             <label for="loan-inst-pay-method">نحوه پرداخت <span class="req">*</span></label>
                             <select id="loan-inst-pay-method"></select>
+                            <small id="loan-inst-pay-wallet-hint" hidden style="font-size:.72rem;line-height:1.9;color:var(--muted)"></small>
                         </div>
                         <div class="cust-field">
                             <label for="loan-inst-pay-amount">مبلغ پرداختی (تومان) <span class="req">*</span></label>
@@ -5735,6 +5736,7 @@
             var loanInstPayTbody = document.getElementById('loan-inst-pay-tbody');
             var loanInstPaySubmitting = false;
             var loanInstClearAllPaymentsBusy = false;
+            var loanInstPayWalletRequestUuid = '';
             var loanInstPayFormVisible = false;
             var loanInstPayCurrentInstallmentId = null;
             var loanInstPayLastServerPayload = null;
@@ -6893,6 +6895,26 @@
                 }
             }
 
+            function syncLoanInstPayWalletUi() {
+                var selected = loanInstPayMethodSelect && loanInstPayMethodSelect.value === 'wallet' && !loanInstPayEditingPaymentId;
+                var hint = document.getElementById('loan-inst-pay-wallet-hint');
+                var wallet = (loanInstPayLastServerPayload && loanInstPayLastServerPayload.wallet) || {};
+                if (loanInstPayDepInput) {
+                    loanInstPayDepInput.disabled = !!selected;
+                    if (selected && wallet.today_jdate) loanInstPayDepInput.value = wallet.today_jdate;
+                }
+                if (hint) {
+                    hint.hidden = !selected;
+                    if (selected) {
+                        var balance = Number(wallet.balance_toman || 0);
+                        var amount = parseThousandsInput((loanInstPayAmountInput && loanInstPayAmountInput.value) || '');
+                        hint.textContent = 'موجودی کیف پول: ' + formatToman(balance) + ' تومان · ' + (wallet.is_locked ? 'کیف پول قفل است.' : amount > balance ? 'موجودی برای این مبلغ کافی نیست.' : 'مانده پس از برداشت: ' + formatToman(Math.max(0,balance-amount)) + ' تومان') + ' · کسر وجه در تاریخ روز انجام می‌شود. این پرداخت سند مالی دارد و قابل ویرایش یا حذف مستقیم نیست.';
+                    }
+                }
+            }
+            if (loanInstPayMethodSelect) loanInstPayMethodSelect.addEventListener('change', function () { syncLoanInstPayWalletUi(); scheduleLoanInstPaymentPreview(); });
+            if (loanInstPayAmountInput) loanInstPayAmountInput.addEventListener('input', syncLoanInstPayWalletUi);
+
             function fillLoanInstPayMethodSelectFromList(optList) {
                 if (!loanInstPayMethodSelect) return;
                 var list = Array.isArray(optList) ? optList : [];
@@ -6904,6 +6926,7 @@
                             escapeHtmlText(String(op.label || '')) +
                             '</option>';
                     }).join('');
+                syncLoanInstPayWalletUi();
             }
 
             function fillLoanInstPayMethodSelectAdd() {
@@ -6916,6 +6939,7 @@
             function loanInstPayResetEditMode() {
                 loanInstPayEditingPaymentId = null;
                 loanInstPayEditingOriginalAmount = 0;
+                loanInstPayWalletRequestUuid = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, function(c) { return (Number(c) ^ window.crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> Number(c)/4).toString(16); });
                 if (loanInstPaySaveBtn) loanInstPaySaveBtn.textContent = 'ثبت پرداخت';
             }
 
@@ -6961,7 +6985,7 @@
                     var depSx = String(pp.deposited_jdate_fa || pp.deposited_jdate || '').trim() || '—';
                     var noteS = String(pp.note || '').trim();
                     var noteSx = noteS ? escapeHtmlText(noteS.length > 52 ? noteS.slice(0, 50) + '…' : noteS) : '—';
-                    var ops = lockedActs || pid <= 0
+                    var ops = lockedActs || pp.wallet_linked || pid <= 0
                         ? '—'
                         : ('<button type="button" class="cust-submit" style="font-size:0.62rem;padding:0.12rem 0.38rem;margin-inline-end:0.25rem;" data-loan-inst-pay-edit-id="' +
                             pid + '">ویرایش</button>' +
@@ -6980,7 +7004,7 @@
             }
 
             function openLoanInstPayEditForm(pp) {
-                if (!pp || !loanInstPayFormWrap || !loanInstPayLastServerPayload) return;
+                if (!pp || pp.wallet_linked || !loanInstPayFormWrap || !loanInstPayLastServerPayload) return;
                 var pid = Number(pp.id || 0);
                 if (pid <= 0) return;
                 if (loanInstPaySubmitting) return;
@@ -11061,6 +11085,7 @@
                         amount_toman: amtPay,
                         deposited_jdate: depPay
                     };
+                    if (methodPay === 'wallet' && !editPaymentId) postBody.request_uuid = loanInstPayWalletRequestUuid;
                     var refPayDate = String((loanInstPayRefDueInput && loanInstPayRefDueInput.value) || '').trim();
                     if (refPayDate) postBody.reference_due_jdate = refPayDate;
                     var notePay = String((loanInstPayNoteInput && loanInstPayNoteInput.value) || '').trim();

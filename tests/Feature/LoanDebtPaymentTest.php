@@ -207,6 +207,118 @@ final class LoanDebtPaymentTest extends TestCase
             'deposited_jdate' => Jalali::instance(Carbon::parse($date))->format('Y/m/d')]);
     }
 
+    private function adminWalletPayment(int $amount, string $uuid, string $date = '2026-08-11')
+    {
+        $request = $this->request($amount, $date);
+        $request->merge(['payment_method' => 'wallet', 'request_uuid' => $uuid]);
+        return app(CustomerController::class)->storeLoanInstallmentPayment($request, $this->customer, $this->file->fresh(), $this->installment->fresh());
+    }
+
+    public function test_admin_wallet_receipt_debits_once_and_is_visible_in_the_portal_and_ledger(): void
+    {
+        Carbon::setTestNow('2026-08-11 12:00:00');
+        $wallet = CustomerWallet::create(['customer_id' => $this->customer->id, 'balance_toman' => 1000000]);
+        $context = app(CustomerController::class)->loanInstallmentPayments(Request::create('/', 'GET'), $this->customer, $this->file, $this->installment)->getData(true);
+        self::assertSame(1000000, $context['wallet']['balance_toman']);
+        self::assertContains('wallet', array_column($context['payment_method_options'], 'value'));
+        self::assertNotContains('wallet', \App\Models\CustomerLoanInstallmentPayment::creatablePaymentMethodKeys());
+        $uuid = (string) \Illuminate\Support\Str::uuid();
+        $data = $this->adminWalletPayment(500000, $uuid)->getData(true);
+        self::assertSame(500000, $wallet->fresh()->balance_toman);
+        self::assertSame(500000, $this->installment->fresh()->paid_amount_toman);
+        self::assertSame('wallet', $data['payment']['payment_method']);
+        self::assertTrue($data['payment']['wallet_linked']);
+        self::assertSame('Test admin', $data['payment']['recorded_by']);
+        self::assertSame(1, DB::table('customer_transactions')->count());
+        self::assertSame($this->snapshot()['remaining_amount_toman'], app(CustomerLoanPortalPresenter::class)->forDashboard($this->customer)['loans'][0]['remaining_amount_toman']);
+        $this->adminWalletPayment(500000, $uuid);
+        self::assertSame(500000, $wallet->fresh()->balance_toman);
+        self::assertSame(1, DB::table('customer_wallet_transactions')->count());
+        self::assertSame(1, $this->installment->payments()->count());
+        $this->expectException(ValidationException::class);
+        $this->adminWalletPayment(400000, $uuid);
+    }
+
+    public function test_admin_wallet_rejects_insufficient_locked_backdated_and_excess_payments_without_mutation(): void
+    {
+        Carbon::setTestNow('2026-08-11 12:00:00');
+        $wallet = CustomerWallet::create(['customer_id' => $this->customer->id, 'balance_toman' => 2000000]);
+        foreach ([[2000001, false, '2026-08-11'], [1000, true, '2026-08-11'], [1000, false, '2026-08-10'], [950000, false, '2026-08-11']] as [$amount, $locked, $date]) {
+            $wallet->update(['is_locked' => $locked]);
+            try {
+                $this->adminWalletPayment($amount, (string) \Illuminate\Support\Str::uuid(), $date);
+                self::fail('Invalid wallet payment accepted');
+            } catch (ValidationException $e) {
+                self::assertNotEmpty($e->errors());
+            }
+            self::assertSame(2000000, $wallet->fresh()->balance_toman);
+            self::assertSame(0, $this->installment->payments()->count());
+            self::assertSame(0, DB::table('customer_wallet_transactions')->count());
+        }
+        $wallet->update(['balance_toman' => 100, 'is_locked' => false]);
+        $this->expectException(ValidationException::class);
+        $this->adminWalletPayment(1000, (string) \Illuminate\Support\Str::uuid());
+    }
+
+    public function test_admin_wallet_rolls_back_debit_and_receipt_if_ledger_write_fails(): void
+    {
+        Carbon::setTestNow('2026-08-11 12:00:00');
+        $wallet = CustomerWallet::create(['customer_id' => $this->customer->id, 'balance_toman' => 1000000]);
+        Schema::drop('customer_transactions');
+        try {
+            $this->adminWalletPayment(500000, (string) \Illuminate\Support\Str::uuid());
+            self::fail('Missing ledger must abort payment');
+        } catch (\Illuminate\Database\QueryException) {
+            self::assertSame(1000000, $wallet->fresh()->balance_toman);
+            self::assertSame(0, $this->installment->payments()->count());
+            self::assertSame(0, DB::table('customer_wallet_transactions')->count());
+            self::assertSame(0, $this->installment->fresh()->paid_amount_toman);
+        }
+    }
+
+    public function test_admin_wallet_can_settle_principal_and_late_fees_with_a_single_debit(): void
+    {
+        Carbon::setTestNow('2026-08-11 12:00:00');
+        $wallet = CustomerWallet::create(['customer_id' => $this->customer->id, 'balance_toman' => 1000000]);
+        $uuid = (string) \Illuminate\Support\Str::uuid();
+        $this->adminWalletPayment(945000, $uuid);
+        self::assertSame(55000, $wallet->fresh()->balance_toman);
+        self::assertSame(0, $this->snapshot()['remaining_amount_toman']);
+        self::assertTrue(app(CustomerLoanPortalPresenter::class)->forDashboard($this->customer)['loans'][0]['settled_for_ui']);
+        $this->file->update(['is_settled' => true]);
+        $this->adminWalletPayment(945000, $uuid);
+        self::assertSame(55000, $wallet->fresh()->balance_toman);
+        self::assertSame(1, $this->installment->payments()->count());
+    }
+
+    public function test_admin_wallet_debit_is_consistent_with_the_on_time_reward(): void
+    {
+        Carbon::setTestNow('2026-08-01 12:00:00');
+        $this->enableRewards();
+        $wallet = CustomerWallet::create(['customer_id' => $this->customer->id, 'balance_toman' => 900000]);
+        $this->adminWalletPayment(900000, (string) \Illuminate\Support\Str::uuid(), '2026-08-01');
+        self::assertSame(27000, $wallet->fresh()->balance_toman);
+        self::assertSame(2, DB::table('customer_wallet_transactions')->count());
+        self::assertSame(0, $this->snapshot()['remaining_amount_toman']);
+    }
+
+    public function test_admin_wallet_receipts_cannot_be_edited_or_deleted_independently(): void
+    {
+        Carbon::setTestNow('2026-08-11 12:00:00');
+        CustomerWallet::create(['customer_id' => $this->customer->id, 'balance_toman' => 1000000]);
+        $this->adminWalletPayment(500000, (string) \Illuminate\Support\Str::uuid());
+        $payment = $this->installment->payments()->firstOrFail();
+        $controller = app(CustomerController::class);
+        self::assertSame(422, $controller->updateLoanInstallmentPayment($this->request(1000, '2026-08-11'), $this->customer, $this->file->fresh(), $this->installment, $payment)->getStatusCode());
+        self::assertSame(422, $controller->destroyLoanInstallmentPayment($this->customer, $this->file->fresh(), $this->installment, $payment)->getStatusCode());
+        try {
+            $controller->destroyAllLoanInstallmentPayments($this->customer, $this->file->fresh(), $this->installment);
+            self::fail('Wallet-backed receipts must not be bulk-deleted');
+        } catch (ValidationException) {
+            self::assertSame(1, $this->installment->payments()->count());
+        }
+    }
+
     public function test_early_payment_quote_and_receipt_close_the_same_net_debt_permanently(): void
     {
         Carbon::setTestNow('2026-07-22 12:00:00');
@@ -287,6 +399,33 @@ final class LoanDebtPaymentTest extends TestCase
         self::assertSame(1, $charts['installments']['series'][11]['receipt_count']);
         self::assertSame(15450000, $charts['installments']['series'][10]['value']);
         self::assertSame(1, $charts['installments']['series'][10]['receipt_count']);
+    }
+
+    public function test_new_loans_chart_matches_member_report_and_excludes_future_start_dates(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-11-14 12:00:00', 'Asia/Tehran'));
+        $this->file->update(['loan_start_date' => '2026-10-23', 'amount_toman' => 1000000]);
+        foreach ([['2026-10-22', 2000000, false], ['2026-11-14', 3000000, false], ['2026-11-16', 3951000, false], ['2026-11-14', 5000000, true]] as [$date, $amount, $revoked]) {
+            $file = $this->file->replicate();
+            $file->loan_code = 'TEST '.\Illuminate\Support\Str::uuid();
+            $file->loan_start_date = $date;
+            $file->amount_toman = $amount;
+            $file->revoked_at = $revoked ? now() : null;
+            $file->save();
+        }
+        $service = app(AdminDashboardStatisticsService::class);
+        $charts = (new \ReflectionMethod($service, 'buildTwelveMonthCharts'))->invoke($service, Carbon::today());
+        $buckets = (new \ReflectionMethod($service, 'lastTwelveJalaliMonthBuckets'))->invoke($service, Carbon::today());
+        $report = app(MemberLoansByDateReportService::class);
+        foreach ($buckets as $i => $bucket) {
+            $through = $bucket['end']->copy()->min(Carbon::today()->endOfDay());
+            $rows = $report->fetchRows($bucket['start'], $through);
+            self::assertSame(array_sum(array_column($rows, 'principal_toman')), $charts['new_loans']['series'][$i]['value']);
+        }
+        self::assertSame(4000000, $charts['new_loans']['series'][11]['value']);
+        self::assertSame(2000000, $charts['new_loans']['series'][10]['value']);
+        $futureRange = $report->resolveDateRange('1405/08/01', '1405/08/30');
+        self::assertSame(7951000, array_sum(array_column($report->fetchRows($futureRange['from'], $futureRange['to']), 'principal_toman')));
     }
 
     public function test_planning_charts_group_unpaid_debt_and_membership_by_tehran_calendar(): void

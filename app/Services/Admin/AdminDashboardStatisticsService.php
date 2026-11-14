@@ -593,7 +593,10 @@ final class AdminDashboardStatisticsService
 
             $newLoanValues[] = (int) CustomerLoanFile::query()
                 ->whereNull('revoked_at')
-                ->whereBetween('loan_start_date', [$start->toDateTimeString(), $end->toDateTimeString()])
+                // Match the member-loans report: contract start date, inclusive
+                // dates, and only elapsed days of the current Jalali month.
+                ->whereDate('loan_start_date', '>=', $start->toDateString())
+                ->whereDate('loan_start_date', '<=', $receiptEnd->toDateString())
                 ->sum('amount_toman');
         }
 

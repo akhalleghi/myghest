@@ -910,6 +910,7 @@
             </div>
             <div class="ch-b">
                 <div id="dash-chart-new-loans" class="dash-line-chart" aria-hidden="false"></div>
+                <p style="font-size:.72rem;color:var(--muted);margin:.5rem 0 0;line-height:1.8">مبنای آمار: اصل مبلغ وام بر اساس تاریخ شروع؛ ماه جاری تا امروز، بدون پرونده‌های ابطال‌شده.</p>
             </div>
         </div>
         </div>
